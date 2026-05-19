@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, friedmanchisquare, wilcoxon
 from scipy.integrate import simpson, quad
 
 """
@@ -95,68 +95,47 @@ def calculate_nll_gmm(y_true, mus, vars2):
     densities = (1.0 / (sigmas.T * np.sqrt(2 * np.pi))) * np.exp(exponent)
     return -np.mean(np.log(np.mean(densities, axis=1) + 1e-12))
 
+def calculate_cohens_d(x1, x2):
+    """Calculates Cohen's d effect size."""
+    n1, n2 = len(x1), len(x2)
+    v1, v2 = np.var(x1, ddof=1), np.var(x2, ddof=1)
+    pooled_std = np.sqrt(((n1 - 1) * v1 + (n2 - 1) * v2) / (n1 + n2 - 2))
+    return (np.mean(x1) - np.mean(x2)) / pooled_std
+
 def evaluate_epistemic(name, X_test, y_true, quantifier, epistemic_var=None, is_shaker=False):
     """
-    Evaluates Epistemic Uncertainty using NLL as the Gold Standard.
-    - For Standard/Chen: Total Var = Aleatoric + Epistemic
-    - For Shaker: Direct GMM NLL
+    Evaluates Epistemic Uncertainty. Returns NLL for the 'Gap' region (x in [4, 6]).
     """
-    y_pred = quantifier.model.predict(X_test)
-    aleatoric_var = quantifier.get_aleatoric_variance(X_test)
+    # Identify the Gap region
+    gap_mask = (X_test.ravel() >= 4) & (X_test.ravel() <= 6)
+    X_gap, y_gap = X_test[gap_mask], y_true[gap_mask]
     
     if is_shaker:
-        # Get raw components for GMM NLL
-        mus = np.stack([t.predict(X_test) for t in quantifier.model.estimators_])
-        vars2 = quantifier.calculate_per_tree_var(X_test)
-        nll = calculate_nll_gmm(y_true, mus, vars2)
-        total_var = quantifier.get_standard_disagreement(X_test) + aleatoric_var # Proxy for plotting
+        mus = np.stack([t.predict(X_gap) for t in quantifier.model.estimators_])
+        vars2 = quantifier.calculate_per_tree_var(X_gap)
+        gap_nll = calculate_nll_gmm(y_gap, mus, vars2)
     else:
-        # Single Gaussian assumption
-        total_var = aleatoric_var + epistemic_var
-        nll = calculate_nll_gaussian(y_true, y_pred, total_var)
+        # Standard/Chen
+        aleat_gap = quantifier.get_aleatoric_variance(X_gap)
+        epi_gap = epistemic_var[gap_mask]
+        total_var_gap = aleat_gap + epi_gap
+        y_pred_gap = quantifier.model.predict(X_gap)
+        gap_nll = calculate_nll_gaussian(y_gap, y_pred_gap, total_var_gap)
     
-    # Also check correlation (legacy metric)
-    squared_errors = (y_true - y_pred)**2
-    corr, _ = pearsonr(squared_errors, total_var)
-    
-    print(f"--- {name} ---")
-    print(f"NLL (Gold Standard): {nll:.4f}")
-    print(f"Error-Uncertainty Correlation: {corr:.4f}")
-    
-    # Check Gap behavior
-    gap_mask = (X_test.ravel() > 4) & (X_test.ravel() < 6)
-    if np.any(gap_mask):
-        avg_gap_unc = np.mean(total_var[gap_mask])
-        avg_data_unc = np.mean(total_var[~gap_mask])
-        print(f"Uncertainty Ratio (Gap/Data): {avg_gap_unc/avg_data_unc:.2f}x")
-    print("")
-    return nll
+    return gap_nll
 
 def plot_uncertainty(name, X_test, y_test, y_pred, var_pred, X_train, y_train):
     # Plotting is currently disabled for batch runs
     pass
-    """
-    plt.figure(figsize=(10, 5))
-    plt.scatter(X_train, y_train, color='black', s=10, alpha=0.3, label='Training Data')
-    plt.plot(X_test, y_test, color='green', alpha=0.5, label='True Function')
-    plt.plot(X_test, y_pred, color='blue', label='RF Prediction')
-    std = np.sqrt(var_pred)
-    plt.fill_between(X_test.ravel(), y_pred - 2*std, y_pred + 2*std, color='blue', alpha=0.2, label='2-sigma')
-    plt.axvspan(4, 6, color='red', alpha=0.1, label='Gap')
-    plt.title(f"UQ: {name}"); plt.legend()
-    os.makedirs("figures", exist_ok=True)
-    plt.savefig(os.path.join("figures", f"uncertainty_{name.lower().replace(' ', '_')}.png"))
-    plt.show()
-    """
 
 def run_experiment(n_runs=50):
-    results = {
+    results_gap = {
         "Standard Disagreement": [],
         "Shaker GMM": [],
         "Chen Stability": []
     }
 
-    print(f"Running {n_runs} experiments for statistical robustness...")
+    print(f"Running {n_runs} experiments (Gap-only evaluation)...")
 
     for seed in range(n_runs):
         # 1. Generate synthetic data with an "Exploration Gap"
@@ -172,17 +151,14 @@ def run_experiment(n_runs=50):
         rf.fit(X_train, y_train)
         quantifier = EpistemicQuantifier(rf, X_train, y_train)
 
-        # 3. Evaluate
-        # Standard
-        results["Standard Disagreement"].append(
+        # 3. Evaluate (Gap-only NLL)
+        results_gap["Standard Disagreement"].append(
             evaluate_epistemic("Standard", X_test, y_test, quantifier, quantifier.get_standard_disagreement(X_test))
         )
-        # Shaker
-        results["Shaker GMM"].append(
+        results_gap["Shaker GMM"].append(
             evaluate_epistemic("Shaker", X_test, y_test, quantifier, is_shaker=True)
         )
-        # Chen
-        results["Chen Stability"].append(
+        results_gap["Chen Stability"].append(
             evaluate_epistemic("Chen", X_test, y_test, quantifier, quantifier.get_chen_stability_epistemic(X_test))
         )
 
@@ -190,10 +166,53 @@ def run_experiment(n_runs=50):
             print(f"Progress: {seed + 1}/{n_runs} runs complete.")
 
     # 4. Aggregate Results
-    print(f"\n{'Approach':<25} | {'Mean NLL':<10} | {'Std Dev':<10}")
-    print("-" * 50)
-    for name, nlls in results.items():
-        print(f"{name:<25} | {np.mean(nlls):<10.4f} | {np.std(nlls):<10.4f}")
+    print(f"\n{'Approach':<25} | {'Mean Gap NLL':<12} | {'Std Dev':<10}")
+    print("-" * 55)
+    for name, nlls in results_gap.items():
+        print(f"{name:<25} | {np.mean(nlls):<12.4f} | {np.std(nlls):<10.4f}")
+
+    # 5. Friedman Test (on Gap NLL)
+    stat, p_value = friedmanchisquare(
+        results_gap["Standard Disagreement"],
+        results_gap["Shaker GMM"],
+        results_gap["Chen Stability"]
+    )
+
+    print("\n--- Statistical Significance (Friedman Test on Gap) ---")
+    print(f"Statistic: {stat:.4f}")
+    print(f"P-value:   {p_value:.4e}")
+
+    if p_value < 0.05:
+        print("Result: Significant difference found in the gap (p < 0.05).")
+        
+        # 6. Post-hoc Wilcoxon Signed-Rank Tests with Bonferroni Correction
+        pairs = [
+            ("Shaker GMM", "Standard Disagreement"),
+            ("Shaker GMM", "Chen Stability"),
+            ("Standard Disagreement", "Chen Stability")
+        ]
+        alpha = 0.05
+        bonferroni_alpha = alpha / len(pairs)
+        
+        print(f"\n--- Post-hoc Analysis (Wilcoxon Signed-Rank + Bonferroni Correction) ---")
+        print(f"{'Comparison':<45} | {'p-value':<10} | {'Sig.':<5} | {'Cohen\'s d':<10}")
+        print("-" * 80)
+        
+        for g1_name, g2_name in pairs:
+            g1 = results_gap[g1_name]
+            g2 = results_gap[g2_name]
+            
+            w_stat, p_val = wilcoxon(g1, g2)
+            d = calculate_cohens_d(g1, g2)
+            is_sig = p_val < bonferroni_alpha
+            
+            sig_str = "YES" if is_sig else "NO"
+            print(f"{g1_name + ' vs ' + g2_name:<45} | {p_val:<10.2e} | {sig_str:<5} | {d:<10.4f}")
+            
+        print(f"\nBonferroni-corrected alpha: {bonferroni_alpha:.4f}")
+        print("Note: Cohen's d > 0.8 is considered a large effect size.")
+    else:
+        print("Result: No significant difference found in the gap (p >= 0.05).")
 
 if __name__ == "__main__":
-    run_experiment(n_runs=500)
+    run_experiment(n_runs=50)
