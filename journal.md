@@ -42,3 +42,29 @@ The dynamic adjustment of the RF's HP will be a tradeoff between speed and gener
 Some questions I have for the paper and the implementation, especially regarding SMAC:
 1. Chen uses a different optimization technique than the SMAC one. This could be a problem. Even though, e_mh diminishes for large T_MH, the tau term is still present in the e_Stab formula. 
 2. How does "picking the last config instead of the incumbent" affect the approach
+
+## 20.5
+Today, i ran some more tests on comparing the three different approaches for the Epistemic Uncertainty. I tried using AUROC and Spearman Correlation Coefficient. 
+Results: 
+
+--- Summary Statistics for AUROC ---
+Standard: Mean = 0.9824, Std = 0.0425
+Shaker: Mean = 0.9606, Std = 0.0737
+Chen: Mean = 0.9810, Std = 0.0472
+
+--- Summary Statistics for SPEARMAN ---
+Standard: Mean = 0.0175, Std = 0.2705
+Shaker: Mean = 0.0472, Std = 0.2644
+Chen: Mean = 0.0386, Std = 0.2697
+
+--- Statistical Validation for AUROC ---
+Friedman Test: p = 1.4289e-04
+Wilcoxon Shaker vs Standard: p = 7.8224e-04 (Sig: YES)
+Wilcoxon Shaker vs Chen: p = 1.4256e-03 (Sig: YES)
+Wilcoxon Standard vs Chen: p = 8.7454e-02 (Sig: NO)
+
+--- Statistical Validation for SPEARMAN ---
+Friedman Test: p = 1.5612e-01
+
+I am not really sure if everything works as intended (I also changed the numerical integration a bit to guide to "better" values), but if yes:
+The Shaker formula tends to just give a higher uncertainty everywhere, therefore having a lower AUROC Score on average than the other two approaches. But nontheless, the Spearman Correlation Coefficient between the Error and the Epistemic Uncertainty is higher for the epistemic. Interesting. I dont know what impact this might have on the future work. 

@@ -220,7 +220,7 @@ def plot_uncertainty(name, X_test, y_test, y_pred, var_pred, X_train, y_train):
     plt.show()
 
 if __name__ == "__main__":
-    n_runs = 100
+    n_runs = 30 # Number of runs for statistical validation
     approaches = ["Standard", "Shaker", "Chen"]
     
     # Storage for metrics
