@@ -118,7 +118,7 @@ class EpistemicQuantifier:
             # 2. Use 'points' to tell quad where the peaks are located
             # 3. Use a wide but finite range for better stability than -inf, inf
             val, err = quad(gmm_entropy_integrand, lower_bound, upper_bound, 
-                            args=(mu_i, sigma_i), points=mu_i, limit=100)
+                            args=(mu_i, sigma_i), points=mu_i, limit=200)
             total_entropy[i] = val
         
         return total_entropy
