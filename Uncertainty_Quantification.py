@@ -110,9 +110,15 @@ class EpistemicQuantifier:
             mu_i = mu_all[:, i]
             sigma_i = sigmas_all[:, i]
             
-            # Integrate from -inf to +inf using Adaptive Quadrature
-            # quad automatically handles the transformation and refinement
-            val, err = quad(gmm_entropy_integrand, -np.inf, np.inf, args=(mu_i, sigma_i), limit=100)
+            # IMPROVEMENT: To prevent the integrator from missing sharp, distant peaks:
+            # 1. Define a range that covers all means +/- 5 standard deviations
+            lower_bound = np.min(mu_i - 5 * sigma_i)
+            upper_bound = np.max(mu_i + 5 * sigma_i)
+            
+            # 2. Use 'points' to tell quad where the peaks are located
+            # 3. Use a wide but finite range for better stability than -inf, inf
+            val, err = quad(gmm_entropy_integrand, lower_bound, upper_bound, 
+                            args=(mu_i, sigma_i), points=mu_i, limit=100)
             total_entropy[i] = val
         
         return total_entropy
