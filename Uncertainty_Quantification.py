@@ -264,9 +264,17 @@ if __name__ == "__main__":
         results["Chen"]["auroc"].append(roc_auc_score(y_true_binary, u_e_chen))
         results["Chen"]["spearman"].append(spearmanr(sq_error[gap_mask], (u_e_chen + u_a)[gap_mask])[0])
 
-    # 4. Statistical Analysis
+    # 4. Summary Statistics
     for metric in ["auroc", "spearman"]:
-        print(f"\n--- Statistical Analysis for {metric.upper()} ---")
+        print(f"\n--- Summary Statistics for {metric.upper()} ---")
+        for app in approaches:
+            mean_val = np.mean(results[app][metric])
+            std_val = np.std(results[app][metric])
+            print(f"{app}: Mean = {mean_val:.4f}, Std = {std_val:.4f}")
+
+    # 5. Statistical Analysis
+    for metric in ["auroc", "spearman"]:
+        print(f"\n--- Statistical Validation for {metric.upper()} ---")
         data = [results[app][metric] for app in approaches]
         
         # Friedman Test
