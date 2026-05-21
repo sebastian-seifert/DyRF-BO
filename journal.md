@@ -67,4 +67,4 @@ Wilcoxon Standard vs Chen: p = 8.7454e-02 (Sig: NO)
 Friedman Test: p = 1.5612e-01
 
 I am not really sure if everything works as intended (I also changed the numerical integration a bit to guide to "better" values), but if yes:
-The Shaker formula tends to just give a higher uncertainty everywhere, therefore having a lower AUROC Score on average than the other two approaches. But nontheless, the Spearman Correlation Coefficient between the Error and the Epistemic Uncertainty is higher for the epistemic. Interesting. I dont know what impact this might have on the future work. 
+The Shaker formula tends to just give a higher uncertainty everywhere, therefore having a lower AUROC Score on average than the other two approaches. But nontheless, the Spearman Correlation Coefficient between the Error and the Epistemic Uncertainty is higher for the epistemic uncertainty, but without any major significant difference. 
