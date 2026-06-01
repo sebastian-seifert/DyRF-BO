@@ -68,3 +68,16 @@ Friedman Test: p = 1.5612e-01
 
 I am not really sure if everything works as intended (I also changed the numerical integration a bit to guide to "better" values), but if yes:
 The Shaker formula tends to just give a higher uncertainty everywhere, therefore having a lower AUROC Score on average than the other two approaches. But nontheless, the Spearman Correlation Coefficient between the Error and the Epistemic Uncertainty is higher for the epistemic uncertainty, but without any major significant difference. 
+
+## 01.6
+
+ToDos: 
+- Refine leaf variance estimation by using tree-specific bootstrap samples instead of the full training dataset.
+
+Resolution:
+- Kept the native Shaker entropy decomposition as a separate method.
+- For variance-based plots/comparisons, map Shaker's mutual-information value to a Gaussian-equivalent variance increase relative to the local aleatoric variance. This is a proxy, not the native Shaker unit.
+
+Changed the numerical integral approximation to a Monte Carlo solution, making use of the big GPU-compute power. 
+
+

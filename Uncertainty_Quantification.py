@@ -7,11 +7,20 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import roc_auc_score
 from scipy.stats import spearmanr, friedmanchisquare, wilcoxon
-from scipy.integrate import quad
+from scipy.special import logsumexp
+
+# Helps on clusters where NVRTC does not directly support the GPU's native arch.
+os.environ.setdefault("CUPY_COMPILE_WITH_PTX", "1")
+
+try:
+    import cupy as cp
+    from cupyx.scipy.special import logsumexp as cp_logsumexp
+except ImportError:
+    cp = None
+    cp_logsumexp = None
 
 """
 Bachelor Thesis: Epistemic Uncertainty Quantification
-Student: James
 Primary Focus: Quantifying uncertainty due to lack of data/exploration (Epistemic).
 Evaluation Metric: Correlation with Error in Out-of-Distribution (OOD) regions.
 """
@@ -79,14 +88,134 @@ class EpistemicQuantifier:
         individual_entropies = 0.5 * np.log2(2 * np.pi * np.e * vars2)
         return np.mean(individual_entropies, axis=0)
 
-    def get_total_uncertainty(self, X_test):
+    def _entropy_to_gaussian_variance(self, entropy_bits):
         """
-        Calculates the Total Uncertainty (Entropy of the GMM) via Adaptive Quadrature.
-        This is the most precise numerical method available for 1D integration.
-        Formula from Slide 5: -Integral[ p(y|x) * log2(p(y|x)) ] dy over (-inf, inf)
+        Converts differential entropy in bits to the variance of a Gaussian
+        with the same entropy. This keeps Shaker outputs in variance units.
+        """
+        return (2.0 ** (2.0 * entropy_bits)) / (2.0 * np.pi * np.e)
+
+    def _cupy_available(self):
+        if cp is None:
+            return False
+        try:
+            if cp.cuda.runtime.getDeviceCount() == 0:
+                return False
+            smoke_test = cp.asarray([1.0])
+            smoke_test = smoke_test + 1.0
+            cp.cuda.Stream.null.synchronize()
+            return bool(cp.asnumpy(smoke_test)[0] == 2.0)
+        except Exception as exc:
+            print(f"CuPy/CUDA smoke test failed. Falling back to CPU Monte Carlo. ({exc})")
+            return False
+
+    def _resolve_mc_backend(self, backend):
+        if backend not in {"auto", "cpu", "gpu"}:
+            raise ValueError("backend must be one of: 'auto', 'cpu', 'gpu'")
+        if backend == "auto":
+            return "gpu" if self._cupy_available() else "cpu"
+        if backend == "gpu" and not self._cupy_available():
+            print("CuPy/CUDA is not available. Falling back to CPU Monte Carlo.")
+            return "cpu"
+        return backend
+
+    def _make_gpu_rng(self, random_state):
+        if hasattr(cp.random, "default_rng"):
+            return cp.random.default_rng(random_state)
+        return cp.random.RandomState(random_state)
+
+    def _make_cpu_rng(self, random_state):
+        return np.random.default_rng(random_state)
+
+    def _gpu_standard_normal(self, rng, size):
+        if hasattr(rng, "standard_normal"):
+            return rng.standard_normal(size=size)
+        return cp.random.standard_normal(size=size)
+
+    def _gmm_entropy_mc_cpu(self, mu, sigma, rng, num_samples=100_000, batch_size=100_000):
+        """
+        Approximates GMM entropy via Expected Value Monte Carlo.
+        The mixture log-density is evaluated with logsumexp to avoid underflow.
+        Returns entropy in bits.
+        """
+        K = len(mu)
+        entropy_sum = 0.0
+        samples_done = 0
+
+        while samples_done < num_samples:
+            current_batch = min(batch_size, num_samples - samples_done)
+
+            # Sample components uniformly, matching the equally weighted tree mixture.
+            components = rng.integers(0, K, size=current_batch)
+            y_samples = rng.normal(mu[components], sigma[components])
+
+            y_expanded = y_samples[:, np.newaxis]
+            mu_expanded = mu[np.newaxis, :]
+            sigma_expanded = sigma[np.newaxis, :]
+
+            log_densities = -0.5 * ((y_expanded - mu_expanded) / sigma_expanded)**2
+            log_densities -= np.log(sigma_expanded * np.sqrt(2 * np.pi))
+
+            log_p_y = logsumexp(log_densities, axis=1) - np.log(K)
+            entropy_sum += -np.sum(log_p_y) / np.log(2)
+            samples_done += current_batch
+
+        return entropy_sum / num_samples
+
+    def _gmm_entropy_mc_gpu(self, mu, sigma, rng, num_samples=100_000, batch_size=100_000):
+        """
+        GPU version of the GMM entropy Monte Carlo estimator.
+        Batches samples so the temporary (batch_size, n_trees) matrix is bounded.
+        """
+        mu_gpu = cp.asarray(mu)
+        sigma_gpu = cp.asarray(sigma)
+        K = len(mu)
+        entropy_sum = cp.asarray(0.0)
+        samples_done = 0
+
+        while samples_done < num_samples:
+            current_batch = min(batch_size, num_samples - samples_done)
+
+            if hasattr(rng, "integers"):
+                components = rng.integers(0, K, size=current_batch)
+            else:
+                components = rng.randint(0, K, size=current_batch)
+            eps = self._gpu_standard_normal(rng, current_batch)
+            y_samples = mu_gpu[components] + sigma_gpu[components] * eps
+
+            y_expanded = y_samples[:, cp.newaxis]
+            mu_expanded = mu_gpu[cp.newaxis, :]
+            sigma_expanded = sigma_gpu[cp.newaxis, :]
+
+            log_densities = -0.5 * ((y_expanded - mu_expanded) / sigma_expanded)**2
+            log_densities -= cp.log(sigma_expanded * cp.sqrt(2 * cp.pi))
+
+            log_p_y = cp_logsumexp(log_densities, axis=1) - cp.log(K)
+            entropy_sum += -cp.sum(log_p_y) / cp.log(2)
+            samples_done += current_batch
+
+        return float(cp.asnumpy(entropy_sum / num_samples))
+
+    def _gmm_entropy_mc(self, mu, sigma, rng, num_samples=100_000, batch_size=100_000, backend="cpu"):
+        if backend == "gpu":
+            try:
+                return self._gmm_entropy_mc_gpu(mu, sigma, rng, num_samples, batch_size)
+            except Exception as exc:
+                print(f"GPU Monte Carlo failed. Falling back to CPU for this point. ({exc})")
+                cpu_rng = self._make_cpu_rng(None)
+                return self._gmm_entropy_mc_cpu(mu, sigma, cpu_rng, num_samples, batch_size)
+        return self._gmm_entropy_mc_cpu(mu, sigma, rng, num_samples, batch_size)
+
+    def get_total_uncertainty(self, X_test, num_samples=100_000, batch_size=100_000, random_state=None, backend="auto"):
+        """
+        Calculates the Total Uncertainty (Entropy of the GMM) via Monte Carlo.
+        Formula from Slide 5: E[-log2(p(y|x))], with y sampled from the tree GMM.
         """
         X_test = np.atleast_2d(X_test)
         n_samples = X_test.shape[0]
+        backend = self._resolve_mc_backend(backend)
+        print(f"Monte Carlo backend: {backend}")
+        rng = self._make_gpu_rng(random_state) if backend == "gpu" else self._make_cpu_rng(random_state)
         
         # 1. Get components for each tree
         mu_all = np.stack([t.predict(X_test) for t in self.model.estimators_]) # (n_trees, n_samples)
@@ -95,33 +224,33 @@ class EpistemicQuantifier:
         
         total_entropy = np.zeros(n_samples)
 
-        # 2. Define the GMM entropy integrand for a single sample
-        def gmm_entropy_integrand(y, mu, sigma):
-            # Evaluate GMM density at point y
-            exponent = -0.5 * ((y - mu) / sigma)**2
-            densities = (1.0 / (sigma * np.sqrt(2 * np.pi))) * np.exp(exponent)
-            p_y = np.mean(densities)
-            # Differential entropy in bits (log2)
-            if p_y < 1e-15: return 0.0
-            return -p_y * np.log2(p_y)
-
-        # 3. Integrate for each test point using adaptive quadrature
+        # 2. Estimate each test point's GMM entropy in log-space.
         for i in range(n_samples):
             mu_i = mu_all[:, i]
             sigma_i = sigmas_all[:, i]
-            
-            # IMPROVEMENT: To prevent the integrator from missing sharp, distant peaks:
-            # 1. Define a range that covers all means +/- 5 standard deviations
-            lower_bound = np.min(mu_i - 5 * sigma_i)
-            upper_bound = np.max(mu_i + 5 * sigma_i)
-            
-            # 2. Use 'points' to tell quad where the peaks are located
-            # 3. Use a wide but finite range for better stability than -inf, inf
-            val, err = quad(gmm_entropy_integrand, lower_bound, upper_bound, 
-                            args=(mu_i, sigma_i), points=mu_i, limit=200)
-            total_entropy[i] = val
+            total_entropy[i] = self._gmm_entropy_mc(
+                mu_i,
+                sigma_i,
+                rng,
+                num_samples=num_samples,
+                batch_size=batch_size,
+                backend=backend,
+            )
         
         return total_entropy
+
+    def get_total_equivalent_variance(self, X_test, num_samples=100_000, batch_size=100_000, random_state=None, backend="auto"):
+        """
+        Converts Shaker's total GMM entropy into entropy-power variance units.
+        """
+        total_entropy = self.get_total_uncertainty(
+            X_test,
+            num_samples=num_samples,
+            batch_size=batch_size,
+            random_state=random_state,
+            backend=backend,
+        )
+        return self._entropy_to_gaussian_variance(total_entropy)
 
     def get_standard_disagreement(self, X_test):
         """
@@ -149,7 +278,7 @@ class EpistemicQuantifier:
         # Ensure no negative variances due to floating point precision errors
         return np.maximum(variance, 0.0)
 
-    def get_shaker_epistemic(self, X_test):
+    def get_shaker_epistemic_entropy(self, X_test, num_samples=100_000, batch_size=100_000, random_state=None, backend="auto"):
         """
         Approach 2: Shaker 2020 (Epistemic Component)
         Calculated as: Total Uncertainty (GMM Entropy) - Aleatoric Uncertainty.
@@ -157,11 +286,42 @@ class EpistemicQuantifier:
         Total Uncertainty is the entropy of the Gaussian Mixture Model formed by the trees.
         Aleatoric is the mean entropy of the individual tree distributions.
         """
-        total_unc = self.get_total_uncertainty(X_test)
+        total_unc = self.get_total_uncertainty(
+            X_test,
+            num_samples=num_samples,
+            batch_size=batch_size,
+            random_state=random_state,
+            backend=backend,
+        )
         aleatoric_unc = self.get_aleatoric_uncertainty(X_test)
         
         # Epistemic = Total - Aleatoric
         return np.maximum(total_unc - aleatoric_unc, 0.0)
+
+    def get_shaker_epistemic(self, X_test, num_samples=100_000, batch_size=100_000, random_state=None, backend="auto"):
+        """
+        Returns a Shaker-inspired epistemic proxy in variance units.
+
+        Shaker's native decomposition is entropy-based, while Standard and Chen
+        return variance-like quantities. We therefore keep the native entropy
+        decomposition as mutual information in bits and map that information
+        to a local variance increase relative to the aleatoric variance:
+
+            MI = 0.5 * log2(total_var / aleatoric_var)
+            epistemic_var = aleatoric_var * (2 ** (2 * MI) - 1)
+
+        This is a Gaussian-equivalent proxy, not the native Shaker unit.
+        """
+        mi_bits = self.get_shaker_epistemic_entropy(
+            X_test,
+            num_samples=num_samples,
+            batch_size=batch_size,
+            random_state=random_state,
+            backend=backend,
+        )
+        aleatoric_var = self.get_aleatoric_variance(X_test)
+
+        return aleatoric_var * np.maximum(2.0 ** (2.0 * mi_bits) - 1.0, 0.0)
 
     def get_chen_stability_epistemic(self, X_test):
         """
@@ -214,13 +374,16 @@ def plot_uncertainty(name, X_test, y_test, y_pred, var_pred, X_train, y_train):
     plt.legend()
     
     # Save the plot
+    os.makedirs("figures", exist_ok=True)
     filename = f"uncertainty_{name.lower().replace(' ', '_')}.png"
+    filename = os.path.join("figures", filename)
     plt.savefig(filename)
     print(f"Plot saved as {filename}")
     plt.show()
 
 if __name__ == "__main__":
     n_runs = 30 # Number of runs for statistical validation
+    plot_seed = 0 # Plot one representative run to avoid producing 30 figures.
     approaches = ["Standard", "Shaker", "Chen"]
     
     # Storage for metrics
@@ -261,7 +424,7 @@ if __name__ == "__main__":
         results["Standard"]["spearman"].append(spearmanr(sq_error[gap_mask], (u_e_std + u_a)[gap_mask])[0])
 
         # --- Shaker ---
-        u_e_shaker = quantifier.get_shaker_epistemic(X_test)
+        u_e_shaker = quantifier.get_shaker_epistemic(X_test, random_state=seed)
         results["Shaker"]["auroc"].append(roc_auc_score(y_true_binary, u_e_shaker))
         results["Shaker"]["spearman"].append(spearmanr(sq_error[gap_mask], (u_e_shaker + u_a)[gap_mask])[0])
 
@@ -269,6 +432,23 @@ if __name__ == "__main__":
         u_e_chen = quantifier.get_chen_stability_epistemic(X_test)
         results["Chen"]["auroc"].append(roc_auc_score(y_true_binary, u_e_chen))
         results["Chen"]["spearman"].append(spearmanr(sq_error[gap_mask], (u_e_chen + u_a)[gap_mask])[0])
+
+        if seed == plot_seed:
+            plot_variances = {
+                "Standard": u_e_std,
+                "Shaker": u_e_shaker,
+                "Chen": u_e_chen,
+            }
+            for approach in approaches:
+                plot_uncertainty(
+                    approach,
+                    X_test,
+                    y_test,
+                    y_pred,
+                    plot_variances[approach],
+                    X_train,
+                    y_train,
+                )
 
     # 4. Summary Statistics
     for metric in ["auroc", "spearman"]:
