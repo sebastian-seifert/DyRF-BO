@@ -545,6 +545,8 @@ def calculate_jensen_shannon_divergence(uncertainty, y_true_binary, n_bins=50):
 
     u_min = min(np.min(u_id), np.min(u_ood))
     u_max = max(np.max(u_id), np.max(u_ood))
+    if u_max - u_min < 1e-10:
+        return 0.0
     bin_edges = np.linspace(u_min, u_max, n_bins + 1)
 
     p_id, _ = np.histogram(u_id, bins=bin_edges)
@@ -697,7 +699,10 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
                     for app1, app2 in pairs:
                         idx1 = approaches.index(app1)
                         idx2 = approaches.index(app2)
-                        _, p_w = wilcoxon(data[idx1], data[idx2])
+                        try:
+                            _, p_w = wilcoxon(data[idx1], data[idx2])
+                        except ValueError:
+                            p_w = 1.0  # Safe fallback if differences are all zero
                         sig = "✓ YES" if p_w < alpha_bonf else "✗ NO"
                         print(f"  {app1} vs {app2:<15} {p_w:>14.4e} {sig:>15}")
                 else:
@@ -743,7 +748,7 @@ def run_single_test(func_dict, func_name, seed, approaches):
 
         # Sigmoid Calibration (Platt Scaling) to map epistemic uncertainty to OOD probability
         try:
-            lr = LogisticRegression(penalty='l2', C=1.0)
+            lr = LogisticRegression(C=1.0)
             lr.fit(u_e.reshape(-1, 1), y_true_binary)
             p_calibrated = lr.predict_proba(u_e.reshape(-1, 1))[:, 1]
         except Exception:
@@ -803,7 +808,10 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
                 for app1, app2 in pairs:
                     idx1 = approaches.index(app1)
                     idx2 = approaches.index(app2)
-                    _, p_w = wilcoxon(data[idx1], data[idx2])
+                    try:
+                        _, p_w = wilcoxon(data[idx1], data[idx2])
+                    except ValueError:
+                        p_w = 1.0  # Safe fallback if differences are all zero
                     sig = "✓ SIG" if p_w < alpha_bonf else "✗ NS"
                     print(f"    {app1} vs {app2}: p = {p_w:.4e} ({sig})")
             else:
