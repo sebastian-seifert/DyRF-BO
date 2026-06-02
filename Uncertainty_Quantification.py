@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import roc_auc_score
+from sklearn.linear_model import LogisticRegression
 from scipy.stats import spearmanr, friedmanchisquare, wilcoxon, gaussian_kde
 from scipy.special import logsumexp, xlogy, entr
 from scipy.spatial.distance import jensenshannon
@@ -557,41 +558,57 @@ def calculate_jensen_shannon_divergence(uncertainty, y_true_binary, n_bins=50):
     js_distance = jensenshannon(p_id, p_ood)
     return float(js_distance ** 2)
 
-def calculate_mutual_information(uncertainty, y_true_binary):
-    """FIXED: Uses properly paired continuous differential entropy H(U) - H(U|Y) via KDE"""
-    u_id = uncertainty[y_true_binary == 0]
-    u_ood = uncertainty[y_true_binary == 1]
-    n_id, n_ood = len(u_id), len(u_ood)
-    n_total = n_id + n_ood
-
-    if n_total < 3 or n_id <= 1 or n_ood <= 1: return np.nan
-
-    p_id, p_ood = n_id / n_total, n_ood / n_total
-    h_y = -xlogy(p_id, p_id) - xlogy(p_ood, p_ood)
-
-    if h_y < 1e-10: return np.nan
-
-    try:
-        # 1. Total continuous differential entropy H(U)
-        kde_total = gaussian_kde(uncertainty, bw_method='scott')
-        h_u = -np.mean(np.log(kde_total(uncertainty) + 1e-10))
-
-        # 2. Conditional continuous differential entropy H(U|Y)
-        kde_id = gaussian_kde(u_id, bw_method='scott')
-        h_u_given_id = -np.mean(np.log(kde_id(u_id) + 1e-10))
-
-        kde_ood = gaussian_kde(u_ood, bw_method='scott')
-        h_u_given_ood = -np.mean(np.log(kde_ood(u_ood) + 1e-10))
-
-        h_u_given_y = p_id * h_u_given_id + p_ood * h_u_given_ood
-
-        # 3. MI = H(U) - H(U|Y)
-        mi = h_u - h_u_given_y
-        return float(max(0.0, mi / h_y))
-    except Exception:
+def calculate_mutual_information(uncertainty, y_true_binary, n_bins=50):
+    """
+    Computes Normalized Mutual Information (NMI) using discrete binning.
+    Guarantees output is in [0, 1] and eliminates resubstitution bias.
+    """
+    n_total = len(uncertainty)
+    if n_total < 3 or np.min(y_true_binary) == np.max(y_true_binary):
         return np.nan
 
-def save_results_to_file(results_all, results_by_dim, approaches, alpha=0.05):
+    # 1. Discretize the continuous uncertainty into bins
+    u_min, u_max = np.min(uncertainty), np.max(uncertainty)
+    if u_max - u_min < 1e-10:
+        return 0.0 # Constant uncertainty carries 0 information
+        
+    bin_edges = np.linspace(u_min, u_max, n_bins + 1)
+    # Map each uncertainty value to its bin index (1 to n_bins)
+    u_discrete = np.digitize(uncertainty, bin_edges) - 1
+    # Clip boundaries
+    u_discrete = np.clip(u_discrete, 0, n_bins - 1)
+
+    # 2. Compute joint and marginal distributions
+    joint_counts, _, _ = np.histogram2d(u_discrete, y_true_binary, 
+                                        bins=[n_bins, 2], 
+                                        range=[[0, n_bins], [0, 2]])
+    
+    P_joint = joint_counts / n_total
+    P_u = np.sum(P_joint, axis=1)
+    P_y = np.sum(P_joint, axis=0)
+
+    # 3. Calculate Shannon Entropies in bits
+    # H(Y)
+    P_y_nonzero = P_y[P_y > 0]
+    h_y = -np.sum(P_y_nonzero * np.log2(P_y_nonzero))
+    if h_y < 1e-10:
+        return np.nan
+
+    # H(U)
+    P_u_nonzero = P_u[P_u > 0]
+    h_u = -np.sum(P_u_nonzero * np.log2(P_u_nonzero))
+
+    # H(U, Y)
+    P_joint_nonzero = P_joint[P_joint > 0]
+    h_uy = -np.sum(P_joint_nonzero * np.log2(P_joint_nonzero))
+
+    # 4. MI = H(U) + H(Y) - H(U, Y)
+    mi = h_u + h_y - h_uy
+    
+    # 5. Return Symmetric Uncertainty (Normalized MI) bounded in [0, 1]
+    return float(np.clip(mi / h_y, 0.0, 1.0))
+
+def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05):
     """Save comprehensive summary to a .txt file."""
     import io
     from contextlib import redirect_stdout
@@ -602,7 +619,7 @@ def save_results_to_file(results_all, results_by_dim, approaches, alpha=0.05):
 
     string_buffer = io.StringIO()
     with redirect_stdout(string_buffer):
-        print_comprehensive_summary(results_all, results_by_dim, approaches, alpha=alpha)
+        print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs, alpha=alpha)
 
     summary_text = string_buffer.getvalue()
 
@@ -619,7 +636,7 @@ def save_results_to_file(results_all, results_by_dim, approaches, alpha=0.05):
     print(f"\n📄 Results saved to: {filename}")
     return filename
 
-def print_comprehensive_summary(results_all, results_by_dim, approaches, alpha=0.05):
+def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs, alpha=0.05):
     print(f"\n\n{'='*80}")
     print(f"COMPREHENSIVE STATISTICAL SUMMARY")
     print(f"{'='*80}\n")
@@ -654,12 +671,12 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, alpha=0
             
             # FIXED: Reshape and average across seeds to eliminate Pseudo-Replication
             total_items = len(results_dict[approaches[0]][metric])
-            n_functions = total_items // 30
+            n_functions = total_items // n_runs
             
             processed_data = []
             for app in approaches:
                 flat_vals = np.array(results_dict[app][metric], dtype=float)
-                matrix = flat_vals.reshape(30, n_functions)
+                matrix = flat_vals.reshape(n_runs, n_functions)
                 processed_data.append(np.nanmean(matrix, axis=0))
                 
             valid_mask = ~np.isnan(processed_data).any(axis=0)
@@ -724,12 +741,18 @@ def run_single_test(func_dict, func_name, seed, approaches):
         else:
             results[app]["spearman"] = np.nan
 
-        # FIXED: Localized approach-specific scaling for an unbiased calibration metric
-        u_min = np.min(u_e)
-        u_max = np.max(u_e)
-        u_range = u_max - u_min + 1e-10
-        u_norm = (u_e - u_min) / u_range
-        results[app]["brier"] = np.mean((u_norm - y_true_binary) ** 2)
+        # Sigmoid Calibration (Platt Scaling) to map epistemic uncertainty to OOD probability
+        try:
+            lr = LogisticRegression(penalty='l2', C=1.0)
+            lr.fit(u_e.reshape(-1, 1), y_true_binary)
+            p_calibrated = lr.predict_proba(u_e.reshape(-1, 1))[:, 1]
+        except Exception:
+            # Fallback to min-max normalization if logistic regression fails
+            u_min = np.min(u_e)
+            u_max = np.max(u_e)
+            u_range = u_max - u_min + 1e-10
+            p_calibrated = (u_e - u_min) / u_range
+        results[app]["brier"] = np.mean((p_calibrated - y_true_binary) ** 2)
 
         results[app]["mi"] = calculate_mutual_information(u_e, y_true_binary)
         results[app]["jsd"] = calculate_jensen_shannon_divergence(u_e, y_true_binary)
@@ -748,7 +771,7 @@ def print_results(results_dict, test_name):
             if len(values) > 0:
                 print(f"{app:12s}: Mean = {np.mean(values):.4f}, Std = {np.std(values):.4f}")
 
-def run_statistical_tests(results_dict, approaches, alpha=0.05):
+def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
     print(f"\n--- Statistical Validation (α = {alpha}) ---")
 
     for metric in ["auroc", "spearman", "brier", "mi", "jsd"]:
@@ -756,12 +779,12 @@ def run_statistical_tests(results_dict, approaches, alpha=0.05):
         
         # FIXED: Reshape and average across seeds to eliminate Pseudo-Replication bias
         total_items = len(results_dict[approaches[0]][metric])
-        n_functions = total_items // 30
+        n_functions = total_items // n_runs
         
         processed_data = []
         for app in approaches:
             flat_vals = np.array(results_dict[app][metric], dtype=float)
-            matrix = flat_vals.reshape(30, n_functions)
+            matrix = flat_vals.reshape(n_runs, n_functions)
             processed_data.append(np.nanmean(matrix, axis=0))
             
         valid_mask = ~np.isnan(processed_data).any(axis=0)
@@ -881,8 +904,8 @@ if __name__ == "__main__":
     print(f"\n\n{'#'*70}")
     print("# TEST 1: ALL FUNCTIONS TOGETHER")
     print(f"{'#'*70}")
-    print_results(results_all, "ALL FUNCTIONS (15 × 30 = 450 tests)")
-    run_statistical_tests(results_all, approaches, alpha=alpha)
+    print_results(results_all, f"ALL FUNCTIONS (15 × {n_runs} = {15 * n_runs} tests)")
+    run_statistical_tests(results_all, approaches, n_runs, alpha=alpha)
     sys.stdout.flush()
 
     # ====================
@@ -895,8 +918,8 @@ if __name__ == "__main__":
     for dim_name, dim_key in [("1D Functions", "1D"), ("2D Functions", "2D"), ("3D Functions", "3D")]:
         print(f"\n[DIMENSION] {dim_name}")
         print(f"{'-'*70}")
-        print_results(results_by_dim[dim_key], f"{dim_name} (5 × 30 = 150 tests)")
-        run_statistical_tests(results_by_dim[dim_key], approaches, alpha=alpha)
+        print_results(results_by_dim[dim_key], f"{dim_name} (5 × {n_runs} = {5 * n_runs} tests)")
+        run_statistical_tests(results_by_dim[dim_key], approaches, n_runs, alpha=alpha)
         sys.stdout.flush()
 
     # ====================
@@ -912,10 +935,10 @@ if __name__ == "__main__":
     sys.stdout.flush()
 
     # Print comprehensive report summary to terminal
-    print_comprehensive_summary(results_all, results_by_dim, approaches, alpha=alpha)
+    print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs, alpha=alpha)
     
     # Executing file generator to dump everything into a clean timestamped report txt file
-    save_results_to_file(results_all, results_by_dim, approaches, alpha=alpha)
+    save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=alpha)
     sys.stdout.flush()
 
 
