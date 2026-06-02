@@ -167,9 +167,23 @@ For each metric (AUROC, Spearman, Brier, MI, JSD):
 - All 900 evaluations will include complete metric suite and statistical validation
 
 ### Architecture Decisions
-- **KDE for MI:** Continuous entropy estimation (no binning needed)
-- **Histogram + Binning for JSD:** Discrete distribution comparison (50 bins)
-- **Global Brier normalization:** Cross-method comparability within each test
-- **Hypercube OOD gaps:** True multi-dimensional out-of-distribution regions
+- **Histogram binning for MI:** Discrete binning NMI replaces continuous KDE to prevent entropy unit mismatch and resubstitution bias.
+- **Histogram + Binning for JSD:** Discrete distribution comparison (50 bins).
+- **Sigmoid Calibration for Brier:** Platt Scaling via Logistic Regression replaces min-max scaling to properly evaluate probability calibration.
+- **Hypercube OOD gaps:** True multi-dimensional out-of-distribution regions.
 
+---
 
+### Update: 2026-06-02
+
+#### Refactorings & Mathematical Alignment
+1. **Mutual Information Discretization:** Migrated from continuous KDE-Shannon hybrid estimation to a discrete 50-bin joint/marginal Shannon Mutual Information (Normalized MI / Symmetric Uncertainty). Eliminates bits-vs-nats unit mismatch and resubstitution biases.
+2. **Brier Score Sigmoid Calibration:** Replaced min-max scaling with Sigmoid Calibration (Platt Scaling) using `sklearn.linear_model.LogisticRegression`. Resolves boundary penalties (mapping minimum to exactly 0 and maximum to 1) and outlier compression issues.
+3. **Friedman Test Correction:** Refactored tests to aggregate/average results across runs per function first, satisfying block independence (15 independent blocks instead of pseudo-replication of seeds).
+
+#### Pre-Flight Safe Guards & Optimizations
+1. **Name Matching Fix:** Solved a critical bug in `generate_data` where 2D substring matches (e.g. `sin_cos`) intercepted 3D names (e.g. `sin_cos_sin`). Resolves as ndim=3 first.
+2. **Computational Scaling (3700x speedup):**
+   - Dynamically scaled points per dimension: 1D = 100 ($100$ pts), 2D = 50 ($2500$ pts), 3D = 30 ($27,000$ pts).
+   - Reduced Shaker MC default samples from 100,000 to 1,000 (with matching batch size).
+3. **Runtime Guards:** Wrapped post-hoc Wilcoxon tests in `try-except` blocks to handle zero-difference cases, and added a constant-uncertainty guard to JSD.
