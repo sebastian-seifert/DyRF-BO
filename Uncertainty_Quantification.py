@@ -498,11 +498,12 @@ def generate_data(func_dict, func_name, seed, points_per_dim=100):
     x_range = func["range"]
 
     # 1. Determine dimensionality
-    ndim = 1
-    if "sin_cos" in func_name or "quadratic" in func_name or "sin_sum_mod" in func_name or "gaussian" in func_name or "abs_sin" in func_name:
-        ndim = 2
-    elif "sin_cos_sin" in func_name or "quadratic_3d" in func_name or "sin_sum_3d" in func_name or "gaussian_3d" in func_name or "sin_exp_cos" in func_name:
+    if "sin_cos_sin" in func_name or "quadratic_3d" in func_name or "sin_sum_3d" in func_name or "gaussian_3d" in func_name or "sin_exp_cos" in func_name:
         ndim = 3
+    elif "sin_cos" in func_name or "quadratic" in func_name or "sin_sum_mod" in func_name or "gaussian" in func_name or "abs_sin" in func_name:
+        ndim = 2
+    else:
+        ndim = 1
 
     # 2. Generate the coordinate grids for each axis
     grids = [np.linspace(x_range[0], x_range[1], points_per_dim) for _ in range(ndim)]
