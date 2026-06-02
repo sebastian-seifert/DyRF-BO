@@ -146,7 +146,7 @@ class EpistemicQuantifier:
     # ==========================================
     # SHAKER METHOD
     # ==========================================
-    def shaker_get_epistemic_entropy(self, X_test, num_samples=100000, batch_size=100000, random_state=None, backend="auto"):
+    def shaker_get_epistemic_entropy(self, X_test, num_samples=1000, batch_size=1000, random_state=None, backend="auto"):
         """
         Approach 2: Shaker 2020 (Epistemic Component)
         Calculated as: Total Uncertainty (GMM Entropy) - Aleatoric Uncertainty.
@@ -166,7 +166,7 @@ class EpistemicQuantifier:
         # Epistemic = Total - Aleatoric
         return np.maximum(total_unc - aleatoric_unc, 0.0) # Ensure non-negative epistemic uncertainty
 
-    def shaker_get_epistemic_variance(self, X_test, num_samples=100000, batch_size=100000, random_state=None, backend="auto"):
+    def shaker_get_epistemic_variance(self, X_test, num_samples=1000, batch_size=1000, random_state=None, backend="auto"):
         """
         Returns a Shaker-inspired epistemic proxy in variance units.
 
@@ -189,7 +189,7 @@ class EpistemicQuantifier:
 
         return aleatoric_var * np.maximum(2.0 ** (2.0 * mi_bits) - 1.0, 0.0)
 
-    def shaker_get_total_variance(self, X_test, num_samples=100000, batch_size=100000, random_state=None, backend="auto"):
+    def shaker_get_total_variance(self, X_test, num_samples=1000, batch_size=1000, random_state=None, backend="auto"):
         """Converts Shaker's total GMM entropy into entropy-power variance units."""
         total_entropy = self._shaker_calc_total_entropy(
             X_test,
@@ -214,7 +214,7 @@ class EpistemicQuantifier:
         """Converts differential entropy in bits to the variance of a Gaussian."""
         return (2.0 ** (2.0 * entropy_bits)) / (2.0 * np.pi * np.e)
 
-    def _shaker_calc_total_entropy(self, X_test, num_samples=100000, batch_size=100000, random_state=None, backend="auto"):
+    def _shaker_calc_total_entropy(self, X_test, num_samples=1000, batch_size=1000, random_state=None, backend="auto"):
         """
         Calculates the Total Uncertainty (Entropy of the GMM) via Monte Carlo.
         Formula from Slide 5: E[-log2(p(y|x))], with y sampled from the tree GMM.
@@ -247,7 +247,7 @@ class EpistemicQuantifier:
         
         return total_entropy
 
-    def _shaker_gmm_entropy_mc(self, mu, sigma, rng, num_samples=100_000, batch_size=100_000, backend="cpu"):
+    def _shaker_gmm_entropy_mc(self, mu, sigma, rng, num_samples=1000, batch_size=1000, backend="cpu"):
         if backend == "gpu":
             try:
                 return self._shaker_gmm_entropy_mc_gpu(mu, sigma, rng, num_samples, batch_size)
@@ -257,7 +257,7 @@ class EpistemicQuantifier:
                 return self._shaker_gmm_entropy_mc_cpu(mu, sigma, cpu_rng, num_samples, batch_size)
         return self._shaker_gmm_entropy_mc_cpu(mu, sigma, rng, num_samples, batch_size)
 
-    def _shaker_gmm_entropy_mc_cpu(self, mu, sigma, rng, num_samples=100_000, batch_size=100_000):
+    def _shaker_gmm_entropy_mc_cpu(self, mu, sigma, rng, num_samples=1000, batch_size=1000):
         """Approximates GMM entropy via Expected Value Monte Carlo (CPU)."""
         K = len(mu)
         entropy_sum = 0.0
@@ -282,7 +282,7 @@ class EpistemicQuantifier:
 
         return entropy_sum / num_samples
 
-    def _shaker_gmm_entropy_mc_gpu(self, mu, sigma, rng, num_samples=100_000, batch_size=100_000):
+    def _shaker_gmm_entropy_mc_gpu(self, mu, sigma, rng, num_samples=1000, batch_size=1000):
         """GPU version of the GMM entropy Monte Carlo estimator."""
         mu_gpu = cp.asarray(mu)
         sigma_gpu = cp.asarray(sigma)
@@ -482,14 +482,14 @@ def get_3d_functions():
     }
     return functions
 
-def generate_data(func_dict, func_name, seed, points_per_dim=100):
+def generate_data(func_dict, func_name, seed, points_per_dim=None):
     """
     Generates training and test data with a constant number of points per axis.
     
     Total points generated:
-    - 1D: points_per_dim
-    - 2D: points_per_dim ** 2
-    - 3D: points_per_dim ** 3
+    - 1D: points_per_dim (default 100)
+    - 2D: points_per_dim ** 2 (default 50)
+    - 3D: points_per_dim ** 3 (default 30)
     """
     rng = np.random.default_rng(seed)
     func = func_dict[func_name]
@@ -504,6 +504,15 @@ def generate_data(func_dict, func_name, seed, points_per_dim=100):
         ndim = 2
     else:
         ndim = 1
+
+    # Dynamic default points_per_dim depending on dimension to control exponential explosion
+    if points_per_dim is None:
+        if ndim == 1:
+            points_per_dim = 100
+        elif ndim == 2:
+            points_per_dim = 50
+        else:
+            points_per_dim = 30
 
     # 2. Generate the coordinate grids for each axis
     grids = [np.linspace(x_range[0], x_range[1], points_per_dim) for _ in range(ndim)]
