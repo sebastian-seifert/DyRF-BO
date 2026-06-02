@@ -80,4 +80,96 @@ Resolution:
 
 Changed the numerical integral approximation to a Monte Carlo solution, making use of the big GPU-compute power. 
 
+## 02.6
+
+**Major Expansion: 15-Function OOD Dataset + 5 Evaluation Metrics**
+
+### Expansion of Test Dataset
+Expanded from 1 sine wave function to **15 diverse functions** for comprehensive OOD testing:
+
+**1D Functions (5):**
+1. sin(x) - baseline
+2. cos(x) + x/10 - shifted sinusoid with trend
+3. x²/50 - polynomial
+4. exp(-x/5) * sin(2x) - damped oscillation
+5. log(x+1) * sin(x) - logarithmic modulation
+
+**2D Functions (5):**
+1. sin(x₁) * cos(x₂) - separable product
+2. (x₁² + x₂²)/100 - quadratic bowl
+3. sin(x₁ + x₂) + 0.1*x₁*x₂ - sum with interaction
+4. exp(-(x₁² + x₂²)/10) - 2D gaussian
+5. |x₁ - x₂| + sin(x₁*x₂) - absolute difference with sine
+
+**3D Functions (5):**
+1. sin(x₁) * cos(x₂) * sin(x₃) - triple product
+2. (x₁² + x₂² + x₃²)/150 - quadratic volume
+3. sin(x₁ + x₂ + x₃) + 0.1*x₁*x₂*x₃ - sum with 3-way interaction
+4. exp(-(x₁² + x₂² + x₃²)/15) - 3D gaussian
+5. sin(x₁) * exp(-x₂/5) * cos(x₃) - mixed decay & oscillation
+
+Each function has built-in training gap (hypercube in gap region) for consistent OOD testing.
+
+### New Evaluation Metrics (5 total)
+
+1. **AUROC** (existing) - Discrimination: How well uncertainty ranks OOD > ID
+2. **Spearman Correlation** (existing) - Error alignment in OOD regions
+3. **Brier Score** (NEW) - Calibration: Probability accuracy of normalized uncertainties
+4. **Mutual Information** (NEW) - Information content: How informative is uncertainty about OOD/ID?
+5. **Jensen-Shannon Divergence** (NEW) - Distribution separation: How well OOD vs ID uncertainty distributions separate?
+
+### Test Structure
+- **Test 1:** All 15 functions × 30 seeds = 450 evaluations
+- **Test 2:** By dimension 
+  - 1D: 5 functions × 30 seeds = 150 tests
+  - 2D: 5 functions × 30 seeds = 150 tests
+  - 3D: 5 functions × 30 seeds = 150 tests
+
+### Statistical Testing for All Metrics
+For each metric (AUROC, Spearman, Brier, MI, JSD):
+1. Descriptive statistics: Mean ± Std per approach
+2. Friedman test (omnibus): Is there a difference across Standard/Shaker/Chen?
+3. Post-hoc Wilcoxon tests (pairwise) with Bonferroni correction (α_bonf = 0.05/3)
+
+### Critical Bug Fixes
+
+**1. JSD Normalization (CRITICAL)**
+- Fixed: Was using `density=True` then normalizing again (double normalization)
+- Now: Uses histogram counts, normalizes once correctly
+- Impact: JSD values now mathematically valid
+
+**2. Brier Score Comparability (MAJOR)**
+- Fixed: Was normalizing per function/seed (different range each time)
+- Now: Global normalization across all three approaches for each test case
+- Impact: Brier scores now comparable between Standard/Shaker/Chen
+
+**3. Random State Management (IMPORTANT)**
+- Fixed: Was using global `np.random.seed()`
+- Now: Uses `np.random.default_rng(seed)` for local RNG
+- Impact: Better reproducibility and no seed interference with Shaker MC
+
+**4. Multi-dimensional OOD Gaps (DESIGN)**
+- Fixed: Gap was only applied to first dimension for 2D/3D functions
+- Now: Gap applied as hypercube (all dimensions must be in gap range)
+- Impact: True multi-dimensional OOD detection instead of 1D only
+
+### Code Quality Improvements
+- ✓ Comprehensive progress logging with per-run timings and ETAs
+- ✓ Error handling with detailed context (seed, function, error message)
+- ✓ Notes about small sample sizes in output (3D Spearman warnings)
+- ✓ Total runtime tracking with hours:minutes display
+- ✓ GPU/CPU fallback for Shaker Monte Carlo
+
+### Execution Notes
+- Ready for A100 GPU cluster
+- Estimated runtime: 15-30 minutes on A100 (vs 2.5+ hours on CPU)
+- All code syntax verified
+- All 900 evaluations will include complete metric suite and statistical validation
+
+### Architecture Decisions
+- **KDE for MI:** Continuous entropy estimation (no binning needed)
+- **Histogram + Binning for JSD:** Discrete distribution comparison (50 bins)
+- **Global Brier normalization:** Cross-method comparability within each test
+- **Hypercube OOD gaps:** True multi-dimensional out-of-distribution regions
+
 
