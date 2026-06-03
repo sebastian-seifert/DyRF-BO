@@ -1,5 +1,16 @@
 import os
 import sys
+# Reconfigure stdout and stderr to UTF-8 to prevent encoding errors on cluster environments with non-UTF-8 locales
+if sys.stdout is not None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
+if sys.stderr is not None:
+    try:
+        sys.stderr.reconfigure(encoding="utf-8")
+    except AttributeError:
+        pass
 import time
 from datetime import datetime
 import numpy as np
@@ -636,7 +647,7 @@ def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=
 
     summary_text = string_buffer.getvalue()
 
-    with open(filename, "w") as f:
+    with open(filename, "w", encoding="utf-8") as f:
         f.write(f"{'='*80}\n")
         f.write(f"EPISTEMIC UNCERTAINTY QUANTIFICATION - RESULTS SUMMARY\n")
         f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
