@@ -657,7 +657,7 @@ def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=
         f.write(f"End of Report\n")
         f.write(f"{'='*80}\n")
 
-    print(f"\n📄 Results saved to: {filename}")
+    print(f"\n[Report] Results saved to: {filename}")
     return filename
 
 def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs, alpha=0.05):
@@ -670,9 +670,9 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
                   ("2D Functions", results_by_dim["2D"]), ("3D Functions", results_by_dim["3D"])]
 
     for metric in metrics:
-        print(f"\n{'─'*80}")
+        print(f"\n{'-'*80}")
         print(f"METRIC: {metric.upper()}")
-        print(f"{'─'*80}\n")
+        print(f"{'-'*80}\n")
 
         print(f"{'DESCRIPTIVE STATISTICS':^80}")
         print(f"{'':<20} {'Standard':>15} {'Shaker':>15} {'Chen':>15}")
@@ -683,7 +683,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
             for app in approaches:
                 values = np.array([v for v in results_dict[app][metric] if not np.isnan(v)])
                 if len(values) > 0:
-                    print(f" {np.mean(values):.4f}±{np.std(values):.4f}", end="")
+                    print(f" {np.mean(values):.4f}+/-{np.std(values):.4f}", end="")
                 else:
                     print(f" {'N/A':>13}", end="")
             print()
@@ -691,7 +691,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
         print(f"\n{'STATISTICAL TESTS (Friedman + Bonferroni-corrected Wilcoxon)':^80}\n")
 
         for dim_name, results_dict in dimensions:
-            print(f"► {dim_name}")
+            print(f"> {dim_name}")
             
             # FIXED: Reshape and average across seeds to eliminate Pseudo-Replication
             total_items = len(results_dict[approaches[0]][metric])
@@ -709,12 +709,12 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
             if all(len(d) > 2 for d in data):
                 stat, p_f = friedmanchisquare(*data)
                 sig_symbol = "***" if p_f < 0.001 else "**" if p_f < 0.01 else "*" if p_f < alpha else "ns"
-                print(f"  Friedman: χ² = {stat:8.4f}, p = {p_f:.4e} {sig_symbol}")
+                print(f"  Friedman: chi2 = {stat:8.4f}, p = {p_f:.4e} {sig_symbol}")
 
                 if p_f < alpha:
                     pairs = [("Shaker", "Standard"), ("Shaker", "Chen"), ("Standard", "Chen")]
                     alpha_bonf = alpha / len(pairs)
-                    print(f"  Bonferroni α = {alpha_bonf:.4e}")
+                    print(f"  Bonferroni alpha = {alpha_bonf:.4e}")
                     print(f"  {'Pairwise Comparisons':<20} {'p-value':<15} {'Significant?':<15}")
                     print(f"  {'-'*50}")
 
@@ -725,12 +725,12 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
                             _, p_w = wilcoxon(data[idx1], data[idx2])
                         except ValueError:
                             p_w = 1.0  # Safe fallback if differences are all zero
-                        sig = "✓ YES" if p_w < alpha_bonf else "✗ NO"
+                        sig = "[SIG]" if p_w < alpha_bonf else "[NS]"
                         print(f"  {app1} vs {app2:<15} {p_w:>14.4e} {sig:>15}")
                 else:
-                    print(f"  → No significant difference across methods (Friedman p ≥ {alpha})")
+                    print(f"  -> No significant difference across methods (Friedman p >= {alpha})")
             else:
-                print("  → Not enough valid independent functions (blocks) to perform paired testing (Requires >= 3)")
+                print("  -> Not enough valid independent functions (blocks) to perform paired testing (Requires >= 3)")
             print()
 
     print(f"{'='*80}")
@@ -799,7 +799,7 @@ def print_results(results_dict, test_name):
                 print(f"{app:12s}: Mean = {np.mean(values):.4f}, Std = {np.std(values):.4f}")
 
 def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
-    print(f"\n--- Statistical Validation (α = {alpha}) ---")
+    print(f"\n--- Statistical Validation (alpha = {alpha}) ---")
 
     for metric in ["auroc", "spearman", "brier", "mi", "jsd"]:
         print(f"\n{metric.upper()}:")
@@ -819,13 +819,13 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
 
         if all(len(d) > 2 for d in data):
             stat, p_f = friedmanchisquare(*data)
-            print(f"  Friedman Test: χ² = {stat:.4f}, p = {p_f:.4e}")
+            print(f"  Friedman Test: chi2 = {stat:.4f}, p = {p_f:.4e}")
 
             if p_f < alpha:
                 print(f"  Result: SIGNIFICANT (p < {alpha})")
                 pairs = [("Shaker", "Standard"), ("Shaker", "Chen"), ("Standard", "Chen")]
                 alpha_bonf = alpha / len(pairs)
-                print(f"  Bonferroni-corrected α = {alpha_bonf:.4e}")
+                print(f"  Bonferroni-corrected alpha = {alpha_bonf:.4e}")
 
                 for app1, app2 in pairs:
                     idx1 = approaches.index(app1)
@@ -834,10 +834,10 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
                         _, p_w = wilcoxon(data[idx1], data[idx2])
                     except ValueError:
                         p_w = 1.0  # Safe fallback if differences are all zero
-                    sig = "✓ SIG" if p_w < alpha_bonf else "✗ NS"
+                    sig = "[SIG]" if p_w < alpha_bonf else "[NS]"
                     print(f"    {app1} vs {app2}: p = {p_w:.4e} ({sig})")
             else:
-                print(f"  Result: NOT SIGNIFICANT (p ≥ {alpha})")
+                print(f"  Result: NOT SIGNIFICANT (p >= {alpha})")
         else:
             print("  Result: NOT ENOUGH VALID DATA FOR Paired FRIEDMAN TEST (Requires >= 3 independent functions)")
 
@@ -858,12 +858,12 @@ if __name__ == "__main__":
     functions_3d = get_3d_functions()
     all_functions = {**functions_1d, **functions_2d, **functions_3d}
 
-    print(f"\n📊 SETUP SUMMARY")
-    print(f"  • Functions: {len(all_functions)} total (5 1D, 5 2D, 5 3D)")
-    print(f"  • Runs: {n_runs} (total evaluations: {len(all_functions) * n_runs})")
-    print(f"  • Approaches: {', '.join(approaches)}")
-    print(f"  • Metrics: AUROC, Spearman, Brier, MI, JSD")
-    print(f"  • Statistical tests: Friedman + Bonferroni-corrected Wilcoxon (α={alpha})")
+    print(f"\n[SETUP SUMMARY]")
+    print(f"  * Functions: {len(all_functions)} total (5 1D, 5 2D, 5 3D)")
+    print(f"  * Runs: {n_runs} (total evaluations: {len(all_functions) * n_runs})")
+    print(f"  * Approaches: {', '.join(approaches)}")
+    print(f"  * Metrics: AUROC, Spearman, Brier, MI, JSD")
+    print(f"  * Statistical tests: Friedman + Bonferroni-corrected Wilcoxon (alpha={alpha})")
     sys.stdout.flush()
 
     # ====================
@@ -872,7 +872,7 @@ if __name__ == "__main__":
     print(f"\n\n{'#'*70}")
     print("# UNIFIED TEST: All Functions (aggregated by dimension)")
     print(f"{'#'*70}")
-    print(f"Running {len(all_functions)} functions × {n_runs} seeds = {len(all_functions) * n_runs} evaluations (single pass)\n")
+    print(f"Running {len(all_functions)} functions x {n_runs} seeds = {len(all_functions) * n_runs} evaluations (single pass)\n")
 
     results_all = {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches}
     results_by_dim = {
@@ -911,7 +911,7 @@ if __name__ == "__main__":
                     results_by_dim[dim_key][app]["jsd"].append(test_results[app]["jsd"])
 
             except Exception as e:
-                print(f"\n❌ ERROR in seed={seed}, func={func_name}: {str(e)}")
+                print(f"\n[ERROR] in seed={seed}, func={func_name}: {str(e)}")
                 sys.stdout.flush()
                 raise
 
@@ -920,12 +920,12 @@ if __name__ == "__main__":
         eta_total_sec = seed_time * remaining_seeds
         eta_min = int(eta_total_sec / 60)
 
-        print(f" ✓ ({seed_time:.1f}s, ETA: {eta_min}m remaining)")
+        print(f" [OK] ({seed_time:.1f}s, ETA: {eta_min}m remaining)")
         sys.stdout.flush()
 
     test_time = time.time() - test_start
     total_time = time.time() - start_time
-    print(f"\n✅ Unified test completed in {test_time/60:.1f} minutes")
+    print(f"\n[SUCCESS] Unified test completed in {test_time/60:.1f} minutes")
     sys.stdout.flush()
 
     # ====================
@@ -934,7 +934,7 @@ if __name__ == "__main__":
     print(f"\n\n{'#'*70}")
     print("# TEST 1: ALL FUNCTIONS TOGETHER")
     print(f"{'#'*70}")
-    print_results(results_all, f"ALL FUNCTIONS (15 × {n_runs} = {15 * n_runs} tests)")
+    print_results(results_all, f"ALL FUNCTIONS (15 x {n_runs} = {15 * n_runs} tests)")
     run_statistical_tests(results_all, approaches, n_runs, alpha=alpha)
     sys.stdout.flush()
 
@@ -948,7 +948,7 @@ if __name__ == "__main__":
     for dim_name, dim_key in [("1D Functions", "1D"), ("2D Functions", "2D"), ("3D Functions", "3D")]:
         print(f"\n[DIMENSION] {dim_name}")
         print(f"{'-'*70}")
-        print_results(results_by_dim[dim_key], f"{dim_name} (5 × {n_runs} = {5 * n_runs} tests)")
+        print_results(results_by_dim[dim_key], f"{dim_name} (5 x {n_runs} = {5 * n_runs} tests)")
         run_statistical_tests(results_by_dim[dim_key], approaches, n_runs, alpha=alpha)
         sys.stdout.flush()
 
@@ -956,7 +956,7 @@ if __name__ == "__main__":
     # Final Summary & Auto-Save
     # ====================
     print(f"\n\n{'='*70}")
-    print(f"✅ ALL TESTS COMPLETED SUCCESSFULLY")
+    print(f"[SUCCESS] ALL TESTS COMPLETED SUCCESSFULLY")
     print(f"{'='*70}")
     print(f"Total Runtime: {total_time/60:.1f} minutes ({total_time/3600:.2f} hours)")
     print(f"Evaluations: {len(all_functions) * n_runs} tests (single-pass optimization)")
