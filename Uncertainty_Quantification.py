@@ -21,6 +21,7 @@ from sklearn.linear_model import LogisticRegression
 from scipy.stats import spearmanr, friedmanchisquare, wilcoxon, gaussian_kde
 from scipy.special import logsumexp, xlogy, entr
 from scipy.spatial.distance import jensenshannon
+from Credal_Regression_UQ import CredalRegressionUQ
 
 # Helps on clusters where NVRTC does not directly support the GPU's native arch.
 os.environ.setdefault("CUPY_COMPILE_WITH_PTX", "1")
@@ -675,7 +676,8 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
         print(f"{'-'*80}\n")
 
         print(f"{'DESCRIPTIVE STATISTICS':^80}")
-        print(f"{'':<20} {'Standard':>15} {'Shaker':>15} {'Chen':>15}")
+        header = f"{'':<20} " + " ".join(f"{app:>18}" for app in approaches)
+        print(header)
         print(f"{'-'*80}")
 
         for dim_name, results_dict in dimensions:
@@ -683,9 +685,9 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
             for app in approaches:
                 values = np.array([v for v in results_dict[app][metric] if not np.isnan(v)])
                 if len(values) > 0:
-                    print(f" {np.mean(values):.4f}+/-{np.std(values):.4f}", end="")
+                    print(f" {np.mean(values):.4f}+/-{np.std(values):.4f}  ", end="")
                 else:
-                    print(f" {'N/A':>13}", end="")
+                    print(f" {'N/A':>18}", end="")
             print()
 
         print(f"\n{'STATISTICAL TESTS (Friedman + Bonferroni-corrected Wilcoxon)':^80}\n")
@@ -712,11 +714,12 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
                 print(f"  Friedman: chi2 = {stat:8.4f}, p = {p_f:.4e} {sig_symbol}")
 
                 if p_f < alpha:
-                    pairs = [("Shaker", "Standard"), ("Shaker", "Chen"), ("Standard", "Chen")]
+                    import itertools
+                    pairs = list(itertools.combinations(approaches, 2))
                     alpha_bonf = alpha / len(pairs)
                     print(f"  Bonferroni alpha = {alpha_bonf:.4e}")
-                    print(f"  {'Pairwise Comparisons':<20} {'p-value':<15} {'Significant?':<15}")
-                    print(f"  {'-'*50}")
+                    print(f"  {'Pairwise Comparisons':<30} {'p-value':<15} {'Significant?':<15}")
+                    print(f"  {'-'*65}")
 
                     for app1, app2 in pairs:
                         idx1 = approaches.index(app1)
@@ -726,7 +729,8 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
                         except ValueError:
                             p_w = 1.0  # Safe fallback if differences are all zero
                         sig = "[SIG]" if p_w < alpha_bonf else "[NS]"
-                        print(f"  {app1} vs {app2:<15} {p_w:>14.4e} {sig:>15}")
+                        pair_str = f"{app1} vs {app2}"
+                        print(f"  {pair_str:<30} {p_w:>14.4e} {sig:>15}")
                 else:
                     print(f"  -> No significant difference across methods (Friedman p >= {alpha})")
             else:
@@ -752,10 +756,15 @@ def run_single_test(func_dict, func_name, seed, approaches):
     u_a = quantifier.base_get_aleatoric_variance(X_test)
 
     uncertainties = {}
+    u_a_credal = None
     for app in approaches:
         if app == "Standard": uncertainties[app] = quantifier.standard_get_epistemic_variance(X_test)
         elif app == "Shaker": uncertainties[app] = quantifier.shaker_get_epistemic_variance(X_test, random_state=seed)
         elif app == "Chen": uncertainties[app] = quantifier.chen_get_epistemic_variance(X_test)
+        elif app == "Credal":
+            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto")
+            uncertainties[app] = u_e_credal
 
     for app in approaches:
         u_e = uncertainties[app]
@@ -763,7 +772,10 @@ def run_single_test(func_dict, func_name, seed, approaches):
 
         results[app]["auroc"] = roc_auc_score(y_true_binary, u_e)
         if np.any(gap_mask):
-            spear_corr, _ = spearmanr(sq_error[gap_mask], (u_e + u_a)[gap_mask])
+            if app == "Credal" and u_a_credal is not None:
+                spear_corr, _ = spearmanr(sq_error[gap_mask], (u_e + u_a_credal)[gap_mask])
+            else:
+                spear_corr, _ = spearmanr(sq_error[gap_mask], (u_e + u_a)[gap_mask])
             results[app]["spearman"] = spear_corr
         else:
             results[app]["spearman"] = np.nan
@@ -823,7 +835,8 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
 
             if p_f < alpha:
                 print(f"  Result: SIGNIFICANT (p < {alpha})")
-                pairs = [("Shaker", "Standard"), ("Shaker", "Chen"), ("Standard", "Chen")]
+                import itertools
+                pairs = list(itertools.combinations(approaches, 2))
                 alpha_bonf = alpha / len(pairs)
                 print(f"  Bonferroni-corrected alpha = {alpha_bonf:.4e}")
 
@@ -835,7 +848,8 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
                     except ValueError:
                         p_w = 1.0  # Safe fallback if differences are all zero
                     sig = "[SIG]" if p_w < alpha_bonf else "[NS]"
-                    print(f"    {app1} vs {app2}: p = {p_w:.4e} ({sig})")
+                    pair_str = f"{app1} vs {app2}"
+                    print(f"    {pair_str:<25}: p = {p_w:.4e} ({sig})")
             else:
                 print(f"  Result: NOT SIGNIFICANT (p >= {alpha})")
         else:
@@ -849,8 +863,8 @@ if __name__ == "__main__":
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*70}")
 
-    n_runs = 30
-    approaches = ["Standard", "Shaker", "Chen"]
+    n_runs = 1
+    approaches = ["Standard", "Shaker", "Chen", "Credal"]
     alpha = 0.05
 
     functions_1d = get_1d_functions()
