@@ -150,8 +150,8 @@ class CredalRegressionUQ:
             pi_H = xp.exp(-k_b * (mu_u**2) / 2.0)
             phi_val = xp_cdf(mu_u - z_b)
             mask = pi_H < phi_val
-            a_ge = xp.where(mask, mu_u, a_ge)
-            b_ge = xp.where(mask, b_ge, mu_u)
+            a_ge = xp.where(mask, a_ge, mu_u)
+            b_ge = xp.where(mask, mu_u, b_ge)
             
         pi_ge = xp.exp(-k_b * (a_ge**2) / 2.0)
         
