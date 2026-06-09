@@ -79,7 +79,7 @@ class CredalRegressionUQ:
             
         return means, variances, counts
 
-    def compute_uq(self, X_test, backend="auto", n_grid=100, batch_size=2000):
+    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size=2000):
         """
         Computes the epistemic and aleatoric uncertainties using the continuous
         relative likelihood framework. Fully vectorized and GPU-accelerated when available.
@@ -88,7 +88,7 @@ class CredalRegressionUQ:
         Args:
             X_test: np.ndarray of shape (n_samples, n_features)
             backend: 'auto', 'cpu', or 'gpu'
-            n_grid: Number of grid points for numerical integration of z
+            n_grid: Number of grid points for numerical integration of z (defaults to 100 on GPU, 32 on CPU)
             batch_size: Maximum number of test samples to process in a single batch
             
         Returns:
@@ -98,8 +98,15 @@ class CredalRegressionUQ:
         X_test = np.atleast_2d(X_test)
         n_samples = X_test.shape[0]
         
+        # Determine if GPU will be used
+        is_gpu = backend == "gpu" or (backend == "auto" and cp is not None and cp.cuda.runtime.getDeviceCount() > 0)
+        
+        if n_grid is None:
+            n_grid = 100 if is_gpu else 32
+        n_iter = 15 if is_gpu else 10
+        
         if n_samples <= batch_size:
-            return self._compute_uq_batch(X_test, backend=backend, n_grid=n_grid)
+            return self._compute_uq_batch(X_test, backend=backend, n_grid=n_grid, n_iter=n_iter)
             
         # Batched execution to prevent OOM
         epistemic_vars = []
@@ -107,13 +114,13 @@ class CredalRegressionUQ:
         
         for i in range(0, n_samples, batch_size):
             X_batch = X_test[i : i + batch_size]
-            epistemic_batch, aleatoric_batch = self._compute_uq_batch(X_batch, backend=backend, n_grid=n_grid)
+            epistemic_batch, aleatoric_batch = self._compute_uq_batch(X_batch, backend=backend, n_grid=n_grid, n_iter=n_iter)
             epistemic_vars.append(epistemic_batch)
             aleatoric_vars.append(aleatoric_batch)
             
         return np.concatenate(epistemic_vars), np.concatenate(aleatoric_vars)
 
-    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100):
+    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100, n_iter=15):
         """Internal method to compute UQ for a single batch."""
         # 1. Retrieve CPU leaf statistics
         means, variances, counts = self._calc_leaf_stats(X_test)
@@ -174,7 +181,7 @@ class CredalRegressionUQ:
         a_le = xp.zeros((n_trees, n_samples, 2 * n_half)) - 4.0 / xp.sqrt(k_b)
         b_le = xp.zeros((n_trees, n_samples, 2 * n_half)) + 4.0 / xp.sqrt(k_b)
         
-        for _ in range(15):
+        for _ in range(n_iter):
             mu_u = 0.5 * (a_le + b_le)
             pi_H = xp.exp(-k_b * (mu_u**2) / 2.0)
             phi_val = xp_cdf(z_b - mu_u)
@@ -188,7 +195,7 @@ class CredalRegressionUQ:
         a_ge = xp.zeros((n_trees, n_samples, 2 * n_half)) - 4.0 / xp.sqrt(k_b)
         b_ge = xp.zeros((n_trees, n_samples, 2 * n_half)) + 4.0 / xp.sqrt(k_b)
         
-        for _ in range(15):
+        for _ in range(n_iter):
             mu_u = 0.5 * (a_ge + b_ge)
             pi_H = xp.exp(-k_b * (mu_u**2) / 2.0)
             phi_val = xp_cdf(mu_u - z_b)

@@ -494,14 +494,51 @@ def get_3d_functions():
     }
     return functions
 
+def get_4d_functions():
+    """Returns 3 diverse 4D functions with training gaps."""
+    functions = {
+        "sin_cos_4d": {
+            "func": lambda x1, x2, x3, x4: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4),
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+        "quadratic_4d": {
+            "func": lambda x1, x2, x3, x4: (x1**2 + x2**2 + x3**2 + x4**2) / 200,
+            "gap": (3.5, 6.5),
+            "range": (0, 10),
+        },
+        "sin_sum_4d": {
+            "func": lambda x1, x2, x3, x4: np.sin(x1 + x2 + x3 + x4) + 0.05 * x1 * x2 * x3 * x4,
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+    }
+    return functions
+
+def get_5d_functions():
+    """Returns 3 diverse 5D functions with training gaps."""
+    functions = {
+        "sin_cos_5d": {
+            "func": lambda x1, x2, x3, x4, x5: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5),
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+        "quadratic_5d": {
+            "func": lambda x1, x2, x3, x4, x5: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2) / 250,
+            "gap": (3.5, 6.5),
+            "range": (0, 10),
+        },
+        "gaussian_5d": {
+            "func": lambda x1, x2, x3, x4, x5: np.exp(-(x1**2 + x2**2 + x3**2 + x4**2 + x5**2) / 20),
+            "gap": (3.5, 6.5),
+            "range": (-5, 5),
+        },
+    }
+    return functions
+
 def generate_data(func_dict, func_name, seed, points_per_dim=None):
     """
     Generates training and test data with a constant number of points per axis.
-    
-    Total points generated:
-    - 1D: points_per_dim (default 100)
-    - 2D: points_per_dim ** 2 (default 50)
-    - 3D: points_per_dim ** 3 (default 30)
     """
     rng = np.random.default_rng(seed)
     func = func_dict[func_name]
@@ -509,13 +546,8 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None):
     gap = func["gap"]
     x_range = func["range"]
 
-    # 1. Determine dimensionality
-    if "sin_cos_sin" in func_name or "quadratic_3d" in func_name or "sin_sum_3d" in func_name or "gaussian_3d" in func_name or "sin_exp_cos" in func_name:
-        ndim = 3
-    elif "sin_cos" in func_name or "quadratic" in func_name or "sin_sum_mod" in func_name or "gaussian" in func_name or "abs_sin" in func_name:
-        ndim = 2
-    else:
-        ndim = 1
+    # Determine dimensionality dynamically from lambda argument count
+    ndim = func_obj.__code__.co_argcount
 
     # Dynamic default points_per_dim depending on dimension to control exponential explosion
     if points_per_dim is None:
@@ -523,36 +555,31 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None):
             points_per_dim = 100
         elif ndim == 2:
             points_per_dim = 50
-        else:
+        elif ndim == 3:
             points_per_dim = 30
-
-    # 2. Generate the coordinate grids for each axis
-    grids = [np.linspace(x_range[0], x_range[1], points_per_dim) for _ in range(ndim)]
-    
-    if ndim == 1:
-        # 1D Case: Simple column vector
-        X = grids[0].reshape(-1, 1)
-        y = func_obj(X).ravel()
-    else:
-        # 2D/3D Case: Span the regular dense grid
-        meshes = np.meshgrid(*grids, indexing='ij')
-        X = np.stack([m.ravel() for m in meshes], axis=1)
-
-        if ndim == 2:
-            y = func_obj(X[:, 0], X[:, 1]).ravel()
+        elif ndim == 4:
+            points_per_dim = 10
         else:
-            y = func_obj(X[:, 0], X[:, 1], X[:, 2]).ravel()
+            points_per_dim = 7
 
-    # 3. Add homoscedastic target noise
+    # Generate the coordinate grids for each axis
+    grids = [np.linspace(x_range[0], x_range[1], points_per_dim) for _ in range(ndim)]
+    meshes = np.meshgrid(*grids, indexing='ij')
+    X = np.stack([m.ravel() for m in meshes], axis=1)
+    
+    # Dynamically unpack input variables to function
+    y = func_obj(*[X[:, d] for d in range(ndim)]).ravel()
+
+    # Add homoscedastic target noise
     y += rng.normal(0, 0.1, len(y))
 
-    # 4. Create the multidimensional OOD gap mask (Hypercube)
+    # Create the multidimensional OOD gap mask (Hypercube)
     gap_mask = np.ones(len(X), dtype=bool)
     for d in range(ndim):
         gap_mask &= (X[:, d] >= gap[0]) & (X[:, d] <= gap[1])
     train_mask = ~gap_mask
 
-    # 5. Split into Train (with gap) and Test (full grid)
+    # Split into Train (with gap) and Test (full grid)
     X_train, y_train = X[train_mask], y[train_mask]
     X_test, y_test = X, y
     y_true_binary = gap_mask.astype(int)
@@ -580,7 +607,7 @@ def calculate_jensen_shannon_divergence(uncertainty, y_true_binary, n_bins=50):
     p_id = p_id / np.sum(p_id)
     p_ood = p_ood / np.sum(p_ood)
 
-    js_distance = jensenshannon(p_id, p_ood)
+    js_distance = jensenshannon(p_id, p_ood, base=2.0)
     return float(js_distance ** 2)
 
 def calculate_mutual_information(uncertainty, y_true_binary, n_bins=50):
@@ -630,7 +657,7 @@ def calculate_mutual_information(uncertainty, y_true_binary, n_bins=50):
     # 4. MI = H(U) + H(Y) - H(U, Y)
     mi = h_u + h_y - h_uy
     
-    # 5. Return Symmetric Uncertainty (Normalized MI) bounded in [0, 1]
+    # 5. Return Uncertainty Coefficient (fraction of H(Y) explained by U) bounded in [0, 1]
     return float(np.clip(mi / h_y, 0.0, 1.0))
 
 def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05):
@@ -667,8 +694,12 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"{'='*80}\n")
 
     metrics = ["auroc", "spearman", "brier", "mi", "jsd"]
-    dimensions = [("All Functions", results_all), ("1D Functions", results_by_dim["1D"]),
-                  ("2D Functions", results_by_dim["2D"]), ("3D Functions", results_by_dim["3D"])]
+    dimensions = [("All Functions", results_all),
+                  ("1D Functions", results_by_dim["1D"]),
+                  ("2D Functions", results_by_dim["2D"]),
+                  ("3D Functions", results_by_dim["3D"]),
+                  ("4D Functions", results_by_dim["4D"]),
+                  ("5D Functions", results_by_dim["5D"])]
 
     for metric in metrics:
         print(f"\n{'-'*80}")
@@ -782,7 +813,8 @@ def run_single_test(func_dict, func_name, seed, approaches):
 
         # Sigmoid Calibration (Platt Scaling) to map epistemic uncertainty to OOD probability
         try:
-            lr = LogisticRegression(C=1.0)
+            # Disable regularization to ensure scale invariance across UQ methods
+            lr = LogisticRegression(penalty=None)
             lr.fit(u_e.reshape(-1, 1), y_true_binary)
             p_calibrated = lr.predict_proba(u_e.reshape(-1, 1))[:, 1]
         except Exception:
@@ -791,7 +823,10 @@ def run_single_test(func_dict, func_name, seed, approaches):
             u_max = np.max(u_e)
             u_range = u_max - u_min + 1e-10
             p_calibrated = (u_e - u_min) / u_range
-        results[app]["brier"] = np.mean((p_calibrated - y_true_binary) ** 2)
+        # Balanced Brier Score to prevent dominance by class imbalance in higher dimensions
+        brier_id = np.mean((p_calibrated[y_true_binary == 0] - 0) ** 2)
+        brier_ood = np.mean((p_calibrated[y_true_binary == 1] - 1) ** 2)
+        results[app]["brier"] = 0.5 * (brier_id + brier_ood)
 
         results[app]["mi"] = calculate_mutual_information(u_e, y_true_binary)
         results[app]["jsd"] = calculate_jensen_shannon_divergence(u_e, y_true_binary)
@@ -863,17 +898,19 @@ if __name__ == "__main__":
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*70}")
 
-    n_runs = 1
+    n_runs = 30
     approaches = ["Standard", "Chen", "Credal"]
     alpha = 0.05
 
     functions_1d = get_1d_functions()
     functions_2d = get_2d_functions()
     functions_3d = get_3d_functions()
-    all_functions = {**functions_1d, **functions_2d, **functions_3d}
+    functions_4d = get_4d_functions()
+    functions_5d = get_5d_functions()
+    all_functions = {**functions_1d, **functions_2d, **functions_3d, **functions_4d, **functions_5d}
 
     print(f"\n[SETUP SUMMARY]")
-    print(f"  * Functions: {len(all_functions)} total (5 1D, 5 2D, 5 3D)")
+    print(f"  * Functions: {len(all_functions)} total (5 1D, 5 2D, 5 3D, 3 4D, 3 5D)")
     print(f"  * Runs: {n_runs} (total evaluations: {len(all_functions) * n_runs})")
     print(f"  * Approaches: {', '.join(approaches)}")
     print(f"  * Metrics: AUROC, Spearman, Brier, MI, JSD")
@@ -893,6 +930,8 @@ if __name__ == "__main__":
         "1D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
         "2D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
         "3D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
+        "4D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
+        "5D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
     }
 
     test_start = time.time()
@@ -908,8 +947,12 @@ if __name__ == "__main__":
                     dim_key = "1D"
                 elif func_name in functions_2d:
                     dim_key = "2D"
-                else:
+                elif func_name in functions_3d:
                     dim_key = "3D"
+                elif func_name in functions_4d:
+                    dim_key = "4D"
+                else:
+                    dim_key = "5D"
 
                 for app in approaches:
                     results_all[app]["auroc"].append(test_results[app]["auroc"])
@@ -948,7 +991,7 @@ if __name__ == "__main__":
     print(f"\n\n{'#'*70}")
     print("# TEST 1: ALL FUNCTIONS TOGETHER")
     print(f"{'#'*70}")
-    print_results(results_all, f"ALL FUNCTIONS (15 x {n_runs} = {15 * n_runs} tests)")
+    print_results(results_all, f"ALL FUNCTIONS ({len(all_functions)} x {n_runs} = {len(all_functions) * n_runs} tests)")
     run_statistical_tests(results_all, approaches, n_runs, alpha=alpha)
     sys.stdout.flush()
 
@@ -959,10 +1002,10 @@ if __name__ == "__main__":
     print("# TEST 2: BY DIMENSION")
     print(f"{'#'*70}\n")
 
-    for dim_name, dim_key in [("1D Functions", "1D"), ("2D Functions", "2D"), ("3D Functions", "3D")]:
+    for dim_name, dim_key in [("1D Functions", "1D"), ("2D Functions", "2D"), ("3D Functions", "3D"), ("4D Functions", "4D"), ("5D Functions", "5D")]:
         print(f"\n[DIMENSION] {dim_name}")
         print(f"{'-'*70}")
-        print_results(results_by_dim[dim_key], f"{dim_name} (5 x {n_runs} = {5 * n_runs} tests)")
+        print_results(results_by_dim[dim_key], f"{dim_name} (runs = {n_runs})")
         run_statistical_tests(results_by_dim[dim_key], approaches, n_runs, alpha=alpha)
         sys.stdout.flush()
 
