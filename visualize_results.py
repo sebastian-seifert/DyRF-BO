@@ -41,19 +41,25 @@ all_funcs_data = {
 # Dimensional Breakdown Data
 dim_data = {
     "1D": {
-        "auroc": {"mean": [0.5711, 0.5717, 0.6430], "std": [0.1333, 0.1388, 0.2477]},
-        "mi":    {"mean": [0.4738, 0.4804, 0.6755], "std": [0.1788, 0.1872, 0.1242]},
-        "jsd":   {"mean": [0.3668, 0.3701, 0.5139], "std": [0.1310, 0.1364, 0.0772]}
+        "auroc":    {"mean": [0.5711, 0.5717, 0.6430], "std": [0.1333, 0.1388, 0.2477]},
+        "spearman": {"mean": [-0.1661, -0.1634, -0.0769], "std": [0.4335, 0.4361, 0.5117]},
+        "brier":    {"mean": [0.1798, 0.1797, 0.1763], "std": [0.0255, 0.0254, 0.0232]},
+        "mi":       {"mean": [0.4738, 0.4804, 0.6755], "std": [0.1788, 0.1872, 0.1242]},
+        "jsd":      {"mean": [0.3668, 0.3701, 0.5139], "std": [0.1310, 0.1364, 0.0772]}
     },
     "2D": {
-        "auroc": {"mean": [0.6987, 0.6974, 0.5677], "std": [0.2044, 0.2025, 0.1268]},
-        "mi":    {"mean": [0.3171, 0.3083, 0.1536], "std": [0.2447, 0.2427, 0.0721]},
-        "jsd":   {"mean": [0.2619, 0.2531, 0.1798], "std": [0.1521, 0.1498, 0.0813]}
+        "auroc":    {"mean": [0.6987, 0.6974, 0.5677], "std": [0.2044, 0.2025, 0.1268]},
+        "spearman": {"mean": [0.2015, 0.1982, 0.1273], "std": [0.3200, 0.3165, 0.3467]},
+        "brier":    {"mean": [0.0420, 0.0420, 0.0424], "std": [0.0159, 0.0159, 0.0158]},
+        "mi":       {"mean": [0.3171, 0.3083, 0.1536], "std": [0.2447, 0.2427, 0.0721]},
+        "jsd":      {"mean": [0.2619, 0.2531, 0.1798], "std": [0.1521, 0.1498, 0.0813]}
     },
     "3D": {
-        "auroc": {"mean": [0.8074, 0.8025, 0.5666], "std": [0.1384, 0.1388, 0.1028]},
-        "mi":    {"mean": [0.2991, 0.2875, 0.1012], "std": [0.2665, 0.2630, 0.1015]},
-        "jsd":   {"mean": [0.2753, 0.2648, 0.1549], "std": [0.1763, 0.1768, 0.1414]}
+        "auroc":    {"mean": [0.8074, 0.8025, 0.5666], "std": [0.1384, 0.1388, 0.1028]},
+        "spearman": {"mean": [-0.0035, -0.0003, 0.1472], "std": [0.0888, 0.0849, 0.2859]},
+        "brier":    {"mean": [0.0094, 0.0094, 0.0094], "std": [0.0048, 0.0048, 0.0048]},
+        "mi":       {"mean": [0.2991, 0.2875, 0.1012], "std": [0.2665, 0.2630, 0.1015]},
+        "jsd":      {"mean": [0.2753, 0.2648, 0.1549], "std": [0.1763, 0.1768, 0.1414]}
     }
 }
 
@@ -95,19 +101,21 @@ print(f"✓ Saved: {fig1_path}")
 
 
 # -----------------------------------------------------------------------------
-# PLOT 2: Dimensionality Trend Line Plot (AUROC & MI & JSD)
+# PLOT 2: Dimensionality Trend Line Plot (All 5 Metrics)
 # -----------------------------------------------------------------------------
 print("Generating Plot 2: Dimensionality Trend...")
-fig2, (ax_auroc, ax_mi, ax_jsd) = plt.subplots(1, 3, figsize=(12, 4.2))
+fig2, axes = plt.subplots(1, 5, figsize=(18, 4.5))
 
 dims = ["1D", "2D", "3D"]
 x_dims = np.arange(len(dims))
 
 # Setup subplots details
 axes_config = [
-    (ax_auroc, "auroc", "AUROC (OOD Discrimination)", "Higher is better"),
-    (ax_mi, "mi", "Mutual Information (Info. Content)", "Higher is better"),
-    (ax_jsd, "jsd", "Jensen-Shannon Divergence", "Higher is better")
+    (axes[0], "auroc", "AUROC (OOD Discrimination)", "Higher is better"),
+    (axes[1], "spearman", "Spearman r (Error Correlation)", "Higher is better"),
+    (axes[2], "brier", "Brier Score (Calibration)", "Lower is better"),
+    (axes[3], "mi", "Mutual Information (Info. Content)", "Higher is better"),
+    (axes[4], "jsd", "Jensen-Shannon Divergence", "Higher is better")
 ]
 
 for ax, metric_key, title, subtitle in axes_config:
@@ -131,10 +139,12 @@ for ax, metric_key, title, subtitle in axes_config:
         ax.set_ylabel("Metric Value")
         ax.axhline(0.5, color='#999999', linestyle='--', linewidth=0.8, label="Random Guess")
         ax.legend(frameon=True, facecolor='white', edgecolor='#e5e5e5', loc="lower right")
+    elif metric_key == "brier":
+        ax.legend(frameon=True, facecolor='white', edgecolor='#e5e5e5', loc="upper right")
     else:
         ax.legend(frameon=True, facecolor='white', edgecolor='#e5e5e5')
 
-plt.suptitle("Impact of Input Dimensionality on Epistemic Uncertainty Quality", y=0.98)
+plt.suptitle("Impact of Input Dimensionality on Epistemic Uncertainty Quality (All Metrics)", y=0.98)
 plt.tight_layout()
 fig2_path = "figures/dimensionality_trend.png"
 fig2.savefig(fig2_path, dpi=300)
