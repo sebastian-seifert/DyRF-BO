@@ -79,20 +79,42 @@ class CredalRegressionUQ:
             
         return means, variances, counts
 
-    def compute_uq(self, X_test, backend="auto", n_grid=100):
+    def compute_uq(self, X_test, backend="auto", n_grid=100, batch_size=2000):
         """
         Computes the epistemic and aleatoric uncertainties using the continuous
         relative likelihood framework. Fully vectorized and GPU-accelerated when available.
+        Batched to prevent out-of-memory errors on large test sets.
         
         Args:
             X_test: np.ndarray of shape (n_samples, n_features)
             backend: 'auto', 'cpu', or 'gpu'
             n_grid: Number of grid points for numerical integration of z
+            batch_size: Maximum number of test samples to process in a single batch
             
         Returns:
             epistemic_var: np.ndarray of shape (n_samples,) in variance-like units
             aleatoric_var: np.ndarray of shape (n_samples,) in variance-like units
         """
+        X_test = np.atleast_2d(X_test)
+        n_samples = X_test.shape[0]
+        
+        if n_samples <= batch_size:
+            return self._compute_uq_batch(X_test, backend=backend, n_grid=n_grid)
+            
+        # Batched execution to prevent OOM
+        epistemic_vars = []
+        aleatoric_vars = []
+        
+        for i in range(0, n_samples, batch_size):
+            X_batch = X_test[i : i + batch_size]
+            epistemic_batch, aleatoric_batch = self._compute_uq_batch(X_batch, backend=backend, n_grid=n_grid)
+            epistemic_vars.append(epistemic_batch)
+            aleatoric_vars.append(aleatoric_batch)
+            
+        return np.concatenate(epistemic_vars), np.concatenate(aleatoric_vars)
+
+    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100):
+        """Internal method to compute UQ for a single batch."""
         # 1. Retrieve CPU leaf statistics
         means, variances, counts = self._calc_leaf_stats(X_test)
         sigmas = np.sqrt(variances)
@@ -111,9 +133,30 @@ class CredalRegressionUQ:
             
         n_trees, n_samples = means_g.shape
         
-        # 3. Setup normalized integration grid z in [-5, 5]
-        z_grid = xp.linspace(-5.0, 5.0, n_grid)
+        # 3. Setup Gauss-Legendre quadrature grid z in [-5, 5] (kink-split at 0)
+        # We split the interval [-5, 5] into [-5, 0] and [0, 5] to avoid the kink at z=0,
+        # ensuring C^inf smoothness and exponential convergence on each subinterval.
+        n_half = max(2, n_grid // 2)
+        roots_std, weights_std = np.polynomial.legendre.leggauss(n_half)
         
+        # Map to left half [-5, 0]: y = 2.5 * x - 2.5
+        roots_left = 2.5 * roots_std - 2.5
+        weights_left = 2.5 * weights_std
+        
+        # Map to right half [0, 5]: y = 2.5 * x + 2.5
+        roots_right = 2.5 * roots_std + 2.5
+        weights_right = 2.5 * weights_std
+        
+        z_grid_cpu = np.concatenate([roots_left, roots_right])
+        weights_cpu = np.concatenate([weights_left, weights_right])
+        
+        if xp is not np:
+            z_grid = cp.asarray(z_grid_cpu)
+            weights = cp.asarray(weights_cpu)
+        else:
+            z_grid = z_grid_cpu
+            weights = weights_cpu
+            
         # Reshape for multi-dimensional broadcasting: (n_trees, n_samples, n_grid)
         k_b = counts_g[:, :, xp.newaxis]
         z_b = z_grid[xp.newaxis, xp.newaxis, :]
@@ -128,8 +171,8 @@ class CredalRegressionUQ:
         # 4. Vectorized Bisection to find the supremum root for pi_le
         # Search interval is [y_mean - 4*sigma/sqrt(k), y_mean + 4*sigma/sqrt(k)]
         # In normalized space u, this is [-4/sqrt(k), 4/sqrt(k)]
-        a_le = xp.zeros((n_trees, n_samples, n_grid)) - 4.0 / xp.sqrt(k_b)
-        b_le = xp.zeros((n_trees, n_samples, n_grid)) + 4.0 / xp.sqrt(k_b)
+        a_le = xp.zeros((n_trees, n_samples, 2 * n_half)) - 4.0 / xp.sqrt(k_b)
+        b_le = xp.zeros((n_trees, n_samples, 2 * n_half)) + 4.0 / xp.sqrt(k_b)
         
         for _ in range(15):
             mu_u = 0.5 * (a_le + b_le)
@@ -142,8 +185,8 @@ class CredalRegressionUQ:
         pi_le = xp.exp(-k_b * (a_le**2) / 2.0)
         
         # 5. Vectorized Bisection to find the supremum root for pi_ge
-        a_ge = xp.zeros((n_trees, n_samples, n_grid)) - 4.0 / xp.sqrt(k_b)
-        b_ge = xp.zeros((n_trees, n_samples, n_grid)) + 4.0 / xp.sqrt(k_b)
+        a_ge = xp.zeros((n_trees, n_samples, 2 * n_half)) - 4.0 / xp.sqrt(k_b)
+        b_ge = xp.zeros((n_trees, n_samples, 2 * n_half)) + 4.0 / xp.sqrt(k_b)
         
         for _ in range(15):
             mu_u = 0.5 * (a_ge + b_ge)
@@ -159,10 +202,10 @@ class CredalRegressionUQ:
         min_vals = xp.minimum(pi_le, pi_ge)
         max_vals = xp.maximum(pi_le, pi_ge)
         
-        # 7. Custom trapezoidal integration over axis 2 (z dimension)
-        dz = 10.0 / (n_grid - 1)
-        I_ep = xp.sum((min_vals[:, :, :-1] + min_vals[:, :, 1:]) / 2.0, axis=2) * dz
-        I_al = xp.sum(((1.0 - max_vals[:, :, :-1]) + (1.0 - max_vals[:, :, 1:])) / 2.0, axis=2) * dz
+        # 7. Gauss-Legendre quadrature integration (weighted sum over axis 2)
+        weights_b = weights[xp.newaxis, xp.newaxis, :]
+        I_ep = xp.sum(min_vals * weights_b, axis=2)
+        I_al = xp.sum((1.0 - max_vals) * weights_b, axis=2)
         
         # Multiply by local sigma to scale integrals back to data units
         EU_per_tree = sigmas_g * I_ep
