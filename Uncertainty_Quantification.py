@@ -864,7 +864,7 @@ if __name__ == "__main__":
     print(f"{'='*70}")
 
     n_runs = 1
-    approaches = ["Standard", "Shaker", "Chen", "Credal"]
+    approaches = ["Standard", "Chen", "Credal"]
     alpha = 0.05
 
     functions_1d = get_1d_functions()
