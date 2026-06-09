@@ -20,40 +20,40 @@ plt.rcParams['legend.fontsize'] = 9
 os.makedirs("figures", exist_ok=True)
 
 # -----------------------------------------------------------------------------
-# Data from statistical_tests.txt
+# Data from statistical_tests.txt (June 9, 2026 Run)
 # -----------------------------------------------------------------------------
-approaches = ["Standard", "Shaker", "Chen"]
+approaches = ["Standard", "Chen", "Credal"]
 colors = {
     "Standard": "#3498db",  # Steel Blue
-    "Shaker": "#e74c3c",    # Coral Red
-    "Chen": "#2ecc71"       # Emerald Green
+    "Chen": "#2ecc71",      # Emerald Green
+    "Credal": "#9b59b6"     # Amethyst Purple
 }
 
 # All Functions Summary
 all_funcs_data = {
-    "auroc":    {"mean": [0.6924, 0.6786, 0.6905], "std": [0.1886, 0.1943, 0.1882]},
-    "spearman": {"mean": [0.0106, -0.0053, 0.0115], "std": [0.3493, 0.3214, 0.3479]},
-    "brier":    {"mean": [0.0771, 0.0774, 0.0770], "std": [0.0759, 0.0761, 0.0759]},
-    "mi":       {"mean": [0.3633, 0.3110, 0.3587], "std": [0.2459, 0.2101, 0.2487]},
-    "jsd":      {"mean": [0.3013, 0.2637, 0.2960], "std": [0.1611, 0.1429, 0.1639]}
+    "auroc":    {"mean": [0.6924, 0.6905, 0.5925], "std": [0.1886, 0.1882, 0.1750]},
+    "spearman": {"mean": [0.0106, 0.0115, 0.0659], "std": [0.3493, 0.3479, 0.4060]},
+    "brier":    {"mean": [0.0771, 0.0770, 0.0760], "std": [0.0759, 0.0759, 0.0740]},
+    "mi":       {"mean": [0.3633, 0.3587, 0.3101], "std": [0.2459, 0.2487, 0.2784]},
+    "jsd":      {"mean": [0.3013, 0.2960, 0.2829], "std": [0.1611, 0.1639, 0.1940]}
 }
 
 # Dimensional Breakdown Data
 dim_data = {
     "1D": {
-        "auroc": {"mean": [0.5711, 0.5452, 0.5717], "std": [0.1333, 0.1641, 0.1388]},
-        "mi":    {"mean": [0.4738, 0.3861, 0.4804], "std": [0.1788, 0.1354, 0.1872]},
-        "jsd":   {"mean": [0.3668, 0.3020, 0.3701], "std": [0.1310, 0.0906, 0.1364]}
+        "auroc": {"mean": [0.5711, 0.5717, 0.6430], "std": [0.1333, 0.1388, 0.2477]},
+        "mi":    {"mean": [0.4738, 0.4804, 0.6755], "std": [0.1788, 0.1872, 0.1242]},
+        "jsd":   {"mean": [0.3668, 0.3701, 0.5139], "std": [0.1310, 0.1364, 0.0772]}
     },
     "2D": {
-        "auroc": {"mean": [0.6987, 0.6924, 0.6974], "std": [0.2044, 0.1900, 0.2025]},
-        "mi":    {"mean": [0.3171, 0.2690, 0.3083], "std": [0.2447, 0.2085, 0.2427]},
-        "jsd":   {"mean": [0.2619, 0.2264, 0.2531], "std": [0.1521, 0.1373, 0.1498]}
+        "auroc": {"mean": [0.6987, 0.6974, 0.5677], "std": [0.2044, 0.2025, 0.1268]},
+        "mi":    {"mean": [0.3171, 0.3083, 0.1536], "std": [0.2447, 0.2427, 0.0721]},
+        "jsd":   {"mean": [0.2619, 0.2531, 0.1798], "std": [0.1521, 0.1498, 0.0813]}
     },
     "3D": {
-        "auroc": {"mean": [0.8074, 0.7983, 0.8025], "std": [0.1384, 0.1338, 0.1388]},
-        "mi":    {"mean": [0.2991, 0.2780, 0.2875], "std": [0.2665, 0.2492, 0.2630]},
-        "jsd":   {"mean": [0.2753, 0.2625, 0.2648], "std": [0.1763, 0.1770, 0.1768]}
+        "auroc": {"mean": [0.8074, 0.8025, 0.5666], "std": [0.1384, 0.1388, 0.1028]},
+        "mi":    {"mean": [0.2991, 0.2875, 0.1012], "std": [0.2665, 0.2630, 0.1015]},
+        "jsd":   {"mean": [0.2753, 0.2648, 0.1549], "std": [0.1763, 0.1768, 0.1414]}
     }
 }
 
@@ -86,14 +86,6 @@ ax1.grid(axis='y', linestyle='-', alpha=0.5)
 
 # Add horizontal line at zero
 ax1.axhline(0, color='#333333', linewidth=0.8, zorder=1)
-
-# Annotations for statistical significance
-# Standard/Chen are equivalent, both sig > Shaker in MI and JSD
-# We label significance bars over MI and JSD
-# MI significance brackets
-ax1.text(3, 0.65, "**", ha="center", va="bottom", color="#333333", fontsize=10)
-# JSD significance brackets
-ax1.text(4, 0.50, "**", ha="center", va="bottom", color="#333333", fontsize=10)
 
 plt.tight_layout()
 fig1_path = "figures/uq_metric_comparison.png"
