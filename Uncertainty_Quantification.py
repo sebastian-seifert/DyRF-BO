@@ -814,7 +814,7 @@ def run_single_test(func_dict, func_name, seed, approaches):
         # Sigmoid Calibration (Platt Scaling) to map epistemic uncertainty to OOD probability
         try:
             # Disable regularization to ensure scale invariance across UQ methods
-            lr = LogisticRegression(penalty=None)
+            lr = LogisticRegression(C=np.inf)
             lr.fit(u_e.reshape(-1, 1), y_true_binary)
             p_calibrated = lr.predict_proba(u_e.reshape(-1, 1))[:, 1]
         except Exception:
