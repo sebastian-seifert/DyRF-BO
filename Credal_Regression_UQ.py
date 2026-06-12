@@ -79,7 +79,7 @@ class CredalRegressionUQ:
             
         return means, variances, counts
 
-    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size=2000):
+    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size=2000, integration_method="gauss_legendre"):
         """
         Computes the epistemic and aleatoric uncertainties using the continuous
         relative likelihood framework. Fully vectorized and GPU-accelerated when available.
@@ -88,8 +88,9 @@ class CredalRegressionUQ:
         Args:
             X_test: np.ndarray of shape (n_samples, n_features)
             backend: 'auto', 'cpu', or 'gpu'
-            n_grid: Number of grid points for numerical integration of z (defaults to 100 on GPU, 32 on CPU)
+            n_grid: Number of grid points for numerical integration of z
             batch_size: Maximum number of test samples to process in a single batch
+            integration_method: 'gauss_legendre' or 'trapezoid'
             
         Returns:
             epistemic_var: np.ndarray of shape (n_samples,) in variance-like units
@@ -102,11 +103,17 @@ class CredalRegressionUQ:
         is_gpu = backend == "gpu" or (backend == "auto" and cp is not None and cp.cuda.runtime.getDeviceCount() > 0)
         
         if n_grid is None:
-            n_grid = 100 if is_gpu else 32
-        n_iter = 15 if is_gpu else 10
+            # Scale grid size dynamically based on input dimensionality
+            D = X_test.shape[1]
+            if integration_method == "trapezoid":
+                n_grid = 128 if D >= 3 else 64
+            else: # gauss_legendre
+                n_grid = 64 if D >= 3 else 32
+                
+        n_iter = 20 if is_gpu else 15
         
         if n_samples <= batch_size:
-            return self._compute_uq_batch(X_test, backend=backend, n_grid=n_grid, n_iter=n_iter)
+            return self._compute_uq_batch(X_test, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method)
             
         # Batched execution to prevent OOM
         epistemic_vars = []
@@ -114,14 +121,16 @@ class CredalRegressionUQ:
         
         for i in range(0, n_samples, batch_size):
             X_batch = X_test[i : i + batch_size]
-            epistemic_batch, aleatoric_batch = self._compute_uq_batch(X_batch, backend=backend, n_grid=n_grid, n_iter=n_iter)
+            epistemic_batch, aleatoric_batch = self._compute_uq_batch(
+                X_batch, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method
+            )
             epistemic_vars.append(epistemic_batch)
             aleatoric_vars.append(aleatoric_batch)
             
         return np.concatenate(epistemic_vars), np.concatenate(aleatoric_vars)
 
-    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100, n_iter=15):
-        """Internal method to compute UQ for a single batch."""
+    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100, n_iter=15, integration_method="gauss_legendre"):
+        """Internal method to compute UQ for a single batch using Method B (ensemble-level integration)."""
         # 1. Retrieve CPU leaf statistics
         means, variances, counts = self._calc_leaf_stats(X_test)
         sigmas = np.sqrt(variances)
@@ -140,33 +149,38 @@ class CredalRegressionUQ:
             
         n_trees, n_samples = means_g.shape
         
-        # 3. Setup Gauss-Legendre quadrature grid z in [-5, 5] (kink-split at 0)
-        # We split the interval [-5, 5] into [-5, 0] and [0, 5] to avoid the kink at z=0,
-        # ensuring C^inf smoothness and exponential convergence on each subinterval.
-        n_half = max(2, n_grid // 2)
-        roots_std, weights_std = np.polynomial.legendre.leggauss(n_half)
+        # Calculate t_min and t_max for each sample across all trees
+        # We use 6 * sigma to cover the tails fully
+        t_min = xp.min(means_g - 6.0 * sigmas_g, axis=0)
+        t_max = xp.max(means_g + 6.0 * sigmas_g, axis=0)
         
-        # Map to left half [-5, 0]: y = 2.5 * x - 2.5
-        roots_left = 2.5 * roots_std - 2.5
-        weights_left = 2.5 * weights_std
-        
-        # Map to right half [0, 5]: y = 2.5 * x + 2.5
-        roots_right = 2.5 * roots_std + 2.5
-        weights_right = 2.5 * weights_std
-        
-        z_grid_cpu = np.concatenate([roots_left, roots_right])
-        weights_cpu = np.concatenate([weights_left, weights_right])
-        
-        if xp is not np:
-            z_grid = cp.asarray(z_grid_cpu)
-            weights = cp.asarray(weights_cpu)
+        # 3. Setup the integration grid over t for each sample
+        # t_grid shape: (n_samples, n_grid)
+        if integration_method == "trapezoid":
+            # Linear grid between t_min and t_max
+            grid_steps = xp.linspace(0.0, 1.0, n_grid)
+            t_grid = t_min[:, xp.newaxis] + grid_steps[xp.newaxis, :] * (t_max - t_min)[:, xp.newaxis]
+            dt = (t_max - t_min) / (n_grid - 1)
+        elif integration_method == "gauss_legendre":
+            # Gauss-Legendre quadrature roots and weights on [-1, 1]
+            roots_std, weights_std = np.polynomial.legendre.leggauss(n_grid)
+            if xp is not np:
+                roots_std = cp.asarray(roots_std)
+                weights_std = cp.asarray(weights_std)
+            # Map to [t_min, t_max] for each sample
+            t_grid = 0.5 * (t_max - t_min)[:, xp.newaxis] * roots_std[xp.newaxis, :] + 0.5 * (t_max + t_min)[:, xp.newaxis]
+            weights_g = 0.5 * (t_max - t_min)[:, xp.newaxis] * weights_std[xp.newaxis, :]
         else:
-            z_grid = z_grid_cpu
-            weights = weights_cpu
+            raise ValueError(f"Unknown integration_method: {integration_method}")
             
         # Reshape for multi-dimensional broadcasting: (n_trees, n_samples, n_grid)
+        means_b = means_g[:, :, xp.newaxis]
+        sigmas_b = sigmas_g[:, :, xp.newaxis]
         k_b = counts_g[:, :, xp.newaxis]
-        z_b = z_grid[xp.newaxis, xp.newaxis, :]
+        t_b = t_grid[xp.newaxis, :, :]
+        
+        # Normalized grid coordinates z = (t - mean) / sigma
+        z_b = (t_b - means_b) / sigmas_b
         
         # Helper function for CDF of standard normal distribution
         def xp_cdf(x):
@@ -176,10 +190,9 @@ class CredalRegressionUQ:
                 return 0.5 * (1.0 + cp_erf(x / cp.sqrt(2.0)))
             
         # 4. Vectorized Bisection to find the supremum root for pi_le
-        # Search interval is [y_mean - 4*sigma/sqrt(k), y_mean + 4*sigma/sqrt(k)]
-        # In normalized space u, this is [-4/sqrt(k), 4/sqrt(k)]
-        a_le = xp.zeros((n_trees, n_samples, 2 * n_half)) - 4.0 / xp.sqrt(k_b)
-        b_le = xp.zeros((n_trees, n_samples, 2 * n_half)) + 4.0 / xp.sqrt(k_b)
+        # Search interval in normalized space u is [-10/sqrt(k), 10/sqrt(k)] to prevent pinning
+        a_le = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
+        b_le = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
         
         for _ in range(n_iter):
             mu_u = 0.5 * (a_le + b_le)
@@ -192,8 +205,8 @@ class CredalRegressionUQ:
         pi_le = xp.exp(-k_b * (a_le**2) / 2.0)
         
         # 5. Vectorized Bisection to find the supremum root for pi_ge
-        a_ge = xp.zeros((n_trees, n_samples, 2 * n_half)) - 4.0 / xp.sqrt(k_b)
-        b_ge = xp.zeros((n_trees, n_samples, 2 * n_half)) + 4.0 / xp.sqrt(k_b)
+        a_ge = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
+        b_ge = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
         
         for _ in range(n_iter):
             mu_u = 0.5 * (a_ge + b_ge)
@@ -205,30 +218,29 @@ class CredalRegressionUQ:
             
         pi_ge = xp.exp(-k_b * (a_ge**2) / 2.0)
         
-        # 6. Epistemic (intersection) and Aleatoric (residual) integrands
-        min_vals = xp.minimum(pi_le, pi_ge)
-        max_vals = xp.maximum(pi_le, pi_ge)
+        # 6. Ensemble-level averaging BEFORE integration (Method B)
+        mean_pi_le = xp.mean(pi_le, axis=0)
+        mean_pi_ge = xp.mean(pi_ge, axis=0)
         
-        # 7. Gauss-Legendre quadrature integration (weighted sum over axis 2)
-        weights_b = weights[xp.newaxis, xp.newaxis, :]
-        I_ep = xp.sum(min_vals * weights_b, axis=2)
-        I_al = xp.sum((1.0 - max_vals) * weights_b, axis=2)
+        # 7. Epistemic (intersection) and Aleatoric (residual) integrands
+        min_vals = xp.minimum(mean_pi_le, mean_pi_ge)
+        max_vals = xp.maximum(mean_pi_le, mean_pi_ge)
         
-        # Multiply by local sigma to scale integrals back to data units
-        EU_per_tree = sigmas_g * I_ep
-        AU_per_tree = sigmas_g * I_al
-        
-        # Average results over all trees
-        EU_mean = xp.mean(EU_per_tree, axis=0)
-        AU_mean = xp.mean(AU_per_tree, axis=0)
-        
+        # 8. Perform numerical integration over grid (axis 1)
+        if integration_method == "trapezoid":
+            I_ep = xp.sum(0.5 * (min_vals[:, :-1] + min_vals[:, 1:]) * dt[:, xp.newaxis], axis=1)
+            I_al = xp.sum(0.5 * ((1.0 - max_vals[:, :-1]) + (1.0 - max_vals[:, 1:])) * dt[:, xp.newaxis], axis=1)
+        elif integration_method == "gauss_legendre":
+            I_ep = xp.sum(min_vals * weights_g, axis=1)
+            I_al = xp.sum((1.0 - max_vals) * weights_g, axis=1)
+            
         # Move variables back to CPU if computed on GPU
         if xp is not np:
-            EU_mean = cp.asnumpy(EU_mean)
-            AU_mean = cp.asnumpy(AU_mean)
+            I_ep = cp.asnumpy(I_ep)
+            I_al = cp.asnumpy(I_al)
             
-        # 8. Transform from standard deviation units to variance units (square the results)
-        epistemic_var = EU_mean ** 2
-        aleatoric_var = AU_mean ** 2
+        # 9. Transform to variance units (square the results)
+        epistemic_var = I_ep ** 2
+        aleatoric_var = I_al ** 2
         
         return epistemic_var, aleatoric_var

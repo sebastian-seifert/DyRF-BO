@@ -787,15 +787,21 @@ def run_single_test(func_dict, func_name, seed, approaches):
     u_a = quantifier.base_get_aleatoric_variance(X_test)
 
     uncertainties = {}
-    u_a_credal = None
+    u_a_credal_dict = {}
     for app in approaches:
         if app == "Standard": uncertainties[app] = quantifier.standard_get_epistemic_variance(X_test)
         elif app == "Shaker": uncertainties[app] = quantifier.shaker_get_epistemic_variance(X_test, random_state=seed)
         elif app == "Chen": uncertainties[app] = quantifier.chen_get_epistemic_variance(X_test)
-        elif app == "Credal":
+        elif app == "Credal_GL" or app == "Credal":
             credal_q = CredalRegressionUQ(rf, X_train, y_train)
-            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto")
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="gauss_legendre")
             uncertainties[app] = u_e_credal
+            u_a_credal_dict[app] = u_a_credal
+        elif app == "Credal_Trapz":
+            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid")
+            uncertainties[app] = u_e_credal
+            u_a_credal_dict[app] = u_a_credal
 
     for app in approaches:
         u_e = uncertainties[app]
@@ -803,8 +809,8 @@ def run_single_test(func_dict, func_name, seed, approaches):
 
         results[app]["auroc"] = roc_auc_score(y_true_binary, u_e)
         if np.any(gap_mask):
-            if app == "Credal" and u_a_credal is not None:
-                spear_corr, _ = spearmanr(sq_error[gap_mask], (u_e + u_a_credal)[gap_mask])
+            if app in u_a_credal_dict and u_a_credal_dict[app] is not None:
+                spear_corr, _ = spearmanr(sq_error[gap_mask], (u_e + u_a_credal_dict[app])[gap_mask])
             else:
                 spear_corr, _ = spearmanr(sq_error[gap_mask], (u_e + u_a)[gap_mask])
             results[app]["spearman"] = spear_corr
@@ -898,8 +904,8 @@ if __name__ == "__main__":
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*70}")
 
-    n_runs = 30
-    approaches = ["Standard", "Chen", "Credal"]
+    n_runs = 10
+    approaches = ["Standard", "Chen", "Credal_GL", "Credal_Trapz"]
     alpha = 0.05
 
     functions_1d = get_1d_functions()
