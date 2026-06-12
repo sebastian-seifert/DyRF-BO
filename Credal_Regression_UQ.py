@@ -14,13 +14,14 @@ if sys.stderr is not None:
     except AttributeError:
         pass
 
-from scipy.special import erf as np_erf
+from scipy.special import erf as np_erf, log_ndtr as np_log_ndtr
 try:
     import cupy as cp
-    from cupyx.scipy.special import erf as cp_erf
+    from cupyx.scipy.special import erf as cp_erf, log_ndtr as cp_log_ndtr
 except ImportError:
     cp = None
     cp_erf = None
+    cp_log_ndtr = None
 
 class CredalRegressionUQ:
     def __init__(self, model, X_train, y_train):
@@ -79,7 +80,7 @@ class CredalRegressionUQ:
             
         return means, variances, counts
 
-    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size=2000, integration_method="gauss_legendre"):
+    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size=2000, integration_method="gauss_legendre", sup_solver="bisection"):
         """
         Computes the epistemic and aleatoric uncertainties using the continuous
         relative likelihood framework. Fully vectorized and GPU-accelerated when available.
@@ -91,6 +92,7 @@ class CredalRegressionUQ:
             n_grid: Number of grid points for numerical integration of z
             batch_size: Maximum number of test samples to process in a single batch
             integration_method: 'gauss_legendre' or 'trapezoid'
+            sup_solver: 'bisection' or 'newton'
             
         Returns:
             epistemic_var: np.ndarray of shape (n_samples,) in variance-like units
@@ -113,7 +115,7 @@ class CredalRegressionUQ:
         n_iter = 20 if is_gpu else 15
         
         if n_samples <= batch_size:
-            return self._compute_uq_batch(X_test, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method)
+            return self._compute_uq_batch(X_test, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver)
             
         # Batched execution to prevent OOM
         epistemic_vars = []
@@ -122,14 +124,14 @@ class CredalRegressionUQ:
         for i in range(0, n_samples, batch_size):
             X_batch = X_test[i : i + batch_size]
             epistemic_batch, aleatoric_batch = self._compute_uq_batch(
-                X_batch, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method
+                X_batch, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver
             )
             epistemic_vars.append(epistemic_batch)
             aleatoric_vars.append(aleatoric_batch)
             
         return np.concatenate(epistemic_vars), np.concatenate(aleatoric_vars)
 
-    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100, n_iter=15, integration_method="gauss_legendre"):
+    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100, n_iter=15, integration_method="gauss_legendre", sup_solver="bisection"):
         """Internal method to compute UQ for a single batch using Method B (ensemble-level integration)."""
         # 1. Retrieve CPU leaf statistics
         means, variances, counts = self._calc_leaf_stats(X_test)
@@ -189,34 +191,80 @@ class CredalRegressionUQ:
             else:
                 return 0.5 * (1.0 + cp_erf(x / cp.sqrt(2.0)))
             
-        # 4. Vectorized Bisection to find the supremum root for pi_le
-        # Search interval in normalized space u is [-10/sqrt(k), 10/sqrt(k)] to prevent pinning
-        a_le = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
-        b_le = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
-        
-        for _ in range(n_iter):
-            mu_u = 0.5 * (a_le + b_le)
-            pi_H = xp.exp(-k_b * (mu_u**2) / 2.0)
-            phi_val = xp_cdf(z_b - mu_u)
-            mask = pi_H < phi_val
-            a_le = xp.where(mask, mu_u, a_le)
-            b_le = xp.where(mask, b_le, mu_u)
+        # Helper function for log_ndtr of standard normal distribution
+        def xp_log_ndtr(x):
+            if xp is np:
+                return np_log_ndtr(x)
+            else:
+                return cp_log_ndtr(x)
             
-        pi_le = xp.exp(-k_b * (a_le**2) / 2.0)
-        
-        # 5. Vectorized Bisection to find the supremum root for pi_ge
-        a_ge = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
-        b_ge = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
-        
-        for _ in range(n_iter):
-            mu_u = 0.5 * (a_ge + b_ge)
-            pi_H = xp.exp(-k_b * (mu_u**2) / 2.0)
-            phi_val = xp_cdf(mu_u - z_b)
-            mask = pi_H < phi_val
-            a_ge = xp.where(mask, a_ge, mu_u)
-            b_ge = xp.where(mask, mu_u, b_ge)
+        if sup_solver == "newton":
+            # Newton-Raphson iterations: 8 is more than enough for machine precision
+            n_iter_newton = 8
+            log_sqrt_2pi = 0.5 * xp.log(2.0 * np.pi)
             
-        pi_ge = xp.exp(-k_b * (a_ge**2) / 2.0)
+            # --- Vectorized Newton-Raphson for pi_le ---
+            # Initialize u using a negative value scaled by z
+            u_le = - (xp.abs(z_b) + 1.0) / (xp.sqrt(k_b) + 1.0)
+            
+            for _ in range(n_iter_newton):
+                w = z_b - u_le
+                log_phi = xp_log_ndtr(w)
+                inv_mills = xp.exp(-0.5 * w**2 - log_sqrt_2pi - log_phi)
+                
+                h_val = -0.5 * k_b * u_le**2 - log_phi
+                h_prime = -k_b * u_le + inv_mills
+                
+                u_le = u_le - h_val / h_prime
+                u_le = xp.minimum(u_le, -1e-15)
+                
+            pi_le = xp.exp(-k_b * u_le**2 / 2.0)
+            
+            # --- Vectorized Newton-Raphson for pi_ge ---
+            # Initialize u using a negative value scaled by z
+            u_ge = - (xp.abs(z_b) + 1.0) / (xp.sqrt(k_b) + 1.0)
+            
+            for _ in range(n_iter_newton):
+                w = u_ge - z_b
+                log_phi = xp_log_ndtr(w)
+                inv_mills = xp.exp(-0.5 * w**2 - log_sqrt_2pi - log_phi)
+                
+                h_val = -0.5 * k_b * u_ge**2 - log_phi
+                h_prime = -k_b * u_ge - inv_mills
+                
+                u_ge = u_ge - h_val / h_prime
+                u_ge = xp.minimum(u_ge, -1e-15)
+                
+            pi_ge = xp.exp(-k_b * u_ge**2 / 2.0)
+            
+        else: # bisection
+            # 4. Vectorized Bisection to find the supremum root for pi_le
+            a_le = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
+            b_le = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
+            
+            for _ in range(n_iter):
+                mu_u = 0.5 * (a_le + b_le)
+                pi_H = xp.exp(-k_b * (mu_u**2) / 2.0)
+                phi_val = xp_cdf(z_b - mu_u)
+                mask = pi_H < phi_val
+                a_le = xp.where(mask, mu_u, a_le)
+                b_le = xp.where(mask, b_le, mu_u)
+                
+            pi_le = xp.exp(-k_b * (a_le**2) / 2.0)
+            
+            # 5. Vectorized Bisection to find the supremum root for pi_ge
+            a_ge = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
+            b_ge = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
+            
+            for _ in range(n_iter):
+                mu_u = 0.5 * (a_ge + b_ge)
+                pi_H = xp.exp(-k_b * (mu_u**2) / 2.0)
+                phi_val = xp_cdf(mu_u - z_b)
+                mask = pi_H < phi_val
+                a_ge = xp.where(mask, a_ge, mu_u)
+                b_ge = xp.where(mask, mu_u, b_ge)
+                
+            pi_ge = xp.exp(-k_b * (a_ge**2) / 2.0)
         
         # 6. Ensemble-level averaging BEFORE integration (Method B)
         mean_pi_le = xp.mean(pi_le, axis=0)

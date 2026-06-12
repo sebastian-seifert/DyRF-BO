@@ -792,14 +792,24 @@ def run_single_test(func_dict, func_name, seed, approaches):
         if app == "Standard": uncertainties[app] = quantifier.standard_get_epistemic_variance(X_test)
         elif app == "Shaker": uncertainties[app] = quantifier.shaker_get_epistemic_variance(X_test, random_state=seed)
         elif app == "Chen": uncertainties[app] = quantifier.chen_get_epistemic_variance(X_test)
-        elif app == "Credal_GL" or app == "Credal":
+        elif app == "Credal_GL_Bisect":
             credal_q = CredalRegressionUQ(rf, X_train, y_train)
-            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="gauss_legendre")
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="gauss_legendre", sup_solver="bisection")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
-        elif app == "Credal_Trapz":
+        elif app == "Credal_GL_Newton":
             credal_q = CredalRegressionUQ(rf, X_train, y_train)
-            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid")
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="gauss_legendre", sup_solver="newton")
+            uncertainties[app] = u_e_credal
+            u_a_credal_dict[app] = u_a_credal
+        elif app == "Credal_Trapz_Bisect":
+            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection")
+            uncertainties[app] = u_e_credal
+            u_a_credal_dict[app] = u_a_credal
+        elif app == "Credal_Trapz_Newton":
+            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="newton")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
 
@@ -905,7 +915,7 @@ if __name__ == "__main__":
     print(f"{'='*70}")
 
     n_runs = 10
-    approaches = ["Standard", "Chen", "Credal_GL", "Credal_Trapz"]
+    approaches = ["Standard", "Chen", "Credal_GL_Bisect", "Credal_GL_Newton", "Credal_Trapz_Bisect", "Credal_Trapz_Newton"]
     alpha = 0.05
 
     functions_1d = get_1d_functions()
