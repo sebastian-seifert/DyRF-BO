@@ -697,10 +697,8 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
     # Add homoscedastic target noise
     y += rng.normal(0, 0.1, len(y))
 
-    # Create the multidimensional OOD gap mask (Hypercube)
-    gap_mask = np.ones(len(X), dtype=bool)
-    for d in range(ndim):
-        gap_mask &= (X[:, d] >= gap[0]) & (X[:, d] <= gap[1])
+    # Create the multidimensional OOD gap mask (defined along the first dimension to prevent volume collapse)
+    gap_mask = (X[:, 0] >= gap[0]) & (X[:, 0] <= gap[1])
 
     if gap_type == 'sparse':
         # Get indices of points inside the gap
