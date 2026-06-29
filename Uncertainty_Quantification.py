@@ -656,9 +656,15 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
     # Determine dimensionality dynamically from lambda argument count
     ndim = func_obj.__code__.co_argcount
 
-    # If ndim >= 6, use random uniform sampling instead of dense grids to prevent OOM
-    if ndim >= 6:
-        if ndim == 6:
+    # If ndim >= 3, use random uniform sampling instead of dense grids to prevent OOM
+    if ndim >= 3:
+        if ndim == 3:
+            n_samples = 3000
+        elif ndim == 4:
+            n_samples = 3000
+        elif ndim == 5:
+            n_samples = 3000
+        elif ndim == 6:
             n_samples = 3000
         elif ndim == 7:
             n_samples = 3000
@@ -677,12 +683,8 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
                 points_per_dim = 1200
             elif ndim == 2:
                 points_per_dim = 50
-            elif ndim == 3:
-                points_per_dim = 30
-            elif ndim == 4:
-                points_per_dim = 10
             else:
-                points_per_dim = 7
+                points_per_dim = 30
 
         # Generate the coordinate grids for each axis
         grids = [np.linspace(x_range[0], x_range[1], points_per_dim) for _ in range(ndim)]
