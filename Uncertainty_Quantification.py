@@ -22,6 +22,7 @@ from scipy.stats import spearmanr, friedmanchisquare, wilcoxon, gaussian_kde
 from scipy.special import logsumexp, xlogy, entr
 from scipy.spatial.distance import jensenshannon
 from Credal_Regression_UQ import CredalRegressionUQ
+from Proximity_Regression_UQ import ProximityRegressionUQ
 
 # Helps on clusters where NVRTC does not directly support the GPU's native arch.
 os.environ.setdefault("CUPY_COMPILE_WITH_PTX", "1")
@@ -536,9 +537,115 @@ def get_5d_functions():
     }
     return functions
 
-def generate_data(func_dict, func_name, seed, points_per_dim=None):
+def get_6d_functions():
+    """Returns 3 diverse 6D functions with training gaps."""
+    functions = {
+        "sin_cos_6d": {
+            "func": lambda x1, x2, x3, x4, x5, x6: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6),
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+        "quadratic_6d": {
+            "func": lambda x1, x2, x3, x4, x5, x6: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2) / 300,
+            "gap": (3.5, 6.5),
+            "range": (0, 10),
+        },
+        "friedman_6d": {
+            "func": lambda x1, x2, x3, x4, x5, x6: 10 * np.sin(np.pi * x1 * x2 / 100) + 20 * (x3 / 10 - 0.5)**2 + 10 * x4 / 10 + 5 * x5 / 10 + x6 / 10,
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+    }
+    return functions
+
+def get_7d_functions():
+    """Returns 3 diverse 7D functions with training gaps."""
+    functions = {
+        "sin_cos_7d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7),
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+        "quadratic_7d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2 + x7**2) / 350,
+            "gap": (3.5, 6.5),
+            "range": (0, 10),
+        },
+        "interaction_7d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7: (x1*x2 + x2*x3 + x3*x4 + x4*x5 + x5*x6 + x6*x7) / 50,
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+    }
+    return functions
+
+def get_8d_functions():
+    """Returns 3 diverse 8D functions with training gaps."""
+    functions = {
+        "sin_cos_8d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8),
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+        "quadratic_8d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2 + x7**2 + x8**2) / 400,
+            "gap": (3.5, 6.5),
+            "range": (0, 10),
+        },
+        "exp_sum_8d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8: np.exp(-( (x1-5)**2 + (x2-5)**2 + (x3-5)**2 + (x4-5)**2 + (x5-5)**2 + (x6-5)**2 + (x7-5)**2 + (x8-5)**2 ) / 80),
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+    }
+    return functions
+
+def get_9d_functions():
+    """Returns 3 diverse 9D functions with training gaps."""
+    functions = {
+        "sin_cos_9d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8) * np.sin(x9),
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+        "quadratic_9d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2 + x7**2 + x8**2 + x9**2) / 450,
+            "gap": (3.5, 6.5),
+            "range": (0, 10),
+        },
+        "multi_modal_9d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9: (np.cos(2*x1) + np.cos(2*x2) + np.cos(2*x3) + np.cos(2*x4) + np.cos(2*x5) + np.cos(2*x6) + np.cos(2*x7) + np.cos(2*x8) + np.cos(2*x9)) + (x1+x2+x3+x4+x5+x6+x7+x8+x9)/10,
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+    }
+    return functions
+
+def get_10d_functions():
+    """Returns 3 diverse 10D functions with training gaps."""
+    functions = {
+        "sin_cos_10d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8) * np.sin(x9) * np.cos(x10),
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+        "quadratic_10d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2 + x7**2 + x8**2 + x9**2 + x10**2) / 500,
+            "gap": (3.5, 6.5),
+            "range": (0, 10),
+        },
+        "friedman_10d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10: 10 * np.sin(np.pi * x1 * x2 / 100) + 20 * (x3 / 10 - 0.5)**2 + 10 * x4 / 10 + 5 * x5 / 10 + (x6+x7+x8+x9+x10)/10,
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+    }
+    return functions
+
+def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='empty'):
     """
-    Generates training and test data with a constant number of points per axis.
+    Generates training and test data. Uses grid-based meshes for 1D-5D and
+    fallback random uniform sampling for >=6D to avoid exponential complexity.
     """
     rng = np.random.default_rng(seed)
     func = func_dict[func_name]
@@ -549,23 +656,38 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None):
     # Determine dimensionality dynamically from lambda argument count
     ndim = func_obj.__code__.co_argcount
 
-    # Dynamic default points_per_dim depending on dimension to control exponential explosion
-    if points_per_dim is None:
-        if ndim == 1:
-            points_per_dim = 100
-        elif ndim == 2:
-            points_per_dim = 50
-        elif ndim == 3:
-            points_per_dim = 30
-        elif ndim == 4:
-            points_per_dim = 10
-        else:
-            points_per_dim = 7
+    # If ndim >= 6, use random uniform sampling instead of dense grids to prevent OOM
+    if ndim >= 6:
+        if ndim == 6:
+            n_samples = 3000
+        elif ndim == 7:
+            n_samples = 3000
+        elif ndim == 8:
+            n_samples = 4000
+        elif ndim == 9:
+            n_samples = 4000
+        else: # 10D
+            n_samples = 5000
+            
+        X = rng.uniform(x_range[0], x_range[1], size=(n_samples, ndim))
+    else:
+        # Dynamic default points_per_dim depending on dimension to control exponential explosion
+        if points_per_dim is None:
+            if ndim == 1:
+                points_per_dim = 1200
+            elif ndim == 2:
+                points_per_dim = 50
+            elif ndim == 3:
+                points_per_dim = 30
+            elif ndim == 4:
+                points_per_dim = 10
+            else:
+                points_per_dim = 7
 
-    # Generate the coordinate grids for each axis
-    grids = [np.linspace(x_range[0], x_range[1], points_per_dim) for _ in range(ndim)]
-    meshes = np.meshgrid(*grids, indexing='ij')
-    X = np.stack([m.ravel() for m in meshes], axis=1)
+        # Generate the coordinate grids for each axis
+        grids = [np.linspace(x_range[0], x_range[1], points_per_dim) for _ in range(ndim)]
+        meshes = np.meshgrid(*grids, indexing='ij')
+        X = np.stack([m.ravel() for m in meshes], axis=1)
     
     # Dynamically unpack input variables to function
     y = func_obj(*[X[:, d] for d in range(ndim)]).ravel()
@@ -577,7 +699,27 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None):
     gap_mask = np.ones(len(X), dtype=bool)
     for d in range(ndim):
         gap_mask &= (X[:, d] >= gap[0]) & (X[:, d] <= gap[1])
-    train_mask = ~gap_mask
+
+    if gap_type == 'sparse':
+        # Get indices of points inside the gap
+        gap_indices = np.where(gap_mask)[0]
+        n_gap = len(gap_indices)
+        
+        # Calculate how many points to keep (e.g. 5% of the gap points)
+        # Bounded between 2 and 15 points to maintain extreme sparsity
+        n_keep = int(np.clip(n_gap * 0.05, 2, 15))
+        
+        # Randomly choose indices to keep inside the gap
+        # We use a deterministic sub-seed derived from the main seed
+        gap_rng = np.random.default_rng(seed + 100000)
+        keep_indices = gap_rng.choice(gap_indices, size=n_keep, replace=False)
+        
+        # Train mask includes all non-gap points PLUS the selected keep points
+        train_mask = ~gap_mask
+        train_mask[keep_indices] = True
+    else:
+        # gap_type == 'empty'
+        train_mask = ~gap_mask
 
     # Split into Train (with gap) and Test (full grid)
     X_train, y_train = X[train_mask], y[train_mask]
@@ -660,14 +802,15 @@ def calculate_mutual_information(uncertainty, y_true_binary, n_bins=50):
     # 5. Return Uncertainty Coefficient (fraction of H(Y) explained by U) bounded in [0, 1]
     return float(np.clip(mi / h_y, 0.0, 1.0))
 
-def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05):
+def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05, suffix=""):
     """Save comprehensive summary to a .txt file."""
     import io
     from contextlib import redirect_stdout
 
     os.makedirs("results", exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"results/uncertainty_quantification_results_{timestamp}.txt"
+    file_suffix = f"_{suffix}" if suffix else ""
+    filename = f"results/uncertainty_quantification_results{file_suffix}_{timestamp}.txt"
 
     string_buffer = io.StringIO()
     with redirect_stdout(string_buffer):
@@ -772,10 +915,22 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant")
     print(f"{'='*80}\n")
 
-def run_single_test(func_dict, func_name, seed, approaches):
-    X_train, y_train, X_test, y_test, y_true_binary = generate_data(func_dict, func_name, seed)
+def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty'):
+    X_train, y_train, X_test, y_test, y_true_binary = generate_data(func_dict, func_name, seed, gap_type=gap_type)
 
-    rf = RandomForestRegressor(n_estimators=100, min_samples_leaf=5, random_state=seed)
+    # Determine standard Random Forest hyperparameters based on config selection
+    if rf_config == 1:
+        n_est, min_leaf = 100, 5
+    elif rf_config == 2:
+        n_est, min_leaf = 100, 25
+    elif rf_config == 3:
+        n_est, min_leaf = 100, 50
+    elif rf_config == 4:
+        n_est, min_leaf = 300, 10
+    else: # Config 5
+        n_est, min_leaf = 300, 30
+
+    rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, random_state=seed)
     rf.fit(X_train, y_train)
     quantifier = EpistemicQuantifier(rf, X_train, y_train)
 
@@ -812,6 +967,10 @@ def run_single_test(func_dict, func_name, seed, approaches):
             u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="newton")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
+        elif app == "Proximity":
+            prox_q = ProximityRegressionUQ(rf, X_train, y_train)
+            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
+
 
     for app in approaches:
         u_e = uncertainties[app]
@@ -908,14 +1067,30 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Epistemic UQ Benchmarks")
+    parser.add_argument("--rf_config", type=int, default=1, choices=[1, 2, 3, 4, 5], help="Random Forest Config ID")
+    parser.add_argument("--k_neighbors", type=str, default="20", help="Neighborhood size for Proximity UQ (int or 'auto' or 'all')")
+    parser.add_argument("--gap_type", type=str, default="empty", choices=["empty", "sparse"], help="OOD gap type")
+    parser.add_argument("--n_runs", type=int, default=10, help="Number of seeds/runs")
+    args = parser.parse_args()
+
+    rf_config_arg = args.rf_config
+    try:
+        k_neighbors_arg = int(args.k_neighbors)
+    except ValueError:
+        k_neighbors_arg = args.k_neighbors  # 'auto' or 'all'
+    gap_type_arg = args.gap_type
+    n_runs = args.n_runs
+
     start_time = time.time()
     print(f"\n{'='*70}")
     print(f"EPISTEMIC UNCERTAINTY QUANTIFICATION - COMPREHENSIVE TEST SUITE")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Config: RF Config={rf_config_arg}, K Neighbors={k_neighbors_arg}, Gap Type={gap_type_arg}, Runs={n_runs}")
     print(f"{'='*70}")
 
-    n_runs = 10
-    approaches = ["Standard", "Chen", "Credal_GL_Bisect", "Credal_GL_Newton", "Credal_Trapz_Bisect", "Credal_Trapz_Newton"]
+    approaches = ["Standard", "Proximity"]
     alpha = 0.05
 
     functions_1d = get_1d_functions()
@@ -923,10 +1098,18 @@ if __name__ == "__main__":
     functions_3d = get_3d_functions()
     functions_4d = get_4d_functions()
     functions_5d = get_5d_functions()
-    all_functions = {**functions_1d, **functions_2d, **functions_3d, **functions_4d, **functions_5d}
+    functions_6d = get_6d_functions()
+    functions_7d = get_7d_functions()
+    functions_8d = get_8d_functions()
+    functions_9d = get_9d_functions()
+    functions_10d = get_10d_functions()
+    all_functions = {
+        **functions_1d, **functions_2d, **functions_3d, **functions_4d, **functions_5d,
+        **functions_6d, **functions_7d, **functions_8d, **functions_9d, **functions_10d
+    }
 
     print(f"\n[SETUP SUMMARY]")
-    print(f"  * Functions: {len(all_functions)} total (5 1D, 5 2D, 5 3D, 3 4D, 3 5D)")
+    print(f"  * Functions: {len(all_functions)} total (5 1D, 5 2D, 5 3D, 3 4D, 3 5D, 3 6D, 3 7D, 3 8D, 3 9D, 3 10D)")
     print(f"  * Runs: {n_runs} (total evaluations: {len(all_functions) * n_runs})")
     print(f"  * Approaches: {', '.join(approaches)}")
     print(f"  * Metrics: AUROC, Spearman, Brier, MI, JSD")
@@ -948,6 +1131,11 @@ if __name__ == "__main__":
         "3D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
         "4D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
         "5D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
+        "6D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
+        "7D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
+        "8D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
+        "9D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
+        "10D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
     }
 
     test_start = time.time()
@@ -957,7 +1145,11 @@ if __name__ == "__main__":
 
         for func_name in all_functions:
             try:
-                test_results = run_single_test(all_functions, func_name, seed, approaches)
+                test_results = run_single_test(
+                    all_functions, func_name, seed, approaches,
+                    rf_config=rf_config_arg, k_neighbors=k_neighbors_arg,
+                    gap_type=gap_type_arg
+                )
 
                 if func_name in functions_1d:
                     dim_key = "1D"
@@ -967,8 +1159,18 @@ if __name__ == "__main__":
                     dim_key = "3D"
                 elif func_name in functions_4d:
                     dim_key = "4D"
-                else:
+                elif func_name in functions_5d:
                     dim_key = "5D"
+                elif func_name in functions_6d:
+                    dim_key = "6D"
+                elif func_name in functions_7d:
+                    dim_key = "7D"
+                elif func_name in functions_8d:
+                    dim_key = "8D"
+                elif func_name in functions_9d:
+                    dim_key = "9D"
+                else:
+                    dim_key = "10D"
 
                 for app in approaches:
                     results_all[app]["auroc"].append(test_results[app]["auroc"])
@@ -1018,7 +1220,12 @@ if __name__ == "__main__":
     print("# TEST 2: BY DIMENSION")
     print(f"{'#'*70}\n")
 
-    for dim_name, dim_key in [("1D Functions", "1D"), ("2D Functions", "2D"), ("3D Functions", "3D"), ("4D Functions", "4D"), ("5D Functions", "5D")]:
+    for dim_name, dim_key in [
+        ("1D Functions", "1D"), ("2D Functions", "2D"), ("3D Functions", "3D"),
+        ("4D Functions", "4D"), ("5D Functions", "5D"), ("6D Functions", "6D"),
+        ("7D Functions", "7D"), ("8D Functions", "8D"), ("9D Functions", "9D"),
+        ("10D Functions", "10D")
+    ]:
         print(f"\n[DIMENSION] {dim_name}")
         print(f"{'-'*70}")
         print_results(results_by_dim[dim_key], f"{dim_name} (runs = {n_runs})")
@@ -1041,7 +1248,10 @@ if __name__ == "__main__":
     print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs, alpha=alpha)
     
     # Executing file generator to dump everything into a clean timestamped report txt file
-    save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=alpha)
+    save_results_to_file(
+        results_all, results_by_dim, approaches, n_runs, alpha=alpha,
+        suffix=f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}"
+    )
     sys.stdout.flush()
 
 
