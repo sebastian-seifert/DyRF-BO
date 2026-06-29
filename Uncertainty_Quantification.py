@@ -1039,7 +1039,21 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
         valid_mask = ~np.isnan(processed_data).any(axis=0)
         data = [d[valid_mask] for d in processed_data]
 
-        if all(len(d) > 2 for d in data):
+        if not all(len(d) > 2 for d in data):
+            print("  Result: NOT ENOUGH VALID DATA FOR Paired Testing (Requires >= 3 independent functions)")
+            continue
+
+        if len(approaches) == 2:
+            print("  Bypassing Friedman Test (requires >= 3 approaches). Running paired Wilcoxon Signed-Rank Test directly:")
+            app1, app2 = approaches[0], approaches[1]
+            try:
+                _, p_w = wilcoxon(data[0], data[1])
+            except ValueError:
+                p_w = 1.0  # Safe fallback if differences are all zero
+            sig = "[SIG]" if p_w < alpha else "[NS]"
+            print(f"    {app1} vs {app2:<25}: p = {p_w:.4e} ({sig})")
+        else:
+            # len(approaches) >= 3
             stat, p_f = friedmanchisquare(*data)
             print(f"  Friedman Test: chi2 = {stat:.4f}, p = {p_f:.4e}")
 
@@ -1062,8 +1076,6 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
                     print(f"    {pair_str:<25}: p = {p_w:.4e} ({sig})")
             else:
                 print(f"  Result: NOT SIGNIFICANT (p >= {alpha})")
-        else:
-            print("  Result: NOT ENOUGH VALID DATA FOR Paired FRIEDMAN TEST (Requires >= 3 independent functions)")
 
 
 if __name__ == "__main__":
