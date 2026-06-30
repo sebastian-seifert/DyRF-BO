@@ -706,20 +706,27 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         # Bounded between 2 and 15 points to maintain extreme sparsity
         n_keep = int(np.clip(n_gap * 0.05, 2, 15))
         
-        # Randomly choose indices to keep inside the gap
-        # We use a deterministic sub-seed derived from the main seed
-        gap_rng = np.random.default_rng(seed + 100000)
-        keep_indices = gap_rng.choice(gap_indices, size=n_keep, replace=False)
-        
-        # Train mask includes all non-gap points PLUS the selected keep points
-        train_mask = ~gap_mask_train
-        train_mask[keep_indices] = True
+        if n_gap >= n_keep:
+            # Randomly choose indices to keep inside the gap
+            # We use a deterministic sub-seed derived from the main seed
+            gap_rng = np.random.default_rng(seed + 100000)
+            keep_indices = gap_rng.choice(gap_indices, size=n_keep, replace=False)
+            
+            # Train mask includes all non-gap points PLUS the selected keep points
+            train_mask = ~gap_mask_train
+            train_mask[keep_indices] = True
+            X_train = X[train_mask]
+        else:
+            # Generate n_keep points strictly inside the gap and append them to X_train
+            gap_rng = np.random.default_rng(seed + 100000)
+            X_sparse_gap = gap_rng.uniform(gap[0], gap[1], size=(n_keep, ndim))
+            
+            train_mask = ~gap_mask_train
+            X_train = np.concatenate([X[train_mask], X_sparse_gap], axis=0)
     else:
         # gap_type == 'empty'
         train_mask = ~gap_mask_train
-
-    # Split into Train (with gap)
-    X_train = X[train_mask]
+        X_train = X[train_mask]
     y_train = func_obj(*[X_train[:, d] for d in range(ndim)]).ravel()
     y_train += rng.normal(0, 0.1, len(y_train))
 
