@@ -691,18 +691,14 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         meshes = np.meshgrid(*grids, indexing='ij')
         X = np.stack([m.ravel() for m in meshes], axis=1)
     
-    # Dynamically unpack input variables to function
-    y = func_obj(*[X[:, d] for d in range(ndim)]).ravel()
-
-    # Add homoscedastic target noise
-    y += rng.normal(0, 0.1, len(y))
-
-    # Create the multidimensional OOD gap mask (defined along the first dimension to prevent volume collapse)
-    gap_mask = (X[:, 0] >= gap[0]) & (X[:, 0] <= gap[1])
+    # Create the multidimensional OOD gap mask (Hypercube) for training set generation
+    gap_mask_train = np.ones(len(X), dtype=bool)
+    for d in range(ndim):
+        gap_mask_train &= (X[:, d] >= gap[0]) & (X[:, d] <= gap[1])
 
     if gap_type == 'sparse':
         # Get indices of points inside the gap
-        gap_indices = np.where(gap_mask)[0]
+        gap_indices = np.where(gap_mask_train)[0]
         n_gap = len(gap_indices)
         
         # Calculate how many points to keep (e.g. 5% of the gap points)
@@ -715,16 +711,37 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         keep_indices = gap_rng.choice(gap_indices, size=n_keep, replace=False)
         
         # Train mask includes all non-gap points PLUS the selected keep points
-        train_mask = ~gap_mask
+        train_mask = ~gap_mask_train
         train_mask[keep_indices] = True
     else:
         # gap_type == 'empty'
-        train_mask = ~gap_mask
+        train_mask = ~gap_mask_train
 
-    # Split into Train (with gap) and Test (full grid)
-    X_train, y_train = X[train_mask], y[train_mask]
-    X_test, y_test = X, y
-    y_true_binary = gap_mask.astype(int)
+    # Split into Train (with gap)
+    X_train = X[train_mask]
+    y_train = func_obj(*[X_train[:, d] for d in range(ndim)]).ravel()
+    y_train += rng.normal(0, 0.1, len(y_train))
+
+    # Construct test set by explicitly sampling ID and OOD points (preserving hypercube structure)
+    n_ood = 1000
+    X_ood = rng.uniform(gap[0], gap[1], size=(n_ood, ndim))
+    
+    n_id = 2000
+    X_id = []
+    while len(X_id) < n_id:
+        batch = rng.uniform(x_range[0], x_range[1], size=(n_id - len(X_id), ndim))
+        batch_in_gap = np.ones(len(batch), dtype=bool)
+        for d in range(ndim):
+            batch_in_gap &= (batch[:, d] >= gap[0]) & (batch[:, d] <= gap[1])
+        X_id.extend(batch[~batch_in_gap])
+    X_id = np.array(X_id)
+    
+    X_test = np.concatenate([X_id, X_ood], axis=0)
+    y_test = func_obj(*[X_test[:, d] for d in range(ndim)]).ravel()
+    y_test += rng.normal(0, 0.1, len(y_test))
+    
+    y_true_binary = np.zeros(len(X_test), dtype=int)
+    y_true_binary[n_id:] = 1
 
     return X_train, y_train, X_test, y_test, y_true_binary
 
