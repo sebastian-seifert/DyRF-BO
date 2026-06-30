@@ -5,6 +5,7 @@ set -e
 # Define parameters for the experimental grid
 RF_CONFIGS=(1 2 3 4 5)
 K_VALUES=(20 50 100 200 500)
+SPARSE_MULTIPLIERS=(5 10 15 25 50)
 
 # Default: run both gap types if none specified
 GAP_TYPES=("empty" "sparse")
@@ -18,13 +19,22 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-total=$(( 25 * ${#GAP_TYPES[@]} ))
+# Calculate total runs
+total=0
+for gap_type in "${GAP_TYPES[@]}"; do
+    if [ "$gap_type" == "sparse" ]; then
+        total=$(( total + 25 * ${#SPARSE_MULTIPLIERS[@]} ))
+    else
+        total=$(( total + 25 ))
+    fi
+done
 
 echo "=========================================================="
 echo "LAUNCHING EPISTEMIC UQ PROXIMITY GRID SEARCH BENCHMARKS"
 echo "Grid size: 5 RF Configs x 5 K Values x ${#GAP_TYPES[@]} Gap Types = $total runs (10 seeds each)"
 echo "Gap Types: ${GAP_TYPES[*]}"
-echo "Estimated total runtime: ~2-3 hours on CPU, ~20-30 minutes on GPU (e.g. A100)"
+echo "Sparse Multipliers: ${SPARSE_MULTIPLIERS[*]}"
+echo "Estimated total runtime: ~4-6 hours on CPU, ~30-40 minutes on GPU (e.g. A100)"
 echo "=========================================================="
 
 # Detect active Python environment or local venv
@@ -45,20 +55,40 @@ start_time=$(date +%s)
 for gap_type in "${GAP_TYPES[@]}"; do
     for config in "${RF_CONFIGS[@]}"; do
         for k in "${K_VALUES[@]}"; do
-            run_start=$(date +%s)
-            percent=$(( (current - 1) * 100 / total ))
-            echo ""
-            echo "----------------------------------------------------------"
-            echo "[Run $current/$total] ($percent% Complete) Config: RF=$config, K=$k, Gap=$gap_type"
-            echo "Started: $(date)"
-            echo "----------------------------------------------------------"
-            
-            $PYTHON_EXEC Uncertainty_Quantification.py --rf_config "$config" --k_neighbors "$k" --gap_type "$gap_type" --n_runs 10
-            
-            run_end=$(date +%s)
-            duration=$((run_end - run_start))
-            echo "Finished [Run $current/$total] in $((duration / 60))m $((duration % 60))s"
-            current=$((current + 1))
+            if [ "$gap_type" == "sparse" ]; then
+                for mult in "${SPARSE_MULTIPLIERS[@]}"; do
+                    run_start=$(date +%s)
+                    percent=$(( (current - 1) * 100 / total ))
+                    echo ""
+                    echo "----------------------------------------------------------"
+                    echo "[Run $current/$total] ($percent% Complete) Config: RF=$config, K=$k, Gap=sparse, Multiplier=$mult"
+                    echo "Started: $(date)"
+                    echo "----------------------------------------------------------"
+                    
+                    $PYTHON_EXEC Uncertainty_Quantification.py --rf_config "$config" --k_neighbors "$k" --gap_type "sparse" --sparse_multiplier "$mult" --n_runs 10
+                    
+                    run_end=$(date +%s)
+                    duration=$((run_end - run_start))
+                    echo "Finished [Run $current/$total] in $((duration / 60))m $((duration % 60))s"
+                    current=$((current + 1))
+                done
+            else
+                # gap_type == "empty"
+                run_start=$(date +%s)
+                percent=$(( (current - 1) * 100 / total ))
+                echo ""
+                echo "----------------------------------------------------------"
+                echo "[Run $current/$total] ($percent% Complete) Config: RF=$config, K=$k, Gap=empty"
+                echo "Started: $(date)"
+                echo "----------------------------------------------------------"
+                
+                $PYTHON_EXEC Uncertainty_Quantification.py --rf_config "$config" --k_neighbors "$k" --gap_type "empty" --n_runs 10
+                
+                run_end=$(date +%s)
+                duration=$((run_end - run_start))
+                echo "Finished [Run $current/$total] in $((duration / 60))m $((duration % 60))s"
+                current=$((current + 1))
+            fi
         done
     done
 done

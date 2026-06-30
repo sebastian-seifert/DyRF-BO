@@ -642,7 +642,7 @@ def get_10d_functions():
     }
     return functions
 
-def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='empty'):
+def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='empty', sparse_multiplier=12):
     """
     Generates training and test data. Uses grid-based meshes for 1D-5D and
     fallback random uniform sampling for >=6D to avoid exponential complexity.
@@ -698,8 +698,8 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         gap_mask_train &= (X[:, d] >= gap[0]) & (X[:, d] <= gap[1])
 
     if gap_type == 'sparse':
-        # Number of sparse points scales linearly with dimensionality (12 * ndim)
-        n_keep = 12 * ndim
+        # Number of sparse points scales linearly with dimensionality (sparse_multiplier * ndim)
+        n_keep = sparse_multiplier * ndim
         
         # Train mask excludes all points inside the gap
         train_mask = ~gap_mask_train
@@ -927,8 +927,8 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant")
     print(f"{'='*80}\n")
 
-def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty'):
-    X_train, y_train, X_test, y_test, y_true_binary = generate_data(func_dict, func_name, seed, gap_type=gap_type)
+def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12):
+    X_train, y_train, X_test, y_test, y_true_binary = generate_data(func_dict, func_name, seed, gap_type=gap_type, sparse_multiplier=sparse_multiplier)
 
     # Determine standard Random Forest hyperparameters based on config selection
     if rf_config == 1:
@@ -1096,6 +1096,7 @@ if __name__ == "__main__":
     parser.add_argument("--rf_config", type=int, default=1, choices=[1, 2, 3, 4, 5], help="Random Forest Config ID")
     parser.add_argument("--k_neighbors", type=str, default="20", help="Neighborhood size for Proximity UQ (int or 'auto' or 'all')")
     parser.add_argument("--gap_type", type=str, default="empty", choices=["empty", "sparse"], help="OOD gap type")
+    parser.add_argument("--sparse_multiplier", type=int, default=12, help="Multiplier for sparse gap points (n_keep = multiplier * ndim)")
     parser.add_argument("--n_runs", type=int, default=10, help="Number of seeds/runs")
     args = parser.parse_args()
 
@@ -1105,13 +1106,14 @@ if __name__ == "__main__":
     except ValueError:
         k_neighbors_arg = args.k_neighbors  # 'auto' or 'all'
     gap_type_arg = args.gap_type
+    sparse_multiplier_arg = args.sparse_multiplier
     n_runs = args.n_runs
 
     start_time = time.time()
     print(f"\n{'='*70}")
     print(f"EPISTEMIC UNCERTAINTY QUANTIFICATION - COMPREHENSIVE TEST SUITE")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Config: RF Config={rf_config_arg}, K Neighbors={k_neighbors_arg}, Gap Type={gap_type_arg}, Runs={n_runs}")
+    print(f"Config: RF Config={rf_config_arg}, K Neighbors={k_neighbors_arg}, Gap Type={gap_type_arg}, Multiplier={sparse_multiplier_arg}, Runs={n_runs}")
     print(f"{'='*70}")
 
     approaches = ["Standard", "Proximity"]
@@ -1172,7 +1174,7 @@ if __name__ == "__main__":
                 test_results = run_single_test(
                     all_functions, func_name, seed, approaches,
                     rf_config=rf_config_arg, k_neighbors=k_neighbors_arg,
-                    gap_type=gap_type_arg
+                    gap_type=gap_type_arg, sparse_multiplier=sparse_multiplier_arg
                 )
 
                 if func_name in functions_1d:
@@ -1274,7 +1276,7 @@ if __name__ == "__main__":
     # Executing file generator to dump everything into a clean timestamped report txt file
     save_results_to_file(
         results_all, results_by_dim, approaches, n_runs, alpha=alpha,
-        suffix=f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}"
+        suffix=f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}_m{sparse_multiplier_arg}"
     )
     sys.stdout.flush()
 
