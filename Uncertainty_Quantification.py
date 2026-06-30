@@ -822,15 +822,18 @@ def calculate_mutual_information(uncertainty, y_true_binary, n_bins=50):
     return float(np.clip(mi / h_y, 0.0, 1.0))
 
 def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05, suffix=""):
-    """Save comprehensive summary to a .txt file."""
+    """Save comprehensive summary to a .txt file and structured JSON."""
     import io
+    import json
     from contextlib import redirect_stdout
 
     os.makedirs("results", exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     file_suffix = f"_{suffix}" if suffix else ""
     filename = f"results/uncertainty_quantification_results{file_suffix}_{timestamp}.txt"
+    json_filename = f"results/uncertainty_quantification_results{file_suffix}_{timestamp}.json"
 
+    # Save formatted txt report
     string_buffer = io.StringIO()
     with redirect_stdout(string_buffer):
         print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs, alpha=alpha)
@@ -847,7 +850,31 @@ def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=
         f.write(f"End of Report\n")
         f.write(f"{'='*80}\n")
 
-    print(f"\n[Report] Results saved to: {filename}")
+    # Convert numpy types to native float/int for JSON serialization
+    def convert_to_serializable(obj):
+        if isinstance(obj, dict):
+            return {k: convert_to_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_to_serializable(v) for v in obj]
+        elif isinstance(obj, np.ndarray):
+            return convert_to_serializable(obj.tolist())
+        elif isinstance(obj, (np.float32, np.float64)):
+            return float(obj)
+        elif isinstance(obj, (np.int32, np.int64)):
+            return int(obj)
+        return obj
+
+    serializable_data = {
+        "approaches": approaches,
+        "n_runs": n_runs,
+        "results_all": convert_to_serializable(results_all),
+        "results_by_dim": convert_to_serializable(results_by_dim)
+    }
+
+    with open(json_filename, "w", encoding="utf-8") as f:
+        json.dump(serializable_data, f, indent=4)
+
+    print(f"\n[Report] Results saved to: {filename} and {json_filename}")
     return filename
 
 def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs, alpha=0.05):
@@ -902,11 +929,8 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
             data = [d[valid_mask] for d in processed_data]
 
             if all(len(d) > 2 for d in data):
-                stat, p_f = friedmanchisquare(*data)
-                sig_symbol = "***" if p_f < 0.001 else "**" if p_f < 0.01 else "*" if p_f < alpha else "ns"
-                print(f"  Friedman: chi2 = {stat:8.4f}, p = {p_f:.4e} {sig_symbol}")
-
-                if p_f < alpha:
+                if len(approaches) == 2:
+                    print("  Friedman: Bypassed (only 2 approaches). Running direct pairwise test.")
                     import itertools
                     pairs = list(itertools.combinations(approaches, 2))
                     alpha_bonf = alpha / len(pairs)
@@ -925,7 +949,30 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
                         pair_str = f"{app1} vs {app2}"
                         print(f"  {pair_str:<30} {p_w:>14.4e} {sig:>15}")
                 else:
-                    print(f"  -> No significant difference across methods (Friedman p >= {alpha})")
+                    stat, p_f = friedmanchisquare(*data)
+                    sig_symbol = "***" if p_f < 0.001 else "**" if p_f < 0.01 else "*" if p_f < alpha else "ns"
+                    print(f"  Friedman: chi2 = {stat:8.4f}, p = {p_f:.4e} {sig_symbol}")
+
+                    if p_f < alpha:
+                        import itertools
+                        pairs = list(itertools.combinations(approaches, 2))
+                        alpha_bonf = alpha / len(pairs)
+                        print(f"  Bonferroni alpha = {alpha_bonf:.4e}")
+                        print(f"  {'Pairwise Comparisons':<30} {'p-value':<15} {'Significant?':<15}")
+                        print(f"  {'-'*65}")
+
+                        for app1, app2 in pairs:
+                            idx1 = approaches.index(app1)
+                            idx2 = approaches.index(app2)
+                            try:
+                                _, p_w = wilcoxon(data[idx1], data[idx2])
+                            except ValueError:
+                                p_w = 1.0  # Safe fallback if differences are all zero
+                            sig = "[SIG]" if p_w < alpha_bonf else "[NS]"
+                            pair_str = f"{app1} vs {app2}"
+                            print(f"  {pair_str:<30} {p_w:>14.4e} {sig:>15}")
+                    else:
+                        print(f"  -> No significant difference across methods (Friedman p >= {alpha})")
             else:
                 print("  -> Not enough valid independent functions (blocks) to perform paired testing (Requires >= 3)")
             print()
