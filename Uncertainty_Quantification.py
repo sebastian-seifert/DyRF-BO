@@ -698,31 +698,17 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         gap_mask_train &= (X[:, d] >= gap[0]) & (X[:, d] <= gap[1])
 
     if gap_type == 'sparse':
-        # Get indices of points inside the gap
-        gap_indices = np.where(gap_mask_train)[0]
-        n_gap = len(gap_indices)
+        # Number of sparse points scales linearly with dimensionality (12 * ndim)
+        n_keep = 12 * ndim
         
-        # Calculate how many points to keep (e.g. 5% of the gap points)
-        # Bounded between 2 and 15 points to maintain extreme sparsity
-        n_keep = int(np.clip(n_gap * 0.05, 2, 15))
+        # Train mask excludes all points inside the gap
+        train_mask = ~gap_mask_train
         
-        if n_gap >= n_keep:
-            # Randomly choose indices to keep inside the gap
-            # We use a deterministic sub-seed derived from the main seed
-            gap_rng = np.random.default_rng(seed + 100000)
-            keep_indices = gap_rng.choice(gap_indices, size=n_keep, replace=False)
-            
-            # Train mask includes all non-gap points PLUS the selected keep points
-            train_mask = ~gap_mask_train
-            train_mask[keep_indices] = True
-            X_train = X[train_mask]
-        else:
-            # Generate n_keep points strictly inside the gap and append them to X_train
-            gap_rng = np.random.default_rng(seed + 100000)
-            X_sparse_gap = gap_rng.uniform(gap[0], gap[1], size=(n_keep, ndim))
-            
-            train_mask = ~gap_mask_train
-            X_train = np.concatenate([X[train_mask], X_sparse_gap], axis=0)
+        # Generate n_keep points uniformly sampled across the entire hypercube gap
+        gap_rng = np.random.default_rng(seed + 100000)
+        X_sparse_gap = gap_rng.uniform(gap[0], gap[1], size=(n_keep, ndim))
+        
+        X_train = np.concatenate([X[train_mask], X_sparse_gap], axis=0)
     else:
         # gap_type == 'empty'
         train_mask = ~gap_mask_train
