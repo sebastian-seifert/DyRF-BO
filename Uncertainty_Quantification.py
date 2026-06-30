@@ -690,6 +690,7 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         grids = [np.linspace(x_range[0], x_range[1], points_per_dim) for _ in range(ndim)]
         meshes = np.meshgrid(*grids, indexing='ij')
         X = np.stack([m.ravel() for m in meshes], axis=1)
+        n_samples = len(X)
     
     # Create the multidimensional OOD gap mask (Hypercube) for training set generation
     gap_mask_train = np.ones(len(X), dtype=bool)
@@ -723,10 +724,11 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
     y_train += rng.normal(0, 0.1, len(y_train))
 
     # Construct test set by explicitly sampling ID and OOD points (preserving hypercube structure)
-    n_ood = 1000
+    n_id = int(n_samples * 0.7)
+    n_ood = n_samples - n_id
+    
     X_ood = rng.uniform(gap[0], gap[1], size=(n_ood, ndim))
     
-    n_id = 2000
     X_id = []
     while len(X_id) < n_id:
         batch = rng.uniform(x_range[0], x_range[1], size=(n_id - len(X_id), ndim))
