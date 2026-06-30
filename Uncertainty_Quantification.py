@@ -642,7 +642,7 @@ def get_10d_functions():
     }
     return functions
 
-def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='empty', sparse_multiplier=12):
+def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='empty', sparse_multiplier=12, scaling_law='linear', min_samples_leaf=5):
     """
     Generates training and test data. Uses grid-based meshes for 1D-5D and
     fallback random uniform sampling for >=6D to avoid exponential complexity.
@@ -698,8 +698,15 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         gap_mask_train &= (X[:, d] >= gap[0]) & (X[:, d] <= gap[1])
 
     if gap_type == 'sparse':
-        # Number of sparse points scales linearly with dimensionality (sparse_multiplier * ndim)
-        n_keep = sparse_multiplier * ndim
+        # Apply the chosen OOD gap sparsity scaling law
+        if scaling_law == 'linear':
+            n_keep = sparse_multiplier * ndim
+        elif scaling_law == 'fractional':
+            n_keep = int(sparse_multiplier * (1.3 ** ndim))
+        elif scaling_law == 'leaf':
+            n_keep = int(sparse_multiplier * min_samples_leaf)
+        else:
+            n_keep = sparse_multiplier * ndim
         
         # Train mask excludes all points inside the gap
         train_mask = ~gap_mask_train
@@ -927,10 +934,8 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant")
     print(f"{'='*80}\n")
 
-def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12):
-    X_train, y_train, X_test, y_test, y_true_binary = generate_data(func_dict, func_name, seed, gap_type=gap_type, sparse_multiplier=sparse_multiplier)
-
-    # Determine standard Random Forest hyperparameters based on config selection
+def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear'):
+    # Determine standard Random Forest hyperparameters based on config selection to pass min_leaf to generate_data
     if rf_config == 1:
         n_est, min_leaf = 100, 5
     elif rf_config == 2:
@@ -941,6 +946,11 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         n_est, min_leaf = 300, 10
     else: # Config 5
         n_est, min_leaf = 300, 30
+
+    X_train, y_train, X_test, y_test, y_true_binary = generate_data(
+        func_dict, func_name, seed, gap_type=gap_type, sparse_multiplier=sparse_multiplier,
+        scaling_law=scaling_law, min_samples_leaf=min_leaf
+    )
 
     rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, random_state=seed)
     rf.fit(X_train, y_train)
@@ -1097,6 +1107,7 @@ if __name__ == "__main__":
     parser.add_argument("--k_neighbors", type=str, default="20", help="Neighborhood size for Proximity UQ (int or 'auto' or 'all')")
     parser.add_argument("--gap_type", type=str, default="empty", choices=["empty", "sparse"], help="OOD gap type")
     parser.add_argument("--sparse_multiplier", type=int, default=12, help="Multiplier for sparse gap points (n_keep = multiplier * ndim)")
+    parser.add_argument("--scaling_law", type=str, default="linear", choices=["linear", "fractional", "leaf"], help="Scaling law for sparse gap points")
     parser.add_argument("--n_runs", type=int, default=10, help="Number of seeds/runs")
     args = parser.parse_args()
 
@@ -1107,13 +1118,14 @@ if __name__ == "__main__":
         k_neighbors_arg = args.k_neighbors  # 'auto' or 'all'
     gap_type_arg = args.gap_type
     sparse_multiplier_arg = args.sparse_multiplier
+    scaling_law_arg = args.scaling_law
     n_runs = args.n_runs
 
     start_time = time.time()
     print(f"\n{'='*70}")
     print(f"EPISTEMIC UNCERTAINTY QUANTIFICATION - COMPREHENSIVE TEST SUITE")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Config: RF Config={rf_config_arg}, K Neighbors={k_neighbors_arg}, Gap Type={gap_type_arg}, Multiplier={sparse_multiplier_arg}, Runs={n_runs}")
+    print(f"Config: RF Config={rf_config_arg}, K Neighbors={k_neighbors_arg}, Gap Type={gap_type_arg}, Multiplier={sparse_multiplier_arg}, Scaling Law={scaling_law_arg}, Runs={n_runs}")
     print(f"{'='*70}")
 
     approaches = ["Standard", "Proximity"]
@@ -1174,7 +1186,8 @@ if __name__ == "__main__":
                 test_results = run_single_test(
                     all_functions, func_name, seed, approaches,
                     rf_config=rf_config_arg, k_neighbors=k_neighbors_arg,
-                    gap_type=gap_type_arg, sparse_multiplier=sparse_multiplier_arg
+                    gap_type=gap_type_arg, sparse_multiplier=sparse_multiplier_arg,
+                    scaling_law=scaling_law_arg
                 )
 
                 if func_name in functions_1d:
@@ -1276,7 +1289,7 @@ if __name__ == "__main__":
     # Executing file generator to dump everything into a clean timestamped report txt file
     save_results_to_file(
         results_all, results_by_dim, approaches, n_runs, alpha=alpha,
-        suffix=f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}_m{sparse_multiplier_arg}"
+        suffix=f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}_m{sparse_multiplier_arg}_{scaling_law_arg}"
     )
     sys.stdout.flush()
 
