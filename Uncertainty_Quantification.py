@@ -401,246 +401,18 @@ def plot_uncertainty(name, X_test, y_test, y_pred, var_pred, X_train, y_train):
 # ==========================================
 # TEST FUNCTION GENERATORS (15 functions)
 # ==========================================
-
-def get_1d_functions():
-    """Returns 5 diverse 1D functions with training gaps."""
-    functions = {
-        "sin": {
-            "func": lambda x: np.sin(x),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "cos_trend": {
-            "func": lambda x: np.cos(x) + x / 10,
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "poly": {
-            "func": lambda x: x**2 / 50,
-            "gap": (3.5, 6.5),
-            "range": (0, 10),
-        },
-        "damped_osc": {
-            "func": lambda x: np.exp(-x / 5) * np.sin(2 * x),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "log_mod": {
-            "func": lambda x: np.log(x + 1) * np.sin(x),
-            "gap": (3.5, 6.5),
-            "range": (0.1, 10),
-        },
-    }
-    return functions
-
-def get_2d_functions():
-    """Returns 5 diverse 2D functions with training gaps."""
-    functions = {
-        "sin_cos": {
-            "func": lambda x1, x2: np.sin(x1) * np.cos(x2),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "quadratic": {
-            "func": lambda x1, x2: (x1**2 + x2**2) / 100,
-            "gap": (3.5, 6.5),
-            "range": (0, 10),
-        },
-        "sin_sum_mod": {
-            "func": lambda x1, x2: np.sin(x1 + x2) + 0.1 * x1 * x2,
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "gaussian": {
-            "func": lambda x1, x2: np.exp(-(x1**2 + x2**2) / 10),
-            "gap": (3.5, 6.5),
-            "range": (-5, 5),
-        },
-        "abs_sin": {
-            "func": lambda x1, x2: np.abs(x1 - x2) + np.sin(x1 * x2),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-    }
-    return functions
-
-def get_3d_functions():
-    """Returns 5 diverse 3D functions with training gaps."""
-    functions = {
-        "sin_cos_sin": {
-            "func": lambda x1, x2, x3: np.sin(x1) * np.cos(x2) * np.sin(x3),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "quadratic_3d": {
-            "func": lambda x1, x2, x3: (x1**2 + x2**2 + x3**2) / 150,
-            "gap": (3.5, 6.5),
-            "range": (0, 10),
-        },
-        "sin_sum_3d": {
-            "func": lambda x1, x2, x3: np.sin(x1 + x2 + x3) + 0.1 * x1 * x2 * x3,
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "gaussian_3d": {
-            "func": lambda x1, x2, x3: np.exp(-(x1**2 + x2**2 + x3**2) / 15),
-            "gap": (3.5, 6.5),
-            "range": (-5, 5),
-        },
-        "sin_exp_cos": {
-            "func": lambda x1, x2, x3: np.sin(x1) * np.exp(-x2 / 5) * np.cos(x3),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-    }
-    return functions
-
-def get_4d_functions():
-    """Returns 3 diverse 4D functions with training gaps."""
-    functions = {
-        "sin_cos_4d": {
-            "func": lambda x1, x2, x3, x4: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "quadratic_4d": {
-            "func": lambda x1, x2, x3, x4: (x1**2 + x2**2 + x3**2 + x4**2) / 200,
-            "gap": (3.5, 6.5),
-            "range": (0, 10),
-        },
-        "sin_sum_4d": {
-            "func": lambda x1, x2, x3, x4: np.sin(x1 + x2 + x3 + x4) + 0.05 * x1 * x2 * x3 * x4,
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-    }
-    return functions
-
-def get_5d_functions():
-    """Returns 3 diverse 5D functions with training gaps."""
-    functions = {
-        "sin_cos_5d": {
-            "func": lambda x1, x2, x3, x4, x5: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "quadratic_5d": {
-            "func": lambda x1, x2, x3, x4, x5: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2) / 250,
-            "gap": (3.5, 6.5),
-            "range": (0, 10),
-        },
-        "gaussian_5d": {
-            "func": lambda x1, x2, x3, x4, x5: np.exp(-(x1**2 + x2**2 + x3**2 + x4**2 + x5**2) / 20),
-            "gap": (3.5, 6.5),
-            "range": (-5, 5),
-        },
-    }
-    return functions
-
-def get_6d_functions():
-    """Returns 3 diverse 6D functions with training gaps."""
-    functions = {
-        "sin_cos_6d": {
-            "func": lambda x1, x2, x3, x4, x5, x6: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "quadratic_6d": {
-            "func": lambda x1, x2, x3, x4, x5, x6: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2) / 300,
-            "gap": (3.5, 6.5),
-            "range": (0, 10),
-        },
-        "friedman_6d": {
-            "func": lambda x1, x2, x3, x4, x5, x6: 10 * np.sin(np.pi * x1 * x2 / 100) + 20 * (x3 / 10 - 0.5)**2 + 10 * x4 / 10 + 5 * x5 / 10 + x6 / 10,
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-    }
-    return functions
-
-def get_7d_functions():
-    """Returns 3 diverse 7D functions with training gaps."""
-    functions = {
-        "sin_cos_7d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "quadratic_7d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2 + x7**2) / 350,
-            "gap": (3.5, 6.5),
-            "range": (0, 10),
-        },
-        "interaction_7d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7: (x1*x2 + x2*x3 + x3*x4 + x4*x5 + x5*x6 + x6*x7) / 50,
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-    }
-    return functions
-
-def get_8d_functions():
-    """Returns 3 diverse 8D functions with training gaps."""
-    functions = {
-        "sin_cos_8d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "quadratic_8d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2 + x7**2 + x8**2) / 400,
-            "gap": (3.5, 6.5),
-            "range": (0, 10),
-        },
-        "exp_sum_8d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8: np.exp(-( (x1-5)**2 + (x2-5)**2 + (x3-5)**2 + (x4-5)**2 + (x5-5)**2 + (x6-5)**2 + (x7-5)**2 + (x8-5)**2 ) / 80),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-    }
-    return functions
-
-def get_9d_functions():
-    """Returns 3 diverse 9D functions with training gaps."""
-    functions = {
-        "sin_cos_9d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8) * np.sin(x9),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "quadratic_9d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2 + x7**2 + x8**2 + x9**2) / 450,
-            "gap": (3.5, 6.5),
-            "range": (0, 10),
-        },
-        "multi_modal_9d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9: (np.cos(2*x1) + np.cos(2*x2) + np.cos(2*x3) + np.cos(2*x4) + np.cos(2*x5) + np.cos(2*x6) + np.cos(2*x7) + np.cos(2*x8) + np.cos(2*x9)) + (x1+x2+x3+x4+x5+x6+x7+x8+x9)/10,
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-    }
-    return functions
-
-def get_10d_functions():
-    """Returns 3 diverse 10D functions with training gaps."""
-    functions = {
-        "sin_cos_10d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8) * np.sin(x9) * np.cos(x10),
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-        "quadratic_10d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2 + x7**2 + x8**2 + x9**2 + x10**2) / 500,
-            "gap": (3.5, 6.5),
-            "range": (0, 10),
-        },
-        "friedman_10d": {
-            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10: 10 * np.sin(np.pi * x1 * x2 / 100) + 20 * (x3 / 10 - 0.5)**2 + 10 * x4 / 10 + 5 * x5 / 10 + (x6+x7+x8+x9+x10)/10,
-            "gap": (4, 6),
-            "range": (0, 10),
-        },
-    }
-    return functions
+from synthetic_functions import (
+    get_1d_functions,
+    get_2d_functions,
+    get_3d_functions,
+    get_4d_functions,
+    get_5d_functions,
+    get_6d_functions,
+    get_7d_functions,
+    get_8d_functions,
+    get_9d_functions,
+    get_10d_functions
+)
 
 def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='empty', sparse_multiplier=12, scaling_law='linear', min_samples_leaf=5):
     """
@@ -658,22 +430,23 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
 
     # If ndim >= 3, use random uniform sampling instead of dense grids to prevent OOM
     if ndim >= 3:
+        # Scale number of samples with dimension to maintain a reasonable dataset size
         if ndim == 3:
             n_samples = 3000
         elif ndim == 4:
-            n_samples = 3000
+            n_samples = 4000
         elif ndim == 5:
-            n_samples = 3000
-        elif ndim == 6:
-            n_samples = 3000
-        elif ndim == 7:
-            n_samples = 3000
-        elif ndim == 8:
-            n_samples = 4000
-        elif ndim == 9:
-            n_samples = 4000
-        else: # 10D
             n_samples = 5000
+        elif ndim == 6:
+            n_samples = 6000
+        elif ndim == 7:
+            n_samples = 7000
+        elif ndim == 8:
+            n_samples = 8000
+        elif ndim == 9:
+            n_samples = 9000
+        else: # 10D
+            n_samples = 10000
             
         X = rng.uniform(x_range[0], x_range[1], size=(n_samples, ndim))
     else:
@@ -701,8 +474,11 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         # Apply the chosen OOD gap sparsity scaling law
         if scaling_law == 'linear':
             n_keep = sparse_multiplier * ndim
+        # to account for the high volume in high dimensions
         elif scaling_law == 'fractional':
-            n_keep = int(sparse_multiplier * (1.3 ** ndim))
+            scaling_factor = 1.3
+            n_keep = int(sparse_multiplier * (scaling_factor ** ndim))
+        # number of required samples based on the minimum samples per leaf in a decision tree
         elif scaling_law == 'leaf':
             n_keep = int(sparse_multiplier * min_samples_leaf)
         else:
@@ -720,11 +496,16 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         # gap_type == 'empty'
         train_mask = ~gap_mask_train
         X_train = X[train_mask]
+    
+    # calculate y_train labels based on the current function
     y_train = func_obj(*[X_train[:, d] for d in range(ndim)]).ravel()
-    y_train += rng.normal(0, 0.1, len(y_train))
+    noise = 0.1
+    y_train += rng.normal(0, noise, len(y_train))
 
     # Construct test set by explicitly sampling ID and OOD points (preserving hypercube structure)
-    n_id = int(n_samples * 0.7)
+    # Note: Test size is approximatly equal to training size, which could be a big bottleneck!!
+    id_split = 0.7
+    n_id = int(n_samples * id_split)
     n_ood = n_samples - n_id
     
     X_ood = rng.uniform(gap[0], gap[1], size=(n_ood, ndim))
@@ -740,7 +521,7 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
     
     X_test = np.concatenate([X_id, X_ood], axis=0)
     y_test = func_obj(*[X_test[:, d] for d in range(ndim)]).ravel()
-    y_test += rng.normal(0, 0.1, len(y_test))
+    y_test += rng.normal(0, noise, len(y_test))
     
     y_true_binary = np.zeros(len(X_test), dtype=int)
     y_true_binary[n_id:] = 1
@@ -1042,6 +823,7 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
 
 
     for app in approaches:
+        # assume we want to calc epistemic uncertainty for every approach, not reaaaly the case in proximity
         u_e = uncertainties[app]
         results[app] = {"auroc": None, "spearman": None, "brier": None, "mi": None, "jsd": None}
 
@@ -1056,6 +838,7 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             results[app]["spearman"] = np.nan
 
         # Sigmoid Calibration (Platt Scaling) to map epistemic uncertainty to OOD probability
+        # Scetchy part, maybe thats the reason for the bad brier score behaviour
         try:
             # Revert to standard L2 regularization (C=1.0)
             lr = LogisticRegression(C=1.0)
@@ -1107,7 +890,6 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
             
         valid_mask = ~np.isnan(processed_data).any(axis=0)
         data = [d[valid_mask] for d in processed_data]
-
         if not all(len(d) > 2 for d in data):
             print("  Result: NOT ENOUGH VALID DATA FOR Paired Testing (Requires >= 3 independent functions)")
             continue
