@@ -753,7 +753,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant")
     print(f"{'='*80}\n")
 
-def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear'):
+def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False):
     # Determine standard Random Forest hyperparameters based on config selection to pass min_leaf to generate_data
     if rf_config == 1:
         n_est, min_leaf = 100, 5
@@ -768,8 +768,10 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
 
     import time
     import sys
-    print(f"\n  >>> Starting: Function={func_name}, Seed={seed}")
-    sys.stdout.flush()
+    
+    if debug_timing:
+        print(f"\n  >>> Starting: Function={func_name}, Seed={seed}")
+        sys.stdout.flush()
 
     t0 = time.perf_counter()
     X_train, y_train, X_test, y_test, y_true_binary = generate_data(
@@ -777,14 +779,16 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         scaling_law=scaling_law, min_samples_leaf=min_leaf
     )
     t1 = time.perf_counter()
-    print(f"    [TIMING] Data Generation: {t1 - t0:.4f} s")
-    sys.stdout.flush()
+    if debug_timing:
+        print(f"    [TIMING] Data Generation: {t1 - t0:.4f} s")
+        sys.stdout.flush()
 
     rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, oob_score=True, n_jobs=-1, random_state=seed)
     rf.fit(X_train, y_train)
     t2 = time.perf_counter()
-    print(f"    [TIMING] Random Forest Fitting: {t2 - t1:.4f} s")
-    sys.stdout.flush()
+    if debug_timing:
+        print(f"    [TIMING] Random Forest Fitting: {t2 - t1:.4f} s")
+        sys.stdout.flush()
     
     quantifier = EpistemicQuantifier(rf, X_train, y_train)
     t3 = time.perf_counter()
@@ -793,14 +797,16 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
     sq_error = (y_test - y_pred)**2
     gap_mask = y_true_binary == 1
     t4 = time.perf_counter()
-    print(f"    [TIMING] RF Predicting: {t4 - t3:.4f} s")
-    sys.stdout.flush()
+    if debug_timing:
+        print(f"    [TIMING] RF Predicting: {t4 - t3:.4f} s")
+        sys.stdout.flush()
 
     results = {}
     u_a = quantifier.base_get_aleatoric_variance(X_test)
     t5 = time.perf_counter()
-    print(f"    [TIMING] Base Aleatoric: {t5 - t4:.4f} s")
-    sys.stdout.flush()
+    if debug_timing:
+        print(f"    [TIMING] Base Aleatoric: {t5 - t4:.4f} s")
+        sys.stdout.flush()
 
     uncertainties = {}
     u_a_credal_dict = {}
@@ -835,8 +841,9 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
         t_app_end = time.perf_counter()
         app_timings[app] = t_app_end - t_app_start
-        print(f"    [TIMING] UQ Calculation ({app}): {app_timings[app]:.4f} s")
-        sys.stdout.flush()
+        if debug_timing:
+            print(f"    [TIMING] UQ Calculation ({app}): {app_timings[app]:.4f} s")
+            sys.stdout.flush()
 
     t6 = time.perf_counter()
     for app in approaches:
@@ -869,9 +876,10 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         results[app]["mi"] = calculate_mutual_information(u_e, y_true_binary)
         results[app]["jsd"] = calculate_jensen_shannon_divergence(u_e, y_true_binary)
     t7 = time.perf_counter()
-    print(f"    [TIMING] Metrics Calculation: {t7 - t6:.4f} s")
-    print(f"    [TIMING] Total Single Evaluation: {t7 - t0:.4f} s")
-    sys.stdout.flush()
+    if debug_timing:
+        print(f"    [TIMING] Metrics Calculation: {t7 - t6:.4f} s")
+        print(f"    [TIMING] Total Single Evaluation: {t7 - t0:.4f} s")
+        sys.stdout.flush()
 
     timings = {
         "data_generation": t1 - t0,
@@ -963,6 +971,7 @@ if __name__ == "__main__":
     parser.add_argument("--sparse_multiplier", type=int, default=12, help="Multiplier for sparse gap points (n_keep = multiplier * ndim)")
     parser.add_argument("--scaling_law", type=str, default="linear", choices=["linear", "fractional", "leaf"], help="Scaling law for sparse gap points")
     parser.add_argument("--n_runs", type=int, default=10, help="Number of seeds/runs")
+    parser.add_argument("--debug_timing", action="store_true", help="Print detailed execution timings for each section during evaluation")
     args = parser.parse_args()
 
     rf_config_arg = args.rf_config
@@ -974,6 +983,10 @@ if __name__ == "__main__":
     sparse_multiplier_arg = args.sparse_multiplier
     scaling_law_arg = args.scaling_law
     n_runs = args.n_runs
+    debug_timing_arg = args.debug_timing
+
+    if debug_timing_arg:
+        os.environ["PROXIMITY_DEBUG"] = "1"
 
     start_time = time.time()
     print(f"\n{'='*70}")
@@ -1064,7 +1077,7 @@ if __name__ == "__main__":
                     all_functions, func_name, seed, approaches,
                     rf_config=rf_config_arg, k_neighbors=k_neighbors_arg,
                     gap_type=gap_type_arg, sparse_multiplier=sparse_multiplier_arg,
-                    scaling_law=scaling_law_arg
+                    scaling_law=scaling_law_arg, debug_timing=debug_timing_arg
                 )
                 
                 # Accumulate timings
@@ -1166,42 +1179,43 @@ if __name__ == "__main__":
     # ====================
     # Performance Profiling Report
     # ====================
-    print(f"\n\n{'='*70}")
-    print(f"EPISTEMIC UQ BENCHMARKS - PERFORMANCE PROFILING REPORT")
-    print(f"{'='*70}")
-    print(f"{'Component':<35} | {'Total Time (s)':<14} | {'% of Total':<10}")
-    print(f"{'-'*70}")
-    
-    total_tracked = (
-        global_timings["data_generation"] +
-        global_timings["rf_fitting"] +
-        global_timings["rf_predicting"] +
-        global_timings["base_aleatoric"] +
-        global_timings["metrics_calc"] +
-        global_timings["statistical_tests"]
-    )
-    for app in approaches:
-        total_tracked += global_timings[f"app_uq_{app}"]
+    if debug_timing_arg:
+        print(f"\n\n{'='*70}")
+        print(f"EPISTEMIC UQ BENCHMARKS - PERFORMANCE PROFILING REPORT")
+        print(f"{'='*70}")
+        print(f"{'Component':<35} | {'Total Time (s)':<14} | {'% of Total':<10}")
+        print(f"{'-'*70}")
         
-    def print_row(label, val):
-        pct = (val / total_tracked) * 100 if total_tracked > 0 else 0.0
-        print(f"{label:<35} | {val:>10.2f} s    | {pct:>7.1f}%")
-        
-    print_row("Data Generation", global_timings["data_generation"])
-    print_row("Random Forest Fitting", global_timings["rf_fitting"])
-    print_row("RF Inference (Predicting)", global_timings["rf_predicting"])
-    print_row("Base Aleatoric Extraction", global_timings["base_aleatoric"])
-    print_row("Metrics Calculation", global_timings["metrics_calc"])
-    print_row("Statistical Validation Tests", global_timings["statistical_tests"])
-    print(f"{'-'*70}")
-    print("Epistemic UQ Calculations:")
-    for app in approaches:
-        print_row(f"  - {app}", global_timings[f"app_uq_{app}"])
-    print(f"{'-'*70}")
-    print_row("Total Profiler Tracked Time", total_tracked)
-    print(f"Total Suite Execution Time          | {total_time:>10.2f} s    | 100.0%")
-    print(f"{'='*70}\n")
-    sys.stdout.flush()
+        total_tracked = (
+            global_timings["data_generation"] +
+            global_timings["rf_fitting"] +
+            global_timings["rf_predicting"] +
+            global_timings["base_aleatoric"] +
+            global_timings["metrics_calc"] +
+            global_timings["statistical_tests"]
+        )
+        for app in approaches:
+            total_tracked += global_timings[f"app_uq_{app}"]
+            
+        def print_row(label, val):
+            pct = (val / total_tracked) * 100 if total_tracked > 0 else 0.0
+            print(f"{label:<35} | {val:>10.2f} s    | {pct:>7.1f}%")
+            
+        print_row("Data Generation", global_timings["data_generation"])
+        print_row("Random Forest Fitting", global_timings["rf_fitting"])
+        print_row("RF Inference (Predicting)", global_timings["rf_predicting"])
+        print_row("Base Aleatoric Extraction", global_timings["base_aleatoric"])
+        print_row("Metrics Calculation", global_timings["metrics_calc"])
+        print_row("Statistical Validation Tests", global_timings["statistical_tests"])
+        print(f"{'-'*70}")
+        print("Epistemic UQ Calculations:")
+        for app in approaches:
+            print_row(f"  - {app}", global_timings[f"app_uq_{app}"])
+        print(f"{'-'*70}")
+        print_row("Total Profiler Tracked Time", total_tracked)
+        print(f"Total Suite Execution Time          | {total_time:>10.2f} s    | 100.0%")
+        print(f"{'='*70}\n")
+        sys.stdout.flush()
 
     # ====================
     # Final Summary & Auto-Save
