@@ -168,10 +168,25 @@ class GPUProximityRegressionUQ:
         # in_bag_leaves keeps the leaf ID for in-bag samples, and sets to 0 for OOB samples
         self.in_bag_leaves = self.in_bag_indices * self.leaf_matrix_train
         
+        # Precompute scaled training weights to avoid 3D array broadcasting inside compute_uq loop
+        self.train_weights = np.zeros((self.n_train, self.n_estimators), dtype=np.float32)
+        for t, tree in enumerate(self.estimators):
+            node_count = tree.tree_.node_count
+            leaf_sums = np.bincount(
+                self.in_bag_leaves[:, t],
+                weights=self.in_bag_counts[:, t],
+                minlength=node_count
+            )
+            # Avoid division by zero for any nodes that have no in-bag samples (e.g. OOB padding at index 0)
+            leaf_sums[leaf_sums == 0.0] = 1.0
+            
+            train_leaves = self.leaf_matrix_train[:, t]
+            self.train_weights[:, t] = (self.in_bag_indices[:, t] * self.in_bag_counts[:, t]) / leaf_sums[train_leaves]
+            
         # Transfer training structures to the active backend (numpy or cupy)
         self.oob_residuals_xp = self.xp.asarray(self.oob_residuals)
         self.in_bag_leaves_xp = self.xp.asarray(self.in_bag_leaves)
-        self.in_bag_counts_xp = self.xp.asarray(self.in_bag_counts)
+        self.train_weights_xp = self.xp.asarray(self.train_weights)
 
     def compute_uq(self, X_test, n_neighbors="auto", level=0.95):
         """
@@ -232,39 +247,34 @@ class GPUProximityRegressionUQ:
             
             leaf_batch = leaf_matrix_test_xp[start:end, :]  # (batch_size, n_estimators)
             
-            # Vectorized RF-GAP proximity calculation:
-            # 1. Check if test point falls in the same leaf as in-bag training samples
-            # broadcast comparison: (batch_size, 1, n_estimators) == (1, n_train, n_estimators)
-            matches = leaf_batch[:, None, :] == self.in_bag_leaves_xp[None, :, :]  # (batch_size, n_train, n_estimators)
+            # Efficient tree-by-tree proximity accumulation to avoid allocating a massive 3D tensor
+            # prox_batch has shape (batch_size, n_train)
+            prox_batch = self.xp.zeros((batch_len, self.n_train), dtype=self.xp.float32)
             
-            # 2. Scale matches by the training sample's frequency count in that tree
-            matched_counts = self.xp.where(matches, self.in_bag_counts_xp[None, :, :], 0.0)
-            
-            # 3. Sum total in-bag counts in each leaf (partition size)
-            ks = self.xp.sum(matched_counts, axis=1, keepdims=True)  # (batch_size, 1, n_estimators)
-            ks = self.xp.where(ks == 0, 1.0, ks)  # Avoid division by zero
-            
-            # 4. Compute batch proximity matrix: shape (batch_size, n_train)
-            prox_batch = self.xp.sum(matched_counts / ks, axis=2) / self.n_estimators
-            
-            # 5. Extract residual quantiles based on proximity neighbors
-            tiled_residuals = self.xp.tile(self.oob_residuals_xp[None, :], (batch_len, 1))
+            for t in range(self.n_estimators):
+                # 2D comparison: (batch_size, 1) == (1, n_train) -> (batch_size, n_train)
+                # Matches if test sample leaf equals train sample leaf in tree t
+                matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                # Accumulate the precomputed weights
+                prox_batch += matches_t * self.train_weights_xp[None, :, t]
+                
+            prox_batch /= self.n_estimators
             
             if n_neighbors == "auto":
-                # Mask out training samples with proximity < 1e-10
-                tiled_residuals[prox_batch < 1e-10] = self.xp.nan
+                # Mask out training samples with proximity < 1e-10 using xp.where instead of tiling
+                masked_residuals = self.xp.where(prox_batch >= 1e-10, self.oob_residuals_xp[None, :], self.xp.nan)
                 
                 # Perform nanquantile estimation
                 if self.using_gpu and not self.nanquantile_supported:
                     # Fall back to NumPy CPU for nanquantile if CuPy version lacks it
-                    tiled_cpu = cp.asnumpy(tiled_residuals)
+                    tiled_cpu = cp.asnumpy(masked_residuals)
                     lwr_cpu = np.nanquantile(tiled_cpu, alpha_lwr, axis=1)
                     upr_cpu = np.nanquantile(tiled_cpu, alpha_upr, axis=1)
                     resid_lwr[start:end] = cp.asarray(lwr_cpu)
                     resid_upr[start:end] = cp.asarray(upr_cpu)
                 else:
-                    resid_lwr[start:end] = self.xp.nanquantile(tiled_residuals, alpha_lwr, axis=1)
-                    resid_upr[start:end] = self.xp.nanquantile(tiled_residuals, alpha_upr, axis=1)
+                    resid_lwr[start:end] = self.xp.nanquantile(masked_residuals, alpha_lwr, axis=1)
+                    resid_upr[start:end] = self.xp.nanquantile(masked_residuals, alpha_upr, axis=1)
             else:
                 k = self.n_train if n_neighbors == "all" else int(n_neighbors)
                 
@@ -273,11 +283,11 @@ class GPUProximityRegressionUQ:
                     # Use argsort to match the reference implementation's tie-breaking behavior exactly
                     partition_idx = self.xp.flip(self.xp.argsort(prox_batch, axis=1), axis=1)[:, :k]
                     
-                    # Extract corresponding residuals
-                    k_residuals = self.xp.take_along_axis(tiled_residuals, partition_idx, axis=1)
+                    # Extract corresponding residuals directly via indexing (fancy indexing)
+                    k_residuals = self.oob_residuals_xp[partition_idx]
                 else:
-                    # If k matches self.n_train, sorting is redundant; use raw residuals directly
-                    k_residuals = tiled_residuals
+                    # If k matches self.n_train, sorting is redundant; use broadcasted residuals
+                    k_residuals = self.xp.broadcast_to(self.oob_residuals_xp[None, :], (batch_len, self.n_train))
                 
                 resid_lwr[start:end] = self.xp.quantile(k_residuals, alpha_lwr, axis=1)
                 resid_upr[start:end] = self.xp.quantile(k_residuals, alpha_upr, axis=1)
