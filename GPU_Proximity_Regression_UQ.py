@@ -22,7 +22,7 @@ except ImportError:
     HAS_CUPY = False
 
 class GPUProximityRegressionUQ:
-    def __init__(self, model, X_train, y_train, device="auto", batch_size=256):
+    def __init__(self, model, X_train, y_train, device="auto", batch_size="auto"):
         """
         GPU-Accelerated Wrapper for Localized Uncertainty Quantification in Random Forests
         via Proximities (RF-FIRE / RF-GAP). Supports dynamic NumPy and CuPy backends.
@@ -33,14 +33,14 @@ class GPUProximityRegressionUQ:
             y_train: array-like of shape (n_samples,), training targets.
             device: str, "cpu", "gpu" (or "cuda"), or "auto".
                 "auto" enables CuPy if a GPU and CuPy are available.
-            batch_size: int, size of chunked batches for test point processing.
-                Controls peak memory consumption during vectorized proximity computation.
+            batch_size: int or 'auto', size of chunked batches for test point processing.
+                If 'auto', dynamically determines the optimal batch size based on free VRAM.
         """
         self.model = model
         self.X_train = np.asarray(X_train)
         self.y_train = np.asarray(y_train)
         self.n_train = len(self.X_train)
-        self.batch_size = batch_size
+        self.batch_size_param = batch_size
         
         # Configure backend dynamically
         self._init_backend(device)
@@ -86,6 +86,37 @@ class GPUProximityRegressionUQ:
         else:
             self.xp = np
             self.nanquantile_supported = True
+
+    def _get_dynamic_batch_size(self, n_test):
+        """
+        Dynamically computes the optimal batch size based on available GPU VRAM.
+        If running on CPU, returns a default safe batch size.
+        """
+        if not self.using_gpu:
+            return 1024  # High performance CPU default
+        
+        try:
+            # Query free VRAM in bytes
+            free_mem, total_mem = cp.cuda.Device().mem_info
+            
+            # Conservative estimate of memory consumed per query sample in bytes:
+            # Shape (1, n_train, n_estimators) of float32 (4 bytes) + bool match (1 byte)
+            # plus intermediate buffers. Let's budget 10 bytes per (n_train * n_estimators)
+            bytes_per_sample = 10 * self.n_train * self.n_estimators
+            
+            if bytes_per_sample <= 0:
+                return 256
+            
+            # Reserve 20% of VRAM for safety (CUDA context, libraries, other variables)
+            usable_vram = 0.8 * free_mem
+            
+            # Compute optimal batch size
+            opt_batch = int(usable_vram // bytes_per_sample)
+            
+            # Bound the batch size to be between 1 and n_test
+            return max(1, min(n_test, opt_batch))
+        except Exception:
+            return 256  # Safe fallback if querying GPU VRAM fails
 
     def fit(self):
         """
@@ -182,9 +213,15 @@ class GPUProximityRegressionUQ:
         alpha_lwr = (1.0 - level) / 2.0
         alpha_upr = 1.0 - alpha_lwr
         
+        # Determine batch size dynamically if auto, else parse parameter
+        if self.batch_size_param == "auto":
+            batch_size = self._get_dynamic_batch_size(n_test)
+        else:
+            batch_size = int(self.batch_size_param)
+            
         # Process in batches to control GPU/CPU memory consumption
-        for start in range(0, n_test, self.batch_size):
-            end = min(start + self.batch_size, n_test)
+        for start in range(0, n_test, batch_size):
+            end = min(start + batch_size, n_test)
             batch_len = end - start
             
             leaf_batch = leaf_matrix_test_xp[start:end, :]  # (batch_size, n_estimators)

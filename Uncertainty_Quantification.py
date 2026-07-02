@@ -819,7 +819,7 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Proximity":
-            prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size=256)
+            prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto")
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
 
 
