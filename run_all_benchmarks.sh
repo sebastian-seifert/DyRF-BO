@@ -2,11 +2,11 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Define parameters for the experimental grid
-RF_CONFIGS=(1 2 3 4 5)
-K_VALUES=(20 50 100 200 500)
-SPARSE_MULTIPLIERS=(5 10 15 25 50)
-SCALING_LAWS=("linear" "fractional" "leaf")
+# Define parameters for the experimental grid (moderately downscaled for efficiency)
+RF_CONFIGS=(1 3 5)
+K_VALUES=(20 100 500)
+SPARSE_MULTIPLIERS=(5 15 50)
+SCALING_LAWS=("linear" "leaf")
 
 # Default: run both gap types if none specified
 GAP_TYPES=("empty" "sparse")
