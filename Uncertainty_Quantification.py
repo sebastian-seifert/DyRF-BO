@@ -790,7 +790,7 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
     print(f"    [TIMING] Data Generation: {t1 - t0:.4f} s")
     sys.stdout.flush()
 
-    rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, oob_score=True, random_state=seed)
+    rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, oob_score=True, n_jobs=-1, random_state=seed)
     rf.fit(X_train, y_train)
     t2 = time.perf_counter()
     print(f"    [TIMING] Random Forest Fitting: {t2 - t1:.4f} s")
