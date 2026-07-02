@@ -54,7 +54,8 @@ class EpistemicQuantifier:
     def _base_calc_per_tree_variance(self, X_test, min_var=1e-6):
         """
         Calculates the per-tree unbiased variances (sigma^2) for each sample in X_test.
-        Pre-calculates variances for unique leaves to ensure low complexity.
+        Optimized by directly retrieving pre-computed tree node impurities (MSE) 
+        and scaling them to unbiased variances, bypassing slow nested CPU loops.
         
         Returns: np.array of shape (n_trees, n_samples_test)
         """
@@ -67,28 +68,17 @@ class EpistemicQuantifier:
         
         variances = np.zeros((n_trees, n_samples))
         
-        for i, estimator in enumerate(self.model.estimators_):
-            # 1. Get training leaf IDs and test leaf IDs for this specific tree
-            train_leaf_ids = estimator.apply(self.X_train)
-            test_leaf_ids = all_test_leaf_ids[:, i]
+        for t, estimator in enumerate(self.model.estimators_):
+            test_leaf_ids = all_test_leaf_ids[:, t]
             
-            # 2. Map unique test leaves to their training variance
-            unique_test_leaves = np.unique(test_leaf_ids)
-            leaf_to_var = {}
+            # Scikit-learn precomputes node impurity (MSE) during training
+            impurity = estimator.tree_.impurity[test_leaf_ids]
+            n_node_samples = estimator.tree_.n_node_samples[test_leaf_ids]
             
-            for leaf_id in unique_test_leaves:
-                # Optimized mask: only look at training data in this leaf
-                leaf_y = self.y_train[train_leaf_ids == leaf_id]
-                
-                if leaf_y.shape[0] > 1:
-                    s2 = np.var(leaf_y, ddof=1)
-                else:
-                    s2 = 0.0
-                
-                leaf_to_var[leaf_id] = float(s2) + min_var
-                
-            # 3. Fast mapping of pre-calculated variances back to the test samples
-            variances[i, :] = [leaf_to_var[lid] for lid in test_leaf_ids]
+            # Compute unbiased variance: s^2 = impurity * (N / (N - 1))
+            # If N <= 1, variance is 0.0
+            scale = np.where(n_node_samples > 1, n_node_samples / (n_node_samples - 1), 0.0)
+            variances[t, :] = impurity * scale + min_var
             
         return variances
 
