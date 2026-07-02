@@ -23,6 +23,7 @@ from scipy.special import logsumexp, xlogy, entr
 from scipy.spatial.distance import jensenshannon
 from Credal_Regression_UQ import CredalRegressionUQ
 from Proximity_Regression_UQ import ProximityRegressionUQ
+from GPU_Proximity_Regression_UQ import GPUProximityRegressionUQ
 
 # Helps on clusters where NVRTC does not directly support the GPU's native arch.
 os.environ.setdefault("CUPY_COMPILE_WITH_PTX", "1")
@@ -780,7 +781,7 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         scaling_law=scaling_law, min_samples_leaf=min_leaf
     )
 
-    rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, random_state=seed)
+    rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, oob_score=True, random_state=seed)
     rf.fit(X_train, y_train)
     quantifier = EpistemicQuantifier(rf, X_train, y_train)
 
@@ -818,7 +819,7 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Proximity":
-            prox_q = ProximityRegressionUQ(rf, X_train, y_train)
+            prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size=256)
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
 
 
