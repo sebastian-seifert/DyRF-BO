@@ -776,25 +776,47 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
     else: # Config 5
         n_est, min_leaf = 300, 30
 
+    import time
+    import sys
+    print(f"\n  >>> Starting: Function={func_name}, Seed={seed}")
+    sys.stdout.flush()
+
+    t0 = time.perf_counter()
     X_train, y_train, X_test, y_test, y_true_binary = generate_data(
         func_dict, func_name, seed, gap_type=gap_type, sparse_multiplier=sparse_multiplier,
         scaling_law=scaling_law, min_samples_leaf=min_leaf
     )
+    t1 = time.perf_counter()
+    print(f"    [TIMING] Data Generation: {t1 - t0:.4f} s")
+    sys.stdout.flush()
 
     rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, oob_score=True, random_state=seed)
     rf.fit(X_train, y_train)
+    t2 = time.perf_counter()
+    print(f"    [TIMING] Random Forest Fitting: {t2 - t1:.4f} s")
+    sys.stdout.flush()
+    
     quantifier = EpistemicQuantifier(rf, X_train, y_train)
+    t3 = time.perf_counter()
 
     y_pred = rf.predict(X_test)
     sq_error = (y_test - y_pred)**2
     gap_mask = y_true_binary == 1
+    t4 = time.perf_counter()
+    print(f"    [TIMING] RF Predicting: {t4 - t3:.4f} s")
+    sys.stdout.flush()
 
     results = {}
     u_a = quantifier.base_get_aleatoric_variance(X_test)
+    t5 = time.perf_counter()
+    print(f"    [TIMING] Base Aleatoric: {t5 - t4:.4f} s")
+    sys.stdout.flush()
 
     uncertainties = {}
     u_a_credal_dict = {}
+    app_timings = {}
     for app in approaches:
+        t_app_start = time.perf_counter()
         if app == "Standard": uncertainties[app] = quantifier.standard_get_epistemic_variance(X_test)
         elif app == "Shaker": uncertainties[app] = quantifier.shaker_get_epistemic_variance(X_test, random_state=seed)
         elif app == "Chen": uncertainties[app] = quantifier.chen_get_epistemic_variance(X_test)
@@ -821,10 +843,13 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         elif app == "Proximity":
             prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto")
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
+        t_app_end = time.perf_counter()
+        app_timings[app] = t_app_end - t_app_start
+        print(f"    [TIMING] UQ Calculation ({app}): {app_timings[app]:.4f} s")
+        sys.stdout.flush()
 
-
+    t6 = time.perf_counter()
     for app in approaches:
-        # assume we want to calc epistemic uncertainty for every approach, not reaaaly the case in proximity
         u_e = uncertainties[app]
         results[app] = {"auroc": None, "spearman": None, "brier": None, "mi": None, "jsd": None}
 
@@ -838,28 +863,37 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         else:
             results[app]["spearman"] = np.nan
 
-        # Sigmoid Calibration (Platt Scaling) to map epistemic uncertainty to OOD probability
-        # Scetchy part, maybe thats the reason for the bad brier score behaviour
         try:
-            # Revert to standard L2 regularization (C=1.0)
             lr = LogisticRegression(C=1.0)
             lr.fit(u_e.reshape(-1, 1), y_true_binary)
             p_calibrated = lr.predict_proba(u_e.reshape(-1, 1))[:, 1]
         except Exception:
-            # Fallback to min-max normalization if logistic regression fails
             u_min = np.min(u_e)
             u_max = np.max(u_e)
             u_range = u_max - u_min + 1e-10
             p_calibrated = (u_e - u_min) / u_range
-        # Balanced Brier Score to prevent dominance by class imbalance in higher dimensions
         brier_id = np.mean((p_calibrated[y_true_binary == 0] - 0) ** 2)
         brier_ood = np.mean((p_calibrated[y_true_binary == 1] - 1) ** 2)
         results[app]["brier"] = 0.5 * (brier_id + brier_ood)
 
         results[app]["mi"] = calculate_mutual_information(u_e, y_true_binary)
         results[app]["jsd"] = calculate_jensen_shannon_divergence(u_e, y_true_binary)
+    t7 = time.perf_counter()
+    print(f"    [TIMING] Metrics Calculation: {t7 - t6:.4f} s")
+    print(f"    [TIMING] Total Single Evaluation: {t7 - t0:.4f} s")
+    sys.stdout.flush()
 
-    return results
+    timings = {
+        "data_generation": t1 - t0,
+        "rf_fitting": t2 - t1,
+        "rf_predicting": t4 - t3,
+        "base_aleatoric": t5 - t4,
+        "app_uq": app_timings,
+        "metrics_calc": t7 - t6,
+        "total_test": t7 - t0
+    }
+
+    return results, timings
 
 def print_results(results_dict, test_name):
     print(f"\n{'='*70}")
@@ -1017,6 +1051,18 @@ if __name__ == "__main__":
         "10D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": []} for app in approaches},
     }
 
+    global_timings = {
+        "data_generation": 0.0,
+        "rf_fitting": 0.0,
+        "rf_predicting": 0.0,
+        "base_aleatoric": 0.0,
+        "metrics_calc": 0.0,
+        "total_tests_runtime": 0.0,
+        "statistical_tests": 0.0
+    }
+    for app in approaches:
+        global_timings[f"app_uq_{app}"] = 0.0
+
     test_start = time.time()
     for seed in range(n_runs):
         seed_start = time.time()
@@ -1024,12 +1070,22 @@ if __name__ == "__main__":
 
         for func_name in all_functions:
             try:
-                test_results = run_single_test(
+                test_results, test_timings = run_single_test(
                     all_functions, func_name, seed, approaches,
                     rf_config=rf_config_arg, k_neighbors=k_neighbors_arg,
                     gap_type=gap_type_arg, sparse_multiplier=sparse_multiplier_arg,
                     scaling_law=scaling_law_arg
                 )
+                
+                # Accumulate timings
+                global_timings["data_generation"] += test_timings["data_generation"]
+                global_timings["rf_fitting"] += test_timings["rf_fitting"]
+                global_timings["rf_predicting"] += test_timings["rf_predicting"]
+                global_timings["base_aleatoric"] += test_timings["base_aleatoric"]
+                global_timings["metrics_calc"] += test_timings["metrics_calc"]
+                global_timings["total_tests_runtime"] += test_timings["total_test"]
+                for app in approaches:
+                    global_timings[f"app_uq_{app}"] += test_timings["app_uq"].get(app, 0.0)
 
                 if func_name in functions_1d:
                     dim_key = "1D"
@@ -1083,6 +1139,8 @@ if __name__ == "__main__":
     print(f"\n[SUCCESS] Unified test completed in {test_time/60:.1f} minutes")
     sys.stdout.flush()
 
+    t_stats_start = time.time()
+    
     # ====================
     # TEST 1: All Functions Together
     # ====================
@@ -1111,6 +1169,49 @@ if __name__ == "__main__":
         print_results(results_by_dim[dim_key], f"{dim_name} (runs = {n_runs})")
         run_statistical_tests(results_by_dim[dim_key], approaches, n_runs, alpha=alpha)
         sys.stdout.flush()
+        
+    t_stats_end = time.time()
+    global_timings["statistical_tests"] = t_stats_end - t_stats_start
+
+    # ====================
+    # Performance Profiling Report
+    # ====================
+    print(f"\n\n{'='*70}")
+    print(f"EPISTEMIC UQ BENCHMARKS - PERFORMANCE PROFILING REPORT")
+    print(f"{'='*70}")
+    print(f"{'Component':<35} | {'Total Time (s)':<14} | {'% of Total':<10}")
+    print(f"{'-'*70}")
+    
+    total_tracked = (
+        global_timings["data_generation"] +
+        global_timings["rf_fitting"] +
+        global_timings["rf_predicting"] +
+        global_timings["base_aleatoric"] +
+        global_timings["metrics_calc"] +
+        global_timings["statistical_tests"]
+    )
+    for app in approaches:
+        total_tracked += global_timings[f"app_uq_{app}"]
+        
+    def print_row(label, val):
+        pct = (val / total_tracked) * 100 if total_tracked > 0 else 0.0
+        print(f"{label:<35} | {val:>10.2f} s    | {pct:>7.1f}%")
+        
+    print_row("Data Generation", global_timings["data_generation"])
+    print_row("Random Forest Fitting", global_timings["rf_fitting"])
+    print_row("RF Inference (Predicting)", global_timings["rf_predicting"])
+    print_row("Base Aleatoric Extraction", global_timings["base_aleatoric"])
+    print_row("Metrics Calculation", global_timings["metrics_calc"])
+    print_row("Statistical Validation Tests", global_timings["statistical_tests"])
+    print(f"{'-'*70}")
+    print("Epistemic UQ Calculations:")
+    for app in approaches:
+        print_row(f"  - {app}", global_timings[f"app_uq_{app}"])
+    print(f"{'-'*70}")
+    print_row("Total Profiler Tracked Time", total_tracked)
+    print(f"Total Suite Execution Time          | {total_time:>10.2f} s    | 100.0%")
+    print(f"{'='*70}\n")
+    sys.stdout.flush()
 
     # ====================
     # Final Summary & Auto-Save

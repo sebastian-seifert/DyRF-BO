@@ -129,6 +129,17 @@ class GPUProximityRegressionUQ:
         Fits the underlying Random Forest model if not already fitted,
         extracts OOB residual statistics, and prepares internal structures.
         """
+        import time
+        debug_timing = os.environ.get("PROXIMITY_DEBUG") == "1"
+        
+        if debug_timing:
+            if self.using_gpu:
+                try:
+                    cp.cuda.Device().synchronize()
+                except Exception:
+                    pass
+            t_start = time.perf_counter()
+            
         if not hasattr(self.model, "estimators_"):
             # Ensure oob_score=True is enabled to collect out-of-bag statistics
             self.model.set_params(oob_score=True)
@@ -138,6 +149,10 @@ class GPUProximityRegressionUQ:
             warnings.warn("The provided RandomForestRegressor was fitted without oob_score=True. Refitting to extract OOB stats.", UserWarning)
             self.model.set_params(oob_score=True)
             self.model.fit(self.X_train, self.y_train)
+            
+        if debug_timing:
+            t_fit_model = time.perf_counter()
+            print(f"[TIMING] Random Forest fit/check: {(t_fit_model - t_start)*1000:.2f} ms")
             
         self.estimators = self.model.estimators_
         self.n_estimators = len(self.estimators)
@@ -168,6 +183,10 @@ class GPUProximityRegressionUQ:
         # in_bag_leaves keeps the leaf ID for in-bag samples, and sets to 0 for OOB samples
         self.in_bag_leaves = self.in_bag_indices * self.leaf_matrix_train
         
+        if debug_timing:
+            t_indices = time.perf_counter()
+            print(f"[TIMING] OOB/In-bag index reconstruction: {(t_indices - t_fit_model)*1000:.2f} ms")
+            
         # Precompute scaled training weights to avoid 3D array broadcasting inside compute_uq loop
         self.train_weights = np.zeros((self.n_train, self.n_estimators), dtype=np.float32)
         for t, tree in enumerate(self.estimators):
@@ -183,10 +202,24 @@ class GPUProximityRegressionUQ:
             train_leaves = self.leaf_matrix_train[:, t]
             self.train_weights[:, t] = (self.in_bag_indices[:, t] * self.in_bag_counts[:, t]) / leaf_sums[train_leaves]
             
+        if debug_timing:
+            t_weights = time.perf_counter()
+            print(f"[TIMING] Leaf weights precomputation: {(t_weights - t_indices)*1000:.2f} ms")
+            
         # Transfer training structures to the active backend (numpy or cupy)
         self.oob_residuals_xp = self.xp.asarray(self.oob_residuals)
         self.in_bag_leaves_xp = self.xp.asarray(self.in_bag_leaves)
         self.train_weights_xp = self.xp.asarray(self.train_weights)
+        
+        if debug_timing:
+            if self.using_gpu:
+                try:
+                    cp.cuda.Device().synchronize()
+                except Exception:
+                    pass
+            t_transfer = time.perf_counter()
+            print(f"[TIMING] Transfer structures to backend: {(t_transfer - t_weights)*1000:.2f} ms")
+            print(f"[TIMING] Total fit: {(t_transfer - t_start)*1000:.2f} ms")
 
     def compute_uq(self, X_test, n_neighbors="auto", level=0.95):
         """
@@ -223,10 +256,31 @@ class GPUProximityRegressionUQ:
             except (ValueError, TypeError):
                 raise ValueError("n_neighbors must be a positive integer, 'auto', or 'all'.")
         
+        # Prepare debug timing
+        import time
+        debug_timing = os.environ.get("PROXIMITY_DEBUG") == "1"
+        
+        if debug_timing:
+            if self.using_gpu:
+                try:
+                    cp.cuda.Device().synchronize()
+                except Exception:
+                    pass
+            t_start = time.perf_counter()
+            
         # Apply the trees to test points to get leaf IDs
         leaf_matrix_test = self.model.apply(X_test)
         leaf_matrix_test_xp = self.xp.asarray(leaf_matrix_test)
         
+        if debug_timing:
+            if self.using_gpu:
+                try:
+                    cp.cuda.Device().synchronize()
+                except Exception:
+                    pass
+            t_leaf = time.perf_counter()
+            print(f"[TIMING] Test leaf ID extraction: {(t_leaf - t_start)*1000:.2f} ms")
+            
         # Pre-allocate output arrays on the backend
         resid_lwr = self.xp.zeros(n_test, dtype=self.xp.float32)
         resid_upr = self.xp.zeros(n_test, dtype=self.xp.float32)
@@ -240,6 +294,9 @@ class GPUProximityRegressionUQ:
         else:
             batch_size = int(self.batch_size_param)
             
+        t_accum_total = 0.0
+        t_quantile_total = 0.0
+        
         # Process in batches to control GPU/CPU memory consumption
         for start in range(0, n_test, batch_size):
             end = min(start + batch_size, n_test)
@@ -247,6 +304,14 @@ class GPUProximityRegressionUQ:
             
             leaf_batch = leaf_matrix_test_xp[start:end, :]  # (batch_size, n_estimators)
             
+            if debug_timing:
+                if self.using_gpu:
+                    try:
+                        cp.cuda.Device().synchronize()
+                    except Exception:
+                        pass
+                t0_accum = time.perf_counter()
+                
             # Efficient tree-by-tree proximity accumulation to avoid allocating a massive 3D tensor
             # prox_batch has shape (batch_size, n_train)
             prox_batch = self.xp.zeros((batch_len, self.n_train), dtype=self.xp.float32)
@@ -260,6 +325,16 @@ class GPUProximityRegressionUQ:
                 
             prox_batch /= self.n_estimators
             
+            if debug_timing:
+                if self.using_gpu:
+                    try:
+                        cp.cuda.Device().synchronize()
+                    except Exception:
+                        pass
+                t1_accum = time.perf_counter()
+                t_accum_total += (t1_accum - t0_accum)
+                t0_quantile = time.perf_counter()
+                
             if n_neighbors == "auto":
                 # Mask out training samples with proximity < 1e-10 using xp.where instead of tiling
                 masked_residuals = self.xp.where(prox_batch >= 1e-10, self.oob_residuals_xp[None, :], self.xp.nan)
@@ -292,6 +367,20 @@ class GPUProximityRegressionUQ:
                 resid_lwr[start:end] = self.xp.quantile(k_residuals, alpha_lwr, axis=1)
                 resid_upr[start:end] = self.xp.quantile(k_residuals, alpha_upr, axis=1)
                 
+            if debug_timing:
+                if self.using_gpu:
+                    try:
+                        cp.cuda.Device().synchronize()
+                    except Exception:
+                        pass
+                t1_quantile = time.perf_counter()
+                t_quantile_total += (t1_quantile - t0_quantile)
+                
+        if debug_timing:
+            print(f"[TIMING] Proximity matrix accumulation: {t_accum_total*1000:.2f} ms")
+            print(f"[TIMING] Neighbor sorting & quantiles: {t_quantile_total*1000:.2f} ms")
+            print(f"[TIMING] Total compute_uq: {(time.perf_counter() - t_start)*1000:.2f} ms")
+            
         # Calculate localized prediction interval width (uncertainty)
         uq = resid_upr - resid_lwr
         
