@@ -96,9 +96,11 @@ class GPUProximityRegressionUQ:
             # Ensure oob_score=True is enabled to collect out-of-bag statistics
             self.model.set_params(oob_score=True)
             self.model.fit(self.X_train, self.y_train)
-            
-        if not getattr(self.model, "oob_score", False):
-            raise ValueError("The provided RandomForestRegressor must have oob_score=True.")
+        elif not getattr(self.model, "oob_score", False):
+            # Model was fitted but lacks OOB predictions; we refit it with oob_score=True enabled
+            warnings.warn("The provided RandomForestRegressor was fitted without oob_score=True. Refitting to extract OOB stats.", UserWarning)
+            self.model.set_params(oob_score=True)
+            self.model.fit(self.X_train, self.y_train)
             
         self.estimators = self.model.estimators_
         self.n_estimators = len(self.estimators)
@@ -153,6 +155,22 @@ class GPUProximityRegressionUQ:
         X_test = np.asarray(X_test)
         n_test = len(X_test)
         
+        # Validate and parse n_neighbors parameter to be semantically equivalent to CPU version
+        if n_neighbors != "auto" and n_neighbors != "all":
+            try:
+                # Round floats to match original CPU behavior exactly
+                if isinstance(n_neighbors, float) or (isinstance(n_neighbors, str) and "." in n_neighbors):
+                    n_neighbors_val = int(round(float(n_neighbors)))
+                    warnings.warn(f"n_neighbors value {n_neighbors} is a float/float-string. Rounding to integer: {n_neighbors_val}.", UserWarning)
+                else:
+                    n_neighbors_val = int(n_neighbors)
+                
+                if n_neighbors_val <= 0 or n_neighbors_val > self.n_train:
+                    raise ValueError(f"n_neighbors must be between 1 and {self.n_train} (n_train).")
+                n_neighbors = n_neighbors_val
+            except (ValueError, TypeError):
+                raise ValueError("n_neighbors must be a positive integer, 'auto', or 'all'.")
+        
         # Apply the trees to test points to get leaf IDs
         leaf_matrix_test = self.model.apply(X_test)
         leaf_matrix_test_xp = self.xp.asarray(leaf_matrix_test)
@@ -206,12 +224,17 @@ class GPUProximityRegressionUQ:
                     resid_upr[start:end] = self.xp.nanquantile(tiled_residuals, alpha_upr, axis=1)
             else:
                 k = self.n_train if n_neighbors == "all" else int(n_neighbors)
-                # Sort neighbors by proximity (descending) to match RFGAP tie-breaking exactly
-                # Use argsort to match the reference implementation's tie-breaking behavior exactly
-                partition_idx = self.xp.flip(self.xp.argsort(prox_batch, axis=1), axis=1)[:, :k]
                 
-                # Extract corresponding residuals
-                k_residuals = self.xp.take_along_axis(tiled_residuals, partition_idx, axis=1)
+                # If k is less than self.n_train, we extract the top k proximate neighbors
+                if k < self.n_train:
+                    # Use argsort to match the reference implementation's tie-breaking behavior exactly
+                    partition_idx = self.xp.flip(self.xp.argsort(prox_batch, axis=1), axis=1)[:, :k]
+                    
+                    # Extract corresponding residuals
+                    k_residuals = self.xp.take_along_axis(tiled_residuals, partition_idx, axis=1)
+                else:
+                    # If k matches self.n_train, sorting is redundant; use raw residuals directly
+                    k_residuals = tiled_residuals
                 
                 resid_lwr[start:end] = self.xp.quantile(k_residuals, alpha_lwr, axis=1)
                 resid_upr[start:end] = self.xp.quantile(k_residuals, alpha_upr, axis=1)
