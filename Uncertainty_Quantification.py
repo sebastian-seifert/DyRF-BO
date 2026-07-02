@@ -982,6 +982,17 @@ if __name__ == "__main__":
     print(f"  * Approaches: {', '.join(approaches)}")
     print(f"  * Metrics: AUROC, Spearman, Brier, MI, JSD")
     print(f"  * Statistical tests: Friedman + Bonferroni-corrected Wilcoxon (alpha={alpha})")
+    
+    # Detect active device for Proximity UQ
+    using_gpu = False
+    try:
+        import cupy as cp
+        if cp.cuda.runtime.getDeviceCount() > 0:
+            using_gpu = True
+    except Exception:
+        pass
+    device_name = "GPU (CuPy)" if using_gpu else "CPU (NumPy)"
+    print(f"  * Proximity Device: {device_name}")
     sys.stdout.flush()
 
     # ====================

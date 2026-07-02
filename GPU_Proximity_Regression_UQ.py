@@ -90,10 +90,16 @@ class GPUProximityRegressionUQ:
     def _get_dynamic_batch_size(self, n_test):
         """
         Dynamically computes the optimal batch size based on available GPU VRAM.
-        If running on CPU, returns a default safe batch size.
+        If running on CPU, returns a cache-friendly batch size to prevent memory thrashing.
         """
         if not self.using_gpu:
-            return 1024  # High performance CPU default
+            # For CPU, keep the memory footprint per batch around 50 million elements (~50 MB)
+            # to fit nicely within standard CPU L3 caches and prevent major page faults.
+            total_elements = self.n_train * self.n_estimators
+            if total_elements <= 0:
+                return 128
+            opt_batch = 50_000_000 // total_elements
+            return max(1, min(n_test, min(128, opt_batch)))
         
         try:
             # Query free VRAM in bytes
