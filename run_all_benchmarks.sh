@@ -68,7 +68,7 @@ for gap_type in "${GAP_TYPES[@]}"; do
                         echo "Started: $(date)"
                         echo "----------------------------------------------------------"
                         
-                        $PYTHON_EXEC Uncertainty_Quantification.py --rf_config "$config" --k_neighbors "$k" --gap_type "sparse" --sparse_multiplier "$mult" --scaling_law "$law" --n_runs 10
+                        $PYTHON_EXEC Uncertainty_Quantification.py --rf_config "$config" --k_neighbors "$k" --gap_type "sparse" --sparse_multiplier "$mult" --scaling_law "$law" --n_runs 5
                         
                         run_end=$(date +%s)
                         duration=$((run_end - run_start))
@@ -86,7 +86,7 @@ for gap_type in "${GAP_TYPES[@]}"; do
                 echo "Started: $(date)"
                 echo "----------------------------------------------------------"
                 
-                $PYTHON_EXEC Uncertainty_Quantification.py --rf_config "$config" --k_neighbors "$k" --gap_type "empty" --n_runs 10
+                $PYTHON_EXEC Uncertainty_Quantification.py --rf_config "$config" --k_neighbors "$k" --gap_type "empty" --n_runs 5
                 
                 run_end=$(date +%s)
                 duration=$((run_end - run_start))
