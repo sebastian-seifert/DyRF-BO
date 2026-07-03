@@ -186,4 +186,15 @@ For each metric (AUROC, Spearman, Brier, MI, JSD):
 2. **Computational Scaling (3700x speedup):**
    - Dynamically scaled points per dimension: 1D = 100 ($100$ pts), 2D = 50 ($2500$ pts), 3D = 30 ($27,000$ pts).
    - Reduced Shaker MC default samples from 100,000 to 1,000 (with matching batch size).
+
+## 03.7
+### Analysis of Cluster Proximity Results & Pathologies
+* **The Normalization & Overconfidence Trap**: Analyzed the results of the 63-configuration sweep. Confirmed that in higher dimensions ($D \ge 3$), the AUROC collapses to $\le 0.35$ (inverted uncertainty) for both Standard RF and Proximity UQ.
+  * *Standard RF Pathology*: Leaves in empty spaces containing only a few extrapolated boundary points have sample size $\approx \text{min\_samples\_leaf}$ with mathematically near-zero variance. The model is overconfident in empty regions, while dense ID regions have noise (high variance).
+  * *Proximity Pathology*: Normalizing the proximity vector to sum to 1.0 discards density details, treating OOD query points in empty space as having the same weight as ID points.
+* **The Calibration Paradox**: Proximity UQ achieved a lower (better) Brier Score (0.1260 vs. 0.2440) because Platt scaling (logistic regression) simply fit a negative coefficient ($A < 0$) to invert the inverted raw uncertainty mapping.
+* **Proposed Mitigations**:
+  1. **Leaf Density Scaling**: Scale final proximity uncertainty inversely by the average leaf sample size $\bar{N}_{\text{leaf}}(x) = \frac{1}{M}\sum N_{\text{leaf}_t(x)}$ to penalize empty/sparse leaves.
+  2. **Topological Tree-Walking**: Replaces binary co-occurrence with graph-theoretic path distances on the decision trees using Lowest Common Ancestor (LCA) to produce a continuous decay kernel.
+
 3. **Runtime Guards:** Wrapped post-hoc Wilcoxon tests in `try-except` blocks to handle zero-difference cases, and added a constant-uncertainty guard to JSD.

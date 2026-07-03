@@ -593,17 +593,18 @@ def calculate_mutual_information(uncertainty, y_true_binary, n_bins=50):
     # 5. Return Uncertainty Coefficient (fraction of H(Y) explained by U) bounded in [0, 1]
     return float(np.clip(mi / h_y, 0.0, 1.0))
 
-def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05, suffix=""):
+def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05, suffix="", use_density_scaling=False):
     """Save comprehensive summary to a .txt file and structured JSON."""
     import io
     import json
     from contextlib import redirect_stdout
 
-    os.makedirs("results", exist_ok=True)
+    out_dir = "results/density_scaling" if use_density_scaling else "results"
+    os.makedirs(out_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     file_suffix = f"_{suffix}" if suffix else ""
-    filename = f"results/uncertainty_quantification_results{file_suffix}_{timestamp}.txt"
-    json_filename = f"results/uncertainty_quantification_results{file_suffix}_{timestamp}.json"
+    filename = f"{out_dir}/uncertainty_quantification_results{file_suffix}_{timestamp}.txt"
+    json_filename = f"{out_dir}/uncertainty_quantification_results{file_suffix}_{timestamp}.json"
 
     # Save formatted txt report
     string_buffer = io.StringIO()
@@ -753,7 +754,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant")
     print(f"{'='*80}\n")
 
-def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False):
+def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0):
     # Determine standard Random Forest hyperparameters based on config selection to pass min_leaf to generate_data
     if rf_config == 1:
         n_est, min_leaf = 100, 5
@@ -837,7 +838,11 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Proximity":
-            prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto")
+            prox_q = GPUProximityRegressionUQ(
+                rf, X_train, y_train, device="auto", batch_size="auto",
+                use_density_scaling=use_density_scaling,
+                density_scaling_alpha=density_scaling_alpha
+            )
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
         t_app_end = time.perf_counter()
         app_timings[app] = t_app_end - t_app_start
@@ -972,6 +977,8 @@ if __name__ == "__main__":
     parser.add_argument("--scaling_law", type=str, default="linear", choices=["linear", "fractional", "leaf"], help="Scaling law for sparse gap points")
     parser.add_argument("--n_runs", type=int, default=10, help="Number of seeds/runs")
     parser.add_argument("--debug_timing", action="store_true", help="Print detailed execution timings for each section during evaluation")
+    parser.add_argument("--use_density_scaling", action="store_true", help="Use leaf density scaling to prevent the overconfidence trap in Proximity UQ")
+    parser.add_argument("--density_scaling_alpha", type=float, default=1.0, help="Exponent parameter alpha for leaf density scaling")
     args = parser.parse_args()
 
     rf_config_arg = args.rf_config
@@ -984,6 +991,9 @@ if __name__ == "__main__":
     scaling_law_arg = args.scaling_law
     n_runs = args.n_runs
     debug_timing_arg = args.debug_timing
+    use_density_scaling_arg = args.use_density_scaling
+    density_scaling_alpha_arg = args.density_scaling_alpha
+
 
     if debug_timing_arg:
         os.environ["PROXIMITY_DEBUG"] = "1"
@@ -1077,7 +1087,9 @@ if __name__ == "__main__":
                     all_functions, func_name, seed, approaches,
                     rf_config=rf_config_arg, k_neighbors=k_neighbors_arg,
                     gap_type=gap_type_arg, sparse_multiplier=sparse_multiplier_arg,
-                    scaling_law=scaling_law_arg, debug_timing=debug_timing_arg
+                    scaling_law=scaling_law_arg, debug_timing=debug_timing_arg,
+                    use_density_scaling=use_density_scaling_arg,
+                    density_scaling_alpha=density_scaling_alpha_arg
                 )
                 
                 # Accumulate timings
@@ -1233,9 +1245,13 @@ if __name__ == "__main__":
     print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs, alpha=alpha)
     
     # Executing file generator to dump everything into a clean timestamped report txt file
+    suffix_str = f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}_m{sparse_multiplier_arg}_{scaling_law_arg}"
+    if use_density_scaling_arg:
+        suffix_str += "_ds"
+        
     save_results_to_file(
         results_all, results_by_dim, approaches, n_runs, alpha=alpha,
-        suffix=f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}_m{sparse_multiplier_arg}_{scaling_law_arg}"
+        suffix=suffix_str, use_density_scaling=use_density_scaling_arg
     )
     sys.stdout.flush()
 

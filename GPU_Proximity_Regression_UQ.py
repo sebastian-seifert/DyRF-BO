@@ -22,7 +22,7 @@ except ImportError:
     HAS_CUPY = False
 
 class GPUProximityRegressionUQ:
-    def __init__(self, model, X_train, y_train, device="auto", batch_size="auto"):
+    def __init__(self, model, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, density_scaling_alpha=1.0):
         """
         GPU-Accelerated Wrapper for Localized Uncertainty Quantification in Random Forests
         via Proximities (RF-FIRE / RF-GAP). Supports dynamic NumPy and CuPy backends.
@@ -35,12 +35,17 @@ class GPUProximityRegressionUQ:
                 "auto" enables CuPy if a GPU and CuPy are available.
             batch_size: int or 'auto', size of chunked batches for test point processing.
                 If 'auto', dynamically determines the optimal batch size based on free VRAM.
+            use_density_scaling: bool, if True, scales proximity uncertainty inversely with leaf density.
+            density_scaling_alpha: float, power exponent for leaf density scaling.
         """
         self.model = model
         self.X_train = np.asarray(X_train)
         self.y_train = np.asarray(y_train)
         self.n_train = len(self.X_train)
         self.batch_size_param = batch_size
+        self.use_density_scaling = use_density_scaling
+        self.density_scaling_alpha = density_scaling_alpha
+
         
         # Configure backend dynamically
         self._init_backend(device)
@@ -189,6 +194,7 @@ class GPUProximityRegressionUQ:
             
         # Precompute scaled training weights to avoid 3D array broadcasting inside compute_uq loop
         self.train_weights = np.zeros((self.n_train, self.n_estimators), dtype=np.float32)
+        self.leaf_sizes = []
         for t, tree in enumerate(self.estimators):
             node_count = tree.tree_.node_count
             leaf_sums = np.bincount(
@@ -199,17 +205,28 @@ class GPUProximityRegressionUQ:
             # Avoid division by zero for any nodes that have no in-bag samples (e.g. OOB padding at index 0)
             leaf_sums[leaf_sums == 0.0] = 1.0
             
+            # Store leaf sizes in active backend
+            self.leaf_sizes.append(self.xp.asarray(leaf_sums))
+            
             train_leaves = self.leaf_matrix_train[:, t]
             self.train_weights[:, t] = (self.in_bag_indices[:, t] * self.in_bag_counts[:, t]) / leaf_sums[train_leaves]
             
+        # Precompute baseline leaf size for the training set (average leaf size across trees)
+        train_leaf_sizes = self.xp.zeros((self.n_train, self.n_estimators), dtype=self.xp.float32)
+        for t in range(self.n_estimators):
+            train_leaf_sizes[:, t] = self.leaf_sizes[t][self.xp.asarray(self.leaf_matrix_train[:, t])]
+        self.train_avg_leaf_sizes = self.xp.mean(train_leaf_sizes, axis=1)
+        self.N_baseline = float(self.xp.median(self.train_avg_leaf_sizes))
+
         if debug_timing:
             t_weights = time.perf_counter()
-            print(f"[TIMING] Leaf weights precomputation: {(t_weights - t_indices)*1000:.2f} ms")
+            print(f"[TIMING] Leaf weights & density precomputation: {(t_weights - t_indices)*1000:.2f} ms")
             
         # Transfer training structures to the active backend (numpy or cupy)
         self.oob_residuals_xp = self.xp.asarray(self.oob_residuals)
         self.in_bag_leaves_xp = self.xp.asarray(self.in_bag_leaves)
         self.train_weights_xp = self.xp.asarray(self.train_weights)
+
         
         if debug_timing:
             if self.using_gpu:
@@ -221,7 +238,7 @@ class GPUProximityRegressionUQ:
             print(f"[TIMING] Transfer structures to backend: {(t_transfer - t_weights)*1000:.2f} ms")
             print(f"[TIMING] Total fit: {(t_transfer - t_start)*1000:.2f} ms")
 
-    def compute_uq(self, X_test, n_neighbors="auto", level=0.95):
+    def compute_uq(self, X_test, n_neighbors="auto", level=0.95, use_density_scaling=None):
         """
         Computes localized uncertainty quantification (interval width) for test query points.
         
@@ -229,10 +246,11 @@ class GPUProximityRegressionUQ:
             X_test: array-like of shape (n_test_samples, n_features), query points.
             n_neighbors: int, 'auto', or 'all'. Number of nearest neighbors to consider.
             level: float, confidence level of the prediction interval.
-            
-        Returns:
-            uncertainty: np.ndarray of shape (n_test_samples,), the prediction interval width.
+            use_density_scaling: bool or None, if True, scales UQ inversely with density.
         """
+        if use_density_scaling is None:
+            use_density_scaling = getattr(self, "use_density_scaling", False)
+
         # Ensure model is fitted and structures are prepared
         if not hasattr(self, "estimators"):
             self.fit()
@@ -384,6 +402,19 @@ class GPUProximityRegressionUQ:
         # Calculate localized prediction interval width (uncertainty)
         uq = resid_upr - resid_lwr
         
+        if use_density_scaling:
+            test_leaf_sizes = self.xp.zeros((n_test, self.n_estimators), dtype=self.xp.float32)
+            for t in range(self.n_estimators):
+                test_leaf_sizes[:, t] = self.leaf_sizes[t][leaf_matrix_test_xp[:, t]]
+            avg_test_leaf_sizes = self.xp.mean(test_leaf_sizes, axis=1)
+            
+            # Clip minimum to prevent division by zero
+            avg_test_leaf_sizes = self.xp.maximum(avg_test_leaf_sizes, 1e-5)
+            
+            alpha = getattr(self, "density_scaling_alpha", 1.0)
+            gamma = (self.N_baseline / avg_test_leaf_sizes) ** alpha
+            uq = uq * gamma
+            
         # If using GPU, convert result back to a standard NumPy array for Scikit-Learn compatibility
         if self.using_gpu:
             uq = uq.get()
