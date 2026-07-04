@@ -131,9 +131,34 @@ def run_topological_methods_comparison():
     print(f"  - Method C OOD/ID Ratio: {ratio_method_c:.2f}x")
     print(f"  - Method B+C OOD/ID Ratio: {ratio_combined_b_c:.2f}x")
     
-    # Assert that Method B improves OOD gap penalization relative to baseline
+    # 1. Assert that Method B improves OOD gap penalization relative to baseline
     assert results["Method B: TWQ (Weighted Quantiles)"]["ratio"] > ratio_baseline, "Method B (TWQ) failed to improve OOD gap penalization!"
-    print("✓ Behavioral validation assertions PASSED successfully!")
+    
+    # 2. Check specific expected numeric value ranges for the outputs
+    print("\nVerifying specific UQ values against reference ranges:")
+    
+    val_baseline_id = results["Standard Proximity (Baseline)"]["mean_id"]
+    val_baseline_ood = results["Standard Proximity (Baseline)"]["mean_ood"]
+    print(f"  - Baseline Mean ID: {val_baseline_id:.4f} (expected [0.30, 0.40])")
+    print(f"  - Baseline Mean OOD: {val_baseline_ood:.4f} (expected [0.45, 0.60])")
+    assert 0.30 <= val_baseline_id <= 0.40, f"Baseline ID UQ {val_baseline_id} out of bounds!"
+    assert 0.45 <= val_baseline_ood <= 0.60, f"Baseline OOD UQ {val_baseline_ood} out of bounds!"
+    
+    val_b_id = results["Method B: TWQ (Weighted Quantiles)"]["mean_id"]
+    val_b_ood = results["Method B: TWQ (Weighted Quantiles)"]["mean_ood"]
+    print(f"  - Method B Mean ID: {val_b_id:.4f} (expected [0.25, 0.35])")
+    print(f"  - Method B Mean OOD: {val_b_ood:.4f} (expected [0.48, 0.60])")
+    assert 0.25 <= val_b_id <= 0.35, f"Method B ID UQ {val_b_id} out of bounds!"
+    assert 0.48 <= val_b_ood <= 0.60, f"Method B OOD UQ {val_b_ood} out of bounds!"
+
+    val_c_id = results["Method C: TDS (Density Scaling Only)"]["mean_id"]
+    val_c_ood = results["Method C: TDS (Density Scaling Only)"]["mean_ood"]
+    print(f"  - Method C Mean ID: {val_c_id:.4f} (expected [0.20, 0.35])")
+    print(f"  - Method C Mean OOD: {val_c_ood:.4f} (expected [0.30, 0.45])")
+    assert 0.20 <= val_c_id <= 0.35, f"Method C ID UQ {val_c_id} out of bounds!"
+    assert 0.30 <= val_c_ood <= 0.45, f"Method C OOD UQ {val_c_ood} out of bounds!"
+    
+    print("✓ Specific UQ values check PASSED successfully!")
     print("==========================================================")
 
 if __name__ == "__main__":
