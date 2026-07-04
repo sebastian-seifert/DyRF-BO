@@ -126,8 +126,9 @@ class GPUProximityRegressionUQ:
             # Compute optimal batch size
             opt_batch = int(usable_vram // bytes_per_sample)
             
-            # Bound the batch size to be between 1 and n_test
-            return max(1, min(n_test, opt_batch))
+            # Bound the batch size to be between 1 and n_test, capping at 512 to prevent VRAM overcommitment
+            # when running multiple processes concurrently on the same shared GPU/partition.
+            return max(1, min(n_test, min(512, opt_batch)))
         except Exception:
             return 256  # Safe fallback if querying GPU VRAM fails
 
@@ -221,10 +222,10 @@ class GPUProximityRegressionUQ:
 
         # Precompute baseline leaf size/density for the training set
         if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
-            # Subsample up to 1000 training points for performance/memory stability
-            if self.n_train > 1000:
+            # Subsample up to 250 training points for performance/memory stability (prevents OOM on concurrent cluster jobs)
+            if self.n_train > 250:
                 np.random.seed(42)
-                sub_indices = np.random.choice(self.n_train, 1000, replace=False)
+                sub_indices = np.random.choice(self.n_train, 250, replace=False)
             else:
                 sub_indices = np.arange(self.n_train)
             
