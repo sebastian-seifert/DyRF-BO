@@ -420,3 +420,82 @@ class GPUProximityRegressionUQ:
             uq = uq.get()
             
         return uq
+
+    def _precompute_tree_paths(self, tree_idx):
+        """Precomputes paths from root to all nodes in tree_idx."""
+        if not hasattr(self, "tree_paths"):
+            self.tree_paths = {}
+            self.tree_depths = {}
+            
+        tree = self.estimators[tree_idx].tree_
+        node_count = tree.node_count
+        children_left = tree.children_left
+        children_right = tree.children_right
+        
+        parent = np.full(node_count, -1, dtype=np.int32)
+        depth = np.zeros(node_count, dtype=np.int32)
+        
+        stack = [(0, 0)]  # (node_id, current_depth)
+        while stack:
+            node_id, curr_depth = stack.pop()
+            depth[node_id] = curr_depth
+            left = children_left[node_id]
+            right = children_right[node_id]
+            if left != -1:
+                parent[left] = node_id
+                stack.append((left, curr_depth + 1))
+            if right != -1:
+                parent[right] = node_id
+                stack.append((right, curr_depth + 1))
+                
+        max_depth = np.max(depth) + 1
+        
+        # Build path matrix
+        node_paths = np.full((node_count, max_depth), -1, dtype=np.int32)
+        for n in range(node_count):
+            curr = n
+            d = depth[n]
+            while curr != -1:
+                node_paths[n, d] = curr
+                curr = parent[curr]
+                d -= 1
+                
+        self.tree_paths[tree_idx] = self.xp.asarray(node_paths)
+        self.tree_depths[tree_idx] = self.xp.asarray(depth)
+
+    def compute_tree_topological_distances(self, leaf_test, leaf_train, tree_idx):
+        """
+        Computes the topological path distance matrix d_t(x_i, x_j) in tree tree_idx
+        between a batch of test leaves and training leaves.
+        """
+        if not hasattr(self, "tree_paths") or tree_idx not in self.tree_paths:
+            self._precompute_tree_paths(tree_idx)
+            
+        node_paths = self.tree_paths[tree_idx]
+        node_depths = self.tree_depths[tree_idx]
+        
+        leaf_test_xp = self.xp.asarray(leaf_test)
+        leaf_train_xp = self.xp.asarray(leaf_train)
+        
+        # Extract paths: (n_test, max_depth) and (n_train, max_depth)
+        paths_test = node_paths[leaf_test_xp]
+        paths_train = node_paths[leaf_train_xp]
+        
+        # Broadcast comparison: (n_test, n_train, max_depth)
+        matches = paths_test[:, None, :] == paths_train[None, :, :]
+        
+        # Mask out padded matches (where both are -1)
+        valid = (paths_test != -1)[:, None, :] & (paths_train != -1)[None, :, :]
+        matches = matches & valid
+        
+        # LCA depth is the sum of matching nodes in prefix minus 1
+        lca_depth = self.xp.sum(matches, axis=2) - 1
+        
+        # Extract depths
+        test_depths = node_depths[leaf_test_xp][:, None]
+        train_depths = node_depths[leaf_train_xp][None, :]
+        
+        # Distance = depth_i + depth_j - 2 * lca_depth
+        d_t = test_depths + train_depths - 2 * lca_depth
+        
+        return d_t
