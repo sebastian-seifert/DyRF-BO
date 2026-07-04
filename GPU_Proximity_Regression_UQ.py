@@ -553,6 +553,9 @@ class GPUProximityRegressionUQ:
         """
         Computes the topological path distance matrix d_t(x_i, x_j) in tree tree_idx
         between a batch of test leaves and training leaves.
+        
+        Uses dynamic chunked batching along the test dimension to prevent Out-Of-Memory (OOM)
+        failures in multi-process/shared VRAM environments when building leaf-to-leaf distance matrices.
         """
         if not hasattr(self, "tree_paths") or tree_idx not in self.tree_paths:
             self._precompute_tree_paths(tree_idx)
@@ -563,27 +566,42 @@ class GPUProximityRegressionUQ:
         leaf_test_xp = self.xp.asarray(leaf_test)
         leaf_train_xp = self.xp.asarray(leaf_train)
         
-        # Extract paths: (n_test, max_depth) and (n_train, max_depth)
-        paths_test = node_paths[leaf_test_xp]
+        n_test = len(leaf_test_xp)
+        n_train = len(leaf_train_xp)
+        
+        # Dynamic batch allocation: target <= 3,000,000 intermediate elements (~3 MB of memory)
+        max_elements = 3_000_000
+        max_depth = node_paths.shape[1]
+        batch_size = max(1, max_elements // (n_train * max_depth))
+        
+        # Pre-allocate output distance matrix on active backend
+        d_t = self.xp.zeros((n_test, n_train), dtype=self.xp.float32)
+        
+        # Pre-extract train coordinates once
         paths_train = node_paths[leaf_train_xp]
-        
-        # Broadcast comparison: (n_test, n_train, max_depth)
-        matches = paths_test[:, None, :] == paths_train[None, :, :]
-        
-        # Mask out padded matches (where both are -1)
-        valid = (paths_test != -1)[:, None, :] & (paths_train != -1)[None, :, :]
-        matches = matches & valid
-        
-        # LCA depth is the sum of matching nodes in prefix minus 1
-        lca_depth = self.xp.sum(matches, axis=2) - 1
-        
-        # Extract depths
-        test_depths = node_depths[leaf_test_xp][:, None]
         train_depths = node_depths[leaf_train_xp][None, :]
         
-        # Distance = depth_i + depth_j - 2 * lca_depth
-        d_t = test_depths + train_depths - 2 * lca_depth
-        
+        for start in range(0, n_test, batch_size):
+            end = min(start + batch_size, n_test)
+            sub_test = leaf_test_xp[start:end]
+            paths_test = node_paths[sub_test]
+            
+            # Broadcast comparison: (sub_batch_len, n_train, max_depth)
+            matches = paths_test[:, None, :] == paths_train[None, :, :]
+            
+            # Mask out padded matches (where both are -1)
+            valid = (paths_test != -1)[:, None, :] & (paths_train != -1)[None, :, :]
+            matches = matches & valid
+            
+            # LCA depth is the sum of matching nodes in prefix minus 1
+            lca_depth = self.xp.sum(matches, axis=2) - 1
+            
+            # Extract test depths
+            test_depths = node_depths[sub_test][:, None]
+            
+            # Distance = depth_i + depth_j - 2 * lca_depth
+            d_t[start:end, :] = test_depths + train_depths - 2 * lca_depth
+            
         return d_t
 
     def _compute_weighted_quantile(self, values, weights, q):
