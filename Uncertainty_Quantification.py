@@ -248,7 +248,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant")
     print(f"{'='*80}\n")
 
-def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0):
+def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None):
     # Determine standard Random Forest hyperparameters based on config selection to pass min_leaf to generate_data
     if rf_config == 1:
         n_est, min_leaf = 100, 5
@@ -335,7 +335,8 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             prox_q = GPUProximityRegressionUQ(
                 rf, X_train, y_train, device="auto", batch_size="auto",
                 use_density_scaling=use_density_scaling,
-                density_scaling_alpha=density_scaling_alpha
+                density_scaling_alpha=density_scaling_alpha,
+                topological_decay_lambda=topological_decay_lambda
             )
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
         t_app_end = time.perf_counter()
@@ -473,6 +474,7 @@ if __name__ == "__main__":
     parser.add_argument("--debug_timing", action="store_true", help="Print detailed execution timings for each section during evaluation")
     parser.add_argument("--use_density_scaling", action="store_true", help="Use leaf density scaling to prevent the overconfidence trap in Proximity UQ")
     parser.add_argument("--density_scaling_alpha", type=float, default=1.0, help="Exponent parameter alpha for leaf density scaling")
+    parser.add_argument("--topological_decay_lambda", type=float, default=None, help="Decay parameter lambda for topological UQ distance. If None, topological UQ is disabled.")
     args = parser.parse_args()
 
     rf_config_arg = args.rf_config
@@ -487,6 +489,7 @@ if __name__ == "__main__":
     debug_timing_arg = args.debug_timing
     use_density_scaling_arg = args.use_density_scaling
     density_scaling_alpha_arg = args.density_scaling_alpha
+    topological_decay_lambda_arg = args.topological_decay_lambda
 
 
     if debug_timing_arg:
@@ -496,7 +499,7 @@ if __name__ == "__main__":
     print(f"\n{'='*70}")
     print(f"EPISTEMIC UNCERTAINTY QUANTIFICATION - COMPREHENSIVE TEST SUITE")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Config: RF Config={rf_config_arg}, K Neighbors={k_neighbors_arg}, Gap Type={gap_type_arg}, Multiplier={sparse_multiplier_arg}, Scaling Law={scaling_law_arg}, Runs={n_runs}")
+    print(f"Config: RF Config={rf_config_arg}, K Neighbors={k_neighbors_arg}, Gap Type={gap_type_arg}, Multiplier={sparse_multiplier_arg}, Scaling Law={scaling_law_arg}, Runs={n_runs}, Topological Decay Lambda={topological_decay_lambda_arg}")
     print(f"{'='*70}")
 
     approaches = ["Standard", "Proximity"]
@@ -583,7 +586,8 @@ if __name__ == "__main__":
                     gap_type=gap_type_arg, sparse_multiplier=sparse_multiplier_arg,
                     scaling_law=scaling_law_arg, debug_timing=debug_timing_arg,
                     use_density_scaling=use_density_scaling_arg,
-                    density_scaling_alpha=density_scaling_alpha_arg
+                    density_scaling_alpha=density_scaling_alpha_arg,
+                    topological_decay_lambda=topological_decay_lambda_arg
                 )
                 
                 # Accumulate timings
@@ -740,6 +744,8 @@ if __name__ == "__main__":
     
     # Executing file generator to dump everything into a clean timestamped report txt file
     suffix_str = f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}_m{sparse_multiplier_arg}_{scaling_law_arg}"
+    if topological_decay_lambda_arg is not None:
+        suffix_str += f"_lambda{topological_decay_lambda_arg}"
     if use_density_scaling_arg:
         suffix_str += "_ds"
         
