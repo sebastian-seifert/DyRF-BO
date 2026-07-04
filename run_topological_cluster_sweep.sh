@@ -47,7 +47,7 @@ for gap_type in "${GAP_TYPES[@]}"; do
 done
 
 echo "=========================================================="
-echo "LAUNCHING PARALLEL TOPOLOGICAL SWEEP ON 64 CORES + H100 GPU"
+echo "LAUNCHING PARALLEL TOPOLOGICAL SWEEP ON 32 CORES + H100 GPU"
 echo "Total evaluations to run: $total_runs executions"
 echo "Concurrency: $MAX_JOBS parallel jobs, $CORES_PER_JOB CPU cores each"
 echo "Gap Types: ${GAP_TYPES[*]}"
@@ -88,33 +88,38 @@ for gap_type in "${GAP_TYPES[@]}"; do
                 for mult in "${SPARSE_MULTIPLIERS[@]}"; do
                     for k in "${K_VALUES[@]}"; do
                         
-                        common_args="--rf_config $config --gap_type sparse --sparse_multiplier $mult --scaling_law $law --n_runs 5 --n_jobs $CORES_PER_JOB"
+                        # Added --debug_timing to log detailed step performance profiles in the log files
+                        common_args="--rf_config $config --gap_type sparse --sparse_multiplier $mult --scaling_law $law --n_runs 5 --n_jobs $CORES_PER_JOB --debug_timing"
                         
                         # 1. Baseline: Standard Proximity (No density scaling, no alpha loop)
                         manage_parallel_jobs
-                        echo "[$current/$total_runs] Launching Baseline (Standard) - RF=$config, K=$k, Gap=sparse, Law=$law, Multiplier=$mult"
-                        $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" > results/logs/run_${current}.log 2>&1 &
+                        job_id=$current
+                        echo "[$job_id/$total_runs] Dispatching Baseline (Standard) - RF=$config, K=$k, Gap=sparse, Law=$law, Multiplier=$mult"
+                        ( $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" > results/logs/run_${job_id}.log 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check results/logs/run_${job_id}.log)" ) &
                         current=$((current + 1))
                         
                         # 2. Method A: Topological Neighbor Selection (TNS) (No density scaling, no alpha loop)
                         manage_parallel_jobs
-                        echo "[$current/$total_runs] Launching Method A (TNS) - RF=$config, K=$k, Lambda=1.0, Gap=sparse, Law=$law, Multiplier=$mult"
-                        $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 1.0 > results/logs/run_${current}.log 2>&1 &
+                        job_id=$current
+                        echo "[$job_id/$total_runs] Dispatching Method A (TNS) - RF=$config, K=$k, Lambda=1.0, Gap=sparse, Law=$law, Multiplier=$mult"
+                        ( $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 1.0 > results/logs/run_${job_id}.log 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check results/logs/run_${job_id}.log)" ) &
                         current=$((current + 1))
                         
                         # 3. Method B: Topological Weighted Quantiles (TWQ) - Only run once per K loop (uses auto neighbors, no alpha loop)
                         if [ "$k" == "20" ]; then
                             manage_parallel_jobs
-                            echo "[$current/$total_runs] Launching Method B (TWQ) - RF=$config, K=auto, Lambda=1.0, Gap=sparse, Law=$law, Multiplier=$mult"
-                            $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 1.0 > results/logs/run_${current}.log 2>&1 &
+                            job_id=$current
+                            echo "[$job_id/$total_runs] Dispatching Method B (TWQ) - RF=$config, K=auto, Lambda=1.0, Gap=sparse, Law=$law, Multiplier=$mult"
+                            ( $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 1.0 > results/logs/run_${job_id}.log 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check results/logs/run_${job_id}.log)" ) &
                             current=$((current + 1))
                         fi
                         
                         # 4. Method C: Topological Density Scaling (TDS) (Requires alpha loop)
                         for alpha in "${ALPHA_VALUES[@]}"; do
                             manage_parallel_jobs
-                            echo "[$current/$total_runs] Launching Method C (TDS) - RF=$config, K=$k, Lambda=5.0, Alpha=$alpha, Gap=sparse, Law=$law, Multiplier=$mult"
-                            $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${current}.log 2>&1 &
+                            job_id=$current
+                            echo "[$job_id/$total_runs] Dispatching Method C (TDS) - RF=$config, K=$k, Lambda=5.0, Alpha=$alpha, Gap=sparse, Law=$law, Multiplier=$mult"
+                            ( $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${job_id}.log 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check results/logs/run_${job_id}.log)" ) &
                             current=$((current + 1))
                         done
                         
@@ -122,8 +127,9 @@ for gap_type in "${GAP_TYPES[@]}"; do
                         if [ "$k" == "20" ]; then
                             for alpha in "${ALPHA_VALUES[@]}"; do
                                 manage_parallel_jobs
-                                echo "[$current/$total_runs] Launching Method B+C (TWQ+TDS) - RF=$config, K=auto, Lambda=5.0, Alpha=$alpha, Gap=sparse, Law=$law, Multiplier=$mult"
-                                $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${current}.log 2>&1 &
+                                job_id=$current
+                                echo "[$job_id/$total_runs] Dispatching Method B+C (TWQ+TDS) - RF=$config, K=auto, Lambda=5.0, Alpha=$alpha, Gap=sparse, Law=$law, Multiplier=$mult"
+                                ( $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${job_id}.log 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check results/logs/run_${job_id}.log)" ) &
                                 current=$((current + 1))
                             done
                         fi
@@ -135,33 +141,37 @@ for gap_type in "${GAP_TYPES[@]}"; do
             # gap_type == "empty"
             for k in "${K_VALUES[@]}"; do
                 
-                common_args="--rf_config $config --gap_type empty --n_runs 5 --n_jobs $CORES_PER_JOB"
+                common_args="--rf_config $config --gap_type empty --n_runs 5 --n_jobs $CORES_PER_JOB --debug_timing"
                 
                 # 1. Baseline: Standard Proximity
                 manage_parallel_jobs
-                echo "[$current/$total_runs] Launching Baseline (Standard) - RF=$config, K=$k, Gap=empty"
-                $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" > results/logs/run_${current}.log 2>&1 &
+                job_id=$current
+                echo "[$job_id/$total_runs] Dispatching Baseline (Standard) - RF=$config, K=$k, Gap=empty"
+                ( $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" > results/logs/run_${job_id}.log 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check results/logs/run_${job_id}.log)" ) &
                 current=$((current + 1))
                 
                 # 2. Method A: Topological Neighbor Selection (TNS)
                 manage_parallel_jobs
-                echo "[$current/$total_runs] Launching Method A (TNS) - RF=$config, K=$k, Lambda=1.0, Gap=empty"
-                $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 1.0 > results/logs/run_${current}.log 2>&1 &
+                job_id=$current
+                echo "[$job_id/$total_runs] Dispatching Method A (TNS) - RF=$config, K=$k, Lambda=1.0, Gap=empty"
+                ( $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 1.0 > results/logs/run_${job_id}.log 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check results/logs/run_${job_id}.log)" ) &
                 current=$((current + 1))
                 
                 # 3. Method B: Topological Weighted Quantiles (TWQ) - Only run once per K loop (uses auto neighbors)
                 if [ "$k" == "20" ]; then
                     manage_parallel_jobs
-                    echo "[$current/$total_runs] Launching Method B (TWQ) - RF=$config, K=auto, Lambda=1.0, Gap=empty"
-                    $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 1.0 > results/logs/run_${current}.log 2>&1 &
+                    job_id=$current
+                    echo "[$job_id/$total_runs] Dispatching Method B (TWQ) - RF=$config, K=auto, Lambda=1.0, Gap=empty"
+                    ( $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 1.0 > results/logs/run_${job_id}.log 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check results/logs/run_${job_id}.log)" ) &
                     current=$((current + 1))
                 fi
                 
                 # 4. Method C: Topological Density Scaling (TDS) (Requires alpha loop)
                 for alpha in "${ALPHA_VALUES[@]}"; do
                     manage_parallel_jobs
-                    echo "[$current/$total_runs] Launching Method C (TDS) - RF=$config, K=$k, Lambda=5.0, Alpha=$alpha, Gap=empty"
-                    $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${current}.log 2>&1 &
+                    job_id=$current
+                    echo "[$job_id/$total_runs] Dispatching Method C (TDS) - RF=$config, K=$k, Lambda=5.0, Alpha=$alpha, Gap=empty"
+                    ( $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${job_id}.log 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check results/logs/run_${job_id}.log)" ) &
                     current=$((current + 1))
                 done
                 
@@ -169,8 +179,9 @@ for gap_type in "${GAP_TYPES[@]}"; do
                 if [ "$k" == "20" ]; then
                     for alpha in "${ALPHA_VALUES[@]}"; do
                         manage_parallel_jobs
-                        echo "[$current/$total_runs] Launching Method B+C (TWQ+TDS) - RF=$config, K=auto, Lambda=5.0, Alpha=$alpha, Gap=empty"
-                        $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${current}.log 2>&1 &
+                        job_id=$current
+                        echo "[$job_id/$total_runs] Dispatching Method B+C (TWQ+TDS) - RF=$config, K=auto, Lambda=5.0, Alpha=$alpha, Gap=empty"
+                        ( $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${job_id}.log 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check results/logs/run_${job_id}.log)" ) &
                         current=$((current + 1))
                     done
                 fi
