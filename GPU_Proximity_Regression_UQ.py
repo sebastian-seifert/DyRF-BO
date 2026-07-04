@@ -364,20 +364,25 @@ class GPUProximityRegressionUQ:
                 t0_quantile = time.perf_counter()
                 
             if n_neighbors == "auto":
-                # Mask out training samples with proximity < 1e-10 using xp.where instead of tiling
-                masked_residuals = self.xp.where(prox_batch >= 1e-10, self.oob_residuals_xp[None, :], self.xp.nan)
-                
-                # Perform nanquantile estimation
-                if self.using_gpu and not self.nanquantile_supported:
-                    # Fall back to NumPy CPU for nanquantile if CuPy version lacks it
-                    tiled_cpu = cp.asnumpy(masked_residuals)
-                    lwr_cpu = np.nanquantile(tiled_cpu, alpha_lwr, axis=1)
-                    upr_cpu = np.nanquantile(tiled_cpu, alpha_upr, axis=1)
-                    resid_lwr[start:end] = cp.asarray(lwr_cpu)
-                    resid_upr[start:end] = cp.asarray(upr_cpu)
+                if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+                    # Method B: Topological Weighted Quantiles
+                    resid_lwr[start:end] = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_lwr)
+                    resid_upr[start:end] = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_upr)
                 else:
-                    resid_lwr[start:end] = self.xp.nanquantile(masked_residuals, alpha_lwr, axis=1)
-                    resid_upr[start:end] = self.xp.nanquantile(masked_residuals, alpha_upr, axis=1)
+                    # Mask out training samples with proximity < 1e-10 using xp.where instead of tiling
+                    masked_residuals = self.xp.where(prox_batch >= 1e-10, self.oob_residuals_xp[None, :], self.xp.nan)
+                    
+                    # Perform nanquantile estimation
+                    if self.using_gpu and not self.nanquantile_supported:
+                        # Fall back to NumPy CPU for nanquantile if CuPy version lacks it
+                        tiled_cpu = cp.asnumpy(masked_residuals)
+                        lwr_cpu = np.nanquantile(tiled_cpu, alpha_lwr, axis=1)
+                        upr_cpu = np.nanquantile(tiled_cpu, alpha_upr, axis=1)
+                        resid_lwr[start:end] = cp.asarray(lwr_cpu)
+                        resid_upr[start:end] = cp.asarray(upr_cpu)
+                    else:
+                        resid_lwr[start:end] = self.xp.nanquantile(masked_residuals, alpha_lwr, axis=1)
+                        resid_upr[start:end] = self.xp.nanquantile(masked_residuals, alpha_upr, axis=1)
             else:
                 k = self.n_train if n_neighbors == "all" else int(n_neighbors)
                 
@@ -509,3 +514,59 @@ class GPUProximityRegressionUQ:
         d_t = test_depths + train_depths - 2 * lca_depth
         
         return d_t
+
+    def _compute_weighted_quantile(self, values, weights, q):
+        """
+        Computes the weighted quantile q of values (OOB residuals) for each row in weights.
+        
+        Args:
+            values: 1D array of shape (n_train,)
+            weights: 2D array of shape (batch_len, n_train)
+            q: float, quantile level (e.g. 0.025 or 0.975)
+            
+        Returns:
+            1D array of shape (batch_len,) containing the weighted quantiles.
+        """
+        # Sort values (OOB residuals) and matching weights
+        sort_idx = self.xp.argsort(values)
+        sorted_values = values[sort_idx]
+        sorted_weights = weights[:, sort_idx]
+        
+        # Cumulative sum of sorted weights
+        cum_weights = self.xp.cumsum(sorted_weights, axis=1)
+        
+        # Normalize cumulative sum by the sum of weights (last column)
+        sum_weights = cum_weights[:, -1:]
+        
+        # Avoid division by zero by clipping
+        sum_weights_clipped = self.xp.maximum(sum_weights, 1e-10)
+        cum_weights_norm = cum_weights / sum_weights_clipped
+        
+        # Find first index where cumulative probability is >= q
+        idx_mask = cum_weights_norm >= q
+        idx = self.xp.argmax(idx_mask, axis=1)
+        
+        # Detect zero-weight rows
+        zero_weight_mask = (sum_weights.ravel() <= 1e-10)
+        
+        # Compute linear interpolation
+        idx_prev = self.xp.maximum(idx - 1, 0)
+        
+        c_prev = cum_weights_norm[self.xp.arange(len(weights)), idx_prev]
+        c_curr = cum_weights_norm[self.xp.arange(len(weights)), idx]
+        
+        v_prev = sorted_values[idx_prev]
+        v_curr = sorted_values[idx]
+        
+        denom = self.xp.maximum(c_curr - c_prev, 1e-10)
+        fraction = (q - c_prev) / denom
+        fraction = self.xp.clip(fraction, 0.0, 1.0)
+        
+        val = v_prev + (v_curr - v_prev) * fraction
+        
+        # Fallback to standard unweighted quantile for zero-weight rows
+        if self.xp.any(zero_weight_mask):
+            fallback_val = self.xp.quantile(values, q)
+            val = self.xp.where(zero_weight_mask, fallback_val, val)
+            
+        return val
