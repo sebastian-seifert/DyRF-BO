@@ -18,16 +18,15 @@ plt.rcParams['axes.titlesize'] = 11
 plt.rcParams['axes.labelsize'] = 10
 plt.rcParams['legend.fontsize'] = 9
 
-def parse_results():
+def parse_results(results_dir="results"):
     """Scans results/ folder and parses all JSON reports to build a data structure."""
-    results_dir = "results"
     if not os.path.exists(results_dir):
         print(f"Error: Directory '{results_dir}' does not exist.")
         return None
 
     # Matches files like: uncertainty_quantification_results_rf1_k20_sparse_m12_linear_20260630_113000.json
     pattern = re.compile(
-        r"uncertainty_quantification_results_rf(?P<rf>\d)_k(?P<k>\w+?)_(?P<gap>empty|sparse)(?:_m(?P<mult>\d+))?(?:_(?P<law>linear|fractional|leaf))?_\d{8}_\d{6}\.json"
+        r"uncertainty_quantification_results_rf(?P<rf>\d)_k(?P<k>\w+?)_(?P<gap>empty|sparse)(?:_m(?P<mult>\d+))?(?:_(?P<law>linear|fractional|leaf))?(?:_(?P<ds>ds))?_\d{8}_\d{6}\.json"
     )
 
     data_store = []
@@ -66,7 +65,7 @@ def parse_results():
 
     return data_store
 
-def plot_sparsity_transition(data):
+def plot_sparsity_transition(data, figures_dir):
     """Generates a Sparsity Transition Plot (AUROC vs. Sparse Multiplier)."""
     # Filter only sparse runs with rf_config=1 and K=20
     sparse_runs = [d for d in data if d["gap"] == "sparse" and d["rf"] == 1 and d["k"] == 20]
@@ -116,12 +115,13 @@ def plot_sparsity_transition(data):
     plt.grid(True, linestyle='-', alpha=0.4)
     plt.legend(frameon=True, facecolor='white', edgecolor='#e5e5e5')
     
-    os.makedirs("figures", exist_ok=True)
-    plt.savefig("figures/sparsity_transition_auroc.png", dpi=300, bbox_inches='tight')
+    os.makedirs(figures_dir, exist_ok=True)
+    save_path = os.path.join(figures_dir, "sparsity_transition_auroc.png")
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
-    print("✓ Saved sparsity transition plot to: figures/sparsity_transition_auroc.png")
+    print(f"✓ Saved sparsity transition plot to: {save_path}")
 
-def plot_dimensionality_trend(data):
+def plot_dimensionality_trend(data, figures_dir):
     """Plots AUROC vs Dimension comparing Standard vs Proximity under empty gap."""
     # Select empty gap with RF=1 and K=20
     empty_runs = [d for d in data if d["gap"] == "empty" and d["rf"] == 1 and d["k"] == 20]
@@ -167,11 +167,12 @@ def plot_dimensionality_trend(data):
     plt.grid(True, linestyle='-', alpha=0.4)
     plt.legend(frameon=True, facecolor='white', edgecolor='#e5e5e5')
     
-    plt.savefig("figures/dimensionality_trend_auroc.png", dpi=300, bbox_inches='tight')
+    save_path = os.path.join(figures_dir, "dimensionality_trend_auroc.png")
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
-    print("✓ Saved dimensionality trend plot to: figures/dimensionality_trend_auroc.png")
+    print(f"✓ Saved dimensionality trend plot to: {save_path}")
 
-def plot_k_sensitivity(data):
+def plot_k_sensitivity(data, figures_dir):
     """Plots K Neighbors Sensitivity (AUROC vs K Neighbors)."""
     # Filter empty gap, RF config 1
     k_runs = [d for d in data if d["gap"] == "empty" and d["rf"] == 1]
@@ -207,21 +208,31 @@ def plot_k_sensitivity(data):
     plt.grid(True, linestyle='-', alpha=0.4)
     plt.legend(frameon=True, facecolor='white', edgecolor='#e5e5e5')
     
-    plt.savefig("figures/k_sensitivity_auroc.png", dpi=300, bbox_inches='tight')
+    save_path = os.path.join(figures_dir, "k_sensitivity_auroc.png")
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
-    print("✓ Saved K sensitivity plot to: figures/k_sensitivity_auroc.png")
+    print(f"✓ Saved K sensitivity plot to: {save_path}")
 
 def main():
-    print("Scanning results and generating plots...")
-    data = parse_results()
+    import argparse
+    parser = argparse.ArgumentParser(description="Visualize Grid Results")
+    parser.add_argument("--use_density_scaling", action="store_true", help="Plot density scaling results from results/density_scaling/")
+    args = parser.parse_args()
+
+    results_dir = "results/density_scaling" if args.use_density_scaling else "results"
+    figures_dir = "figures/density_scaling" if args.use_density_scaling else "figures"
+
+    print(f"Scanning results from '{results_dir}' and generating plots to '{figures_dir}'...")
+    data = parse_results(results_dir)
     if not data:
-        print("No structured JSON results found. Run the benchmarks first.")
+        print("No structured JSON results found.")
         return
 
-    plot_sparsity_transition(data)
-    plot_dimensionality_trend(data)
-    plot_k_sensitivity(data)
-    print("\n🎉 Visualizations successfully updated from cluster results!")
+    os.makedirs(figures_dir, exist_ok=True)
+    plot_sparsity_transition(data, figures_dir)
+    plot_dimensionality_trend(data, figures_dir)
+    plot_k_sensitivity(data, figures_dir)
+    print(f"\n🎉 Visualizations successfully updated and saved in '{figures_dir}'!")
 
 if __name__ == "__main__":
     main()
