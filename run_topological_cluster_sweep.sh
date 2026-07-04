@@ -10,9 +10,9 @@ SCALING_LAWS=("linear" "leaf")
 GAP_TYPES=("empty" "sparse")
 ALPHA_VALUES=(0.1 1.0 5.0)  # Sensitivity exponent grid for Method C and B+C
 
-# Concurrency tuning parameters to saturate 64 CPU cores & H100 GPU
-MAX_JOBS=8           # Number of parallel python executions
-CORES_PER_JOB=8      # CPU cores (n_jobs) allocated per python process (8x8 = 64 cores total)
+# Concurrency tuning parameters to saturate 56 CPU cores & H100 GPU
+MAX_JOBS=7           # Number of parallel python executions
+CORES_PER_JOB=8      # CPU cores (n_jobs) allocated per python process (7x8 = 56 cores total)
 
 # Create results and logging directories
 mkdir -p results/logs
