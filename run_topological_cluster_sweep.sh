@@ -10,6 +10,13 @@ SCALING_LAWS=("linear" "leaf")
 GAP_TYPES=("empty" "sparse")
 ALPHA_VALUES=(0.1 1.0 5.0)  # Sensitivity exponent grid for Method C and B+C
 
+# Concurrency tuning parameters to saturate 64 CPU cores & H100 GPU
+MAX_JOBS=8           # Number of parallel python executions
+CORES_PER_JOB=8      # CPU cores (n_jobs) allocated per python process (8x8 = 64 cores total)
+
+# Create results and logging directories
+mkdir -p results/logs
+
 # Parse optional arguments to override gap types
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -40,12 +47,14 @@ for gap_type in "${GAP_TYPES[@]}"; do
 done
 
 echo "=========================================================="
-echo "LAUNCHING COMPREHENSIVE TOPOLOGICAL PROXIMITY SWEEP ON LUIS"
-echo "Total evaluations to run: $total_runs executions (5 seeds each)"
+echo "LAUNCHING PARALLEL TOPOLOGICAL SWEEP ON 64 CORES + H100 GPU"
+echo "Total evaluations to run: $total_runs executions"
+echo "Concurrency: $MAX_JOBS parallel jobs, $CORES_PER_JOB CPU cores each"
 echo "Gap Types: ${GAP_TYPES[*]}"
 echo "RF Configs: ${RF_CONFIGS[*]}"
 echo "K Neighbors: ${K_VALUES[*]}"
 echo "Alpha values: ${ALPHA_VALUES[*]}"
+echo "Individual run logs will be saved to: results/logs/"
 echo "=========================================================="
 
 # Detect active Python environment
@@ -60,6 +69,13 @@ else
 fi
 echo "Using python: $PYTHON_EXEC"
 
+# Pure bash semaphore to regulate process concurrency
+manage_parallel_jobs() {
+    while [ $(jobs -p | wc -l) -ge $MAX_JOBS ]; do
+        sleep 0.1
+    done
+}
+
 current=1
 start_time=$(date +%s)
 
@@ -72,37 +88,42 @@ for gap_type in "${GAP_TYPES[@]}"; do
                 for mult in "${SPARSE_MULTIPLIERS[@]}"; do
                     for k in "${K_VALUES[@]}"; do
                         
-                        common_args="--rf_config $config --gap_type sparse --sparse_multiplier $mult --scaling_law $law --n_runs 5"
+                        common_args="--rf_config $config --gap_type sparse --sparse_multiplier $mult --scaling_law $law --n_runs 5 --n_jobs $CORES_PER_JOB"
                         
                         # 1. Baseline: Standard Proximity (No density scaling, no alpha loop)
-                        echo "[$current/$total_runs] Baseline (Standard) - RF=$config, K=$k, Gap=sparse, Law=$law, Multiplier=$mult"
-                        $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k"
+                        manage_parallel_jobs
+                        echo "[$current/$total_runs] Launching Baseline (Standard) - RF=$config, K=$k, Gap=sparse, Law=$law, Multiplier=$mult"
+                        $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" > results/logs/run_${current}.log 2>&1 &
                         current=$((current + 1))
                         
                         # 2. Method A: Topological Neighbor Selection (TNS) (No density scaling, no alpha loop)
-                        echo "[$current/$total_runs] Method A (TNS) - RF=$config, K=$k, Lambda=1.0, Gap=sparse, Law=$law, Multiplier=$mult"
-                        $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 1.0
+                        manage_parallel_jobs
+                        echo "[$current/$total_runs] Launching Method A (TNS) - RF=$config, K=$k, Lambda=1.0, Gap=sparse, Law=$law, Multiplier=$mult"
+                        $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 1.0 > results/logs/run_${current}.log 2>&1 &
                         current=$((current + 1))
                         
                         # 3. Method B: Topological Weighted Quantiles (TWQ) - Only run once per K loop (uses auto neighbors, no alpha loop)
                         if [ "$k" == "20" ]; then
-                            echo "[$current/$total_runs] Method B (TWQ) - RF=$config, K=auto, Lambda=1.0, Gap=sparse, Law=$law, Multiplier=$mult"
-                            $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 1.0
+                            manage_parallel_jobs
+                            echo "[$current/$total_runs] Launching Method B (TWQ) - RF=$config, K=auto, Lambda=1.0, Gap=sparse, Law=$law, Multiplier=$mult"
+                            $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 1.0 > results/logs/run_${current}.log 2>&1 &
                             current=$((current + 1))
                         fi
                         
                         # 4. Method C: Topological Density Scaling (TDS) (Requires alpha loop)
                         for alpha in "${ALPHA_VALUES[@]}"; do
-                            echo "[$current/$total_runs] Method C (TDS) - RF=$config, K=$k, Lambda=5.0, Alpha=$alpha, Gap=sparse, Law=$law, Multiplier=$mult"
-                            $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha"
+                            manage_parallel_jobs
+                            echo "[$current/$total_runs] Launching Method C (TDS) - RF=$config, K=$k, Lambda=5.0, Alpha=$alpha, Gap=sparse, Law=$law, Multiplier=$mult"
+                            $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${current}.log 2>&1 &
                             current=$((current + 1))
                         done
                         
                         # 5. Method B+C: Topological Weighted Quantiles + Density Scaling - Only run once per K loop (Requires alpha loop)
                         if [ "$k" == "20" ]; then
                             for alpha in "${ALPHA_VALUES[@]}"; do
-                                echo "[$current/$total_runs] Method B+C (TWQ+TDS) - RF=$config, K=auto, Lambda=5.0, Alpha=$alpha, Gap=sparse, Law=$law, Multiplier=$mult"
-                                $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha"
+                                manage_parallel_jobs
+                                echo "[$current/$total_runs] Launching Method B+C (TWQ+TDS) - RF=$config, K=auto, Lambda=5.0, Alpha=$alpha, Gap=sparse, Law=$law, Multiplier=$mult"
+                                $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${current}.log 2>&1 &
                                 current=$((current + 1))
                             done
                         fi
@@ -114,37 +135,42 @@ for gap_type in "${GAP_TYPES[@]}"; do
             # gap_type == "empty"
             for k in "${K_VALUES[@]}"; do
                 
-                common_args="--rf_config $config --gap_type empty --n_runs 5"
+                common_args="--rf_config $config --gap_type empty --n_runs 5 --n_jobs $CORES_PER_JOB"
                 
                 # 1. Baseline: Standard Proximity
-                echo "[$current/$total_runs] Baseline (Standard) - RF=$config, K=$k, Gap=empty"
-                $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k"
+                manage_parallel_jobs
+                echo "[$current/$total_runs] Launching Baseline (Standard) - RF=$config, K=$k, Gap=empty"
+                $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" > results/logs/run_${current}.log 2>&1 &
                 current=$((current + 1))
                 
                 # 2. Method A: Topological Neighbor Selection (TNS)
-                echo "[$current/$total_runs] Method A (TNS) - RF=$config, K=$k, Lambda=1.0, Gap=empty"
-                $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 1.0
+                manage_parallel_jobs
+                echo "[$current/$total_runs] Launching Method A (TNS) - RF=$config, K=$k, Lambda=1.0, Gap=empty"
+                $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 1.0 > results/logs/run_${current}.log 2>&1 &
                 current=$((current + 1))
                 
                 # 3. Method B: Topological Weighted Quantiles (TWQ) - Only run once per K loop (uses auto neighbors)
                 if [ "$k" == "20" ]; then
-                    echo "[$current/$total_runs] Method B (TWQ) - RF=$config, K=auto, Lambda=1.0, Gap=empty"
-                    $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 1.0
+                    manage_parallel_jobs
+                    echo "[$current/$total_runs] Launching Method B (TWQ) - RF=$config, K=auto, Lambda=1.0, Gap=empty"
+                    $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 1.0 > results/logs/run_${current}.log 2>&1 &
                     current=$((current + 1))
                 fi
                 
                 # 4. Method C: Topological Density Scaling (TDS) (Requires alpha loop)
                 for alpha in "${ALPHA_VALUES[@]}"; do
-                    echo "[$current/$total_runs] Method C (TDS) - RF=$config, K=$k, Lambda=5.0, Alpha=$alpha, Gap=empty"
-                    $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha"
+                    manage_parallel_jobs
+                    echo "[$current/$total_runs] Launching Method C (TDS) - RF=$config, K=$k, Lambda=5.0, Alpha=$alpha, Gap=empty"
+                    $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "$k" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${current}.log 2>&1 &
                     current=$((current + 1))
                 done
                 
                 # 5. Method B+C: Topological Weighted Quantiles + Density Scaling - Only run once per K loop (Requires alpha loop)
                 if [ "$k" == "20" ]; then
                     for alpha in "${ALPHA_VALUES[@]}"; do
-                        echo "[$current/$total_runs] Method B+C (TWQ+TDS) - RF=$config, K=auto, Lambda=5.0, Alpha=$alpha, Gap=empty"
-                        $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha"
+                        manage_parallel_jobs
+                        echo "[$current/$total_runs] Launching Method B+C (TWQ+TDS) - RF=$config, K=auto, Lambda=5.0, Alpha=$alpha, Gap=empty"
+                        $PYTHON_EXEC Uncertainty_Quantification.py $common_args --k_neighbors "auto" --topological_decay_lambda 5.0 --use_density_scaling --density_scaling_alpha "$alpha" > results/logs/run_${current}.log 2>&1 &
                         current=$((current + 1))
                     done
                 fi
@@ -154,6 +180,10 @@ for gap_type in "${GAP_TYPES[@]}"; do
         
     done
 done
+
+echo ""
+echo "All jobs dispatched. Waiting for final background processes to complete..."
+wait
 
 end_time=$(date +%s)
 total_duration=$((end_time - start_time))

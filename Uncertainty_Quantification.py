@@ -248,7 +248,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant")
     print(f"{'='*80}\n")
 
-def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None):
+def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None, n_jobs=-1):
     # Determine standard Random Forest hyperparameters based on config selection to pass min_leaf to generate_data
     if rf_config == 1:
         n_est, min_leaf = 100, 5
@@ -278,7 +278,7 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         print(f"    [TIMING] Data Generation: {t1 - t0:.4f} s")
         sys.stdout.flush()
 
-    rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, oob_score=True, n_jobs=-1, random_state=seed)
+    rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, oob_score=True, n_jobs=n_jobs, random_state=seed)
     rf.fit(X_train, y_train)
     t2 = time.perf_counter()
     if debug_timing:
@@ -475,6 +475,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_density_scaling", action="store_true", help="Use leaf density scaling to prevent the overconfidence trap in Proximity UQ")
     parser.add_argument("--density_scaling_alpha", type=float, default=1.0, help="Exponent parameter alpha for leaf density scaling")
     parser.add_argument("--topological_decay_lambda", type=float, default=None, help="Decay parameter lambda for topological UQ distance. If None, topological UQ is disabled.")
+    parser.add_argument("--n_jobs", type=int, default=-1, help="Number of CPU cores for RF training")
     args = parser.parse_args()
 
     rf_config_arg = args.rf_config
@@ -490,6 +491,7 @@ if __name__ == "__main__":
     use_density_scaling_arg = args.use_density_scaling
     density_scaling_alpha_arg = args.density_scaling_alpha
     topological_decay_lambda_arg = args.topological_decay_lambda
+    n_jobs_arg = args.n_jobs
 
 
     if debug_timing_arg:
@@ -587,7 +589,8 @@ if __name__ == "__main__":
                     scaling_law=scaling_law_arg, debug_timing=debug_timing_arg,
                     use_density_scaling=use_density_scaling_arg,
                     density_scaling_alpha=density_scaling_alpha_arg,
-                    topological_decay_lambda=topological_decay_lambda_arg
+                    topological_decay_lambda=topological_decay_lambda_arg,
+                    n_jobs=n_jobs_arg
                 )
                 
                 # Accumulate timings
