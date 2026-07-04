@@ -220,8 +220,28 @@ class GPUProximityRegressionUQ:
         self.train_weights_xp = self.xp.asarray(self.train_weights)
         self.in_bag_counts_xp = self.xp.asarray(self.in_bag_counts)
 
-        # Precompute baseline leaf size/density for the training set
+        # Precompute leaf-to-leaf distance matrices
         if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+            self.tree_leaf_distances = []
+            self.tree_leaf_id_to_dense = []
+            
+            for t in range(self.n_estimators):
+                tree = self.estimators[t].tree_
+                children_left = tree.children_left
+                # Leaves are nodes where children_left == -1
+                leaf_nodes = np.where(children_left == -1)[0].astype(np.int32)
+                
+                # Compute path distances between all leaves in this tree
+                leaf_nodes_xp = self.xp.asarray(leaf_nodes)
+                d_t_leaves = self.compute_tree_topological_distances(leaf_nodes_xp, leaf_nodes_xp, t)
+                self.tree_leaf_distances.append(d_t_leaves)
+                
+                # Fast mapping array from absolute node ID to dense leaf index
+                id_to_dense = np.full(tree.node_count, -1, dtype=np.int32)
+                for dense_idx, leaf_id in enumerate(leaf_nodes):
+                    id_to_dense[leaf_id] = dense_idx
+                self.tree_leaf_id_to_dense.append(self.xp.asarray(id_to_dense))
+
             # Subsample up to 250 training points for performance/memory stability (prevents OOM on concurrent cluster jobs)
             if self.n_train > 250:
                 np.random.seed(42)
@@ -234,7 +254,10 @@ class GPUProximityRegressionUQ:
             
             train_walked_densities = self.xp.zeros(sub_n, dtype=self.xp.float32)
             for t in range(self.n_estimators):
-                d_t = self.compute_tree_topological_distances(sub_leaf_matrix_xp[:, t], self.in_bag_leaves_xp[:, t], t)
+                id_to_dense = self.tree_leaf_id_to_dense[t]
+                dense_test = id_to_dense[sub_leaf_matrix_xp[:, t]]
+                dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
+                d_t = self.tree_leaf_distances[t][dense_test[:, None], dense_train[None, :]]
                 decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
                 train_walked_densities += self.xp.sum(decay_t * self.in_bag_counts_xp[None, :, t], axis=1)
                 
@@ -368,8 +391,12 @@ class GPUProximityRegressionUQ:
                 
             for t in range(self.n_estimators):
                 if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
-                    # Compute topological leaf path distances
-                    d_t = self.compute_tree_topological_distances(leaf_batch[:, t], self.in_bag_leaves_xp[:, t], t)
+                    # Retrieve dense leaf index mapping
+                    id_to_dense = self.tree_leaf_id_to_dense[t]
+                    dense_test = id_to_dense[leaf_batch[:, t]]
+                    dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
+                    # Vectorized 2D gather from precomputed distance matrix
+                    d_t = self.tree_leaf_distances[t][dense_test[:, None], dense_train[None, :]]
                     # Compute exponential decay kernel: e^(-lambda * d_t)
                     decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
                     # Accumulate walked proximity
