@@ -22,7 +22,7 @@ except ImportError:
     HAS_CUPY = False
 
 class GPUProximityRegressionUQ:
-    def __init__(self, model, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, density_scaling_alpha=1.0):
+    def __init__(self, model, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None):
         """
         GPU-Accelerated Wrapper for Localized Uncertainty Quantification in Random Forests
         via Proximities (RF-FIRE / RF-GAP). Supports dynamic NumPy and CuPy backends.
@@ -37,6 +37,7 @@ class GPUProximityRegressionUQ:
                 If 'auto', dynamically determines the optimal batch size based on free VRAM.
             use_density_scaling: bool, if True, scales proximity uncertainty inversely with leaf density.
             density_scaling_alpha: float, power exponent for leaf density scaling.
+            topological_decay_lambda: float or None, exponential decay factor lambda for topological walking.
         """
         self.model = model
         self.X_train = np.asarray(X_train)
@@ -45,6 +46,7 @@ class GPUProximityRegressionUQ:
         self.batch_size_param = batch_size
         self.use_density_scaling = use_density_scaling
         self.density_scaling_alpha = density_scaling_alpha
+        self.topological_decay_lambda = topological_decay_lambda
 
         
         # Configure backend dynamically
@@ -335,11 +337,19 @@ class GPUProximityRegressionUQ:
             prox_batch = self.xp.zeros((batch_len, self.n_train), dtype=self.xp.float32)
             
             for t in range(self.n_estimators):
-                # 2D comparison: (batch_size, 1) == (1, n_train) -> (batch_size, n_train)
-                # Matches if test sample leaf equals train sample leaf in tree t
-                matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
-                # Accumulate the precomputed weights
-                prox_batch += matches_t * self.train_weights_xp[None, :, t]
+                if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+                    # Compute topological leaf path distances
+                    d_t = self.compute_tree_topological_distances(leaf_batch[:, t], self.in_bag_leaves_xp[:, t], t)
+                    # Compute exponential decay kernel: e^(-lambda * d_t)
+                    decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
+                    # Accumulate walked proximity
+                    prox_batch += decay_t * self.train_weights_xp[None, :, t]
+                else:
+                    # 2D comparison: (batch_size, 1) == (1, n_train) -> (batch_size, n_train)
+                    # Matches if test sample leaf equals train sample leaf in tree t
+                    matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                    # Accumulate the precomputed weights
+                    prox_batch += matches_t * self.train_weights_xp[None, :, t]
                 
             prox_batch /= self.n_estimators
             
