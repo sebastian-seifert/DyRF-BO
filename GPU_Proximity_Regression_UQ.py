@@ -228,6 +228,7 @@ class GPUProximityRegressionUQ:
         self.oob_residuals_xp = self.xp.asarray(self.oob_residuals)
         self.in_bag_leaves_xp = self.xp.asarray(self.in_bag_leaves)
         self.train_weights_xp = self.xp.asarray(self.train_weights)
+        self.in_bag_counts_xp = self.xp.asarray(self.in_bag_counts)
 
         
         if debug_timing:
@@ -317,6 +318,10 @@ class GPUProximityRegressionUQ:
         t_accum_total = 0.0
         t_quantile_total = 0.0
         
+        # Pre-allocate walked density storage if using Method C
+        if use_density_scaling and self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+            walked_densities = self.xp.zeros(n_test, dtype=self.xp.float32)
+            
         # Process in batches to control GPU/CPU memory consumption
         for start in range(0, n_test, batch_size):
             end = min(start + batch_size, n_test)
@@ -336,6 +341,10 @@ class GPUProximityRegressionUQ:
             # prox_batch has shape (batch_size, n_train)
             prox_batch = self.xp.zeros((batch_len, self.n_train), dtype=self.xp.float32)
             
+            # Initialize dynamic density accumulator if Method C is active
+            if use_density_scaling and self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+                density_batch = self.xp.zeros(batch_len, dtype=self.xp.float32)
+                
             for t in range(self.n_estimators):
                 if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
                     # Compute topological leaf path distances
@@ -344,6 +353,10 @@ class GPUProximityRegressionUQ:
                     decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
                     # Accumulate walked proximity
                     prox_batch += decay_t * self.train_weights_xp[None, :, t]
+                    
+                    if use_density_scaling:
+                        # Accumulate walked density sum (unnormalized density metric)
+                        density_batch += self.xp.sum(decay_t * self.in_bag_counts_xp[None, :, t], axis=1)
                 else:
                     # 2D comparison: (batch_size, 1) == (1, n_train) -> (batch_size, n_train)
                     # Matches if test sample leaf equals train sample leaf in tree t
@@ -352,6 +365,9 @@ class GPUProximityRegressionUQ:
                     prox_batch += matches_t * self.train_weights_xp[None, :, t]
                 
             prox_batch /= self.n_estimators
+            
+            if use_density_scaling and self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+                walked_densities[start:end] = density_batch / self.n_estimators
             
             if debug_timing:
                 if self.using_gpu:
@@ -418,10 +434,15 @@ class GPUProximityRegressionUQ:
         uq = resid_upr - resid_lwr
         
         if use_density_scaling:
-            test_leaf_sizes = self.xp.zeros((n_test, self.n_estimators), dtype=self.xp.float32)
-            for t in range(self.n_estimators):
-                test_leaf_sizes[:, t] = self.leaf_sizes[t][leaf_matrix_test_xp[:, t]]
-            avg_test_leaf_sizes = self.xp.mean(test_leaf_sizes, axis=1)
+            if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+                # Method C: Topological Density Scaling
+                avg_test_leaf_sizes = walked_densities
+            else:
+                # Standard Density Scaling
+                test_leaf_sizes = self.xp.zeros((n_test, self.n_estimators), dtype=self.xp.float32)
+                for t in range(self.n_estimators):
+                    test_leaf_sizes[:, t] = self.leaf_sizes[t][leaf_matrix_test_xp[:, t]]
+                avg_test_leaf_sizes = self.xp.mean(test_leaf_sizes, axis=1)
             
             # Clip minimum to prevent division by zero
             avg_test_leaf_sizes = self.xp.maximum(avg_test_leaf_sizes, 1e-5)
