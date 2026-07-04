@@ -1,0 +1,76 @@
+import numpy as np
+from scipy.spatial.distance import jensenshannon
+
+def calculate_jensen_shannon_divergence(uncertainty, y_true_binary, n_bins=50):
+    """FIXED: Now squares the distance value to return true JSD in [0, 1]"""
+    u_id = uncertainty[y_true_binary == 0]
+    u_ood = uncertainty[y_true_binary == 1]
+
+    if len(u_id) < 2 or len(u_ood) < 2: return np.nan
+
+    u_min = min(np.min(u_id), np.min(u_ood))
+    u_max = max(np.max(u_id), np.max(u_ood))
+    if u_max - u_min < 1e-10:
+        return 0.0
+    bin_edges = np.linspace(u_min, u_max, n_bins + 1)
+
+    p_id, _ = np.histogram(u_id, bins=bin_edges)
+    p_ood, _ = np.histogram(u_ood, bins=bin_edges)
+
+    p_id = p_id / np.sum(p_id) + 1e-10
+    p_ood = p_ood / np.sum(p_ood) + 1e-10
+    p_id = p_id / np.sum(p_id)
+    p_ood = p_ood / np.sum(p_ood)
+
+    js_distance = jensenshannon(p_id, p_ood, base=2.0)
+    return float(js_distance ** 2)
+
+def calculate_mutual_information(uncertainty, y_true_binary, n_bins=50):
+    """
+    Computes Normalized Mutual Information (NMI) using discrete binning.
+    Guarantees output is in [0, 1] and eliminates resubstitution bias.
+    """
+    n_total = len(uncertainty)
+    if n_total < 3 or np.min(y_true_binary) == np.max(y_true_binary):
+        return np.nan
+
+    # 1. Discretize the continuous uncertainty into bins
+    u_min, u_max = np.min(uncertainty), np.max(uncertainty)
+    if u_max - u_min < 1e-10:
+        return 0.0 # Constant uncertainty carries 0 information
+        
+    bin_edges = np.linspace(u_min, u_max, n_bins + 1)
+    # Map each uncertainty value to its bin index (1 to n_bins)
+    u_discrete = np.digitize(uncertainty, bin_edges) - 1
+    # Clip boundaries
+    u_discrete = np.clip(u_discrete, 0, n_bins - 1)
+
+    # 2. Compute joint and marginal distributions
+    joint_counts, _, _ = np.histogram2d(u_discrete, y_true_binary, 
+                                        bins=[n_bins, 2], 
+                                        range=[[0, n_bins], [0, 2]])
+    
+    P_joint = joint_counts / n_total
+    P_u = np.sum(P_joint, axis=1)
+    P_y = np.sum(P_joint, axis=0)
+
+    # 3. Calculate Shannon Entropies in bits
+    # H(Y)
+    P_y_nonzero = P_y[P_y > 0]
+    h_y = -np.sum(P_y_nonzero * np.log2(P_y_nonzero))
+    if h_y < 1e-10:
+        return np.nan
+
+    # H(U)
+    P_u_nonzero = P_u[P_u > 0]
+    h_u = -np.sum(P_u_nonzero * np.log2(P_u_nonzero))
+
+    # H(U, Y)
+    P_joint_nonzero = P_joint[P_joint > 0]
+    h_uy = -np.sum(P_joint_nonzero * np.log2(P_joint_nonzero))
+
+    # 4. MI = H(U) + H(Y) - H(U, Y)
+    mi = h_u + h_y - h_uy
+    
+    # 5. Return Uncertainty Coefficient (fraction of H(Y) explained by U) bounded in [0, 1]
+    return float(np.clip(mi / h_y, 0.0, 1.0))
