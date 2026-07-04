@@ -198,3 +198,16 @@ For each metric (AUROC, Spearman, Brier, MI, JSD):
   2. **Topological Tree-Walking**: Replaces binary co-occurrence with graph-theoretic path distances on the decision trees using Lowest Common Ancestor (LCA) to produce a continuous decay kernel.
 
 3. **Runtime Guards:** Wrapped post-hoc Wilcoxon tests in `try-except` blocks to handle zero-difference cases, and added a constant-uncertainty guard to JSD.
+
+---
+
+### Update: 2026-07-04
+
+#### Refactoring & Modularity (Pragmatic TDD)
+1. **Regression Locking Baseline**: Created a comprehensive test suite `tests/test_refactoring.py` which caches predictions and stats, guaranteeing 100% mathematical parity down to float32 precision.
+2. **Codebase Modularization**: Decoupled `Uncertainty_Quantification.py` by extracting major subcomponents:
+   - Data generation (`generate_data`) moved to [data_generator.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/data_generator.py).
+   - Information-theoretic metrics (`calculate_jensen_shannon_divergence`, `calculate_mutual_information`) moved to [metrics.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/metrics.py).
+   - Baseline UQ models (`EpistemicQuantifier` class) moved to [Epistemic_Quantifier.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/Epistemic_Quantifier.py).
+3. **Orchestrator Cleanliness**: Left `Uncertainty_Quantification.py` as a lightweight CLI argument parser, grid search runner, and statistical testing module. This keeps it completely compatible with all existing benchmark runner scripts (like `run_density_scaling_benchmarks.sh`).
+4. **Verifications**: Ran validation tests (`bash run_tests.sh`) successfully, showing perfect parities and smoke test checks.
