@@ -213,22 +213,42 @@ class GPUProximityRegressionUQ:
             train_leaves = self.leaf_matrix_train[:, t]
             self.train_weights[:, t] = (self.in_bag_indices[:, t] * self.in_bag_counts[:, t]) / leaf_sums[train_leaves]
             
-        # Precompute baseline leaf size for the training set (average leaf size across trees)
-        train_leaf_sizes = self.xp.zeros((self.n_train, self.n_estimators), dtype=self.xp.float32)
-        for t in range(self.n_estimators):
-            train_leaf_sizes[:, t] = self.leaf_sizes[t][self.xp.asarray(self.leaf_matrix_train[:, t])]
-        self.train_avg_leaf_sizes = self.xp.mean(train_leaf_sizes, axis=1)
-        self.N_baseline = float(self.xp.median(self.train_avg_leaf_sizes))
-
-        if debug_timing:
-            t_weights = time.perf_counter()
-            print(f"[TIMING] Leaf weights & density precomputation: {(t_weights - t_indices)*1000:.2f} ms")
-            
         # Transfer training structures to the active backend (numpy or cupy)
         self.oob_residuals_xp = self.xp.asarray(self.oob_residuals)
         self.in_bag_leaves_xp = self.xp.asarray(self.in_bag_leaves)
         self.train_weights_xp = self.xp.asarray(self.train_weights)
         self.in_bag_counts_xp = self.xp.asarray(self.in_bag_counts)
+
+        # Precompute baseline leaf size/density for the training set
+        if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+            # Subsample up to 1000 training points for performance/memory stability
+            if self.n_train > 1000:
+                np.random.seed(42)
+                sub_indices = np.random.choice(self.n_train, 1000, replace=False)
+            else:
+                sub_indices = np.arange(self.n_train)
+            
+            sub_n = len(sub_indices)
+            sub_leaf_matrix_xp = self.xp.asarray(self.leaf_matrix_train[sub_indices, :])
+            
+            train_walked_densities = self.xp.zeros(sub_n, dtype=self.xp.float32)
+            for t in range(self.n_estimators):
+                d_t = self.compute_tree_topological_distances(sub_leaf_matrix_xp[:, t], self.in_bag_leaves_xp[:, t], t)
+                decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
+                train_walked_densities += self.xp.sum(decay_t * self.in_bag_counts_xp[None, :, t], axis=1)
+                
+            train_walked_densities /= self.n_estimators
+            self.N_baseline = float(self.xp.median(train_walked_densities))
+        else:
+            train_leaf_sizes = self.xp.zeros((self.n_train, self.n_estimators), dtype=self.xp.float32)
+            for t in range(self.n_estimators):
+                train_leaf_sizes[:, t] = self.leaf_sizes[t][self.xp.asarray(self.leaf_matrix_train[:, t])]
+            self.train_avg_leaf_sizes = self.xp.mean(train_leaf_sizes, axis=1)
+            self.N_baseline = float(self.xp.median(self.train_avg_leaf_sizes))
+
+        if debug_timing:
+            t_weights = time.perf_counter()
+            print(f"[TIMING] Leaf weights & density precomputation: {(t_weights - t_indices)*1000:.2f} ms")
 
         
         if debug_timing:
@@ -437,6 +457,8 @@ class GPUProximityRegressionUQ:
             if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
                 # Method C: Topological Density Scaling
                 avg_test_leaf_sizes = walked_densities
+                if debug_timing:
+                    print(f"[DEBUG DENSITY] mean walked density = {float(self.xp.mean(walked_densities)):.4f}, min = {float(self.xp.min(walked_densities)):.4f}, max = {float(self.xp.max(walked_densities)):.4f}")
             else:
                 # Standard Density Scaling
                 test_leaf_sizes = self.xp.zeros((n_test, self.n_estimators), dtype=self.xp.float32)
