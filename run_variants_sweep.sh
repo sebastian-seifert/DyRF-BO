@@ -7,7 +7,7 @@ RF_CONFIGS=(1 3 5)
 GAP_TYPES=("empty" "sparse")
 
 # Non-proximity approaches to evaluate
-APPROACHES="Standard,Chen,Shaker,Credal_GL_Bisect,Credal_GL_Newton,Credal_Trapz_Bisect,Credal_Trapz_Newton"
+APPROACHES="Standard,Chen,Shaker_GMM_Entropy,Shaker_Likelihood_GL_Bisect,Shaker_Likelihood_GL_Newton,Shaker_Likelihood_Trapz_Bisect,Shaker_Likelihood_Trapz_Newton"
 
 # Allocating CPU cores per job to share 32 cores: 6 jobs x 5 cores = 30 cores total
 CORES_PER_JOB=5
