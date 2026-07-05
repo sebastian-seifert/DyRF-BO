@@ -118,7 +118,7 @@ class EpistemicQuantifier:
     # ==========================================
     # SHAKER METHOD
     # ==========================================
-    def shaker_get_epistemic_entropy(self, X_test, num_samples=1000, batch_size=1000, random_state=None, backend="auto"):
+    def shaker_get_epistemic_entropy(self, X_test, num_samples=10000, batch_size=200, random_state=None, backend="auto"):
         """
         Approach 2: Shaker 2020 (Epistemic Component)
         Calculated as: Total Uncertainty (GMM Entropy) - Aleatoric Uncertainty.
@@ -138,7 +138,7 @@ class EpistemicQuantifier:
         # Epistemic = Total - Aleatoric
         return np.maximum(total_unc - aleatoric_unc, 0.0)
 
-    def shaker_get_epistemic_variance(self, X_test, num_samples=1000, batch_size=1000, random_state=None, backend="auto"):
+    def shaker_get_epistemic_variance(self, X_test, num_samples=10000, batch_size=200, random_state=None, backend="auto"):
         """
         Returns a Shaker-inspired epistemic proxy in variance units.
 
@@ -161,7 +161,7 @@ class EpistemicQuantifier:
 
         return aleatoric_var * np.maximum(2.0 ** (2.0 * mi_bits) - 1.0, 0.0)
 
-    def shaker_get_total_variance(self, X_test, num_samples=1000, batch_size=1000, random_state=None, backend="auto"):
+    def shaker_get_total_variance(self, X_test, num_samples=10000, batch_size=200, random_state=None, backend="auto"):
         """Converts Shaker's total GMM entropy into entropy-power variance units."""
         total_entropy = self._shaker_calc_total_entropy(
             X_test,
@@ -186,7 +186,7 @@ class EpistemicQuantifier:
         """Converts differential entropy in bits to the variance of a Gaussian."""
         return (2.0 ** (2.0 * entropy_bits)) / (2.0 * np.pi * np.e)
 
-    def _shaker_calc_total_entropy(self, X_test, num_samples=1000, batch_size=1000, random_state=None, backend="auto"):
+    def _shaker_calc_total_entropy(self, X_test, num_samples=10000, batch_size=200, random_state=None, backend="auto"):
         """
         Calculates the Total Uncertainty (Entropy of the GMM) via fully vectorized
         Monte Carlo estimation over batches of test query points.
