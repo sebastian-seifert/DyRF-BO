@@ -80,7 +80,7 @@ class CredalRegressionUQ:
             
         return means, variances, counts
 
-    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size=2000, integration_method="gauss_legendre", sup_solver="bisection"):
+    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size="auto", integration_method="gauss_legendre", sup_solver="bisection"):
         """
         Computes the epistemic and aleatoric uncertainties using the continuous
         relative likelihood framework. Fully vectorized and GPU-accelerated when available.
@@ -103,6 +103,7 @@ class CredalRegressionUQ:
         
         # Determine if GPU will be used
         is_gpu = backend == "gpu" or (backend == "auto" and cp is not None and cp.cuda.runtime.getDeviceCount() > 0)
+        resolved_backend = "gpu" if is_gpu else "cpu"
         
         if n_grid is None:
             # Scale grid size dynamically based on input dimensionality
@@ -112,6 +113,10 @@ class CredalRegressionUQ:
             else: # gauss_legendre
                 n_grid = 64 if D >= 3 else 32
                 
+        if batch_size == "auto":
+            batch_size = self._get_dynamic_batch_size(n_grid, resolved_backend)
+            print(f"Dynamically resolved Credal batch size: {batch_size}")
+            
         n_iter = 20 if is_gpu else 15
         
         if n_samples <= batch_size:
@@ -292,3 +297,27 @@ class CredalRegressionUQ:
         aleatoric_var = I_al ** 2
         
         return epistemic_var, aleatoric_var
+
+    def _get_dynamic_batch_size(self, n_grid, backend):
+        n_trees = len(self.model.estimators_)
+        if backend == "gpu" and cp is not None:
+            try:
+                free_mem, _ = cp.cuda.Device().mem_info
+                # We target using no more than 5% of free memory
+                target_mem_bytes = free_mem * 0.05
+                # Each float32 element is 4 bytes. In Credal UQ, we allocate ~6 tensors of shape
+                # (n_trees, B, n_grid) during parallel bisection/Newton iterations:
+                # 1. z_b (n_trees, B, n_grid)
+                # 2. u_le (n_trees, B, n_grid)
+                # 3. h_val (n_trees, B, n_grid)
+                # 4. h_prime (n_trees, B, n_grid)
+                # 5. bounds/intermediate arrays
+                bytes_per_sample = n_trees * n_grid * 4 * 6
+                batch_size = int(target_mem_bytes / bytes_per_sample)
+                # Restrict to a sane range: [100, 5000]
+                return int(np.clip(batch_size, 100, 5000))
+            except Exception:
+                return 2000
+        else:
+            # CPU cache-friendly batch size
+            return 1000
