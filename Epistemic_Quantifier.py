@@ -212,6 +212,7 @@ class EpistemicQuantifier:
         total_entropy = np.zeros(n_samples)
         
         if backend == "gpu":
+            cp.get_default_memory_pool().free_all_blocks()
             rng = self._mc_make_gpu_rng(random_state)
             
             for start in range(0, n_samples, batch_size):
@@ -329,17 +330,17 @@ class EpistemicQuantifier:
         if backend == "gpu" and cp is not None:
             try:
                 free_mem, _ = cp.cuda.Device().mem_info
-                # We target using no more than 5% of free memory to be very safe in multi-job environments
-                target_mem_bytes = free_mem * 0.05
-                # Each element in float32 takes 4 bytes. We need ~3 tensors of size (B, num_samples, n_trees)
-                # during probability evaluations:
+                # We target using no more than 1% of free memory to be extremely safe in multi-job/shared environments
+                target_mem_bytes = free_mem * 0.01
+                # Each element in float32 takes 4 bytes. We need ~10 tensors of size (B, num_samples, n_trees)
+                # due to intermediate arrays created in expressions and cached by CuPy's memory pool:
                 # 1. z_samples (B, num_samples, n_trees)
                 # 2. log_prob_components (B, num_samples, n_trees)
-                # 3. temporary buffers for logsumexp
-                bytes_per_sample = num_samples * n_trees * 4 * 3
+                # 3. intermediate arithmetic allocations (sub, div, pow, mul)
+                bytes_per_sample = num_samples * n_trees * 4 * 10
                 batch_size = int(target_mem_bytes / bytes_per_sample)
-                # Restrict to a sane range: [50, 2000]
-                return int(np.clip(batch_size, 50, 2000))
+                # Restrict to a safe range: [10, 1000]
+                return int(np.clip(batch_size, 10, 1000))
             except Exception:
                 return 200
         else:
