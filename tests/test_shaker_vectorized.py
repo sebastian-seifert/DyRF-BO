@@ -43,7 +43,7 @@ def run_shaker_test_suite():
     # 3. Test Vectorized CPU Execution
     print("\n[CPU Test] Running vectorized CPU Shaker...")
     t0 = time.perf_counter()
-    u_cpu = quantifier.shaker_get_epistemic_variance(X_test, num_samples=1000, batch_size=500, random_state=42, backend="cpu")
+    u_cpu = quantifier.shaker_get_epistemic_variance(X_test, num_samples=1000, batch_size="auto", random_state=42, backend="cpu")
     t1 = time.perf_counter()
     cpu_time = t1 - t0
     print(f"✓ CPU Shaker completed in {cpu_time:.4f} seconds.")
@@ -58,7 +58,7 @@ def run_shaker_test_suite():
     if gpu_available:
         print("\n[GPU Test] Running vectorized GPU Shaker...")
         t0 = time.perf_counter()
-        u_gpu = quantifier.shaker_get_epistemic_variance(X_test, num_samples=1000, batch_size=500, random_state=42, backend="gpu")
+        u_gpu = quantifier.shaker_get_epistemic_variance(X_test, num_samples=1000, batch_size="auto", random_state=42, backend="gpu")
         t1 = time.perf_counter()
         gpu_time = t1 - t0
         print(f"✓ GPU Shaker completed in {gpu_time:.4f} seconds.")

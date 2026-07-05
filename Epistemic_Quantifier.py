@@ -118,7 +118,7 @@ class EpistemicQuantifier:
     # ==========================================
     # SHAKER METHOD
     # ==========================================
-    def shaker_get_epistemic_entropy(self, X_test, num_samples=10000, batch_size=200, random_state=None, backend="auto"):
+    def shaker_get_epistemic_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto"):
         """
         Approach 2: Shaker 2020 (Epistemic Component)
         Calculated as: Total Uncertainty (GMM Entropy) - Aleatoric Uncertainty.
@@ -138,7 +138,7 @@ class EpistemicQuantifier:
         # Epistemic = Total - Aleatoric
         return np.maximum(total_unc - aleatoric_unc, 0.0)
 
-    def shaker_get_epistemic_variance(self, X_test, num_samples=10000, batch_size=200, random_state=None, backend="auto"):
+    def shaker_get_epistemic_variance(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto"):
         """
         Returns a Shaker-inspired epistemic proxy in variance units.
 
@@ -161,7 +161,7 @@ class EpistemicQuantifier:
 
         return aleatoric_var * np.maximum(2.0 ** (2.0 * mi_bits) - 1.0, 0.0)
 
-    def shaker_get_total_variance(self, X_test, num_samples=10000, batch_size=200, random_state=None, backend="auto"):
+    def shaker_get_total_variance(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto"):
         """Converts Shaker's total GMM entropy into entropy-power variance units."""
         total_entropy = self._shaker_calc_total_entropy(
             X_test,
@@ -186,7 +186,7 @@ class EpistemicQuantifier:
         """Converts differential entropy in bits to the variance of a Gaussian."""
         return (2.0 ** (2.0 * entropy_bits)) / (2.0 * np.pi * np.e)
 
-    def _shaker_calc_total_entropy(self, X_test, num_samples=10000, batch_size=200, random_state=None, backend="auto"):
+    def _shaker_calc_total_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto"):
         """
         Calculates the Total Uncertainty (Entropy of the GMM) via fully vectorized
         Monte Carlo estimation over batches of test query points.
@@ -199,6 +199,10 @@ class EpistemicQuantifier:
         
         backend = self._mc_resolve_backend(backend)
         print(f"Vectorized Monte Carlo backend: {backend}")
+        
+        if batch_size == "auto":
+            batch_size = self._get_dynamic_shaker_batch_size(num_samples, n_trees, backend)
+            print(f"Dynamically resolved Shaker batch size: {batch_size}")
         
         # 1. Get predictions and variances for all trees: shapes (n_samples, n_trees)
         mu_all = np.stack([t.predict(X_test) for t in self.model.estimators_], axis=1) # (n_samples, n_trees)
@@ -320,3 +324,25 @@ class EpistemicQuantifier:
         if hasattr(rng, "standard_normal"):
             return rng.standard_normal(size=size)
         return cp.random.standard_normal(size=size)
+
+    def _get_dynamic_shaker_batch_size(self, num_samples, n_trees, backend):
+        if backend == "gpu" and cp is not None:
+            try:
+                free_mem, _ = cp.cuda.Device().mem_info
+                # We target using no more than 5% of free memory to be very safe in multi-job environments
+                target_mem_bytes = free_mem * 0.05
+                # Each element in float32 takes 4 bytes. We need ~3 tensors of size (B, num_samples, n_trees)
+                # during probability evaluations:
+                # 1. z_samples (B, num_samples, n_trees)
+                # 2. log_prob_components (B, num_samples, n_trees)
+                # 3. temporary buffers for logsumexp
+                bytes_per_sample = num_samples * n_trees * 4 * 3
+                batch_size = int(target_mem_bytes / bytes_per_sample)
+                # Restrict to a sane range: [50, 2000]
+                return int(np.clip(batch_size, 50, 2000))
+            except Exception:
+                return 200
+        else:
+            # CPU backend has L3 cache limitations. For 10,000 samples, keeping the batch small
+            # (e.g. 100 to 500) fits the memory footprint within L3 cache slices, avoiding page thrashing.
+            return 200
