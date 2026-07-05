@@ -188,103 +188,98 @@ class EpistemicQuantifier:
 
     def _shaker_calc_total_entropy(self, X_test, num_samples=1000, batch_size=1000, random_state=None, backend="auto"):
         """
-        Calculates the Total Uncertainty (Entropy of the GMM) via Monte Carlo.
-        Formula from Slide 5: E[-log2(p(y|x))], with y sampled from the tree GMM.
+        Calculates the Total Uncertainty (Entropy of the GMM) via fully vectorized
+        Monte Carlo estimation over batches of test query points.
+        
+        Formula: E[-log2(p(y|x))], with y sampled from the tree GMM.
         """
         X_test = np.atleast_2d(X_test)
         n_samples = X_test.shape[0]
-        backend = self._mc_resolve_backend(backend)
-        print(f"Monte Carlo backend: {backend}")
-        rng = self._mc_make_gpu_rng(random_state) if backend == "gpu" else self._mc_make_cpu_rng(random_state)
+        n_trees = len(self.model.estimators_)
         
-        # 1. Get components for each tree
-        mu_all = np.stack([t.predict(X_test) for t in self.model.estimators_]) # (n_trees, n_samples)
-        vars_all = self._base_calc_per_tree_variance(X_test) # (n_trees, n_samples)
+        backend = self._mc_resolve_backend(backend)
+        print(f"Vectorized Monte Carlo backend: {backend}")
+        
+        # 1. Get predictions and variances for all trees: shapes (n_samples, n_trees)
+        mu_all = np.stack([t.predict(X_test) for t in self.model.estimators_], axis=1) # (n_samples, n_trees)
+        vars_all = self._base_calc_per_tree_variance(X_test).T # (n_samples, n_trees)
         sigmas_all = np.sqrt(vars_all)
         
         total_entropy = np.zeros(n_samples)
-
-        # 2. Estimate each test point's GMM entropy in log-space.
-        for i in range(n_samples):
-            mu_i = mu_all[:, i]
-            sigma_i = sigmas_all[:, i]
-            total_entropy[i] = self._shaker_gmm_entropy_mc(
-                mu_i,
-                sigma_i,
-                rng,
-                num_samples=num_samples,
-                batch_size=batch_size,
-                backend=backend,
-            )
         
-        return total_entropy
-
-    def _shaker_gmm_entropy_mc(self, mu, sigma, rng, num_samples=1000, batch_size=1000, backend="cpu"):
         if backend == "gpu":
-            try:
-                return self._shaker_gmm_entropy_mc_gpu(mu, sigma, rng, num_samples, batch_size)
-            except Exception as exc:
-                print(f"GPU Monte Carlo failed. Falling back to CPU for this point. ({exc})")
-                cpu_rng = self._mc_make_cpu_rng(None)
-                return self._shaker_gmm_entropy_mc_cpu(mu, sigma, cpu_rng, num_samples, batch_size)
-        return self._shaker_gmm_entropy_mc_cpu(mu, sigma, rng, num_samples, batch_size)
-
-    def _shaker_gmm_entropy_mc_cpu(self, mu, sigma, rng, num_samples=1000, batch_size=1000):
-        """Approximates GMM entropy via Expected Value Monte Carlo (CPU)."""
-        K = len(mu)
-        entropy_sum = 0.0
-        samples_done = 0
-
-        while samples_done < num_samples:
-            current_batch = min(batch_size, num_samples - samples_done)
-
-            components = rng.integers(0, K, size=current_batch)
-            y_samples = rng.normal(mu[components], sigma[components])
-
-            y_expanded = y_samples[:, np.newaxis]
-            mu_expanded = mu[np.newaxis, :]
-            sigma_expanded = sigma[np.newaxis, :]
-
-            log_densities = -0.5 * ((y_expanded - mu_expanded) / sigma_expanded)**2
-            log_densities -= np.log(sigma_expanded * np.sqrt(2 * np.pi))
-
-            log_p_y = logsumexp(log_densities, axis=1) - np.log(K)
-            entropy_sum += -np.sum(log_p_y) / np.log(2)
-            samples_done += current_batch
-
-        return entropy_sum / num_samples
-
-    def _shaker_gmm_entropy_mc_gpu(self, mu, sigma, rng, num_samples=1000, batch_size=1000):
-        """GPU version of the GMM entropy Monte Carlo estimator."""
-        mu_gpu = cp.asarray(mu)
-        sigma_gpu = cp.asarray(sigma)
-        K = len(mu)
-        entropy_sum = cp.asarray(0.0)
-        samples_done = 0
-
-        while samples_done < num_samples:
-            current_batch = min(batch_size, num_samples - samples_done)
-
-            if hasattr(rng, "integers"):
-                components = rng.integers(0, K, size=current_batch)
-            else:
-                components = rng.randint(0, K, size=current_batch)
+            rng = self._mc_make_gpu_rng(random_state)
+            
+            for start in range(0, n_samples, batch_size):
+                end = min(start + batch_size, n_samples)
+                B = end - start
                 
-            eps = self._mc_gpu_standard_normal(rng, current_batch)
-            y_samples = mu_gpu[components] + sigma_gpu[components] * eps
-
-            y_expanded = y_samples[:, cp.newaxis]
-            mu_expanded = mu_gpu[cp.newaxis, :]
-            sigma_expanded = sigma_gpu[cp.newaxis, :]
-
-            log_densities = -0.5 * ((y_expanded - mu_expanded) / sigma_expanded)**2
-            log_densities -= cp.log(sigma_expanded * cp.sqrt(2 * cp.pi))
-
-            log_p_y = cp_logsumexp(log_densities, axis=1) - cp.log(K)
-            entropy_sum += -cp.sum(log_p_y) / cp.log(2)
-            samples_done += current_batch
-
-        return float(cp.asnumpy(entropy_sum / num_samples))
+                # Move this batch of mu and sigma to the GPU
+                mu_batch = cp.asarray(mu_all[start:end, :])
+                sigma_batch = cp.asarray(sigmas_all[start:end, :])
+                
+                # Sample tree components: shape (B, num_samples)
+                if hasattr(rng, "integers"):
+                    components = rng.integers(0, n_trees, size=(B, num_samples))
+                else:
+                    components = rng.randint(0, n_trees, size=(B, num_samples))
+                
+                # Sample standard normals: shape (B, num_samples)
+                eps = self._mc_gpu_standard_normal(rng, (B, num_samples))
+                
+                # Select the mean and std dev corresponding to the sampled components
+                batch_indices = cp.arange(B)[:, None]
+                mu_sampled = mu_batch[batch_indices, components]
+                sigma_sampled = sigma_batch[batch_indices, components]
+                
+                # Generate sample targets: shape (B, num_samples)
+                y_samples = mu_sampled + sigma_sampled * eps
+                
+                # Evaluate log GMM probability:
+                y_expanded = y_samples[:, :, None] # (B, num_samples, 1)
+                mu_expanded = mu_batch[:, None, :] # (B, 1, n_trees)
+                sigma_expanded = sigma_batch[:, None, :] # (B, 1, n_trees)
+                
+                log_densities = -0.5 * ((y_expanded - mu_expanded) / sigma_expanded)**2
+                log_densities -= cp.log(sigma_expanded * cp.sqrt(2 * cp.pi))
+                
+                log_p_y = cp_logsumexp(log_densities, axis=2) - cp.log(n_trees)
+                batch_entropy = -cp.mean(log_p_y, axis=1) / cp.log(2)
+                
+                total_entropy[start:end] = cp.asnumpy(batch_entropy)
+                
+        else: # CPU backend
+            rng = self._mc_make_cpu_rng(random_state)
+            
+            for start in range(0, n_samples, batch_size):
+                end = min(start + batch_size, n_samples)
+                B = end - start
+                
+                mu_batch = mu_all[start:end, :]
+                sigma_batch = sigmas_all[start:end, :]
+                
+                components = rng.integers(0, n_trees, size=(B, num_samples))
+                eps = rng.normal(0, 1, size=(B, num_samples))
+                
+                batch_indices = np.arange(B)[:, None]
+                mu_sampled = mu_batch[batch_indices, components]
+                sigma_sampled = sigma_batch[batch_indices, components]
+                
+                y_samples = mu_sampled + sigma_sampled * eps
+                
+                y_expanded = y_samples[:, :, None]
+                mu_expanded = mu_batch[:, None, :]
+                sigma_expanded = sigma_batch[:, None, :]
+                
+                log_densities = -0.5 * ((y_expanded - mu_expanded) / sigma_expanded)**2
+                log_densities -= np.log(sigma_expanded * np.sqrt(2 * np.pi))
+                
+                log_p_y = logsumexp(log_densities, axis=2) - np.log(n_trees)
+                batch_entropy = -np.mean(log_p_y, axis=1) / np.log(2)
+                
+                total_entropy[start:end] = batch_entropy
+                
+        return total_entropy
 
     # ==========================================
     # MONTE CARLO (MC) UTILITIES
