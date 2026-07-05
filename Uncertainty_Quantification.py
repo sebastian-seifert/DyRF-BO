@@ -476,6 +476,7 @@ if __name__ == "__main__":
     parser.add_argument("--density_scaling_alpha", type=float, default=1.0, help="Exponent parameter alpha for leaf density scaling")
     parser.add_argument("--topological_decay_lambda", type=float, default=None, help="Decay parameter lambda for topological UQ distance. If None, topological UQ is disabled.")
     parser.add_argument("--n_jobs", type=int, default=-1, help="Number of CPU cores for RF training")
+    parser.add_argument("--approaches", type=str, default="Standard,Proximity", help="Comma-separated list of approaches to run")
     args = parser.parse_args()
 
     rf_config_arg = args.rf_config
@@ -504,7 +505,7 @@ if __name__ == "__main__":
     print(f"Config: RF Config={rf_config_arg}, K Neighbors={k_neighbors_arg}, Gap Type={gap_type_arg}, Multiplier={sparse_multiplier_arg}, Scaling Law={scaling_law_arg}, Runs={n_runs}, Topological Decay Lambda={topological_decay_lambda_arg}")
     print(f"{'='*70}")
 
-    approaches = ["Standard", "Proximity"]
+    approaches = [app.strip() for app in args.approaches.split(",")]
     alpha = 0.05
 
     functions_1d = get_1d_functions()
