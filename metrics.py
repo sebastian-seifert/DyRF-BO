@@ -74,3 +74,88 @@ def calculate_mutual_information(uncertainty, y_true_binary, n_bins=50):
     
     # 5. Return Uncertainty Coefficient (fraction of H(Y) explained by U) bounded in [0, 1]
     return float(np.clip(mi / h_y, 0.0, 1.0))
+
+def calculate_rejection_curve(uncertainty, predictions, y_true, rejection_rates, loss_type="MSE"):
+    """
+    Computes the regression loss (MSE or MAE) at each rejection rate p.
+    Points are rejected in descending order of predicted uncertainty.
+    """
+    predictions = np.asarray(predictions)
+    y_true = np.asarray(y_true)
+    uncertainty = np.asarray(uncertainty)
+    
+    n_samples = len(uncertainty)
+    sorted_indices = np.argsort(uncertainty)[::-1] # Descending order of uncertainty
+    
+    if loss_type == "MSE":
+        errors = (predictions - y_true) ** 2
+    elif loss_type == "MAE":
+        errors = np.abs(predictions - y_true)
+    else:
+        raise ValueError(f"Unknown loss_type: {loss_type}")
+        
+    losses = []
+    for p in rejection_rates:
+        n_reject = int(np.floor(p * n_samples))
+        if n_reject >= n_samples:
+            n_reject = n_samples - 1
+        keep_indices = sorted_indices[n_reject:]
+        losses.append(np.mean(errors[keep_indices]))
+        
+    return np.array(losses)
+
+def calculate_aurc(rejection_rates, losses):
+    """
+    Computes the Area Under the Rejection Curve (AURC) using trapezoidal integration.
+    """
+    rejection_rates = np.asarray(rejection_rates)
+    losses = np.asarray(losses)
+    dx = np.diff(rejection_rates)
+    mean_y = 0.5 * (losses[:-1] + losses[1:])
+    return float(np.sum(mean_y * dx))
+
+def calculate_oracle_rejection_curve(predictions, y_true, rejection_rates, loss_type="MSE"):
+    """
+    Computes the Oracle (perfect UQ) rejection curve by sorting by actual error magnitude.
+    """
+    predictions = np.asarray(predictions)
+    y_true = np.asarray(y_true)
+    
+    if loss_type == "MSE":
+        errors = (predictions - y_true) ** 2
+    elif loss_type == "MAE":
+        errors = np.abs(predictions - y_true)
+    else:
+        raise ValueError(f"Unknown loss_type: {loss_type}")
+        
+    return calculate_rejection_curve(
+        uncertainty=errors,
+        predictions=predictions,
+        y_true=y_true,
+        rejection_rates=rejection_rates,
+        loss_type=loss_type
+    )
+
+def calculate_random_rejection_curve(predictions, y_true, rejection_rates, loss_type="MSE", n_shuffles=20, random_state=42):
+    """
+    Computes the Random rejection curve baseline by averaging over shuffled uncertainties.
+    """
+    predictions = np.asarray(predictions)
+    y_true = np.asarray(y_true)
+    
+    rng = np.random.default_rng(random_state)
+    n_samples = len(y_true)
+    
+    curves = []
+    for _ in range(n_shuffles):
+        random_uncertainty = rng.random(n_samples)
+        curve = calculate_rejection_curve(
+            uncertainty=random_uncertainty,
+            predictions=predictions,
+            y_true=y_true,
+            rejection_rates=rejection_rates,
+            loss_type=loss_type
+        )
+        curves.append(curve)
+        
+    return np.mean(curves, axis=0)
