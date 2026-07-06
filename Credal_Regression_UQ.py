@@ -36,47 +36,38 @@ class CredalRegressionUQ:
     def _calc_leaf_stats(self, X_test, min_var=1e-6):
         """
         Calculates leaf statistics (means, variances, and counts) for each tree and test sample.
-        This runs on the CPU for robust data extraction.
-        
-        Returns:
-            means: np.ndarray of shape (n_trees, n_samples)
-            variances: np.ndarray of shape (n_trees, n_samples)
-            counts: np.ndarray of shape (n_trees, n_samples)
+        Supports passing either X_test (backward compatibility) or pre-extracted leaf IDs.
         """
-        X_test = np.atleast_2d(X_test)
-        n_trees = len(self.model.estimators_)
-        n_samples = X_test.shape[0]
-        
-        # Get leaf assignments for all test points
-        all_test_leaf_ids = self.model.apply(X_test)
+        X_test_arr = np.asarray(X_test)
+        if np.issubdtype(X_test_arr.dtype, np.integer) and X_test_arr.ndim == 2 and X_test_arr.shape[1] == len(self.model.estimators_):
+            # This is already leaf_matrix of shape (n_samples, n_trees)
+            all_test_leaf_ids = X_test_arr
+        else:
+            X_test_2d = np.atleast_2d(X_test_arr)
+            # Get leaf assignments for all test points
+            all_test_leaf_ids = self.model.apply(X_test_2d)
+            
+        n_samples, n_trees = all_test_leaf_ids.shape
         
         means = np.zeros((n_trees, n_samples))
         variances = np.zeros((n_trees, n_samples))
         counts = np.zeros((n_trees, n_samples))
         
         for i, estimator in enumerate(self.model.estimators_):
-            train_leaf_ids = estimator.apply(self.X_train)
             test_leaf_ids = all_test_leaf_ids[:, i]
             
-            unique_test_leaves = np.unique(test_leaf_ids)
-            leaf_to_stats = {}
+            # Fetch pre-calculated statistics directly from the estimator tree structure
+            node_means = estimator.tree_.value[:, 0, 0]
+            node_impurities = estimator.tree_.impurity
+            node_samples = estimator.tree_.n_node_samples
             
-            for leaf_id in unique_test_leaves:
-                leaf_y = self.y_train[train_leaf_ids == leaf_id]
-                k = leaf_y.shape[0]
-                
-                mean_val = np.mean(leaf_y)
-                if k > 1:
-                    s2 = np.var(leaf_y, ddof=1)
-                else:
-                    s2 = 0.0
-                
-                # Store (mean, variance, sample count)
-                leaf_to_stats[leaf_id] = (float(mean_val), float(s2) + min_var, int(k))
-                
-            means[i, :] = [leaf_to_stats[lid][0] for lid in test_leaf_ids]
-            variances[i, :] = [leaf_to_stats[lid][1] for lid in test_leaf_ids]
-            counts[i, :] = [leaf_to_stats[lid][2] for lid in test_leaf_ids]
+            means[i, :] = node_means[test_leaf_ids]
+            
+            n_samples_node = node_samples[test_leaf_ids]
+            scale = np.where(n_samples_node > 1, n_samples_node / (n_samples_node - 1), 0.0)
+            variances[i, :] = node_impurities[test_leaf_ids] * scale + min_var
+            
+            counts[i, :] = n_samples_node
             
         return means, variances, counts
 
@@ -117,19 +108,22 @@ class CredalRegressionUQ:
             batch_size = self._get_dynamic_batch_size(n_grid, resolved_backend)
             print(f"Dynamically resolved Credal batch size: {batch_size}")
             
-        n_iter = 20 if is_gpu else 15
+        n_iter = 20
+        
+        # Precompute leaf assignments for all test points once
+        all_test_leaf_ids = self.model.apply(X_test)
         
         if n_samples <= batch_size:
-            return self._compute_uq_batch(X_test, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver)
+            return self._compute_uq_batch(all_test_leaf_ids, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver)
             
         # Batched execution to prevent OOM
         epistemic_vars = []
         aleatoric_vars = []
         
         for i in range(0, n_samples, batch_size):
-            X_batch = X_test[i : i + batch_size]
+            leaf_batch = all_test_leaf_ids[i : i + batch_size]
             epistemic_batch, aleatoric_batch = self._compute_uq_batch(
-                X_batch, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver
+                leaf_batch, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver
             )
             epistemic_vars.append(epistemic_batch)
             aleatoric_vars.append(aleatoric_batch)
@@ -249,9 +243,9 @@ class CredalRegressionUQ:
             
             for _ in range(n_iter):
                 mu_u = 0.5 * (a_le + b_le)
-                pi_H = xp.exp(-k_b * (mu_u**2) / 2.0)
-                phi_val = xp_cdf(z_b - mu_u)
-                mask = pi_H < phi_val
+                log_pi_H = -0.5 * k_b * mu_u**2
+                log_phi_val = xp_log_ndtr(z_b - mu_u)
+                mask = log_pi_H < log_phi_val
                 a_le = xp.where(mask, mu_u, a_le)
                 b_le = xp.where(mask, b_le, mu_u)
                 
@@ -263,9 +257,9 @@ class CredalRegressionUQ:
             
             for _ in range(n_iter):
                 mu_u = 0.5 * (a_ge + b_ge)
-                pi_H = xp.exp(-k_b * (mu_u**2) / 2.0)
-                phi_val = xp_cdf(mu_u - z_b)
-                mask = pi_H < phi_val
+                log_pi_H = -0.5 * k_b * mu_u**2
+                log_phi_val = xp_log_ndtr(mu_u - z_b)
+                mask = log_pi_H < log_phi_val
                 a_ge = xp.where(mask, a_ge, mu_u)
                 b_ge = xp.where(mask, mu_u, b_ge)
                 
