@@ -159,3 +159,18 @@ def calculate_random_rejection_curve(predictions, y_true, rejection_rates, loss_
         curves.append(curve)
         
     return np.mean(curves, axis=0)
+
+def calculate_naurc(rejection_rates, rejection_curve, oracle_curve, random_curve):
+    """
+    Computes the Normalized Area Under the Rejection Curve (NAURC) bounded in [0, 5].
+    NAURC = (AURC_model - AURC_oracle) / (AURC_random - AURC_oracle)
+    0.0 represents perfect UQ (matching oracle), 1.0 represents random baseline.
+    """
+    aurc_model = calculate_aurc(rejection_rates, rejection_curve)
+    aurc_oracle = calculate_aurc(rejection_rates, oracle_curve)
+    aurc_random = calculate_aurc(rejection_rates, random_curve)
+    
+    denom = aurc_random - aurc_oracle
+    if denom < 1e-10:
+        return 0.0
+    return float(np.clip((aurc_model - aurc_oracle) / denom, 0.0, 5.0))

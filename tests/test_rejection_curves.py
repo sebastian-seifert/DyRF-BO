@@ -10,7 +10,8 @@ from metrics import (
     calculate_rejection_curve,
     calculate_aurc,
     calculate_oracle_rejection_curve,
-    calculate_random_rejection_curve
+    calculate_random_rejection_curve,
+    calculate_naurc
 )
 
 class TestRejectionCurves(unittest.TestCase):
@@ -82,6 +83,33 @@ class TestRejectionCurves(unittest.TestCase):
             calculate_rejection_curve(
                 self.uncertainty_good, self.predictions, self.y_true, self.rejection_rates, loss_type="INVALID"
             )
+
+    def test_naurc_calculation(self):
+        rejection_rates = np.linspace(0.0, 0.95, 96)
+        
+        curve_oracle = calculate_oracle_rejection_curve(self.predictions, self.y_true, rejection_rates)
+        curve_good = calculate_rejection_curve(self.uncertainty_good, self.predictions, self.y_true, rejection_rates)
+        curve_bad = calculate_rejection_curve(self.uncertainty_bad, self.predictions, self.y_true, rejection_rates)
+        curve_random = calculate_random_rejection_curve(self.predictions, self.y_true, rejection_rates, n_shuffles=20, random_state=42)
+        
+        naurc_good = calculate_naurc(rejection_rates, curve_good, curve_oracle, curve_random)
+        naurc_bad = calculate_naurc(rejection_rates, curve_bad, curve_oracle, curve_random)
+        naurc_oracle_self = calculate_naurc(rejection_rates, curve_oracle, curve_oracle, curve_random)
+        naurc_random_self = calculate_naurc(rejection_rates, curve_random, curve_oracle, curve_random)
+        
+        # Oracle NAURC must be exactly 0.0
+        self.assertAlmostEqual(naurc_oracle_self, 0.0)
+        # Random NAURC must be exactly 1.0
+        self.assertAlmostEqual(naurc_random_self, 1.0)
+        # Good UQ should have NAURC close to 0.0 (and <= 0.1)
+        self.assertLessEqual(naurc_good, 0.1)
+        # Bad UQ should have NAURC > 1.0
+        self.assertGreater(naurc_bad, 1.0)
+        
+        print(f"\n[Test Result] NAURC Oracle: {naurc_oracle_self:.4f}")
+        print(f"[Test Result] NAURC Good:   {naurc_good:.4f}")
+        print(f"[Test Result] NAURC Random: {naurc_random_self:.4f}")
+        print(f"[Test Result] NAURC Bad:    {naurc_bad:.4f}")
 
 if __name__ == "__main__":
     unittest.main()
