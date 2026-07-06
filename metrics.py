@@ -138,27 +138,61 @@ def calculate_oracle_rejection_curve(predictions, y_true, rejection_rates, loss_
 
 def calculate_random_rejection_curve(predictions, y_true, rejection_rates, loss_type="MSE", n_shuffles=20, random_state=42):
     """
-    Computes the Random rejection curve baseline by averaging over shuffled uncertainties.
+    Computes the Random rejection curve baseline analytically as a constant line of the overall error.
+    This is mathematically exact and eliminates the noise of shuffling.
     """
     predictions = np.asarray(predictions)
     y_true = np.asarray(y_true)
+    rejection_rates = np.asarray(rejection_rates)
     
-    rng = np.random.default_rng(random_state)
-    n_samples = len(y_true)
-    
-    curves = []
-    for _ in range(n_shuffles):
-        random_uncertainty = rng.random(n_samples)
-        curve = calculate_rejection_curve(
-            uncertainty=random_uncertainty,
-            predictions=predictions,
-            y_true=y_true,
-            rejection_rates=rejection_rates,
-            loss_type=loss_type
-        )
-        curves.append(curve)
+    if loss_type == "MSE":
+        overall_error = np.mean((predictions - y_true) ** 2)
+    elif loss_type == "MAE":
+        overall_error = np.mean(np.abs(predictions - y_true))
+    else:
+        raise ValueError(f"Unknown loss_type: {loss_type}")
         
-    return np.mean(curves, axis=0)
+    return np.full(len(rejection_rates), overall_error)
+
+def calculate_aurc_exact(uncertainty, predictions, y_true, p_max=0.95, loss_type="MSE"):
+    """
+    Computes the exact Area Under the Rejection Curve (AURC) analytically
+    from p=0 to p=p_max, without grid discretization or numerical integration error.
+    Complexity is O(N log N) due to sorting.
+    """
+    predictions = np.asarray(predictions)
+    y_true = np.asarray(y_true)
+    uncertainty = np.asarray(uncertainty)
+    n_samples = len(uncertainty)
+    
+    if n_samples == 0:
+        return 0.0
+        
+    # Sort the errors in descending order of predicted uncertainty
+    abs_uncertainty = np.abs(uncertainty)
+    sorted_indices = np.argsort(abs_uncertainty)[::-1]
+    
+    if loss_type == "MSE":
+        errors = (predictions - y_true) ** 2
+    elif loss_type == "MAE":
+        errors = np.abs(predictions - y_true)
+    else:
+        raise ValueError(f"Unknown loss_type: {loss_type}")
+        
+    sorted_errors = errors[sorted_indices]
+    
+    # Compute the remaining means using cumulative sums from right to left
+    cumsum_right = np.cumsum(sorted_errors[::-1])[::-1]
+    counts = np.arange(n_samples, 0, -1)
+    losses = cumsum_right / counts
+    
+    # Rejection curve is constant on [k/N, (k+1)/N) with value losses[k]
+    K_max = int(np.floor(p_max * n_samples))
+    if K_max >= n_samples:
+        K_max = n_samples - 1
+        
+    aurc = np.sum(losses[:K_max]) / n_samples + losses[K_max] * (p_max - K_max / n_samples)
+    return float(aurc)
 
 def calculate_naurc(rejection_rates, rejection_curve, oracle_curve, random_curve):
     """
@@ -174,3 +208,4 @@ def calculate_naurc(rejection_rates, rejection_curve, oracle_curve, random_curve
     if denom < 1e-10:
         return 0.0
     return float(np.clip((aurc_model - aurc_oracle) / denom, 0.0, 5.0))
+

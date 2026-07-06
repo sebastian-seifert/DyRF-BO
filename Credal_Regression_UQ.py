@@ -92,6 +92,18 @@ class CredalRegressionUQ:
         X_test = np.atleast_2d(X_test)
         n_samples = X_test.shape[0]
         
+        # Try to dynamically import cupy if it was not available at module load time (e.g. mock during test discovery)
+        global cp, cp_erf, cp_log_ndtr
+        if cp is None:
+            try:
+                import cupy as cp_loaded
+                from cupyx.scipy.special import erf as cp_erf_loaded, log_ndtr as cp_log_ndtr_loaded
+                cp = cp_loaded
+                cp_erf = cp_erf_loaded
+                cp_log_ndtr = cp_log_ndtr_loaded
+            except ImportError:
+                pass
+
         # Determine if GPU will be used
         is_gpu = backend == "gpu" or (backend == "auto" and cp is not None and cp.cuda.runtime.getDeviceCount() > 0)
         resolved_backend = "gpu" if is_gpu else "cpu"
@@ -136,6 +148,18 @@ class CredalRegressionUQ:
         means, variances, counts = self._calc_leaf_stats(X_test)
         sigmas = np.sqrt(variances)
         
+        # Try to dynamically import cupy if it was not available at module load time (e.g. mock during test discovery)
+        global cp, cp_erf, cp_log_ndtr
+        if cp is None:
+            try:
+                import cupy as cp_loaded
+                from cupyx.scipy.special import erf as cp_erf_loaded, log_ndtr as cp_log_ndtr_loaded
+                cp = cp_loaded
+                cp_erf = cp_erf_loaded
+                cp_log_ndtr = cp_log_ndtr_loaded
+            except ImportError:
+                pass
+
         # 2. Determine and configure backend
         xp = np
         if backend == "gpu" or (backend == "auto" and cp is not None and cp.cuda.runtime.getDeviceCount() > 0):

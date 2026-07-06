@@ -19,7 +19,7 @@ class EpistemicQuantifier:
     # ==========================================
     # BASE / SHARED METHODS
     # ==========================================
-    def _base_calc_per_tree_variance(self, X_test, min_var=1e-6):
+    def _base_calc_per_tree_variance(self, X_test, min_var=1e-6, all_test_leaf_ids=None):
         """
         Calculates the per-tree unbiased variances (sigma^2) for each sample in X_test.
         Optimized by directly retrieving pre-computed tree node impurities (MSE) 
@@ -32,7 +32,8 @@ class EpistemicQuantifier:
         n_samples = X_test.shape[0]
         
         # Get all leaf assignments for test data: shape (n_samples, n_trees)
-        all_test_leaf_ids = self.model.apply(X_test)
+        if all_test_leaf_ids is None:
+            all_test_leaf_ids = self.model.apply(X_test)
         
         variances = np.zeros((n_trees, n_samples))
         
@@ -50,12 +51,29 @@ class EpistemicQuantifier:
             
         return variances
 
-    def base_get_aleatoric_variance(self, X_test):
+    def _get_tree_predictions(self, X_test, all_test_leaf_ids=None):
+        """
+        Retrieves the prediction for each individual tree for each test point in a fully vectorized way.
+        
+        Returns: np.array of shape (n_trees, n_samples)
+        """
+        X_test = np.atleast_2d(X_test)
+        if all_test_leaf_ids is None:
+            all_test_leaf_ids = self.model.apply(X_test)
+        n_samples = X_test.shape[0]
+        n_trees = len(self.model.estimators_)
+        
+        tree_preds = np.zeros((n_trees, n_samples))
+        for t, estimator in enumerate(self.model.estimators_):
+            tree_preds[t, :] = estimator.tree_.value[all_test_leaf_ids[:, t], 0, 0]
+        return tree_preds
+
+    def base_get_aleatoric_variance(self, X_test, all_test_leaf_ids=None):
         """
         Returns the mean of the per-tree variances (E[sigma^2]).
         This is the baseline aleatoric uncertainty in terms of variance.
         """
-        return np.mean(self._base_calc_per_tree_variance(X_test), axis=0)
+        return np.mean(self._base_calc_per_tree_variance(X_test, all_test_leaf_ids=all_test_leaf_ids), axis=0)
 
     # ==========================================
     # STANDARD DISAGREEMENT
@@ -70,7 +88,7 @@ class EpistemicQuantifier:
         """
         # Get the prediction for each individual tree for each test point
         # tree_preds shape: (n_trees, n_test_points)
-        tree_preds = np.stack([tree.predict(X_test) for tree in self.model.estimators_])
+        tree_preds = self._get_tree_predictions(X_test)
         
         # Calculate E[X^2]: The mean of the squared predictions
         mean_of_squares = np.mean(tree_preds**2, axis=0)
@@ -97,7 +115,7 @@ class EpistemicQuantifier:
         Formula: V_chen = (1/M) * sum_{j=1}^{M/2} (h_{2j-1} - h_{2j})^2
         """
         # tree_preds shape: (n_trees, n_test_points)
-        tree_preds = np.stack([tree.predict(X_test) for tree in self.model.estimators_])
+        tree_preds = self._get_tree_predictions(X_test)
         M = tree_preds.shape[0]
         
         # We need an even number of trees for pairs
@@ -126,14 +144,18 @@ class EpistemicQuantifier:
         Total Uncertainty is the entropy of the Gaussian Mixture Model formed by the trees.
         Aleatoric is the mean entropy of the individual tree distributions.
         """
+        X_test = np.atleast_2d(X_test)
+        all_test_leaf_ids = self.model.apply(X_test)
+        
         total_unc = self._shaker_calc_total_entropy(
             X_test,
             num_samples=num_samples,
             batch_size=batch_size,
             random_state=random_state,
             backend=backend,
+            all_test_leaf_ids=all_test_leaf_ids
         )
-        aleatoric_unc = self._shaker_calc_aleatoric_entropy(X_test)
+        aleatoric_unc = self._shaker_calc_aleatoric_entropy(X_test, all_test_leaf_ids=all_test_leaf_ids)
         
         # Epistemic = Total - Aleatoric
         return np.maximum(total_unc - aleatoric_unc, 0.0)
@@ -150,14 +172,17 @@ class EpistemicQuantifier:
             MI = 0.5 * log2(total_var / aleatoric_var)
             epistemic_var = aleatoric_var * (2 ** (2 * MI) - 1)
         """
+        X_test = np.atleast_2d(X_test)
+        all_test_leaf_ids = self.model.apply(X_test)
+        
         mi_bits = self.shaker_get_epistemic_entropy(
             X_test,
             num_samples=num_samples,
             batch_size=batch_size,
             random_state=random_state,
-            backend=backend,
+            backend=backend
         )
-        aleatoric_var = self.base_get_aleatoric_variance(X_test)
+        aleatoric_var = self.base_get_aleatoric_variance(X_test, all_test_leaf_ids=all_test_leaf_ids)
 
         return aleatoric_var * np.maximum(2.0 ** (2.0 * mi_bits) - 1.0, 0.0)
 
@@ -173,12 +198,12 @@ class EpistemicQuantifier:
         return self._shaker_convert_entropy_to_var(total_entropy)
 
     # --- Shaker Internals ---
-    def _shaker_calc_aleatoric_entropy(self, X_test):
+    def _shaker_calc_aleatoric_entropy(self, X_test, all_test_leaf_ids=None):
         """
         Calculates the closed-form aleatoric uncertainty (mean differential entropy).
         Formula from Slide 4: (1/M) * sum( 0.5 * log2(2 * pi * e * sigma_hat^2) )
         """
-        vars2 = self._base_calc_per_tree_variance(X_test) 
+        vars2 = self._base_calc_per_tree_variance(X_test, all_test_leaf_ids=all_test_leaf_ids) 
         individual_entropies = 0.5 * np.log2(2 * np.pi * np.e * vars2)
         return np.mean(individual_entropies, axis=0)
 
@@ -186,7 +211,7 @@ class EpistemicQuantifier:
         """Converts differential entropy in bits to the variance of a Gaussian."""
         return (2.0 ** (2.0 * entropy_bits)) / (2.0 * np.pi * np.e)
 
-    def _shaker_calc_total_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto"):
+    def _shaker_calc_total_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", all_test_leaf_ids=None):
         """
         Calculates the Total Uncertainty (Entropy of the GMM) via fully vectorized
         Monte Carlo estimation over batches of test query points.
@@ -204,9 +229,12 @@ class EpistemicQuantifier:
             batch_size = self._get_dynamic_shaker_batch_size(num_samples, n_trees, backend)
             print(f"Dynamically resolved Shaker batch size: {batch_size}")
         
+        if all_test_leaf_ids is None:
+            all_test_leaf_ids = self.model.apply(X_test)
+            
         # 1. Get predictions and variances for all trees: shapes (n_samples, n_trees)
-        mu_all = np.stack([t.predict(X_test) for t in self.model.estimators_], axis=1) # (n_samples, n_trees)
-        vars_all = self._base_calc_per_tree_variance(X_test).T # (n_samples, n_trees)
+        mu_all = self._get_tree_predictions(X_test, all_test_leaf_ids=all_test_leaf_ids).T # (n_samples, n_trees)
+        vars_all = self._base_calc_per_tree_variance(X_test, all_test_leaf_ids=all_test_leaf_ids).T # (n_samples, n_trees)
         sigmas_all = np.sqrt(vars_all)
         
         total_entropy = np.zeros(n_samples)
@@ -219,9 +247,9 @@ class EpistemicQuantifier:
                 end = min(start + batch_size, n_samples)
                 B = end - start
                 
-                # Move this batch of mu and sigma to the GPU
-                mu_batch = cp.asarray(mu_all[start:end, :])
-                sigma_batch = cp.asarray(sigmas_all[start:end, :])
+                # Move this batch of mu and sigma to the GPU in float32
+                mu_batch = cp.asarray(mu_all[start:end, :], dtype=cp.float32)
+                sigma_batch = cp.asarray(sigmas_all[start:end, :], dtype=cp.float32)
                 
                 # Sample tree components: shape (B, num_samples)
                 if hasattr(rng, "integers"):
@@ -230,7 +258,7 @@ class EpistemicQuantifier:
                     components = rng.randint(0, n_trees, size=(B, num_samples))
                 
                 # Sample standard normals: shape (B, num_samples)
-                eps = self._mc_gpu_standard_normal(rng, (B, num_samples))
+                eps = self._mc_gpu_standard_normal(rng, (B, num_samples)).astype(cp.float32)
                 
                 # Select the mean and std dev corresponding to the sampled components
                 batch_indices = cp.arange(B)[:, None]
@@ -240,15 +268,23 @@ class EpistemicQuantifier:
                 # Generate sample targets: shape (B, num_samples)
                 y_samples = mu_sampled + sigma_sampled * eps
                 
-                # Evaluate log GMM probability:
+                # Evaluate log GMM probability in float32 to reduce memory footprint:
                 y_expanded = y_samples[:, :, None] # (B, num_samples, 1)
                 mu_expanded = mu_batch[:, None, :] # (B, 1, n_trees)
                 sigma_expanded = sigma_batch[:, None, :] # (B, 1, n_trees)
                 
-                log_densities = -0.5 * ((y_expanded - mu_expanded) / sigma_expanded)**2
-                log_densities -= cp.log(sigma_expanded * cp.sqrt(2 * cp.pi))
+                # Precompute constant log factor
+                log_const = cp.log(sigma_batch * cp.sqrt(2 * cp.pi)) # (B, n_trees)
+                log_const_expanded = log_const[:, None, :] # (B, 1, n_trees)
                 
-                log_p_y = cp_logsumexp(log_densities, axis=2) - cp.log(n_trees)
+                # Perform in-place operations to avoid massive memory allocations
+                diff = y_expanded - mu_expanded # (B, num_samples, n_trees)
+                diff /= sigma_expanded
+                diff **= 2
+                diff *= -0.5
+                diff -= log_const_expanded
+                
+                log_p_y = cp_logsumexp(diff, axis=2) - cp.log(n_trees)
                 batch_entropy = -cp.mean(log_p_y, axis=1) / cp.log(2)
                 
                 total_entropy[start:end] = cp.asnumpy(batch_entropy)
@@ -260,11 +296,11 @@ class EpistemicQuantifier:
                 end = min(start + batch_size, n_samples)
                 B = end - start
                 
-                mu_batch = mu_all[start:end, :]
-                sigma_batch = sigmas_all[start:end, :]
+                mu_batch = mu_all[start:end, :].astype(np.float32)
+                sigma_batch = sigmas_all[start:end, :].astype(np.float32)
                 
                 components = rng.integers(0, n_trees, size=(B, num_samples))
-                eps = rng.normal(0, 1, size=(B, num_samples))
+                eps = rng.normal(0, 1, size=(B, num_samples)).astype(np.float32)
                 
                 batch_indices = np.arange(B)[:, None]
                 mu_sampled = mu_batch[batch_indices, components]
@@ -276,10 +312,18 @@ class EpistemicQuantifier:
                 mu_expanded = mu_batch[:, None, :]
                 sigma_expanded = sigma_batch[:, None, :]
                 
-                log_densities = -0.5 * ((y_expanded - mu_expanded) / sigma_expanded)**2
-                log_densities -= np.log(sigma_expanded * np.sqrt(2 * np.pi))
+                # Precompute constant log factor
+                log_const = np.log(sigma_batch * np.sqrt(2 * np.pi)) # (B, n_trees)
+                log_const_expanded = log_const[:, None, :] # (B, 1, n_trees)
                 
-                log_p_y = logsumexp(log_densities, axis=2) - np.log(n_trees)
+                # Perform in-place operations to avoid massive memory allocations
+                diff = y_expanded - mu_expanded # (B, num_samples, n_trees)
+                diff /= sigma_expanded
+                diff **= 2
+                diff *= -0.5
+                diff -= log_const_expanded
+                
+                log_p_y = logsumexp(diff, axis=2) - np.log(n_trees)
                 batch_entropy = -np.mean(log_p_y, axis=1) / np.log(2)
                 
                 total_entropy[start:end] = batch_entropy
@@ -290,8 +334,15 @@ class EpistemicQuantifier:
     # MONTE CARLO (MC) UTILITIES
     # ==========================================
     def _mc_is_cupy_available(self):
+        global cp, cp_logsumexp
         if cp is None:
-            return False
+            try:
+                import cupy as cp_loaded
+                from cupyx.scipy.special import logsumexp as cp_logsumexp_loaded
+                cp = cp_loaded
+                cp_logsumexp = cp_logsumexp_loaded
+            except ImportError:
+                return False
         try:
             if cp.cuda.runtime.getDeviceCount() == 0:
                 return False

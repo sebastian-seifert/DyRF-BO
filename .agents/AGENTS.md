@@ -1,7 +1,7 @@
 # Project Custom Rules: DyRF-BO Proximity UQ
 
 ## 1. Pragmatic UQ Research TDD Workflow
-Always implement any new UQ algorithms, estimators, or mathematical helpers using the following Test-Driven Development workflow:
+Always implement any and all code changes—including permanent features, temporary scripts, dataset parsers, and utilities—using the following Test-Driven Development workflow:
 
 1. **API Contract**: Define the function/class signature, parameters, and mathematical invariants in docstrings.
 2. **Red Phase (Parity Test First)**: Before implementing the logic, write a unit test in `tests/` that checks correctness against manual calculations, mock models, or slower reference packages. Verify that it fails.

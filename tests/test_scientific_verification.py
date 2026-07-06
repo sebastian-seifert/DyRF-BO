@@ -121,8 +121,10 @@ from metrics import (
     calculate_random_rejection_curve,
     calculate_naurc,
     calculate_jensen_shannon_divergence,
-    calculate_mutual_information
+    calculate_mutual_information,
+    calculate_aurc_exact
 )
+
 
 # ==============================================================================
 # 3. SCIENTIFIC VERIFICATION TEST SUITE
@@ -288,6 +290,51 @@ class TestScientificVerification(unittest.TestCase):
         
         self.assertAlmostEqual(naurc_oracle, 0.0, places=12, msg="Oracle NAURC is not 0.0")
         self.assertAlmostEqual(naurc_random, 1.0, places=12, msg="Random NAURC is not 1.0")
+
+        # 4. CPU-GPU (Mock CuPy) Parity and Random Limit for calculate_aurc_exact
+        p_max = 0.90
+        # NumPy inputs
+        u_np = np.random.uniform(0, 1, size=20)
+        y_pred_np = np.random.normal(0, 1, size=20)
+        y_true_np = np.random.normal(0, 1, size=20)
+        
+        # gp_array inputs (mocking GPU arrays)
+        u_gp = to_gp(u_np.copy())
+        y_pred_gp = to_gp(y_pred_np.copy())
+        y_true_gp = to_gp(y_true_np.copy())
+        
+        # Calculate exact AURC
+        aurc_exact_np = calculate_aurc_exact(u_np, y_pred_np, y_true_np, p_max=p_max)
+        aurc_exact_gp = calculate_aurc_exact(u_gp, y_pred_gp, y_true_gp, p_max=p_max)
+        
+        # Parity Check: output must be exactly equal regardless of NumPy/CuPy array types
+        self.assertAlmostEqual(aurc_exact_np, aurc_exact_gp, places=12, msg="Exact AURC has CPU-GPU parity discrepancy under mock CuPy testing")
+        
+        # Verify the analytical random limit logic:
+        # A. For constant errors, aurc_exact should equal p_max * overall_error for any uncertainty
+        constant_errors_pred = np.ones(20) * 5.0
+        constant_errors_true = np.zeros(20)
+        overall_error_const = np.mean((constant_errors_pred - constant_errors_true)**2)
+        
+        aurc_const_np = calculate_aurc_exact(u_np, constant_errors_pred, constant_errors_true, p_max=p_max)
+        self.assertAlmostEqual(aurc_const_np, p_max * overall_error_const, places=12, msg="Analytical random limit for constant errors is not mathematically sound")
+        
+        # B. Convergence of average over shuffled uncertainties to p_max * overall_error
+        shuffled_aurcs = []
+        overall_error = np.mean((y_pred_np - y_true_np)**2)
+        expected_random = p_max * overall_error
+        
+        # Shuffle uncertainty 500 times to approximate random UQ expectation
+        for seed in range(500):
+            rng = np.random.default_rng(seed)
+            u_shuffled = rng.permutation(u_np)
+            shuffled_aurcs.append(calculate_aurc_exact(u_shuffled, y_pred_np, y_true_np, p_max=p_max))
+            
+        mean_shuffled_aurc = np.mean(shuffled_aurcs)
+        # Check convergence within 0.05 (statistical fluctuation for small N=20)
+        self.assertAlmostEqual(mean_shuffled_aurc, expected_random, delta=0.05, 
+                               msg=f"Expected shuffled AURC average to converge to random baseline {expected_random:.4f}, but got {mean_shuffled_aurc:.4f}")
+
 
     # --------------------------------------------------------------------------
     # 5. BATCH SIZE INDEPENDENCE

@@ -11,8 +11,10 @@ from metrics import (
     calculate_aurc,
     calculate_oracle_rejection_curve,
     calculate_random_rejection_curve,
-    calculate_naurc
+    calculate_naurc,
+    calculate_aurc_exact
 )
+
 
 class TestRejectionCurves(unittest.TestCase):
     def setUp(self):
@@ -110,6 +112,41 @@ class TestRejectionCurves(unittest.TestCase):
         print(f"[Test Result] NAURC Good:   {naurc_good:.4f}")
         print(f"[Test Result] NAURC Random: {naurc_random_self:.4f}")
         print(f"[Test Result] NAURC Bad:    {naurc_bad:.4f}")
+
+    def test_aurc_exact(self):
+        # Exact AURC up to p_max=0.95
+        p_max = 0.95
+        rejection_rates_dense = np.linspace(0.0, p_max, 1000)
+        
+        # 1. Oracle
+        curve_oracle = calculate_oracle_rejection_curve(self.predictions, self.y_true, rejection_rates_dense)
+        aurc_oracle_trapz = calculate_aurc(rejection_rates_dense, curve_oracle)
+        aurc_oracle_exact = calculate_aurc_exact(self.predictions - self.y_true, self.predictions, self.y_true, p_max=p_max)
+        # Should be very close (trapz with 1000 points is a good approximation of the step function)
+        self.assertAlmostEqual(aurc_oracle_trapz, aurc_oracle_exact, places=3)
+        
+        # 2. Good UQ
+        curve_good = calculate_rejection_curve(self.uncertainty_good, self.predictions, self.y_true, rejection_rates_dense)
+        aurc_good_trapz = calculate_aurc(rejection_rates_dense, curve_good)
+        aurc_good_exact = calculate_aurc_exact(self.uncertainty_good, self.predictions, self.y_true, p_max=p_max)
+        self.assertAlmostEqual(aurc_good_trapz, aurc_good_exact, places=3)
+        
+        # 3. Bad UQ
+        curve_bad = calculate_rejection_curve(self.uncertainty_bad, self.predictions, self.y_true, rejection_rates_dense)
+        aurc_bad_trapz = calculate_aurc(rejection_rates_dense, curve_bad)
+        aurc_bad_exact = calculate_aurc_exact(self.uncertainty_bad, self.predictions, self.y_true, p_max=p_max)
+        self.assertAlmostEqual(aurc_bad_trapz, aurc_bad_exact, places=3)
+
+        # 4. Expected relation: Oracle <= Good < Random < Bad
+        aurc_random_exact = p_max * np.mean((self.predictions - self.y_true)**2)
+        self.assertLessEqual(aurc_oracle_exact, aurc_good_exact)
+        self.assertLess(aurc_good_exact, aurc_random_exact)
+        self.assertLess(aurc_random_exact, aurc_bad_exact)
+        
+        print(f"\n[Test Result] Exact AURC Oracle: {aurc_oracle_exact:.4f}")
+        print(f"[Test Result] Exact AURC Good:   {aurc_good_exact:.4f}")
+        print(f"[Test Result] Exact AURC Random: {aurc_random_exact:.4f}")
+        print(f"[Test Result] Exact AURC Bad:    {aurc_bad_exact:.4f}")
 
 if __name__ == "__main__":
     unittest.main()

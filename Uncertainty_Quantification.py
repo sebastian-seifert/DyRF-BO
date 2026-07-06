@@ -29,7 +29,8 @@ from metrics import (
     calculate_rejection_curve,
     calculate_aurc,
     calculate_oracle_rejection_curve,
-    calculate_random_rejection_curve
+    calculate_random_rejection_curve,
+    calculate_aurc_exact
 )
 from Epistemic_Quantifier import EpistemicQuantifier
 
@@ -427,15 +428,10 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         results[app]["mi"] = calculate_mutual_information(u_e, y_true_binary)
         results[app]["jsd"] = calculate_jensen_shannon_divergence(u_e, y_true_binary)
 
-        # Compute Error-Rejection Curves & NAURC
-        rejection_rates = np.linspace(0.0, 0.95, 96)
-        rejection_curve = calculate_rejection_curve(u_e, y_pred, y_test, rejection_rates, loss_type="MSE")
-        oracle_curve = calculate_oracle_rejection_curve(y_pred, y_test, rejection_rates, loss_type="MSE")
-        random_curve = calculate_random_rejection_curve(y_pred, y_test, rejection_rates, loss_type="MSE", n_shuffles=20, random_state=42)
-
-        aurc_model = calculate_aurc(rejection_rates, rejection_curve)
-        aurc_oracle = calculate_aurc(rejection_rates, oracle_curve)
-        aurc_random = calculate_aurc(rejection_rates, random_curve)
+        # Compute exact NAURC analytically (discretization-free and noise-free)
+        aurc_model = calculate_aurc_exact(u_e, y_pred, y_test, p_max=0.95, loss_type="MSE")
+        aurc_oracle = calculate_aurc_exact((y_pred - y_test)**2, y_pred, y_test, p_max=0.95, loss_type="MSE")
+        aurc_random = 0.95 * np.mean((y_pred - y_test)**2)
 
         denom = aurc_random - aurc_oracle
         if denom < 1e-10:

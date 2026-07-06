@@ -58,6 +58,15 @@ class GPUProximityRegressionUQ:
 
     def _init_backend(self, device):
         """Initializes the backend (NumPy or CuPy) dynamically."""
+        global cp, HAS_CUPY
+        if not HAS_CUPY:
+            try:
+                import cupy as cp_loaded
+                cp = cp_loaded
+                HAS_CUPY = True
+            except ImportError:
+                pass
+
         device = device.lower()
         self.using_gpu = False
         

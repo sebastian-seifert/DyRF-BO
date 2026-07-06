@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import time
 import numpy as np
 
 # Ensure parent directory is in path
@@ -64,7 +65,10 @@ def main():
     generate_mode = "--generate" in sys.argv
     
     print("Running regression UQ runs...")
+    t_start = time.perf_counter()
     current_results = gather_test_results()
+    t_end = time.perf_counter()
+    print(f"Regression UQ runs completed in {t_end - t_start:.4f} seconds.")
     
     if generate_mode:
         with open(BASELINE_FILE, "w", encoding="utf-8") as f:
@@ -96,6 +100,40 @@ def main():
                 else:
                     print(f"✓ MATCH [{run_key}][{app}][{metric}]: {curr_val:.6f}")
                     
+    # Micro-benchmark for Credal UQ and Epistemic Quantifier under load
+    print("\n==================================================")
+    print("RUNNING PERFORMANCE BENCHMARKS UNDER LOAD")
+    print("==================================================")
+    from sklearn.ensemble import RandomForestRegressor
+    from Credal_Regression_UQ import CredalRegressionUQ
+    from Epistemic_Quantifier import EpistemicQuantifier
+    
+    np.random.seed(42)
+    X_tr = np.random.uniform(0, 10, size=(1000, 5))
+    y_tr = np.sin(X_tr[:, 0]) + np.cos(X_tr[:, 1]) + np.random.normal(0, 0.1, size=1000)
+    X_te = np.random.uniform(0, 10, size=(500, 5))
+    
+    rf = RandomForestRegressor(n_estimators=100, min_samples_leaf=5, random_state=42)
+    rf.fit(X_tr, y_tr)
+    rf.oob_prediction_ = rf.predict(X_tr)
+    rf.oob_score = True
+    
+    # Benchmark Credal GL Bisect
+    credal = CredalRegressionUQ(rf, X_tr, y_tr)
+    t0 = time.perf_counter()
+    credal.compute_uq(X_te, backend="cpu", integration_method="gauss_legendre", sup_solver="bisection")
+    t1 = time.perf_counter()
+    credal_bisect_time = t1 - t0
+    print(f"Credal GL Bisect UQ (CPU) completed in: {credal_bisect_time:.4f} seconds")
+    
+    # Benchmark Epistemic Quantifier Shaker CPU
+    eq = EpistemicQuantifier(rf, X_tr, y_tr)
+    t0 = time.perf_counter()
+    eq.shaker_get_epistemic_variance(X_te, num_samples=1000, backend="cpu", random_state=42)
+    t1 = time.perf_counter()
+    shaker_cpu_time = t1 - t0
+    print(f"Epistemic GMM Shaker (CPU) completed in: {shaker_cpu_time:.4f} seconds")
+    
     if mismatches > 0:
         print(f"\n❌ Refactoring regression failed with {mismatches} mismatch(es)!")
         sys.exit(1)
