@@ -156,7 +156,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"COMPREHENSIVE STATISTICAL SUMMARY")
     print(f"{'='*80}\n")
 
-    metrics = ["auroc", "spearman", "brier", "mi", "jsd", "aurc", "excess_aurc"]
+    metrics = ["auroc", "spearman", "brier", "mi", "jsd", "naurc"]
     dimensions = [("All Functions", results_all),
                   ("1D Functions", results_by_dim["1D"]),
                   ("2D Functions", results_by_dim["2D"]),
@@ -388,14 +388,21 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         results[app]["mi"] = calculate_mutual_information(u_e, y_true_binary)
         results[app]["jsd"] = calculate_jensen_shannon_divergence(u_e, y_true_binary)
 
-        # Compute Error-Rejection Curves & AURC
+        # Compute Error-Rejection Curves & NAURC
         rejection_rates = np.linspace(0.0, 0.95, 96)
         rejection_curve = calculate_rejection_curve(u_e, y_pred, y_test, rejection_rates, loss_type="MSE")
         oracle_curve = calculate_oracle_rejection_curve(y_pred, y_test, rejection_rates, loss_type="MSE")
+        random_curve = calculate_random_rejection_curve(y_pred, y_test, rejection_rates, loss_type="MSE", n_shuffles=20, random_state=42)
 
-        results[app]["aurc"] = calculate_aurc(rejection_rates, rejection_curve)
-        results[app]["aurc_oracle"] = calculate_aurc(rejection_rates, oracle_curve)
-        results[app]["excess_aurc"] = results[app]["aurc"] - results[app]["aurc_oracle"]
+        aurc_model = calculate_aurc(rejection_rates, rejection_curve)
+        aurc_oracle = calculate_aurc(rejection_rates, oracle_curve)
+        aurc_random = calculate_aurc(rejection_rates, random_curve)
+
+        denom = aurc_random - aurc_oracle
+        if denom < 1e-10:
+            results[app]["naurc"] = 0.0
+        else:
+            results[app]["naurc"] = float(np.clip((aurc_model - aurc_oracle) / denom, 0.0, 5.0))
     t7 = time.perf_counter()
     if debug_timing:
         print(f"    [TIMING] Metrics Calculation: {t7 - t6:.4f} s")
@@ -419,7 +426,7 @@ def print_results(results_dict, test_name):
     print(f"{test_name}")
     print(f"{'='*70}")
 
-    for metric in ["auroc", "spearman", "brier", "mi", "jsd", "aurc", "excess_aurc"]:
+    for metric in ["auroc", "spearman", "brier", "mi", "jsd", "naurc"]:
         print(f"\n--- {metric.upper()} ---")
         for app in results_dict:
             values = np.array([v for v in results_dict[app][metric] if not np.isnan(v)])
@@ -429,7 +436,7 @@ def print_results(results_dict, test_name):
 def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
     print(f"\n--- Statistical Validation (alpha = {alpha}) ---")
 
-    for metric in ["auroc", "spearman", "brier", "mi", "jsd", "aurc", "excess_aurc"]:
+    for metric in ["auroc", "spearman", "brier", "mi", "jsd", "naurc"]:
         print(f"\n{metric.upper()}:")
         
         # FIXED: Reshape and average across seeds to eliminate Pseudo-Replication bias
@@ -571,18 +578,18 @@ if __name__ == "__main__":
     print(f"{'#'*70}")
     print(f"Running {len(all_functions)} functions x {n_runs} seeds = {len(all_functions) * n_runs} evaluations (single pass)\n")
 
-    results_all = {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches}
+    results_all = {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches}
     results_by_dim = {
-        "1D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches},
-        "2D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches},
-        "3D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches},
-        "4D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches},
-        "5D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches},
-        "6D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches},
-        "7D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches},
-        "8D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches},
-        "9D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches},
-        "10D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "aurc": [], "excess_aurc": []} for app in approaches},
+        "1D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "2D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "3D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "4D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "5D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "6D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "7D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "8D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "9D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "10D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
     }
 
     global_timings = {
@@ -652,16 +659,14 @@ if __name__ == "__main__":
                     results_all[app]["brier"].append(test_results[app]["brier"])
                     results_all[app]["mi"].append(test_results[app]["mi"])
                     results_all[app]["jsd"].append(test_results[app]["jsd"])
-                    results_all[app]["aurc"].append(test_results[app]["aurc"])
-                    results_all[app]["excess_aurc"].append(test_results[app]["excess_aurc"])
+                    results_all[app]["naurc"].append(test_results[app]["naurc"])
 
                     results_by_dim[dim_key][app]["auroc"].append(test_results[app]["auroc"])
                     results_by_dim[dim_key][app]["spearman"].append(test_results[app]["spearman"])
                     results_by_dim[dim_key][app]["brier"].append(test_results[app]["brier"])
                     results_by_dim[dim_key][app]["mi"].append(test_results[app]["mi"])
                     results_by_dim[dim_key][app]["jsd"].append(test_results[app]["jsd"])
-                    results_by_dim[dim_key][app]["aurc"].append(test_results[app]["aurc"])
-                    results_by_dim[dim_key][app]["excess_aurc"].append(test_results[app]["excess_aurc"])
+                    results_by_dim[dim_key][app]["naurc"].append(test_results[app]["naurc"])
 
             except Exception as e:
                 print(f"\n[ERROR] in seed={seed}, func={func_name}: {str(e)}")
