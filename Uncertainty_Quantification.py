@@ -351,6 +351,45 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
                 topological_decay_lambda=topological_decay_lambda
             )
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
+        elif app == "Proximity_Baseline":
+            prox_q = GPUProximityRegressionUQ(
+                rf, X_train, y_train, device="auto", batch_size="auto",
+                use_density_scaling=False,
+                topological_decay_lambda=None
+            )
+            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
+        elif app == "Proximity_Method_A":
+            prox_q = GPUProximityRegressionUQ(
+                rf, X_train, y_train, device="auto", batch_size="auto",
+                use_density_scaling=False,
+                topological_decay_lambda=1.0
+            )
+            k_val = 20 if isinstance(k_neighbors, str) and k_neighbors == "auto" else k_neighbors
+            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
+        elif app == "Proximity_Method_B":
+            prox_q = GPUProximityRegressionUQ(
+                rf, X_train, y_train, device="auto", batch_size="auto",
+                use_density_scaling=False,
+                topological_decay_lambda=1.0
+            )
+            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
+        elif app == "Proximity_Method_C":
+            prox_q = GPUProximityRegressionUQ(
+                rf, X_train, y_train, device="auto", batch_size="auto",
+                use_density_scaling=True,
+                density_scaling_alpha=density_scaling_alpha,
+                topological_decay_lambda=5.0
+            )
+            k_val = 20 if isinstance(k_neighbors, str) and k_neighbors == "auto" else k_neighbors
+            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
+        elif app == "Proximity_Method_B_C":
+            prox_q = GPUProximityRegressionUQ(
+                rf, X_train, y_train, device="auto", batch_size="auto",
+                use_density_scaling=True,
+                density_scaling_alpha=density_scaling_alpha,
+                topological_decay_lambda=5.0
+            )
+            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
         t_app_end = time.perf_counter()
         app_timings[app] = t_app_end - t_app_start
         if debug_timing:
