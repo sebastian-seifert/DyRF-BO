@@ -105,7 +105,14 @@ class CredalRegressionUQ:
                 pass
 
         # Determine if GPU will be used
-        is_gpu = backend == "gpu" or (backend == "auto" and cp is not None and cp.cuda.runtime.getDeviceCount() > 0)
+        has_gpu_device = False
+        if cp is not None:
+            try:
+                has_gpu_device = cp.cuda.runtime.getDeviceCount() > 0
+            except Exception:
+                has_gpu_device = False
+
+        is_gpu = backend == "gpu" or (backend == "auto" and has_gpu_device)
         resolved_backend = "gpu" if is_gpu else "cpu"
         
         if n_grid is None:
@@ -161,8 +168,15 @@ class CredalRegressionUQ:
                 pass
 
         # 2. Determine and configure backend
+        has_gpu_device = False
+        if cp is not None:
+            try:
+                has_gpu_device = cp.cuda.runtime.getDeviceCount() > 0
+            except Exception:
+                has_gpu_device = False
+
         xp = np
-        if backend == "gpu" or (backend == "auto" and cp is not None and cp.cuda.runtime.getDeviceCount() > 0):
+        if backend == "gpu" or (backend == "auto" and has_gpu_device):
             xp = cp
             means_g = cp.asarray(means)
             sigmas_g = cp.asarray(sigmas)
