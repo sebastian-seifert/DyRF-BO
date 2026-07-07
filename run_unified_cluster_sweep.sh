@@ -6,13 +6,14 @@ conda activate dyrf
 
 # Detect the number of allocated GPUs from salloc / environment
 if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
-    # Split comma-separated list to count the visible devices
+    # Split comma-separated list to count the visible devices (can be integers or MIG UUIDs)
     IFS=',' read -ra GPUS_ARR <<< "$CUDA_VISIBLE_DEVICES"
     NUM_GPUS=${#GPUS_ARR[@]}
-    echo "Detected $NUM_GPUS allocated GPUs from salloc (CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES)"
+    echo "Detected $NUM_GPUS allocated GPUs/MIG-slices from salloc (CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES)"
 else
     NUM_GPUS=4
-    echo "No active CUDA_VISIBLE_DEVICES found. Defaulting to 4 GPUs."
+    GPUS_ARR=("0" "1" "2" "3")
+    echo "No active CUDA_VISIBLE_DEVICES found. Defaulting to 4 standard GPUs."
 fi
 
 
@@ -104,7 +105,8 @@ for gap_type in "${GAP_TYPES[@]}"; do
                         for alpha in "${ALPHA_VALUES[@]}"; do
                             manage_parallel_jobs
                             job_id=$current
-                            gpu_id=$(( (current - 1) % NUM_GPUS ))
+                            gpu_index=$(( (current - 1) % NUM_GPUS ))
+                            gpu_id=${GPUS_ARR[$gpu_index]}
                             
                             echo "[$job_id/$total_runs] Dispatching Unified Sweep (GPU $gpu_id) - RF=$config, K=$k, Alpha=$alpha, Gap=sparse, Law=$law, Multiplier=$mult"
                             
@@ -123,7 +125,8 @@ for gap_type in "${GAP_TYPES[@]}"; do
                 for alpha in "${ALPHA_VALUES[@]}"; do
                     manage_parallel_jobs
                     job_id=$current
-                    gpu_id=$(( (current - 1) % NUM_GPUS ))
+                    gpu_index=$(( (current - 1) % NUM_GPUS ))
+                    gpu_id=${GPUS_ARR[$gpu_index]}
                     
                     echo "[$job_id/$total_runs] Dispatching Unified Sweep (GPU $gpu_id) - RF=$config, K=$k, Alpha=$alpha, Gap=empty"
                     
