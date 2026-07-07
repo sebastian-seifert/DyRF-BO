@@ -28,9 +28,19 @@ SCALING_LAWS=("linear" "leaf")
 GAP_TYPES=("empty" "sparse")
 ALPHA_VALUES=(0.1 1.0 5.0)  # Sensitivity exponent grid for density scaling
 
-# Concurrency tuning parameters to saturate cluster nodes
-MAX_JOBS=8           # Number of parallel python executions
-CORES_PER_JOB=4      # CPU cores (n_jobs) allocated per python process
+# Detect available CPU cores on node
+if [ -n "$SLURM_CPUS_ON_NODE" ]; then
+    TOTAL_CORES=$SLURM_CPUS_ON_NODE
+else
+    TOTAL_CORES=$(nproc)
+fi
+
+# Concurrency tuning parameters dynamically scaled to available GPUs and CPU cores
+MAX_JOBS=$(( NUM_GPUS * 2 ))  # Saturation factor of 2 processes per GPU
+CORES_PER_JOB=$(( TOTAL_CORES / MAX_JOBS ))
+if [ $CORES_PER_JOB -lt 1 ]; then
+    CORES_PER_JOB=1
+fi
 
 # Create results and logging directories
 mkdir -p results/logs
