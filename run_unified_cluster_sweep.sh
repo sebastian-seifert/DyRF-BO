@@ -7,6 +7,10 @@
 #SBATCH --job-name=uq-unified-sweep
 #SBATCH --output=sweep_%j.log
 
+# Initialize Conda and activate environment
+eval "$(conda shell.bash hook)"
+conda activate dyrf
+
 # Exit immediately if a command exits with a non-zero status
 set -e
 
@@ -57,8 +61,10 @@ echo "Alpha values: ${ALPHA_VALUES[*]}"
 echo "Individual run logs will be saved to: results/logs/"
 echo "=========================================================="
 
-# Detect active Python environment
-if [ -f ".venv/bin/python" ]; then
+# Detect active Python environment (prefer active conda environment first)
+if [ -n "$CONDA_DEFAULT_ENV" ]; then
+    PYTHON_EXEC="python"
+elif [ -f ".venv/bin/python" ]; then
     PYTHON_EXEC=".venv/bin/python"
 elif [ -f "../.venv/bin/python" ]; then
     PYTHON_EXEC="../.venv/bin/python"
