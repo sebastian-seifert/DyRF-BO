@@ -191,13 +191,20 @@ class GPUProximityRegressionUQ:
         
         # Extract out-of-bag predictions and compute residuals
         self.oob_prediction_ = self.model.oob_prediction_
-        self.oob_residuals = self.y_train - self.oob_prediction_
         
         # Import underlying scikit-learn helper functions to reconstruct OOB indices and in-bag counts
         from sklearn.ensemble._forest import _generate_unsampled_indices, _generate_sample_indices
         
-        self.oob_indices = np.zeros((self.n_train, self.n_estimators), dtype=np.int32)
-        self.in_bag_counts = np.zeros((self.n_train, self.n_estimators), dtype=np.int32)
+        if self.using_gpu:
+            import cupyx
+            self.oob_residuals = cupyx.empty_pinned(self.y_train.shape, dtype=np.float32)
+            self.oob_residuals[...] = self.y_train - self.oob_prediction_
+            self.oob_indices = cupyx.zeros_pinned((self.n_train, self.n_estimators), dtype=np.int32)
+            self.in_bag_counts = cupyx.zeros_pinned((self.n_train, self.n_estimators), dtype=np.int32)
+        else:
+            self.oob_residuals = self.y_train - self.oob_prediction_
+            self.oob_indices = np.zeros((self.n_train, self.n_estimators), dtype=np.int32)
+            self.in_bag_counts = np.zeros((self.n_train, self.n_estimators), dtype=np.int32)
         
         for t, tree in enumerate(self.estimators):
             # 1. Unsampled indices = Out-of-Bag (OOB) samples
@@ -209,18 +216,31 @@ class GPUProximityRegressionUQ:
             idx, counts = np.unique(ib_idx, return_counts=True)
             self.in_bag_counts[idx, t] = counts
             
-        self.in_bag_indices = 1 - self.oob_indices
-        self.leaf_matrix_train = self.model.apply(self.X_train)
-        
-        # in_bag_leaves keeps the leaf ID for in-bag samples, and sets to 0 for OOB samples
-        self.in_bag_leaves = self.in_bag_indices * self.leaf_matrix_train
-        
+        if self.using_gpu:
+            self.in_bag_indices = cupyx.empty_pinned(self.oob_indices.shape, dtype=np.int32)
+            np.subtract(1, self.oob_indices, out=self.in_bag_indices)
+            
+            leaf_matrix_train_cpu = self.model.apply(self.X_train)
+            self.leaf_matrix_train = cupyx.empty_pinned(leaf_matrix_train_cpu.shape, dtype=leaf_matrix_train_cpu.dtype)
+            self.leaf_matrix_train[...] = leaf_matrix_train_cpu
+            
+            self.in_bag_leaves = cupyx.empty_pinned(self.leaf_matrix_train.shape, dtype=self.leaf_matrix_train.dtype)
+            np.multiply(self.in_bag_indices, self.leaf_matrix_train, out=self.in_bag_leaves)
+        else:
+            self.in_bag_indices = 1 - self.oob_indices
+            self.leaf_matrix_train = self.model.apply(self.X_train)
+            self.in_bag_leaves = self.in_bag_indices * self.leaf_matrix_train
+            
         if debug_timing:
             t_indices = time.perf_counter()
             print(f"[TIMING] OOB/In-bag index reconstruction: {(t_indices - t_fit_model)*1000:.2f} ms")
             
         # Precompute scaled training weights to avoid 3D array broadcasting inside compute_uq loop
-        self.train_weights = np.zeros((self.n_train, self.n_estimators), dtype=np.float32)
+        if self.using_gpu:
+            self.train_weights = cupyx.zeros_pinned((self.n_train, self.n_estimators), dtype=np.float32)
+        else:
+            self.train_weights = np.zeros((self.n_train, self.n_estimators), dtype=np.float32)
+            
         self.leaf_sizes = []
         for t, tree in enumerate(self.estimators):
             node_count = tree.tree_.node_count
@@ -359,7 +379,14 @@ class GPUProximityRegressionUQ:
             
         # Apply the trees to test points to get leaf IDs
         leaf_matrix_test = self.model.apply(X_test)
-        leaf_matrix_test_xp = self.xp.asarray(leaf_matrix_test)
+        if self.using_gpu:
+            import cupyx
+            # Copy to pinned memory on host for fast host-to-device transfers
+            leaf_matrix_test_pinned = cupyx.empty_pinned(leaf_matrix_test.shape, dtype=leaf_matrix_test.dtype)
+            leaf_matrix_test_pinned[...] = leaf_matrix_test
+            leaf_matrix_test_xp = cp.asarray(leaf_matrix_test_pinned)
+        else:
+            leaf_matrix_test_xp = leaf_matrix_test
         
         if debug_timing:
             if self.using_gpu:
