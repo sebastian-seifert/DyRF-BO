@@ -12,11 +12,55 @@ from metrics import (
     calculate_oracle_rejection_curve,
     calculate_random_rejection_curve,
     calculate_naurc,
-    calculate_aurc_exact
+    calculate_aurc_exact,
+    calculate_roc_metrics,
+    calculate_jensen_shannon_divergence,
+    calculate_mutual_information,
+    calculate_aupr
 )
 
 
 class TestRejectionCurves(unittest.TestCase):
+    def test_aupr(self):
+        from sklearn.metrics import average_precision_score
+        y_true = np.array([0, 0, 0, 0, 0, 1, 1, 1, 1, 1])
+        u_good = np.array([0.1, 0.2, 0.1, 0.3, 0.2, 0.9, 0.8, 0.9, 0.7, 0.9])
+        
+        aupr = calculate_aupr(y_true, u_good)
+        expected_aupr = average_precision_score(y_true, u_good)
+        self.assertAlmostEqual(aupr, expected_aupr)
+
+    def test_mi_freedman_diaconis(self):
+        y_true = np.array([0, 0, 0, 0, 0, 1, 1, 1, 1, 1])
+        u_good = np.array([0.1, 0.2, 0.1, 0.3, 0.2, 0.9, 0.8, 0.9, 0.7, 0.9])
+        
+        mi_fixed = calculate_mutual_information(u_good, y_true, n_bins=50)
+        self.assertTrue(0.0 <= mi_fixed <= 1.0)
+        
+        mi_fd = calculate_mutual_information(u_good, y_true, n_bins="fd")
+        self.assertTrue(0.0 <= mi_fd <= 1.0)
+
+    def test_jsd_freedman_diaconis(self):
+        y_true = np.array([0, 0, 0, 0, 0, 1, 1, 1, 1, 1])
+        u_good = np.array([0.1, 0.2, 0.1, 0.3, 0.2, 0.9, 0.8, 0.9, 0.7, 0.9])
+        
+        jsd_fixed = calculate_jensen_shannon_divergence(u_good, y_true, n_bins=50)
+        self.assertTrue(0.0 <= jsd_fixed <= 1.0)
+        
+        jsd_fd = calculate_jensen_shannon_divergence(u_good, y_true, n_bins="fd")
+        self.assertTrue(0.0 <= jsd_fd <= 1.0)
+
+    def test_roc_metrics(self):
+        from sklearn.metrics import roc_auc_score
+        y_true = np.array([0, 0, 0, 0, 0, 1, 1, 1, 1, 1])
+        u_good = np.array([0.1, 0.2, 0.1, 0.3, 0.2, 0.9, 0.8, 0.9, 0.7, 0.9])
+        
+        auroc, fpr95 = calculate_roc_metrics(y_true, u_good)
+        expected_auroc = roc_auc_score(y_true, u_good)
+        
+        self.assertAlmostEqual(auroc, expected_auroc)
+        self.assertAlmostEqual(fpr95, 0.0)
+
     def setUp(self):
         # Setup synthetic inputs
         # We have 100 test samples

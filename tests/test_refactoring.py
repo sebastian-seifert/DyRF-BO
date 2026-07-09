@@ -49,10 +49,13 @@ def gather_test_results():
         for app in approaches:
             out[app] = {
                 "auroc": float(np.mean(res[app]["auroc"])),
+                "fpr95": float(np.mean(res[app]["fpr95"])),
+                "aupr": float(np.mean(res[app]["aupr"])),
                 "brier": float(np.mean(res[app]["brier"])),
                 "spearman": float(np.mean(res[app]["spearman"])),
                 "mi": float(np.mean(res[app]["mi"])),
-                "jsd": float(np.mean(res[app]["jsd"]))
+                "jsd": float(np.mean(res[app]["jsd"])),
+                "naurc": float(np.mean(res[app]["naurc"]))
             }
         return out
 

@@ -8,19 +8,46 @@ def calculate_jensen_shannon_divergence(uncertainty, y_true_binary, n_bins=50):
 
     if len(u_id) < 2 or len(u_ood) < 2: return np.nan
 
-    u_min = min(np.min(u_id), np.min(u_ood))
-    u_max = max(np.max(u_id), np.max(u_ood))
+    u_min = np.min(uncertainty)
+    u_max = np.max(uncertainty)
     if u_max - u_min < 1e-10:
         return 0.0
-    bin_edges = np.linspace(u_min, u_max, n_bins + 1)
+
+    # Determine the number of bins.
+    # If using Freedman-Diaconis ("fd" or "auto"):
+    # PROS:
+    # - Dynamic scaling: Adapts to sample size N via N^(1/3), resolving sparseness in small datasets.
+    # - Outlier robustness: Uses Interquartile Range (IQR), focusing bins on bulk probability mass.
+    # CONS:
+    # - Run-to-run comparison bias: Dynamic bin numbers change the maximum possible entropy of 
+    #   the histogram, rendering raw JSD comparisons between different evaluations slightly biased.
+    # - Multimodal under-binning: Tends to over-smooth in distributions with sharp isolated peaks.
+    if isinstance(n_bins, str) and n_bins.lower() in ["fd", "auto"]:
+        q75, q25 = np.percentile(uncertainty, [75, 25])
+        iqr = q75 - q25
+        n = len(uncertainty)
+        if iqr > 1e-10 and n > 0:
+            bin_width = 2.0 * iqr / (n ** (1.0 / 3.0))
+            n_bins_resolved = int(np.ceil((u_max - u_min) / bin_width))
+            # Clip between 2 and 200 to prevent empty-bin variance or memory exhaustion
+            n_bins_resolved = int(np.clip(n_bins_resolved, 2, 200))
+        else:
+            n_bins_resolved = 50
+    else:
+        n_bins_resolved = int(n_bins)
+
+    bin_edges = np.linspace(u_min, u_max, n_bins_resolved + 1)
 
     p_id, _ = np.histogram(u_id, bins=bin_edges)
     p_ood, _ = np.histogram(u_ood, bins=bin_edges)
 
-    p_id = p_id / np.sum(p_id) + 1e-10
-    p_ood = p_ood / np.sum(p_ood) + 1e-10
-    p_id = p_id / np.sum(p_id)
-    p_ood = p_ood / np.sum(p_ood)
+    # 1. Convert counts to probability distribution and add epsilon to avoid log(0)
+    p_id = (p_id / np.sum(p_id)) + 1e-10
+    p_ood = (p_ood / np.sum(p_ood)) + 1e-10
+
+    # 2. Re-normalize to ensure they sum to exactly 1.0 (strict requirement of scipy.jensenshannon)
+    p_id /= np.sum(p_id)
+    p_ood /= np.sum(p_ood)
 
     js_distance = jensenshannon(p_id, p_ood, base=2.0)
     return float(js_distance ** 2)
@@ -39,16 +66,29 @@ def calculate_mutual_information(uncertainty, y_true_binary, n_bins=50):
     if u_max - u_min < 1e-10:
         return 0.0 # Constant uncertainty carries 0 information
         
-    bin_edges = np.linspace(u_min, u_max, n_bins + 1)
-    # Map each uncertainty value to its bin index (1 to n_bins)
+    # Resolve bin count using Freedman-Diaconis rule if requested
+    if isinstance(n_bins, str) and n_bins.lower() in ["fd", "auto"]:
+        q75, q25 = np.percentile(uncertainty, [75, 25])
+        iqr = q75 - q25
+        if iqr > 1e-10 and n_total > 0:
+            bin_width = 2.0 * iqr / (n_total ** (1.0 / 3.0))
+            n_bins_resolved = int(np.ceil((u_max - u_min) / bin_width))
+            n_bins_resolved = int(np.clip(n_bins_resolved, 2, 200))
+        else:
+            n_bins_resolved = 50
+    else:
+        n_bins_resolved = int(n_bins)
+
+    bin_edges = np.linspace(u_min, u_max, n_bins_resolved + 1)
+    # Map each uncertainty value to its bin index (1 to n_bins_resolved)
     u_discrete = np.digitize(uncertainty, bin_edges) - 1
     # Clip boundaries
-    u_discrete = np.clip(u_discrete, 0, n_bins - 1)
+    u_discrete = np.clip(u_discrete, 0, n_bins_resolved - 1)
 
     # 2. Compute joint and marginal distributions
     joint_counts, _, _ = np.histogram2d(u_discrete, y_true_binary, 
-                                        bins=[n_bins, 2], 
-                                        range=[[0, n_bins], [0, 2]])
+                                        bins=[n_bins_resolved, 2], 
+                                        range=[[0, n_bins_resolved], [0, 2]])
     
     P_joint = joint_counts / n_total
     P_u = np.sum(P_joint, axis=1)
@@ -190,7 +230,8 @@ def calculate_aurc_exact(uncertainty, predictions, y_true, p_max=0.95, loss_type
     K_max = int(np.floor(p_max * n_samples))
     if K_max >= n_samples:
         K_max = n_samples - 1
-        
+
+    #Numerical Intergation step 
     aurc = np.sum(losses[:K_max]) / n_samples + losses[K_max] * (p_max - K_max / n_samples)
     return float(aurc)
 
@@ -209,3 +250,27 @@ def calculate_naurc(rejection_rates, rejection_curve, oracle_curve, random_curve
         return 0.0
     return float(np.clip((aurc_model - aurc_oracle) / denom, 0.0, 5.0))
 
+def calculate_roc_metrics(y_true_binary, uncertainty):
+    """
+    Computes both AUROC and FPR@95TPR in a single pass using a single call to roc_curve.
+    Returns:
+        auroc (float), fpr95 (float)
+    """
+    from sklearn.metrics import roc_curve, auc
+    fpr, tpr, _ = roc_curve(y_true_binary, uncertainty)
+    auroc = float(auc(fpr, tpr))
+    idx = np.argmax(tpr >= 0.95)
+    fpr95 = float(fpr[idx])
+    return auroc, fpr95
+
+
+def calculate_aupr(y_true_binary, uncertainty):
+    """
+    Computes the Area Under the Precision-Recall Curve (AUPR) using average_precision_score.
+    """
+    from sklearn.metrics import average_precision_score
+    y_true_binary = np.asarray(y_true_binary)
+    uncertainty = np.asarray(uncertainty)
+    if len(np.unique(y_true_binary)) < 2:
+        return np.nan
+    return float(average_precision_score(y_true_binary, uncertainty))

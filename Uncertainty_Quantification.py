@@ -16,7 +16,6 @@ from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import roc_auc_score
 from sklearn.linear_model import LogisticRegression
 from scipy.stats import spearmanr, friedmanchisquare, wilcoxon
 from Credal_Regression_UQ import CredalRegressionUQ
@@ -30,7 +29,9 @@ from metrics import (
     calculate_aurc,
     calculate_oracle_rejection_curve,
     calculate_random_rejection_curve,
-    calculate_aurc_exact
+    calculate_aurc_exact,
+    calculate_roc_metrics,
+    calculate_aupr
 )
 from Epistemic_Quantifier import EpistemicQuantifier
 
@@ -95,13 +96,16 @@ from synthetic_functions import (
 
 
 
-def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05, suffix="", use_density_scaling=False):
+def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05, suffix="", use_density_scaling=False, output_dir=None):
     """Save comprehensive summary to a .txt file and structured JSON."""
     import io
     import json
     from contextlib import redirect_stdout
 
-    out_dir = "results/density_scaling" if use_density_scaling else "results"
+    if output_dir:
+        out_dir = output_dir
+    else:
+        out_dir = "results/density_scaling" if use_density_scaling else "results"
     os.makedirs(out_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     file_suffix = f"_{suffix}" if suffix else ""
@@ -157,7 +161,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"COMPREHENSIVE STATISTICAL SUMMARY")
     print(f"{'='*80}\n")
 
-    metrics = ["auroc", "spearman", "brier", "mi", "jsd", "naurc"]
+    metrics = ["auroc", "fpr95", "aupr", "spearman", "brier", "mi", "jsd", "naurc"]
     dimensions = [("All Functions", results_all),
                   ("1D Functions", results_by_dim["1D"]),
                   ("2D Functions", results_by_dim["2D"]),
@@ -400,9 +404,10 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
     t6 = time.perf_counter()
     for app in approaches:
         u_e = uncertainties[app]
-        results[app] = {"auroc": None, "spearman": None, "brier": None, "mi": None, "jsd": None}
+        results[app] = {"auroc": None, "fpr95": None, "aupr": None, "spearman": None, "brier": None, "mi": None, "jsd": None, "naurc": None}
 
-        results[app]["auroc"] = roc_auc_score(y_true_binary, u_e)
+        results[app]["auroc"], results[app]["fpr95"] = calculate_roc_metrics(y_true_binary, u_e)
+        results[app]["aupr"] = calculate_aupr(y_true_binary, u_e)
         if np.any(gap_mask):
             if app in u_a_credal_dict and u_a_credal_dict[app] is not None:
                 spear_corr, _ = spearmanr(sq_error[gap_mask], (u_e + u_a_credal_dict[app])[gap_mask])
@@ -413,9 +418,18 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             results[app]["spearman"] = np.nan
 
         try:
-            lr = LogisticRegression(C=1.0)
-            lr.fit(u_e.reshape(-1, 1), y_true_binary)
-            p_calibrated = lr.predict_proba(u_e.reshape(-1, 1))[:, 1]
+            from sklearn.model_selection import StratifiedKFold
+            skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+            p_calibrated = np.zeros(len(u_e))
+            for train_idx, val_idx in skf.split(u_e, y_true_binary):
+                # 1D logistic calibration with C=1e10 (unregularized approximation, suppresses warnings)
+                lr = LogisticRegression(C=1e10)
+                X_train = u_e[train_idx].reshape(-1, 1)
+                y_train = y_true_binary[train_idx]
+                X_val = u_e[val_idx].reshape(-1, 1)
+                
+                lr.fit(X_train, y_train)
+                p_calibrated[val_idx] = lr.predict_proba(X_val)[:, 1]
         except Exception:
             u_min = np.min(u_e)
             u_max = np.max(u_e)
@@ -461,7 +475,7 @@ def print_results(results_dict, test_name):
     print(f"{test_name}")
     print(f"{'='*70}")
 
-    for metric in ["auroc", "spearman", "brier", "mi", "jsd", "naurc"]:
+    for metric in ["auroc", "fpr95", "spearman", "brier", "mi", "jsd", "naurc"]:
         print(f"\n--- {metric.upper()} ---")
         for app in results_dict:
             values = np.array([v for v in results_dict[app][metric] if not np.isnan(v)])
@@ -471,7 +485,7 @@ def print_results(results_dict, test_name):
 def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
     print(f"\n--- Statistical Validation (alpha = {alpha}) ---")
 
-    for metric in ["auroc", "spearman", "brier", "mi", "jsd", "naurc"]:
+    for metric in ["auroc", "fpr95", "spearman", "brier", "mi", "jsd", "naurc"]:
         print(f"\n{metric.upper()}:")
         
         # FIXED: Reshape and average across seeds to eliminate Pseudo-Replication bias
@@ -540,6 +554,7 @@ if __name__ == "__main__":
     parser.add_argument("--topological_decay_lambda", type=float, default=None, help="Decay parameter lambda for topological UQ distance. If None, topological UQ is disabled.")
     parser.add_argument("--n_jobs", type=int, default=-1, help="Number of CPU cores for RF training")
     parser.add_argument("--approaches", type=str, default="Standard,Proximity", help="Comma-separated list of approaches to run")
+    parser.add_argument("--output_dir", type=str, default=None, help="Custom directory path to save results")
     args = parser.parse_args()
 
     rf_config_arg = args.rf_config
@@ -556,6 +571,7 @@ if __name__ == "__main__":
     density_scaling_alpha_arg = args.density_scaling_alpha
     topological_decay_lambda_arg = args.topological_decay_lambda
     n_jobs_arg = args.n_jobs
+    output_dir_arg = args.output_dir
 
 
     if debug_timing_arg:
@@ -590,7 +606,7 @@ if __name__ == "__main__":
     print(f"  * Functions: {len(all_functions)} total (5 1D, 5 2D, 5 3D, 3 4D, 3 5D, 3 6D, 3 7D, 3 8D, 3 9D, 3 10D)")
     print(f"  * Runs: {n_runs} (total evaluations: {len(all_functions) * n_runs})")
     print(f"  * Approaches: {', '.join(approaches)}")
-    print(f"  * Metrics: AUROC, Spearman, Brier, MI, JSD")
+    print(f"  * Metrics: AUROC, FPR@95TPR, Spearman, Brier, MI, JSD")
     print(f"  * Statistical tests: Friedman + Bonferroni-corrected Wilcoxon (alpha={alpha})")
     
     # Detect active device for Proximity UQ
@@ -613,18 +629,18 @@ if __name__ == "__main__":
     print(f"{'#'*70}")
     print(f"Running {len(all_functions)} functions x {n_runs} seeds = {len(all_functions) * n_runs} evaluations (single pass)\n")
 
-    results_all = {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches}
+    results_all = {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches}
     results_by_dim = {
-        "1D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "2D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "3D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "4D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "5D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "6D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "7D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "8D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "9D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "10D": {app: {"auroc": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "1D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "2D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "3D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "4D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "5D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "6D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "7D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "8D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "9D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "10D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
     }
 
     global_timings = {
@@ -690,6 +706,8 @@ if __name__ == "__main__":
 
                 for app in approaches:
                     results_all[app]["auroc"].append(test_results[app]["auroc"])
+                    results_all[app]["fpr95"].append(test_results[app]["fpr95"])
+                    results_all[app]["aupr"].append(test_results[app]["aupr"])
                     results_all[app]["spearman"].append(test_results[app]["spearman"])
                     results_all[app]["brier"].append(test_results[app]["brier"])
                     results_all[app]["mi"].append(test_results[app]["mi"])
@@ -697,6 +715,8 @@ if __name__ == "__main__":
                     results_all[app]["naurc"].append(test_results[app]["naurc"])
 
                     results_by_dim[dim_key][app]["auroc"].append(test_results[app]["auroc"])
+                    results_by_dim[dim_key][app]["fpr95"].append(test_results[app]["fpr95"])
+                    results_by_dim[dim_key][app]["aupr"].append(test_results[app]["aupr"])
                     results_by_dim[dim_key][app]["spearman"].append(test_results[app]["spearman"])
                     results_by_dim[dim_key][app]["brier"].append(test_results[app]["brier"])
                     results_by_dim[dim_key][app]["mi"].append(test_results[app]["mi"])
@@ -820,7 +840,8 @@ if __name__ == "__main__":
         
     save_results_to_file(
         results_all, results_by_dim, approaches, n_runs, alpha=alpha,
-        suffix=suffix_str, use_density_scaling=use_density_scaling_arg
+        suffix=suffix_str, use_density_scaling=use_density_scaling_arg,
+        output_dir=output_dir_arg
     )
     sys.stdout.flush()
 
