@@ -109,12 +109,27 @@ class GPUProximityRegressionUQ:
         If running on CPU, returns a cache-friendly batch size to prevent memory thrashing.
         """
         if not self.using_gpu:
-            # For CPU, keep the memory footprint per batch around 50 million elements (~50 MB)
-            # to fit nicely within standard CPU L3 caches and prevent major page faults.
+            # Query available system RAM natively on Linux to avoid external dependencies
+            available_bytes = 4 * 1024 * 1024 * 1024  # Default fallback: 4GB
+            try:
+                with open("/proc/meminfo", "r") as f:
+                    for line in f:
+                        if "MemAvailable" in line:
+                            parts = line.split()
+                            available_bytes = int(parts[1]) * 1024
+                            break
+            except Exception:
+                pass
+
+            # Budget the smaller of:
+            # - 50MB (to keep intermediate arrays cache-friendly)
+            # - 1% of available system memory (for OOM safety on tight nodes)
+            target_bytes = min(50_000_000, int(available_bytes * 0.01))
+            
             total_elements = self.n_train * self.n_estimators
             if total_elements <= 0:
                 return 128
-            opt_batch = 50_000_000 // total_elements
+            opt_batch = target_bytes // total_elements
             return max(1, min(n_test, min(128, opt_batch)))
         
         try:
