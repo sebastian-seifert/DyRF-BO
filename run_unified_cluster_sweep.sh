@@ -21,12 +21,12 @@ fi
 set -e
 
 # Define parameters for the experimental grid
-RF_CONFIGS=(1 3 5)
-K_VALUES=(20 100 500)
-SPARSE_MULTIPLIERS=(5 15 50)
+RF_CONFIGS=(1 5)
+K_VALUES=(20 100)
+SPARSE_MULTIPLIERS=(5 50)
 SCALING_LAWS=("linear" "leaf")
 GAP_TYPES=("empty" "sparse")
-ALPHA_VALUES=(0.1 1.0 5.0)  # Sensitivity exponent grid for density scaling
+ALPHA_VALUES=(1.0 5.0)  # Sensitivity exponent grid for density scaling
 
 # Detect available CPU cores on node
 if [ -n "$SLURM_CPUS_ON_NODE" ]; then
@@ -130,7 +130,7 @@ for gap_type in "${GAP_TYPES[@]}"; do
                     
                     echo "[$job_id/$total_runs] Dispatching Baseline Sweep (GPU $gpu_id) - RF=$config, Gap=sparse, Law=$law, Multiplier=$mult"
                     
-                    args="--approaches $BASELINES --rf_config $config --gap_type sparse --sparse_multiplier $mult --scaling_law $law --n_runs 10 --n_jobs $CORES_PER_JOB --output_dir $SWEEP_DIR"
+                    args="--approaches $BASELINES --rf_config $config --gap_type sparse --sparse_multiplier $mult --scaling_law $law --n_runs 5 --n_jobs $CORES_PER_JOB --output_dir $SWEEP_DIR"
                     
                     ( CUDA_VISIBLE_DEVICES=$gpu_id $PYTHON_EXEC Uncertainty_Quantification.py $args > "$SWEEP_DIR/logs/run_${job_id}.log" 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check $SWEEP_DIR/logs/run_${job_id}.log)" ) &
                     
@@ -146,7 +146,7 @@ for gap_type in "${GAP_TYPES[@]}"; do
                             
                             echo "[$job_id/$total_runs] Dispatching Proximity Sweep (GPU $gpu_id) - RF=$config, K=$k, Alpha=$alpha, Gap=sparse, Law=$law, Multiplier=$mult"
                             
-                            args="--approaches $PROXIMITY_METHODS --rf_config $config --gap_type sparse --sparse_multiplier $mult --scaling_law $law --k_neighbors $k --density_scaling_alpha $alpha --n_runs 10 --n_jobs $CORES_PER_JOB --output_dir $SWEEP_DIR"
+                            args="--approaches $PROXIMITY_METHODS --rf_config $config --gap_type sparse --sparse_multiplier $mult --scaling_law $law --k_neighbors $k --density_scaling_alpha $alpha --n_runs 5 --n_jobs $CORES_PER_JOB --output_dir $SWEEP_DIR"
                             
                             ( CUDA_VISIBLE_DEVICES=$gpu_id $PYTHON_EXEC Uncertainty_Quantification.py $args > "$SWEEP_DIR/logs/run_${job_id}.log" 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check $SWEEP_DIR/logs/run_${job_id}.log)" ) &
                             
@@ -166,7 +166,7 @@ for gap_type in "${GAP_TYPES[@]}"; do
             
             echo "[$job_id/$total_runs] Dispatching Baseline Sweep (GPU $gpu_id) - RF=$config, Gap=empty"
             
-            args="--approaches $BASELINES --rf_config $config --gap_type empty --n_runs 10 --n_jobs $CORES_PER_JOB --output_dir $SWEEP_DIR"
+            args="--approaches $BASELINES --rf_config $config --gap_type empty --n_runs 5 --n_jobs $CORES_PER_JOB --output_dir $SWEEP_DIR"
             
             ( CUDA_VISIBLE_DEVICES=$gpu_id $PYTHON_EXEC Uncertainty_Quantification.py $args > "$SWEEP_DIR/logs/run_${job_id}.log" 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check $SWEEP_DIR/logs/run_${job_id}.log)" ) &
             
@@ -182,7 +182,7 @@ for gap_type in "${GAP_TYPES[@]}"; do
                     
                     echo "[$job_id/$total_runs] Dispatching Proximity Sweep (GPU $gpu_id) - RF=$config, K=$k, Alpha=$alpha, Gap=empty"
                     
-                    args="--approaches $PROXIMITY_METHODS --rf_config $config --gap_type empty --k_neighbors $k --density_scaling_alpha $alpha --n_runs 10 --n_jobs $CORES_PER_JOB --output_dir $SWEEP_DIR"
+                    args="--approaches $PROXIMITY_METHODS --rf_config $config --gap_type empty --k_neighbors $k --density_scaling_alpha $alpha --n_runs 5 --n_jobs $CORES_PER_JOB --output_dir $SWEEP_DIR"
                     
                     ( CUDA_VISIBLE_DEVICES=$gpu_id $PYTHON_EXEC Uncertainty_Quantification.py $args > "$SWEEP_DIR/logs/run_${job_id}.log" 2>&1 && echo "   ✓ [Job $job_id/$total_runs] Completed successfully" || echo "   ✗ [Job $job_id/$total_runs] FAILED (check $SWEEP_DIR/logs/run_${job_id}.log)" ) &
                     
