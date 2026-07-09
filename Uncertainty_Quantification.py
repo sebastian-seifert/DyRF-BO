@@ -19,7 +19,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
 from scipy.stats import spearmanr, friedmanchisquare, wilcoxon
 from Credal_Regression_UQ import CredalRegressionUQ
-from Proximity_Regression_UQ import ProximityRegressionUQ
 from GPU_Proximity_Regression_UQ import GPUProximityRegressionUQ
 from data_generator import generate_data
 from metrics import (
