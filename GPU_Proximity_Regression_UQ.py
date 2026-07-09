@@ -126,10 +126,10 @@ class GPUProximityRegressionUQ:
             # Query free VRAM in bytes
             free_mem, total_mem = cp.cuda.Device().mem_info
             
-            # Conservative estimate of memory consumed per query sample in bytes:
-            # Shape (1, n_train, n_estimators) of float32 (4 bytes) + bool match (1 byte)
-            # plus intermediate buffers. Let's budget 10 bytes per (n_train * n_estimators)
-            bytes_per_sample = 10 * self.n_train * self.n_estimators
+            # Dynamic memory footprint per test sample:
+            # Shape (batch_size, n_train) float32 (4 bytes) + bool comparison (1 byte)
+            # plus intermediate arithmetic buffers. Budget a safe 12 bytes per train sample.
+            bytes_per_sample = 12 * self.n_train
             
             if bytes_per_sample <= 0:
                 return 256
