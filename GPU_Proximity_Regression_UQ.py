@@ -17,9 +17,17 @@ if sys.stderr is not None:
 
 try:
     import cupy as cp
+    import cupyx
     HAS_CUPY = True
+    try:
+        HAS_GPU = cp.cuda.runtime.getDeviceCount() > 0
+    except Exception:
+        HAS_GPU = False
 except ImportError:
+    cp = None
+    cupyx = None
     HAS_CUPY = False
+    HAS_GPU = False
 
 class GPUProximityRegressionUQ:
     def __init__(self, model, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None):
@@ -58,38 +66,20 @@ class GPUProximityRegressionUQ:
 
     def _init_backend(self, device):
         """Initializes the backend (NumPy or CuPy) dynamically."""
-        global cp, HAS_CUPY
-        if not HAS_CUPY:
-            try:
-                import cupy as cp_loaded
-                cp = cp_loaded
-                HAS_CUPY = True
-            except ImportError:
-                pass
-
         device = device.lower()
         self.using_gpu = False
         
         if device in ("gpu", "cuda"):
-            if HAS_CUPY:
-                try:
-                    # Quick check to verify GPU visibility/accessibility
-                    device_count = cp.cuda.runtime.getDeviceCount()
-                    if device_count > 0:
-                        self.using_gpu = True
-                    else:
-                        warnings.warn("CuPy is installed but no GPUs were detected. Falling back to CPU.")
-                except Exception as e:
-                    warnings.warn(f"Failed to initialize CUDA device via CuPy: {e}. Falling back to CPU.")
+            if HAS_GPU:
+                self.using_gpu = True
             else:
-                warnings.warn("GPU backend requested but CuPy is not installed. Falling back to CPU.")
+                if HAS_CUPY:
+                    warnings.warn("CuPy is installed but no GPUs were detected. Falling back to CPU.", UserWarning)
+                else:
+                    warnings.warn("GPU backend requested but CuPy is not installed. Falling back to CPU.", UserWarning)
         elif device == "auto":
-            if HAS_CUPY:
-                try:
-                    if cp.cuda.runtime.getDeviceCount() > 0:
-                        self.using_gpu = True
-                except Exception:
-                    pass
+            if HAS_GPU:
+                self.using_gpu = True
         
         if self.using_gpu:
             self.xp = cp
@@ -196,7 +186,6 @@ class GPUProximityRegressionUQ:
         from sklearn.ensemble._forest import _generate_unsampled_indices, _generate_sample_indices
         
         if self.using_gpu:
-            import cupyx
             self.oob_residuals = cupyx.empty_pinned(self.y_train.shape, dtype=np.float32)
             self.oob_residuals[...] = self.y_train - self.oob_prediction_
             self.oob_indices = cupyx.zeros_pinned((self.n_train, self.n_estimators), dtype=np.int32)
@@ -380,7 +369,6 @@ class GPUProximityRegressionUQ:
         # Apply the trees to test points to get leaf IDs
         leaf_matrix_test = self.model.apply(X_test)
         if self.using_gpu:
-            import cupyx
             # Copy to pinned memory on host for fast host-to-device transfers
             leaf_matrix_test_pinned = cupyx.empty_pinned(leaf_matrix_test.shape, dtype=leaf_matrix_test.dtype)
             leaf_matrix_test_pinned[...] = leaf_matrix_test
