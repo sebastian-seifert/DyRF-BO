@@ -5,10 +5,25 @@ from scipy.special import logsumexp
 
 try:
     import cupy as cp
+    import cupyx
     from cupyx.scipy.special import logsumexp as cp_logsumexp
+    HAS_CUPY = True
+    try:
+        if cp.cuda.runtime.getDeviceCount() > 0:
+            smoke_test = cp.asarray([1.0])
+            smoke_test = smoke_test + 1.0
+            cp.cuda.Stream.null.synchronize()
+            HAS_GPU = bool(cp.asnumpy(smoke_test)[0] == 2.0)
+        else:
+            HAS_GPU = False
+    except Exception:
+        HAS_GPU = False
 except ImportError:
     cp = None
+    cupyx = None
     cp_logsumexp = None
+    HAS_CUPY = False
+    HAS_GPU = False
 
 class EpistemicQuantifier:
     def __init__(self, model, X_train, y_train):
@@ -240,6 +255,12 @@ class EpistemicQuantifier:
         total_entropy = np.zeros(n_samples)
         
         if backend == "gpu":
+            # Copy to pinned memory for fast DMA transfers
+            mu_all_pinned = cupyx.empty_pinned(mu_all.shape, dtype=np.float32)
+            sigmas_all_pinned = cupyx.empty_pinned(sigmas_all.shape, dtype=np.float32)
+            mu_all_pinned[...] = mu_all
+            sigmas_all_pinned[...] = sigmas_all
+
             cp.get_default_memory_pool().free_all_blocks()
             rng = self._mc_make_gpu_rng(random_state)
             
@@ -247,9 +268,9 @@ class EpistemicQuantifier:
                 end = min(start + batch_size, n_samples)
                 B = end - start
                 
-                # Move this batch of mu and sigma to the GPU in float32
-                mu_batch = cp.asarray(mu_all[start:end, :], dtype=cp.float32)
-                sigma_batch = cp.asarray(sigmas_all[start:end, :], dtype=cp.float32)
+                # Move this batch of mu and sigma to the GPU in float32 from pinned memory
+                mu_batch = cp.asarray(mu_all_pinned[start:end, :], dtype=cp.float32)
+                sigma_batch = cp.asarray(sigmas_all_pinned[start:end, :], dtype=cp.float32)
                 
                 # Sample tree components: shape (B, num_samples)
                 if hasattr(rng, "integers"):
@@ -334,32 +355,14 @@ class EpistemicQuantifier:
     # MONTE CARLO (MC) UTILITIES
     # ==========================================
     def _mc_is_cupy_available(self):
-        global cp, cp_logsumexp
-        if cp is None:
-            try:
-                import cupy as cp_loaded
-                from cupyx.scipy.special import logsumexp as cp_logsumexp_loaded
-                cp = cp_loaded
-                cp_logsumexp = cp_logsumexp_loaded
-            except ImportError:
-                return False
-        try:
-            if cp.cuda.runtime.getDeviceCount() == 0:
-                return False
-            smoke_test = cp.asarray([1.0])
-            smoke_test = smoke_test + 1.0
-            cp.cuda.Stream.null.synchronize()
-            return bool(cp.asnumpy(smoke_test)[0] == 2.0)
-        except Exception as exc:
-            print(f"CuPy/CUDA smoke test failed. Falling back to CPU Monte Carlo. ({exc})")
-            return False
+        return HAS_GPU
 
     def _mc_resolve_backend(self, backend):
         if backend not in {"auto", "cpu", "gpu"}:
             raise ValueError("backend must be one of: 'auto', 'cpu', 'gpu'")
         if backend == "auto":
-            return "gpu" if self._mc_is_cupy_available() else "cpu"
-        if backend == "gpu" and not self._mc_is_cupy_available():
+            return "gpu" if HAS_GPU else "cpu"
+        if backend == "gpu" and not HAS_GPU:
             print("CuPy/CUDA is not available. Falling back to CPU Monte Carlo.")
             return "cpu"
         return backend

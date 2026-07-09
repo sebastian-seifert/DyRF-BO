@@ -17,11 +17,19 @@ if sys.stderr is not None:
 from scipy.special import erf as np_erf, log_ndtr as np_log_ndtr
 try:
     import cupy as cp
+    import cupyx
     from cupyx.scipy.special import erf as cp_erf, log_ndtr as cp_log_ndtr
+    HAS_CUPY = True
+    try:
+        HAS_GPU = cp.cuda.runtime.getDeviceCount() > 0
+    except Exception:
+        HAS_GPU = False
 except ImportError:
     cp = None
     cp_erf = None
     cp_log_ndtr = None
+    HAS_CUPY = False
+    HAS_GPU = False
 
 class CredalRegressionUQ:
     def __init__(self, model, X_train, y_train):
@@ -92,27 +100,7 @@ class CredalRegressionUQ:
         X_test = np.atleast_2d(X_test)
         n_samples = X_test.shape[0]
         
-        # Try to dynamically import cupy if it was not available at module load time (e.g. mock during test discovery)
-        global cp, cp_erf, cp_log_ndtr
-        if cp is None:
-            try:
-                import cupy as cp_loaded
-                from cupyx.scipy.special import erf as cp_erf_loaded, log_ndtr as cp_log_ndtr_loaded
-                cp = cp_loaded
-                cp_erf = cp_erf_loaded
-                cp_log_ndtr = cp_log_ndtr_loaded
-            except ImportError:
-                pass
-
-        # Determine if GPU will be used
-        has_gpu_device = False
-        if cp is not None:
-            try:
-                has_gpu_device = cp.cuda.runtime.getDeviceCount() > 0
-            except Exception:
-                has_gpu_device = False
-
-        is_gpu = backend == "gpu" or (backend == "auto" and has_gpu_device)
+        is_gpu = backend == "gpu" or (backend == "auto" and HAS_GPU)
         resolved_backend = "gpu" if is_gpu else "cpu"
         
         if n_grid is None:
@@ -155,32 +143,21 @@ class CredalRegressionUQ:
         means, variances, counts = self._calc_leaf_stats(X_test)
         sigmas = np.sqrt(variances)
         
-        # Try to dynamically import cupy if it was not available at module load time (e.g. mock during test discovery)
-        global cp, cp_erf, cp_log_ndtr
-        if cp is None:
-            try:
-                import cupy as cp_loaded
-                from cupyx.scipy.special import erf as cp_erf_loaded, log_ndtr as cp_log_ndtr_loaded
-                cp = cp_loaded
-                cp_erf = cp_erf_loaded
-                cp_log_ndtr = cp_log_ndtr_loaded
-            except ImportError:
-                pass
-
-        # 2. Determine and configure backend
-        has_gpu_device = False
-        if cp is not None:
-            try:
-                has_gpu_device = cp.cuda.runtime.getDeviceCount() > 0
-            except Exception:
-                has_gpu_device = False
-
+        is_gpu = backend == "gpu" or (backend == "auto" and HAS_GPU)
         xp = np
-        if backend == "gpu" or (backend == "auto" and has_gpu_device):
+        if is_gpu:
             xp = cp
-            means_g = cp.asarray(means)
-            sigmas_g = cp.asarray(sigmas)
-            counts_g = cp.asarray(counts)
+            # Copy to pinned memory for fast DMA transfers
+            means_pinned = cupyx.empty_pinned(means.shape, dtype=means.dtype)
+            sigmas_pinned = cupyx.empty_pinned(sigmas.shape, dtype=sigmas.dtype)
+            counts_pinned = cupyx.empty_pinned(counts.shape, dtype=counts.dtype)
+            means_pinned[...] = means
+            sigmas_pinned[...] = sigmas
+            counts_pinned[...] = counts
+            
+            means_g = cp.asarray(means_pinned)
+            sigmas_g = cp.asarray(sigmas_pinned)
+            counts_g = cp.asarray(counts_pinned)
         else:
             means_g = means
             sigmas_g = sigmas
