@@ -69,7 +69,7 @@ class TestAleatoricEvaluation(unittest.TestCase):
     def test_bash_script_execution(self):
         import subprocess
         # Run the bash script to make sure it executes without syntax/runtime error
-        res = subprocess.run(["bash", "run_aleatoric_evaluation.sh"], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        res = subprocess.run(["bash", "run_aleatoric_evaluation.sh", "--quick"], capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.assertEqual(res.returncode, 0, f"Bash script failed with output: {res.stderr}\nStdout: {res.stdout}")
 
 def generate_heteroscedastic_data(func, x_range, ndim, n_samples, seed):

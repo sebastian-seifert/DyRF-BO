@@ -3,12 +3,17 @@ import scipy.stats
 from sklearn.ensemble import RandomForestRegressor
 from Epistemic_Quantifier import EpistemicQuantifier
 from Credal_Regression_UQ import CredalRegressionUQ
+from synthetic_functions import (
+    get_1d_functions, get_2d_functions, get_3d_functions, get_4d_functions,
+    get_5d_functions, get_6d_functions, get_7d_functions, get_8d_functions,
+    get_9d_functions, get_10d_functions
+)
 import sys
 import os
+import argparse
 
 def compute_nll(y_true, y_pred, variance):
     """Computes Gaussian Negative Log-Likelihood."""
-    # Clip variance to prevent division by zero or negative logs
     var_clipped = np.clip(variance, 1e-6, None)
     nll_elements = 0.5 * np.log(2.0 * np.pi * var_clipped) + ((y_true - y_pred) ** 2) / (2.0 * var_clipped)
     return float(np.mean(nll_elements))
@@ -16,8 +21,9 @@ def compute_nll(y_true, y_pred, variance):
 def generate_heteroscedastic_data(func, x_range, ndim, n_samples, seed):
     """Generates synthetic data with input-dependent heteroscedastic Gaussian noise."""
     rng = np.random.default_rng(seed)
+    # Generate coordinates uniformly in the box range
     X = rng.uniform(x_range[0], x_range[1], size=(n_samples, ndim))
-    # input-dependent true noise level
+    # input-dependent true noise level (heteroscedasticity based on first coordinate)
     sigma_true = 0.05 + 0.25 * (np.sin(X[:, 0]) ** 2)
     
     # Calculate true labels
@@ -92,49 +98,71 @@ def evaluate_aleatoric_quality(X_train, y_train, X_test, y_test, sigma_test_true
     return results
 
 def main():
-    # Define a 2D and a 3D function to evaluate
-    func_dict = {
-        "sin_cos_2d": {
-            "func": lambda x, y: np.sin(x) * np.cos(y),
-            "range": [0.0, 10.0],
-            "ndim": 2
-        },
-        "sin_cos_sin_3d": {
-            "func": lambda x, y, z: np.sin(x) * np.cos(y) * np.sin(z),
-            "range": [0.0, 10.0],
-            "ndim": 3
-        }
-    }
+    parser = argparse.ArgumentParser(description="Evaluate Aleatoric Uncertainty Estimation Quality")
+    parser.add_argument("--quick", action="store_true", help="Run a quick version for test validation")
+    parser.add_argument("--n_runs", type=int, default=5, help="Number of random seeds/runs to evaluate")
+    parser.add_argument("--dims", type=str, default="1,2,3,4,5,6,7,8,9,10", help="Comma-separated list of dimensions to run")
+    args = parser.parse_args()
     
-    n_runs = 5
-    n_samples_train = 2000
-    n_samples_test = 1000
+    # Resolve parameters
+    if args.quick:
+        n_runs = 1
+        n_samples_train = 200
+        n_samples_test = 100
+        target_dims = [1, 2]
+    else:
+        n_runs = args.n_runs
+        n_samples_train = 2000
+        n_samples_test = 1000
+        target_dims = [int(x) for x in args.dims.split(",")]
+        
+    # Gather representative functions from synthetic_functions
+    getters = [
+        get_1d_functions, get_2d_functions, get_3d_functions, get_4d_functions,
+        get_5d_functions, get_6d_functions, get_7d_functions, get_8d_functions,
+        get_9d_functions, get_10d_functions
+    ]
     
+    func_dict = {}
+    for d, getter in enumerate(getters, start=1):
+        if d in target_dims:
+            funcs = getter()
+            first_key = list(funcs.keys())[0]
+            func_dict[d] = {
+                "name": first_key,
+                "func": funcs[first_key]["func"],
+                "range": funcs[first_key]["range"]
+            }
+            
     print("=" * 80)
     print("ALEATORIC UNCERTAINTY ESTIMATION QUALITY EVALUATION")
     print(f"Data settings: Heteroscedastic noise sigma(x) = 0.05 + 0.25 * sin^2(x_1)")
-    print(f"Evaluations over {n_runs} runs per function")
+    print(f"Evaluations over {n_runs} runs per dimensionality function")
+    print(f"Active dimensions: {target_dims}")
     print("=" * 80)
     
     all_results = {}
     
-    for name, info in func_dict.items():
-        print(f"\nEvaluating function: {name} ({info['ndim']}D)...")
+    for dim, info in sorted(func_dict.items()):
+        func_name = info["name"]
+        print(f"\nEvaluating dimension {dim}D: Function={func_name}...")
         func_obj = info["func"]
         x_range = info["range"]
-        ndim = info["ndim"]
         
         run_results = {"Standard": [], "Shaker": []}
         
         for seed in range(n_runs):
-            X_train, y_train, _ = generate_heteroscedastic_data(func_obj, x_range, ndim, n_samples_train, seed)
-            X_test, y_test, sigma_test_true = generate_heteroscedastic_data(func_obj, x_range, ndim, n_samples_test, seed + 1000)
+            X_train, y_train, _ = generate_heteroscedastic_data(func_obj, x_range, dim, n_samples_train, seed)
+            X_test, y_test, sigma_test_true = generate_heteroscedastic_data(func_obj, x_range, dim, n_samples_test, seed + 1000)
             
             res = evaluate_aleatoric_quality(X_train, y_train, X_test, y_test, sigma_test_true, seed)
             for app in ["Standard", "Shaker"]:
                 run_results[app].append(res[app])
                 
-        all_results[name] = run_results
+        all_results[dim] = {
+            "name": func_name,
+            "runs": run_results
+        }
         
         # Display averaged results
         for app in ["Standard", "Shaker"]:
@@ -162,8 +190,11 @@ def main():
         f.write("This report evaluates the accuracy of aleatoric uncertainty estimations under input-dependent heteroscedastic noise:\n")
         f.write("$$\\sigma_{\\text{true}}(x) = 0.05 + 0.25 \\cdot \\sin^2(x_1)$$\n\n")
         
-        for name, run_results in all_results.items():
-            f.write(f"## Dataset / Function: {name}\n\n")
+        for dim, res_info in sorted(all_results.items()):
+            func_name = res_info["name"]
+            run_results = res_info["runs"]
+            
+            f.write(f"## {dim}D Function: {func_name}\n\n")
             f.write("| Approach | Pearson (True Var) | Spearman (True Var) | Pearson (Sq Res) | Spearman (Sq Res) | MSE (True Var) | MAE (True Var) | Gaussian NLL |\n")
             f.write("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n")
             for app in ["Standard", "Shaker"]:

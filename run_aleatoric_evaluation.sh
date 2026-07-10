@@ -21,7 +21,7 @@ echo "RUNNING ALEATORIC UNCERTAINTY QUALITY EVALUATION"
 echo "Using python executable: $PYTHON_EXEC"
 echo "=================================================="
 
-$PYTHON_EXEC evaluate_aleatoric.py
+$PYTHON_EXEC evaluate_aleatoric.py "$@"
 
 echo "=================================================="
 echo "EVALUATION COMPLETED SUCCESSFULLY!"
