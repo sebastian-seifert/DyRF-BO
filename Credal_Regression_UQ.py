@@ -175,6 +175,9 @@ class CredalRegressionUQ:
         is_gpu = backend == "gpu" or (backend == "auto" and HAS_GPU)
         xp = np
         if is_gpu:
+            import cupy as cp
+            import cupyx
+            from cupyx.scipy.special import erf as cp_erf, log_ndtr as cp_log_ndtr
             xp = cp
             # Copy to pinned memory for fast DMA transfers
             means_pinned = cupyx.empty_pinned(means.shape, dtype=means.dtype)

@@ -264,7 +264,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant")
     print(f"{'='*80}\n")
 
-def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None, n_jobs=-1):
+def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None, n_jobs=-1, ood_type='hypercube'):
     # Determine standard Random Forest hyperparameters based on config selection to pass min_leaf to generate_data
     if rf_config == 1:
         n_est, min_leaf = 100, 5
@@ -287,7 +287,7 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
     t0 = time.perf_counter()
     X_train, y_train, X_test, y_test, y_true_binary = generate_data(
         func_dict, func_name, seed, gap_type=gap_type, sparse_multiplier=sparse_multiplier,
-        scaling_law=scaling_law, min_samples_leaf=min_leaf
+        scaling_law=scaling_law, min_samples_leaf=min_leaf, ood_type=ood_type
     )
     t1 = time.perf_counter()
     if debug_timing:
@@ -554,6 +554,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_jobs", type=int, default=-1, help="Number of CPU cores for RF training")
     parser.add_argument("--approaches", type=str, default="Standard,Proximity", help="Comma-separated list of approaches to run")
     parser.add_argument("--output_dir", type=str, default=None, help="Custom directory path to save results")
+    parser.add_argument("--ood_type", type=str, default="hypercube", choices=["hypercube", "manifold"], help="OOD generation type")
     args = parser.parse_args()
 
     rf_config_arg = args.rf_config
@@ -571,6 +572,7 @@ if __name__ == "__main__":
     topological_decay_lambda_arg = args.topological_decay_lambda
     n_jobs_arg = args.n_jobs
     output_dir_arg = args.output_dir
+    ood_type_arg = args.ood_type
 
 
     if debug_timing_arg:
@@ -669,7 +671,7 @@ if __name__ == "__main__":
                     use_density_scaling=use_density_scaling_arg,
                     density_scaling_alpha=density_scaling_alpha_arg,
                     topological_decay_lambda=topological_decay_lambda_arg,
-                    n_jobs=n_jobs_arg
+                    n_jobs=n_jobs_arg, ood_type=ood_type_arg
                 )
                 
                 # Accumulate timings
@@ -832,6 +834,8 @@ if __name__ == "__main__":
     
     # Executing file generator to dump everything into a clean timestamped report txt file
     suffix_str = f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}_m{sparse_multiplier_arg}_{scaling_law_arg}"
+    if ood_type_arg != "hypercube":
+        suffix_str += f"_{ood_type_arg}"
     if topological_decay_lambda_arg is not None:
         suffix_str += f"_lambda{topological_decay_lambda_arg}"
     if use_density_scaling_arg:

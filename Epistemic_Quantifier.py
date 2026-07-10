@@ -265,6 +265,8 @@ class EpistemicQuantifier:
         total_entropy = np.zeros(n_samples)
         
         if backend == "gpu":
+            import cupy as cp
+            import cupyx
             if debug_timing:
                 t_prep_start = time.time()
             # Copy to pinned memory for fast DMA transfers

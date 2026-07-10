@@ -97,6 +97,7 @@ class MockCuPyModule:
         self.cupyx.scipy.special.logsumexp = scipy.special.logsumexp
         self.cupyx.scipy.special.erf = scipy.special.erf
         self.cupyx.scipy.special.log_ndtr = scipy.special.log_ndtr
+        self.cupyx.empty_pinned = lambda shape, dtype=None, order='C': np.empty(shape, dtype=dtype, order=order)
 
 # Register the mock cupy/cupyx packages in sys.modules
 mock_cp = MockCuPyModule()

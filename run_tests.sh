@@ -23,8 +23,12 @@ echo ">> [1/2] Running Vectorized GPU/CPU Parity Test..."
 $PYTHON_EXEC tests/verify_gpu_proximity.py
 
 echo ""
-echo ">> [2/2] Running 1D End-to-End Smoke Test..."
+echo ">> [2/3] Running 1D End-to-End Smoke Test..."
 $PYTHON_EXEC tests/smoke_test.py
+
+echo ""
+echo ">> [3/3] Running All Unit Tests..."
+$PYTHON_EXEC -m unittest discover -s tests -p "test_*.py"
 
 echo ""
 echo "=================================================="
