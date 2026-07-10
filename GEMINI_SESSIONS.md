@@ -19,3 +19,8 @@
    * Appended the `--debug_timing` flag to all runner scripts in `run_unified_cluster_sweep.sh` to automatically log timing profiles during sweeps.
 5. **Validation**:
    * Executed the UQ benchmark tests via `bash run_tests.sh` confirming 100% CPU-GPU parity and correct execution.
+6. **Manifold OOD Generation**:
+   * Implemented codimension-1 manifold OOD generation (where the manifold has dimension $d = D - 1$) in `data_generator.py` and `Uncertainty_Quantification.py`.
+   * Generated ID training/test sets lying on the manifold curve/surface (graph of a sum of sinusoids) and OOD test points by translating manifold points along unit normal vectors by orthogonal distance $\lambda$.
+   * Created new unit test suite `tests/test_manifold_ood.py` and updated `run_tests.sh` to include discover-based test runs, confirming successful parity and geometric validity.
+
