@@ -23,4 +23,10 @@
    * Implemented codimension-1 manifold OOD generation (where the manifold has dimension $d = D - 1$) in `data_generator.py` and `Uncertainty_Quantification.py`.
    * Generated ID training/test sets lying on the manifold curve/surface (graph of a sum of sinusoids) and OOD test points by translating manifold points along unit normal vectors by orthogonal distance $\lambda$.
    * Created new unit test suite `tests/test_manifold_ood.py` and updated `run_tests.sh` to include discover-based test runs, confirming successful parity and geometric validity.
+7. **Aleatoric Uncertainty Quality Evaluation**:
+   * Developed a dedicated evaluation driver in `evaluate_aleatoric.py` to assess standard vs. Shaker/Credal aleatoric uncertainty estimation accuracy under heteroscedastic noise: $\sigma_{\text{true}}(x) = 0.05 + 0.25 \cdot \sin^2(x_1)$.
+   * Evaluates metrics including Pearson/Spearman correlations with true variance and squared residuals, MSE/MAE, and Gaussian Negative Log-Likelihood (NLL).
+   * Automatically queries first representative functions across all dimensions from $1\text{D}$ to $10\text{D}$ using imports from `synthetic_functions.py`.
+   * Added `run_aleatoric_evaluation.sh` for cluster dispatches, adding support for a `--quick` flag to run fast TDD unit test runs in `tests/test_aleatoric_evaluation.py`.
+
 
