@@ -1,4 +1,11 @@
 #!/bin/bash
+#SBATCH --job-name=dyrf_uq_sweep
+#SBATCH --output=sweep_%j.log
+#SBATCH --gres=a100:4
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=64G
+#SBATCH --time=12:00:00
+
 
 # Initialize Conda and activate environment
 eval "$(conda shell.bash hook)"

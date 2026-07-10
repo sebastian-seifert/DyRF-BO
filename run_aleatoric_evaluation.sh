@@ -1,4 +1,11 @@
 #!/bin/bash
+#SBATCH --job-name=aleatoric_eval
+#SBATCH --output=aleatoric_%j.log
+#SBATCH --gres=a100:1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=12:00:00
+
 # Dedicated script to evaluate the quality of aleatoric uncertainty estimations
 
 # Initialize Conda and activate environment
