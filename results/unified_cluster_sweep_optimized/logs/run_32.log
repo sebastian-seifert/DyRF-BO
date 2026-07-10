@@ -1,0 +1,2177 @@
+
+======================================================================
+EPISTEMIC UNCERTAINTY QUANTIFICATION - COMPREHENSIVE TEST SUITE
+Started: 2026-07-09 23:43:49
+Config: RF Config=5, K Neighbors=20, Gap Type=sparse, Multiplier=5, Scaling Law=linear, Runs=5, Topological Decay Lambda=None
+======================================================================
+
+[SETUP SUMMARY]
+  * Functions: 36 total (5 1D, 5 2D, 5 3D, 3 4D, 3 5D, 3 6D, 3 7D, 3 8D, 3 9D, 3 10D)
+  * Runs: 5 (total evaluations: 180)
+  * Approaches: Proximity_Baseline, Proximity_Method_A, Proximity_Method_B, Proximity_Method_C, Proximity_Method_B_C
+  * Metrics: AUROC, FPR@95TPR, Spearman, Brier, MI, JSD
+  * Statistical tests: Friedman + Bonferroni-corrected Wilcoxon (alpha=0.05)
+  * Proximity Device: GPU (CuPy)
+
+
+######################################################################
+# UNIFIED TEST: All Functions (aggregated by dimension)
+######################################################################
+Running 36 functions x 5 seeds = 180 evaluations (single pass)
+
+[RUN 1/5]  [OK] (924.5s, ETA: 61m remaining)
+[RUN 2/5]  [OK] (672.6s, ETA: 33m remaining)
+[RUN 3/5]  [OK] (1173.7s, ETA: 39m remaining)
+[RUN 4/5]  [OK] (1172.1s, ETA: 19m remaining)
+[RUN 5/5]  [OK] (1170.2s, ETA: 0m remaining)
+
+[SUCCESS] Unified test completed in 85.2 minutes
+
+
+######################################################################
+# TEST 1: ALL FUNCTIONS TOGETHER
+######################################################################
+
+======================================================================
+ALL FUNCTIONS (36 x 5 = 180 tests)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.4652, Std = 0.2143
+Proximity_Method_A: Mean = 0.4665, Std = 0.2134
+Proximity_Method_B: Mean = 0.4213, Std = 0.2712
+Proximity_Method_C: Mean = 0.4671, Std = 0.2208
+Proximity_Method_B_C: Mean = 0.4317, Std = 0.2717
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.8355, Std = 0.2332
+Proximity_Method_A: Mean = 0.8359, Std = 0.2351
+Proximity_Method_B: Mean = 0.7776, Std = 0.2707
+Proximity_Method_C: Mean = 0.8308, Std = 0.2457
+Proximity_Method_B_C: Mean = 0.7691, Std = 0.2811
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = 0.0924, Std = 0.2527
+Proximity_Method_A: Mean = 0.0875, Std = 0.2522
+Proximity_Method_B: Mean = 0.1579, Std = 0.2853
+Proximity_Method_C: Mean = 0.0951, Std = 0.2521
+Proximity_Method_B_C: Mean = 0.1083, Std = 0.2855
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.2449, Std = 0.0637
+Proximity_Method_A: Mean = 0.2451, Std = 0.0641
+Proximity_Method_B: Mean = 0.2155, Std = 0.0782
+Proximity_Method_C: Mean = 0.2423, Std = 0.0672
+Proximity_Method_B_C: Mean = 0.2154, Std = 0.0800
+
+--- MI ---
+Proximity_Baseline: Mean = 0.2798, Std = 0.2436
+Proximity_Method_A: Mean = 0.2811, Std = 0.2482
+Proximity_Method_B: Mean = 0.4018, Std = 0.2378
+Proximity_Method_C: Mean = 0.2727, Std = 0.2386
+Proximity_Method_B_C: Mean = 0.3849, Std = 0.2409
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.2968, Std = 0.2509
+Proximity_Method_A: Mean = 0.2981, Std = 0.2552
+Proximity_Method_B: Mean = 0.4304, Std = 0.2427
+Proximity_Method_C: Mean = 0.2895, Std = 0.2448
+Proximity_Method_B_C: Mean = 0.4115, Std = 0.2445
+
+--- NAURC ---
+Proximity_Baseline: Mean = 0.7465, Std = 0.3048
+Proximity_Method_A: Mean = 0.7477, Std = 0.3068
+Proximity_Method_B: Mean = 0.6842, Std = 0.3176
+Proximity_Method_C: Mean = 0.7438, Std = 0.3084
+Proximity_Method_B_C: Mean = 0.6961, Std = 0.3147
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 2.8222, p = 5.8800e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+FPR95:
+  Friedman Test: chi2 = 22.7778, p = 1.4025e-04
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 7.5033e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 3.6922e-03 ([SIG])
+    Proximity_Baseline vs Proximity_Method_C: p = 7.8336e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 1.6348e-03 ([SIG])
+    Proximity_Method_A vs Proximity_Method_B: p = 3.9024e-03 ([SIG])
+    Proximity_Method_A vs Proximity_Method_C: p = 7.5336e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 1.8452e-03 ([SIG])
+    Proximity_Method_B vs Proximity_Method_C: p = 6.6575e-03 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 1.8141e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 7.0094e-03 ([NS])
+
+SPEARMAN:
+  Friedman Test: chi2 = 21.4444, p = 2.5847e-04
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 4.4136e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 6.6877e-04 ([SIG])
+    Proximity_Baseline vs Proximity_Method_C: p = 3.9295e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 1.6004e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 1.1676e-04 ([SIG])
+    Proximity_Method_A vs Proximity_Method_C: p = 3.9637e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 1.4592e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 1.8452e-03 ([SIG])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 9.1966e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 4.7779e-02 ([NS])
+
+BRIER:
+  Friedman Test: chi2 = 28.7111, p = 8.9480e-06
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 1.0109e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 7.6381e-04 ([SIG])
+    Proximity_Baseline vs Proximity_Method_C: p = 1.0448e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.1586e-04 ([SIG])
+    Proximity_Method_A vs Proximity_Method_B: p = 4.1404e-04 ([SIG])
+    Proximity_Method_A vs Proximity_Method_C: p = 1.1520e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5036e-04 ([SIG])
+    Proximity_Method_B vs Proximity_Method_C: p = 6.2536e-04 ([SIG])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 9.0736e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 4.1404e-04 ([SIG])
+
+MI:
+  Friedman Test: chi2 = 47.5778, p = 1.1558e-09
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 9.9381e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.2973e-06 ([SIG])
+    Proximity_Baseline vs Proximity_Method_C: p = 7.1754e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 4.7211e-05 ([SIG])
+    Proximity_Method_A vs Proximity_Method_B: p = 5.4222e-06 ([SIG])
+    Proximity_Method_A vs Proximity_Method_C: p = 1.3899e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 9.9569e-05 ([SIG])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.0540e-06 ([SIG])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 2.2878e-02 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.8647e-06 ([SIG])
+
+JSD:
+  Friedman Test: chi2 = 48.0444, p = 9.2386e-10
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 9.1966e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 8.0437e-07 ([SIG])
+    Proximity_Baseline vs Proximity_Method_C: p = 7.9736e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.1233e-05 ([SIG])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.2973e-06 ([SIG])
+    Proximity_Method_A vs Proximity_Method_C: p = 1.3477e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 4.7211e-05 ([SIG])
+    Proximity_Method_B vs Proximity_Method_C: p = 5.5420e-07 ([SIG])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 1.4592e-02 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 1.6364e-06 ([SIG])
+
+NAURC:
+  Friedman Test: chi2 = 47.6889, p = 1.0958e-09
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 2.0301e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 6.0106e-06 ([SIG])
+    Proximity_Baseline vs Proximity_Method_C: p = 2.3891e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 1.8572e-04 ([SIG])
+    Proximity_Method_A vs Proximity_Method_B: p = 6.6567e-06 ([SIG])
+    Proximity_Method_A vs Proximity_Method_C: p = 9.7796e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 3.1153e-04 ([SIG])
+    Proximity_Method_B vs Proximity_Method_C: p = 1.9360e-05 ([SIG])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 4.4221e-02 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 5.4607e-04 ([SIG])
+
+
+######################################################################
+# TEST 2: BY DIMENSION
+######################################################################
+
+
+[DIMENSION] 1D Functions
+----------------------------------------------------------------------
+
+======================================================================
+1D Functions (runs = 5)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.7993, Std = 0.1971
+Proximity_Method_A: Mean = 0.8028, Std = 0.1959
+Proximity_Method_B: Mean = 0.8391, Std = 0.1679
+Proximity_Method_C: Mean = 0.8268, Std = 0.1853
+Proximity_Method_B_C: Mean = 0.8465, Std = 0.1530
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.4495, Std = 0.3470
+Proximity_Method_A: Mean = 0.4486, Std = 0.3540
+Proximity_Method_B: Mean = 0.3391, Std = 0.3063
+Proximity_Method_C: Mean = 0.4000, Std = 0.3543
+Proximity_Method_B_C: Mean = 0.3181, Std = 0.3225
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = 0.1953, Std = 0.3820
+Proximity_Method_A: Mean = 0.1497, Std = 0.3879
+Proximity_Method_B: Mean = 0.3638, Std = 0.3420
+Proximity_Method_C: Mean = 0.2098, Std = 0.3730
+Proximity_Method_B_C: Mean = 0.0193, Std = 0.3663
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.1530, Std = 0.1034
+Proximity_Method_A: Mean = 0.1495, Std = 0.1039
+Proximity_Method_B: Mean = 0.1410, Std = 0.1106
+Proximity_Method_C: Mean = 0.1417, Std = 0.1088
+Proximity_Method_B_C: Mean = 0.1348, Std = 0.1075
+
+--- MI ---
+Proximity_Baseline: Mean = 0.7687, Std = 0.1329
+Proximity_Method_A: Mean = 0.7839, Std = 0.1350
+Proximity_Method_B: Mean = 0.7632, Std = 0.1178
+Proximity_Method_C: Mean = 0.7541, Std = 0.1539
+Proximity_Method_B_C: Mean = 0.7539, Std = 0.1438
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.8000, Std = 0.1183
+Proximity_Method_A: Mean = 0.8140, Std = 0.1181
+Proximity_Method_B: Mean = 0.7980, Std = 0.1070
+Proximity_Method_C: Mean = 0.7831, Std = 0.1387
+Proximity_Method_B_C: Mean = 0.7845, Std = 0.1322
+
+--- NAURC ---
+Proximity_Baseline: Mean = 0.4114, Std = 0.3065
+Proximity_Method_A: Mean = 0.4174, Std = 0.3261
+Proximity_Method_B: Mean = 0.3456, Std = 0.2602
+Proximity_Method_C: Mean = 0.3791, Std = 0.2838
+Proximity_Method_B_C: Mean = 0.3744, Std = 0.2144
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 5.9200, p = 2.0520e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+FPR95:
+  Friedman Test: chi2 = 8.8000, p = 6.6298e-02
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+SPEARMAN:
+  Friedman Test: chi2 = 2.5600, p = 6.3393e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+BRIER:
+  Friedman Test: chi2 = 6.2400, p = 1.8193e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+MI:
+  Friedman Test: chi2 = 3.6800, p = 4.5104e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+JSD:
+  Friedman Test: chi2 = 4.4800, p = 3.4493e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+NAURC:
+  Friedman Test: chi2 = 4.3200, p = 3.6443e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+[DIMENSION] 2D Functions
+----------------------------------------------------------------------
+
+======================================================================
+2D Functions (runs = 5)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.5518, Std = 0.1754
+Proximity_Method_A: Mean = 0.5501, Std = 0.1775
+Proximity_Method_B: Mean = 0.5796, Std = 0.2369
+Proximity_Method_C: Mean = 0.5720, Std = 0.1636
+Proximity_Method_B_C: Mean = 0.6235, Std = 0.2004
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.8208, Std = 0.1569
+Proximity_Method_A: Mean = 0.8264, Std = 0.1613
+Proximity_Method_B: Mean = 0.5997, Std = 0.2482
+Proximity_Method_C: Mean = 0.8195, Std = 0.1584
+Proximity_Method_B_C: Mean = 0.5672, Std = 0.2346
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = 0.0410, Std = 0.1265
+Proximity_Method_A: Mean = 0.0415, Std = 0.1331
+Proximity_Method_B: Mean = 0.1707, Std = 0.2872
+Proximity_Method_C: Mean = 0.0306, Std = 0.1317
+Proximity_Method_B_C: Mean = 0.1508, Std = 0.3066
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.2644, Std = 0.0416
+Proximity_Method_A: Mean = 0.2640, Std = 0.0413
+Proximity_Method_B: Mean = 0.2418, Std = 0.0407
+Proximity_Method_C: Mean = 0.2649, Std = 0.0397
+Proximity_Method_B_C: Mean = 0.2455, Std = 0.0400
+
+--- MI ---
+Proximity_Baseline: Mean = 0.2965, Std = 0.1341
+Proximity_Method_A: Mean = 0.2998, Std = 0.1353
+Proximity_Method_B: Mean = 0.4628, Std = 0.1362
+Proximity_Method_C: Mean = 0.2810, Std = 0.1221
+Proximity_Method_B_C: Mean = 0.4302, Std = 0.1505
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.3177, Std = 0.1393
+Proximity_Method_A: Mean = 0.3212, Std = 0.1414
+Proximity_Method_B: Mean = 0.4976, Std = 0.1395
+Proximity_Method_C: Mean = 0.3034, Std = 0.1282
+Proximity_Method_B_C: Mean = 0.4630, Std = 0.1534
+
+--- NAURC ---
+Proximity_Baseline: Mean = 0.8497, Std = 0.1481
+Proximity_Method_A: Mean = 0.8503, Std = 0.1495
+Proximity_Method_B: Mean = 0.7065, Std = 0.2491
+Proximity_Method_C: Mean = 0.8534, Std = 0.1416
+Proximity_Method_B_C: Mean = 0.7236, Std = 0.2384
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 3.6800, p = 4.5104e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+FPR95:
+  Friedman Test: chi2 = 16.1600, p = 2.8118e-03
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 3.1250e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 6.2500e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 6.2500e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 3.1250e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+
+SPEARMAN:
+  Friedman Test: chi2 = 1.1200, p = 8.9109e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+BRIER:
+  Friedman Test: chi2 = 6.8800, p = 1.4237e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+MI:
+  Friedman Test: chi2 = 16.4800, p = 2.4383e-03
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 6.2500e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 3.1250e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 3.1250e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+
+JSD:
+  Friedman Test: chi2 = 16.4800, p = 2.4383e-03
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 6.2500e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 3.1250e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 3.1250e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+
+NAURC:
+  Friedman Test: chi2 = 6.5600, p = 1.6105e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+[DIMENSION] 3D Functions
+----------------------------------------------------------------------
+
+======================================================================
+3D Functions (runs = 5)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.4733, Std = 0.1358
+Proximity_Method_A: Mean = 0.4704, Std = 0.1318
+Proximity_Method_B: Mean = 0.4405, Std = 0.1939
+Proximity_Method_C: Mean = 0.4807, Std = 0.1343
+Proximity_Method_B_C: Mean = 0.4727, Std = 0.1863
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.8870, Std = 0.0875
+Proximity_Method_A: Mean = 0.8891, Std = 0.0837
+Proximity_Method_B: Mean = 0.8068, Std = 0.1079
+Proximity_Method_C: Mean = 0.8839, Std = 0.0871
+Proximity_Method_B_C: Mean = 0.7871, Std = 0.1238
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = 0.2036, Std = 0.2690
+Proximity_Method_A: Mean = 0.2069, Std = 0.2700
+Proximity_Method_B: Mean = 0.2472, Std = 0.2867
+Proximity_Method_C: Mean = 0.2034, Std = 0.2688
+Proximity_Method_B_C: Mean = 0.2413, Std = 0.2878
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.2724, Std = 0.0208
+Proximity_Method_A: Mean = 0.2733, Std = 0.0205
+Proximity_Method_B: Mean = 0.2525, Std = 0.0517
+Proximity_Method_C: Mean = 0.2735, Std = 0.0195
+Proximity_Method_B_C: Mean = 0.2583, Std = 0.0474
+
+--- MI ---
+Proximity_Baseline: Mean = 0.2183, Std = 0.1754
+Proximity_Method_A: Mean = 0.2173, Std = 0.1747
+Proximity_Method_B: Mean = 0.3623, Std = 0.1740
+Proximity_Method_C: Mean = 0.2116, Std = 0.1672
+Proximity_Method_B_C: Mean = 0.3277, Std = 0.1637
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.2345, Std = 0.1826
+Proximity_Method_A: Mean = 0.2340, Std = 0.1827
+Proximity_Method_B: Mean = 0.3922, Std = 0.1795
+Proximity_Method_C: Mean = 0.2268, Std = 0.1742
+Proximity_Method_B_C: Mean = 0.3557, Std = 0.1693
+
+--- NAURC ---
+Proximity_Baseline: Mean = 0.6396, Std = 0.3046
+Proximity_Method_A: Mean = 0.6376, Std = 0.3060
+Proximity_Method_B: Mean = 0.5730, Std = 0.3000
+Proximity_Method_C: Mean = 0.6416, Std = 0.3034
+Proximity_Method_B_C: Mean = 0.5773, Std = 0.3014
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 1.9200, p = 7.5047e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+FPR95:
+  Friedman Test: chi2 = 11.8400, p = 1.8582e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 8.1250e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 3.1250e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 1.8750e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 1.2500e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 1.2500e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 1.2500e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 1.2500e-01 ([NS])
+
+SPEARMAN:
+  Friedman Test: chi2 = 4.1600, p = 3.8479e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+BRIER:
+  Friedman Test: chi2 = 5.1200, p = 2.7520e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+MI:
+  Friedman Test: chi2 = 16.4800, p = 2.4383e-03
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 6.2500e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 3.1250e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 3.1250e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 1.8750e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+
+JSD:
+  Friedman Test: chi2 = 16.4800, p = 2.4383e-03
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 6.2500e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 3.1250e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 3.1250e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 1.8750e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+
+NAURC:
+  Friedman Test: chi2 = 16.8000, p = 2.1138e-03
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 1.2500e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 4.3750e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 6.2500e-02 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 4.3750e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 6.2500e-02 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 4.3750e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 6.2500e-02 ([NS])
+
+[DIMENSION] 4D Functions
+----------------------------------------------------------------------
+
+======================================================================
+4D Functions (runs = 5)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.4314, Std = 0.1059
+Proximity_Method_A: Mean = 0.4320, Std = 0.1059
+Proximity_Method_B: Mean = 0.4261, Std = 0.2018
+Proximity_Method_C: Mean = 0.4376, Std = 0.0978
+Proximity_Method_B_C: Mean = 0.4416, Std = 0.1860
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.8679, Std = 0.1417
+Proximity_Method_A: Mean = 0.8660, Std = 0.1458
+Proximity_Method_B: Mean = 0.8002, Std = 0.2004
+Proximity_Method_C: Mean = 0.8678, Std = 0.1396
+Proximity_Method_B_C: Mean = 0.7983, Std = 0.1950
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = 0.3666, Std = 0.3108
+Proximity_Method_A: Mean = 0.3673, Std = 0.3088
+Proximity_Method_B: Mean = 0.3942, Std = 0.2969
+Proximity_Method_C: Mean = 0.3685, Std = 0.3098
+Proximity_Method_B_C: Mean = 0.3952, Std = 0.2970
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.2748, Std = 0.0180
+Proximity_Method_A: Mean = 0.2750, Std = 0.0175
+Proximity_Method_B: Mean = 0.2548, Std = 0.0517
+Proximity_Method_C: Mean = 0.2767, Std = 0.0158
+Proximity_Method_B_C: Mean = 0.2625, Std = 0.0432
+
+--- MI ---
+Proximity_Baseline: Mean = 0.1433, Std = 0.0898
+Proximity_Method_A: Mean = 0.1435, Std = 0.0885
+Proximity_Method_B: Mean = 0.2648, Std = 0.1372
+Proximity_Method_C: Mean = 0.1361, Std = 0.0916
+Proximity_Method_B_C: Mean = 0.2409, Std = 0.1370
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.1586, Std = 0.1016
+Proximity_Method_A: Mean = 0.1586, Std = 0.1000
+Proximity_Method_B: Mean = 0.2922, Std = 0.1477
+Proximity_Method_C: Mean = 0.1504, Std = 0.1037
+Proximity_Method_B_C: Mean = 0.2668, Std = 0.1497
+
+--- NAURC ---
+Proximity_Baseline: Mean = 0.4854, Std = 0.3645
+Proximity_Method_A: Mean = 0.4872, Std = 0.3665
+Proximity_Method_B: Mean = 0.4467, Std = 0.3512
+Proximity_Method_C: Mean = 0.4825, Std = 0.3620
+Proximity_Method_B_C: Mean = 0.4423, Std = 0.3485
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 1.3333, p = 8.5570e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+FPR95:
+  Friedman Test: chi2 = 5.3333, p = 2.5477e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+SPEARMAN:
+  Friedman Test: chi2 = 1.8667, p = 7.6027e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+BRIER:
+  Friedman Test: chi2 = 1.8667, p = 7.6027e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+MI:
+  Friedman Test: chi2 = 10.9333, p = 2.7324e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 7.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+JSD:
+  Friedman Test: chi2 = 10.9333, p = 2.7324e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 1.0000e+00 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+NAURC:
+  Friedman Test: chi2 = 9.8667, p = 4.2735e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 5.0000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+[DIMENSION] 5D Functions
+----------------------------------------------------------------------
+
+======================================================================
+5D Functions (runs = 5)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.4414, Std = 0.1130
+Proximity_Method_A: Mean = 0.4414, Std = 0.1100
+Proximity_Method_B: Mean = 0.2883, Std = 0.1156
+Proximity_Method_C: Mean = 0.4425, Std = 0.1025
+Proximity_Method_B_C: Mean = 0.3327, Std = 0.1374
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.8294, Std = 0.1793
+Proximity_Method_A: Mean = 0.8298, Std = 0.1780
+Proximity_Method_B: Mean = 0.9008, Std = 0.0642
+Proximity_Method_C: Mean = 0.8341, Std = 0.1658
+Proximity_Method_B_C: Mean = 0.8853, Std = 0.1012
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = 0.0773, Std = 0.1513
+Proximity_Method_A: Mean = 0.0794, Std = 0.1509
+Proximity_Method_B: Mean = 0.1160, Std = 0.1862
+Proximity_Method_C: Mean = 0.0803, Std = 0.1501
+Proximity_Method_B_C: Mean = 0.1215, Std = 0.1795
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.2766, Std = 0.0180
+Proximity_Method_A: Mean = 0.2771, Std = 0.0169
+Proximity_Method_B: Mean = 0.2365, Std = 0.0448
+Proximity_Method_C: Mean = 0.2782, Std = 0.0163
+Proximity_Method_B_C: Mean = 0.2475, Std = 0.0500
+
+--- MI ---
+Proximity_Baseline: Mean = 0.2343, Std = 0.2143
+Proximity_Method_A: Mean = 0.2344, Std = 0.2163
+Proximity_Method_B: Mean = 0.3286, Std = 0.2230
+Proximity_Method_C: Mean = 0.2082, Std = 0.1815
+Proximity_Method_B_C: Mean = 0.2644, Std = 0.1558
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.2521, Std = 0.2290
+Proximity_Method_A: Mean = 0.2525, Std = 0.2317
+Proximity_Method_B: Mean = 0.3559, Std = 0.2335
+Proximity_Method_C: Mean = 0.2254, Std = 0.1956
+Proximity_Method_B_C: Mean = 0.2909, Std = 0.1687
+
+--- NAURC ---
+Proximity_Baseline: Mean = 0.8172, Std = 0.2473
+Proximity_Method_A: Mean = 0.8177, Std = 0.2464
+Proximity_Method_B: Mean = 0.7405, Std = 0.2502
+Proximity_Method_C: Mean = 0.8195, Std = 0.2501
+Proximity_Method_B_C: Mean = 0.7486, Std = 0.2571
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 9.8667, p = 4.2735e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 1.0000e+00 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 7.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 7.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+FPR95:
+  Friedman Test: chi2 = 1.8667, p = 7.6027e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+SPEARMAN:
+  Friedman Test: chi2 = 3.7333, p = 4.4330e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+BRIER:
+  Friedman Test: chi2 = 10.4000, p = 3.4203e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 5.0000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 7.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+MI:
+  Friedman Test: chi2 = 8.2667, p = 8.2284e-02
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+JSD:
+  Friedman Test: chi2 = 8.2667, p = 8.2284e-02
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+NAURC:
+  Friedman Test: chi2 = 9.3333, p = 5.3287e-02
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+[DIMENSION] 6D Functions
+----------------------------------------------------------------------
+
+======================================================================
+6D Functions (runs = 5)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.2727, Std = 0.1007
+Proximity_Method_A: Mean = 0.2760, Std = 0.0992
+Proximity_Method_B: Mean = 0.2554, Std = 0.1370
+Proximity_Method_C: Mean = 0.2739, Std = 0.0992
+Proximity_Method_B_C: Mean = 0.2577, Std = 0.1325
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.9789, Std = 0.0166
+Proximity_Method_A: Mean = 0.9785, Std = 0.0163
+Proximity_Method_B: Mean = 0.9637, Std = 0.0351
+Proximity_Method_C: Mean = 0.9780, Std = 0.0165
+Proximity_Method_B_C: Mean = 0.9590, Std = 0.0414
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = 0.0096, Std = 0.1151
+Proximity_Method_A: Mean = 0.0153, Std = 0.1109
+Proximity_Method_B: Mean = 0.0748, Std = 0.1729
+Proximity_Method_C: Mean = 0.0219, Std = 0.1169
+Proximity_Method_B_C: Mean = 0.0931, Std = 0.2064
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.2327, Std = 0.0423
+Proximity_Method_A: Mean = 0.2345, Std = 0.0412
+Proximity_Method_B: Mean = 0.2172, Std = 0.0473
+Proximity_Method_C: Mean = 0.2336, Std = 0.0413
+Proximity_Method_B_C: Mean = 0.2198, Std = 0.0485
+
+--- MI ---
+Proximity_Baseline: Mean = 0.1947, Std = 0.1120
+Proximity_Method_A: Mean = 0.1899, Std = 0.1108
+Proximity_Method_B: Mean = 0.2778, Std = 0.1326
+Proximity_Method_C: Mean = 0.1871, Std = 0.1113
+Proximity_Method_B_C: Mean = 0.2537, Std = 0.1296
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.2069, Std = 0.1170
+Proximity_Method_A: Mean = 0.2021, Std = 0.1159
+Proximity_Method_B: Mean = 0.2991, Std = 0.1346
+Proximity_Method_C: Mean = 0.1993, Std = 0.1165
+Proximity_Method_B_C: Mean = 0.2738, Std = 0.1309
+
+--- NAURC ---
+Proximity_Baseline: Mean = 0.7899, Std = 0.1490
+Proximity_Method_A: Mean = 0.7906, Std = 0.1474
+Proximity_Method_B: Mean = 0.7304, Std = 0.1898
+Proximity_Method_C: Mean = 0.7858, Std = 0.1493
+Proximity_Method_B_C: Mean = 0.7283, Std = 0.1953
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 2.1333, p = 7.1125e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+FPR95:
+  Friedman Test: chi2 = 9.8667, p = 4.2735e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 7.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 5.0000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 1.0000e+00 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+SPEARMAN:
+  Friedman Test: chi2 = 10.9333, p = 2.7324e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+BRIER:
+  Friedman Test: chi2 = 1.6000, p = 8.0879e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+MI:
+  Friedman Test: chi2 = 3.4667, p = 4.8296e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+JSD:
+  Friedman Test: chi2 = 3.4667, p = 4.8296e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+NAURC:
+  Friedman Test: chi2 = 2.9333, p = 5.6904e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+[DIMENSION] 7D Functions
+----------------------------------------------------------------------
+
+======================================================================
+7D Functions (runs = 5)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.3906, Std = 0.1295
+Proximity_Method_A: Mean = 0.3950, Std = 0.1284
+Proximity_Method_B: Mean = 0.3696, Std = 0.1351
+Proximity_Method_C: Mean = 0.3876, Std = 0.1298
+Proximity_Method_B_C: Mean = 0.3761, Std = 0.1235
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.9297, Std = 0.0928
+Proximity_Method_A: Mean = 0.9271, Std = 0.0947
+Proximity_Method_B: Mean = 0.8799, Std = 0.0921
+Proximity_Method_C: Mean = 0.9315, Std = 0.0898
+Proximity_Method_B_C: Mean = 0.8755, Std = 0.0905
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = 0.0819, Std = 0.0702
+Proximity_Method_A: Mean = 0.0836, Std = 0.0727
+Proximity_Method_B: Mean = 0.1095, Std = 0.1185
+Proximity_Method_C: Mean = 0.0837, Std = 0.0677
+Proximity_Method_B_C: Mean = 0.1090, Std = 0.1091
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.2646, Std = 0.0212
+Proximity_Method_A: Mean = 0.2657, Std = 0.0202
+Proximity_Method_B: Mean = 0.2591, Std = 0.0424
+Proximity_Method_C: Mean = 0.2639, Std = 0.0214
+Proximity_Method_B_C: Mean = 0.2631, Std = 0.0354
+
+--- MI ---
+Proximity_Baseline: Mean = 0.1159, Std = 0.0540
+Proximity_Method_A: Mean = 0.1143, Std = 0.0552
+Proximity_Method_B: Mean = 0.2060, Std = 0.1099
+Proximity_Method_C: Mean = 0.1109, Std = 0.0538
+Proximity_Method_B_C: Mean = 0.1952, Std = 0.1094
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.1259, Std = 0.0589
+Proximity_Method_A: Mean = 0.1245, Std = 0.0605
+Proximity_Method_B: Mean = 0.2305, Std = 0.1216
+Proximity_Method_C: Mean = 0.1209, Std = 0.0588
+Proximity_Method_B_C: Mean = 0.2192, Std = 0.1216
+
+--- NAURC ---
+Proximity_Baseline: Mean = 0.7755, Std = 0.1567
+Proximity_Method_A: Mean = 0.7775, Std = 0.1545
+Proximity_Method_B: Mean = 0.7312, Std = 0.1406
+Proximity_Method_C: Mean = 0.7733, Std = 0.1562
+Proximity_Method_B_C: Mean = 0.7338, Std = 0.1346
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 3.4667, p = 4.8296e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+FPR95:
+  Friedman Test: chi2 = 3.4667, p = 4.8296e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+SPEARMAN:
+  Friedman Test: chi2 = 1.3333, p = 8.5570e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+BRIER:
+  Friedman Test: chi2 = 1.8667, p = 7.6027e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+MI:
+  Friedman Test: chi2 = 1.3333, p = 8.5570e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+JSD:
+  Friedman Test: chi2 = 1.3333, p = 8.5570e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+NAURC:
+  Friedman Test: chi2 = 2.9333, p = 5.6904e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+[DIMENSION] 8D Functions
+----------------------------------------------------------------------
+
+======================================================================
+8D Functions (runs = 5)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.3759, Std = 0.1017
+Proximity_Method_A: Mean = 0.3770, Std = 0.1024
+Proximity_Method_B: Mean = 0.1992, Std = 0.1589
+Proximity_Method_C: Mean = 0.3288, Std = 0.0949
+Proximity_Method_B_C: Mean = 0.1615, Std = 0.1381
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.9242, Std = 0.0748
+Proximity_Method_A: Mean = 0.9214, Std = 0.0747
+Proximity_Method_B: Mean = 0.9426, Std = 0.0804
+Proximity_Method_C: Mean = 0.9440, Std = 0.0498
+Proximity_Method_B_C: Mean = 0.9679, Std = 0.0388
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = -0.0044, Std = 0.0359
+Proximity_Method_A: Mean = -0.0062, Std = 0.0342
+Proximity_Method_B: Mean = 0.0226, Std = 0.0352
+Proximity_Method_C: Mean = -0.0016, Std = 0.0358
+Proximity_Method_B_C: Mean = 0.0264, Std = 0.0368
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.2677, Std = 0.0193
+Proximity_Method_A: Mean = 0.2678, Std = 0.0187
+Proximity_Method_B: Mean = 0.1725, Std = 0.1012
+Proximity_Method_C: Mean = 0.2563, Std = 0.0300
+Proximity_Method_B_C: Mean = 0.1536, Std = 0.0998
+
+--- MI ---
+Proximity_Baseline: Mean = 0.1530, Std = 0.0773
+Proximity_Method_A: Mean = 0.1556, Std = 0.0808
+Proximity_Method_B: Mean = 0.4480, Std = 0.3079
+Proximity_Method_C: Mean = 0.1640, Std = 0.0916
+Proximity_Method_B_C: Mean = 0.4750, Std = 0.3265
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.1698, Std = 0.0864
+Proximity_Method_A: Mean = 0.1729, Std = 0.0902
+Proximity_Method_B: Mean = 0.4740, Std = 0.3019
+Proximity_Method_C: Mean = 0.1827, Std = 0.1021
+Proximity_Method_B_C: Mean = 0.4980, Std = 0.3180
+
+--- NAURC ---
+Proximity_Baseline: Mean = 0.9563, Std = 0.0755
+Proximity_Method_A: Mean = 0.9588, Std = 0.0765
+Proximity_Method_B: Mean = 0.9691, Std = 0.1802
+Proximity_Method_C: Mean = 0.9764, Std = 0.1001
+Proximity_Method_B_C: Mean = 0.9993, Std = 0.2005
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 10.9333, p = 2.7324e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 7.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+FPR95:
+  Friedman Test: chi2 = 4.0000, p = 4.0601e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+SPEARMAN:
+  Friedman Test: chi2 = 10.9333, p = 2.7324e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 7.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+BRIER:
+  Friedman Test: chi2 = 10.9333, p = 2.7324e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 7.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+MI:
+  Friedman Test: chi2 = 9.3333, p = 5.3287e-02
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+JSD:
+  Friedman Test: chi2 = 9.3333, p = 5.3287e-02
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+NAURC:
+  Friedman Test: chi2 = 2.4000, p = 6.6263e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+[DIMENSION] 9D Functions
+----------------------------------------------------------------------
+
+======================================================================
+9D Functions (runs = 5)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.3288, Std = 0.1461
+Proximity_Method_A: Mean = 0.3317, Std = 0.1442
+Proximity_Method_B: Mean = 0.2608, Std = 0.1602
+Proximity_Method_C: Mean = 0.3156, Std = 0.1397
+Proximity_Method_B_C: Mean = 0.2291, Std = 0.1185
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.9521, Std = 0.0911
+Proximity_Method_A: Mean = 0.9514, Std = 0.0941
+Proximity_Method_B: Mean = 0.9629, Std = 0.0680
+Proximity_Method_C: Mean = 0.9551, Std = 0.0867
+Proximity_Method_B_C: Mean = 0.9816, Std = 0.0232
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = -0.1377, Std = 0.1848
+Proximity_Method_A: Mean = -0.1349, Std = 0.1832
+Proximity_Method_B: Mean = -0.1405, Std = 0.2300
+Proximity_Method_C: Mean = -0.1393, Std = 0.1875
+Proximity_Method_B_C: Mean = -0.1543, Std = 0.2443
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.2412, Std = 0.0425
+Proximity_Method_A: Mean = 0.2425, Std = 0.0414
+Proximity_Method_B: Mean = 0.2120, Std = 0.0680
+Proximity_Method_C: Mean = 0.2385, Std = 0.0430
+Proximity_Method_B_C: Mean = 0.2082, Std = 0.0604
+
+--- MI ---
+Proximity_Baseline: Mean = 0.1746, Std = 0.1128
+Proximity_Method_A: Mean = 0.1726, Std = 0.1098
+Proximity_Method_B: Mean = 0.2673, Std = 0.2080
+Proximity_Method_C: Mean = 0.1786, Std = 0.1136
+Proximity_Method_B_C: Mean = 0.2638, Std = 0.1970
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.1793, Std = 0.1074
+Proximity_Method_A: Mean = 0.1774, Std = 0.1051
+Proximity_Method_B: Mean = 0.2864, Std = 0.2170
+Proximity_Method_C: Mean = 0.1834, Std = 0.1078
+Proximity_Method_B_C: Mean = 0.2806, Std = 0.2058
+
+--- NAURC ---
+Proximity_Baseline: Mean = 1.0842, Std = 0.1579
+Proximity_Method_A: Mean = 1.0817, Std = 0.1543
+Proximity_Method_B: Mean = 1.0445, Std = 0.2074
+Proximity_Method_C: Mean = 1.0856, Std = 0.1608
+Proximity_Method_B_C: Mean = 1.0656, Std = 0.2183
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 2.9333, p = 5.6904e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+FPR95:
+  Friedman Test: chi2 = 6.9333, p = 1.3945e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+SPEARMAN:
+  Friedman Test: chi2 = 0.5333, p = 9.7018e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+BRIER:
+  Friedman Test: chi2 = 2.9333, p = 5.6904e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+MI:
+  Friedman Test: chi2 = 1.8667, p = 7.6027e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+JSD:
+  Friedman Test: chi2 = 1.8667, p = 7.6027e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+NAURC:
+  Friedman Test: chi2 = 1.8667, p = 7.6027e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+[DIMENSION] 10D Functions
+----------------------------------------------------------------------
+
+======================================================================
+10D Functions (runs = 5)
+======================================================================
+
+--- AUROC ---
+Proximity_Baseline: Mean = 0.3009, Std = 0.1596
+Proximity_Method_A: Mean = 0.3056, Std = 0.1564
+Proximity_Method_B: Mean = 0.1574, Std = 0.1057
+Proximity_Method_C: Mean = 0.2871, Std = 0.1556
+Proximity_Method_B_C: Mean = 0.1435, Std = 0.1071
+
+--- FPR95 ---
+Proximity_Baseline: Mean = 0.9487, Std = 0.0720
+Proximity_Method_A: Mean = 0.9494, Std = 0.0710
+Proximity_Method_B: Mean = 0.9712, Std = 0.0372
+Proximity_Method_C: Mean = 0.9529, Std = 0.0692
+Proximity_Method_B_C: Mean = 0.9742, Std = 0.0346
+
+--- SPEARMAN ---
+Proximity_Baseline: Mean = -0.0175, Std = 0.0598
+Proximity_Method_A: Mean = -0.0182, Std = 0.0656
+Proximity_Method_B: Mean = 0.0158, Std = 0.0897
+Proximity_Method_C: Mean = -0.0118, Std = 0.0626
+Proximity_Method_B_C: Mean = 0.0234, Std = 0.1110
+
+--- BRIER ---
+Proximity_Baseline: Mean = 0.2313, Std = 0.0549
+Proximity_Method_A: Mean = 0.2339, Std = 0.0525
+Proximity_Method_B: Mean = 0.1749, Std = 0.0464
+Proximity_Method_C: Mean = 0.2275, Std = 0.0550
+Proximity_Method_B_C: Mean = 0.1655, Std = 0.0480
+
+--- MI ---
+Proximity_Baseline: Mean = 0.2029, Std = 0.1431
+Proximity_Method_A: Mean = 0.1951, Std = 0.1346
+Proximity_Method_B: Mean = 0.3820, Std = 0.1124
+Proximity_Method_C: Mean = 0.2095, Std = 0.1433
+Proximity_Method_B_C: Mean = 0.4067, Std = 0.1232
+
+--- JSD ---
+Proximity_Baseline: Mean = 0.2153, Std = 0.1455
+Proximity_Method_A: Mean = 0.2073, Std = 0.1371
+Proximity_Method_B: Mean = 0.4133, Std = 0.1187
+Proximity_Method_C: Mean = 0.2228, Std = 0.1455
+Proximity_Method_B_C: Mean = 0.4372, Std = 0.1288
+
+--- NAURC ---
+Proximity_Baseline: Mean = 0.8814, Std = 0.1388
+Proximity_Method_A: Mean = 0.8830, Std = 0.1380
+Proximity_Method_B: Mean = 0.8391, Std = 0.1230
+Proximity_Method_C: Mean = 0.8785, Std = 0.1401
+Proximity_Method_B_C: Mean = 0.8431, Std = 0.1292
+
+--- Statistical Validation (alpha = 0.05) ---
+
+AUROC:
+  Friedman Test: chi2 = 8.8000, p = 6.6298e-02
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+FPR95:
+  Friedman Test: chi2 = 4.0000, p = 4.0601e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+SPEARMAN:
+  Friedman Test: chi2 = 11.4667, p = 2.1791e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 7.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+BRIER:
+  Friedman Test: chi2 = 7.4667, p = 1.1319e-01
+  Result: NOT SIGNIFICANT (p >= 0.05)
+
+MI:
+  Friedman Test: chi2 = 9.8667, p = 4.2735e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 5.0000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 5.0000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+JSD:
+  Friedman Test: chi2 = 9.8667, p = 4.2735e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 5.0000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 5.0000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+NAURC:
+  Friedman Test: chi2 = 10.9333, p = 2.7324e-02
+  Result: SIGNIFICANT (p < 0.05)
+  Bonferroni-corrected alpha = 5.0000e-03
+    Proximity_Baseline vs Proximity_Method_A: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_C: p = 5.0000e-01 ([NS])
+    Proximity_Baseline vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_A vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_C: p = 2.5000e-01 ([NS])
+    Proximity_Method_B vs Proximity_Method_B_C: p = 5.0000e-01 ([NS])
+    Proximity_Method_C vs Proximity_Method_B_C: p = 2.5000e-01 ([NS])
+
+
+======================================================================
+[SUCCESS] ALL TESTS COMPLETED SUCCESSFULLY
+======================================================================
+Total Runtime: 85.2 minutes (1.42 hours)
+Evaluations: 180 tests (single-pass optimization)
+Finished: 2026-07-10 01:09:02
+======================================================================
+
+
+
+================================================================================
+COMPREHENSIVE STATISTICAL SUMMARY
+================================================================================
+
+
+--------------------------------------------------------------------------------
+METRIC: AUROC
+--------------------------------------------------------------------------------
+
+                             DESCRIPTIVE STATISTICS                             
+                     Proximity_Baseline Proximity_Method_A Proximity_Method_B Proximity_Method_C Proximity_Method_B_C
+--------------------------------------------------------------------------------
+All Functions        0.4652+/-0.2143   0.4665+/-0.2134   0.4213+/-0.2712   0.4671+/-0.2208   0.4317+/-0.2717  
+1D Functions         0.7993+/-0.1971   0.8028+/-0.1959   0.8391+/-0.1679   0.8268+/-0.1853   0.8465+/-0.1530  
+2D Functions         0.5518+/-0.1754   0.5501+/-0.1775   0.5796+/-0.2369   0.5720+/-0.1636   0.6235+/-0.2004  
+3D Functions         0.4733+/-0.1358   0.4704+/-0.1318   0.4405+/-0.1939   0.4807+/-0.1343   0.4727+/-0.1863  
+4D Functions         0.4314+/-0.1059   0.4320+/-0.1059   0.4261+/-0.2018   0.4376+/-0.0978   0.4416+/-0.1860  
+5D Functions         0.4414+/-0.1130   0.4414+/-0.1100   0.2883+/-0.1156   0.4425+/-0.1025   0.3327+/-0.1374  
+6D Functions         0.2727+/-0.1007   0.2760+/-0.0992   0.2554+/-0.1370   0.2739+/-0.0992   0.2577+/-0.1325  
+7D Functions         0.3906+/-0.1295   0.3950+/-0.1284   0.3696+/-0.1351   0.3876+/-0.1298   0.3761+/-0.1235  
+8D Functions         0.3759+/-0.1017   0.3770+/-0.1024   0.1992+/-0.1589   0.3288+/-0.0949   0.1615+/-0.1381  
+9D Functions         0.3288+/-0.1461   0.3317+/-0.1442   0.2608+/-0.1602   0.3156+/-0.1397   0.2291+/-0.1185  
+10D Functions        0.3009+/-0.1596   0.3056+/-0.1564   0.1574+/-0.1057   0.2871+/-0.1556   0.1435+/-0.1071  
+
+          STATISTICAL TESTS (Friedman + Bonferroni-corrected Wilcoxon)          
+
+> All Functions
+  Friedman: chi2 =   2.8222, p = 5.8800e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 1D Functions
+  Friedman: chi2 =   5.9200, p = 2.0520e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 2D Functions
+  Friedman: chi2 =   3.6800, p = 4.5104e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 3D Functions
+  Friedman: chi2 =   1.9200, p = 7.5047e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 4D Functions
+  Friedman: chi2 =   1.3333, p = 8.5570e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 5D Functions
+  Friedman: chi2 =   9.8667, p = 4.2735e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     1.0000e+00            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     7.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     7.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 6D Functions
+  Friedman: chi2 =   2.1333, p = 7.1125e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 7D Functions
+  Friedman: chi2 =   3.4667, p = 4.8296e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 8D Functions
+  Friedman: chi2 =  10.9333, p = 2.7324e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     7.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     5.0000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 9D Functions
+  Friedman: chi2 =   2.9333, p = 5.6904e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 10D Functions
+  Friedman: chi2 =   8.8000, p = 6.6298e-02 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+
+--------------------------------------------------------------------------------
+METRIC: FPR95
+--------------------------------------------------------------------------------
+
+                             DESCRIPTIVE STATISTICS                             
+                     Proximity_Baseline Proximity_Method_A Proximity_Method_B Proximity_Method_C Proximity_Method_B_C
+--------------------------------------------------------------------------------
+All Functions        0.8355+/-0.2332   0.8359+/-0.2351   0.7776+/-0.2707   0.8308+/-0.2457   0.7691+/-0.2811  
+1D Functions         0.4495+/-0.3470   0.4486+/-0.3540   0.3391+/-0.3063   0.4000+/-0.3543   0.3181+/-0.3225  
+2D Functions         0.8208+/-0.1569   0.8264+/-0.1613   0.5997+/-0.2482   0.8195+/-0.1584   0.5672+/-0.2346  
+3D Functions         0.8870+/-0.0875   0.8891+/-0.0837   0.8068+/-0.1079   0.8839+/-0.0871   0.7871+/-0.1238  
+4D Functions         0.8679+/-0.1417   0.8660+/-0.1458   0.8002+/-0.2004   0.8678+/-0.1396   0.7983+/-0.1950  
+5D Functions         0.8294+/-0.1793   0.8298+/-0.1780   0.9008+/-0.0642   0.8341+/-0.1658   0.8853+/-0.1012  
+6D Functions         0.9789+/-0.0166   0.9785+/-0.0163   0.9637+/-0.0351   0.9780+/-0.0165   0.9590+/-0.0414  
+7D Functions         0.9297+/-0.0928   0.9271+/-0.0947   0.8799+/-0.0921   0.9315+/-0.0898   0.8755+/-0.0905  
+8D Functions         0.9242+/-0.0748   0.9214+/-0.0747   0.9426+/-0.0804   0.9440+/-0.0498   0.9679+/-0.0388  
+9D Functions         0.9521+/-0.0911   0.9514+/-0.0941   0.9629+/-0.0680   0.9551+/-0.0867   0.9816+/-0.0232  
+10D Functions        0.9487+/-0.0720   0.9494+/-0.0710   0.9712+/-0.0372   0.9529+/-0.0692   0.9742+/-0.0346  
+
+          STATISTICAL TESTS (Friedman + Bonferroni-corrected Wilcoxon)          
+
+> All Functions
+  Friedman: chi2 =  22.7778, p = 1.4025e-04 ***
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     7.5033e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     3.6922e-03           [SIG]
+  Proximity_Baseline vs Proximity_Method_C     7.8336e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     1.6348e-03           [SIG]
+  Proximity_Method_A vs Proximity_Method_B     3.9024e-03           [SIG]
+  Proximity_Method_A vs Proximity_Method_C     7.5336e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     1.8452e-03           [SIG]
+  Proximity_Method_B vs Proximity_Method_C     6.6575e-03            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     1.8141e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     7.0094e-03            [NS]
+
+> 1D Functions
+  Friedman: chi2 =   8.8000, p = 6.6298e-02 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 2D Functions
+  Friedman: chi2 =  16.1600, p = 2.8118e-03 **
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     3.1250e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_C     6.2500e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_C     6.2500e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     3.1250e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     6.2500e-02            [NS]
+
+> 3D Functions
+  Friedman: chi2 =  11.8400, p = 1.8582e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     8.1250e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_C     3.1250e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_C     1.8750e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     1.2500e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     1.2500e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     1.2500e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     1.2500e-01            [NS]
+
+> 4D Functions
+  Friedman: chi2 =   5.3333, p = 2.5477e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 5D Functions
+  Friedman: chi2 =   1.8667, p = 7.6027e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 6D Functions
+  Friedman: chi2 =   9.8667, p = 4.2735e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     7.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     1.0000e+00            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 7D Functions
+  Friedman: chi2 =   3.4667, p = 4.8296e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 8D Functions
+  Friedman: chi2 =   4.0000, p = 4.0601e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 9D Functions
+  Friedman: chi2 =   6.9333, p = 1.3945e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 10D Functions
+  Friedman: chi2 =   4.0000, p = 4.0601e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+
+--------------------------------------------------------------------------------
+METRIC: AUPR
+--------------------------------------------------------------------------------
+
+                             DESCRIPTIVE STATISTICS                             
+                     Proximity_Baseline Proximity_Method_A Proximity_Method_B Proximity_Method_C Proximity_Method_B_C
+--------------------------------------------------------------------------------
+All Functions        0.3334+/-0.1932   0.3335+/-0.1938   0.3171+/-0.2056   0.3310+/-0.2029   0.3195+/-0.1958  
+1D Functions         0.7179+/-0.2324   0.7216+/-0.2326   0.7304+/-0.2440   0.7450+/-0.2423   0.7127+/-0.2029  
+2D Functions         0.3620+/-0.1139   0.3599+/-0.1126   0.3580+/-0.1167   0.3588+/-0.1042   0.3838+/-0.1254  
+3D Functions         0.3028+/-0.0724   0.2990+/-0.0684   0.2781+/-0.0785   0.2960+/-0.0701   0.2915+/-0.0783  
+4D Functions         0.2541+/-0.0335   0.2542+/-0.0338   0.2625+/-0.0646   0.2547+/-0.0312   0.2655+/-0.0608  
+5D Functions         0.2810+/-0.0591   0.2807+/-0.0586   0.2143+/-0.0264   0.2590+/-0.0384   0.2260+/-0.0366  
+6D Functions         0.2144+/-0.0362   0.2146+/-0.0344   0.2100+/-0.0484   0.2131+/-0.0353   0.2091+/-0.0433  
+7D Functions         0.2513+/-0.0650   0.2528+/-0.0654   0.2404+/-0.0441   0.2484+/-0.0627   0.2424+/-0.0460  
+8D Functions         0.2412+/-0.0385   0.2420+/-0.0397   0.1988+/-0.0324   0.2216+/-0.0251   0.1904+/-0.0253  
+9D Functions         0.2315+/-0.0554   0.2322+/-0.0548   0.2132+/-0.0455   0.2243+/-0.0495   0.2011+/-0.0277  
+10D Functions        0.2232+/-0.0520   0.2241+/-0.0513   0.1881+/-0.0234   0.2175+/-0.0485   0.1859+/-0.0235  
+
+          STATISTICAL TESTS (Friedman + Bonferroni-corrected Wilcoxon)          
+
+> All Functions
+  Friedman: chi2 =   7.8222, p = 9.8312e-02 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 1D Functions
+  Friedman: chi2 =   2.2400, p = 6.9171e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 2D Functions
+  Friedman: chi2 =   2.7200, p = 6.0572e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 3D Functions
+  Friedman: chi2 =   2.0800, p = 7.2105e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 4D Functions
+  Friedman: chi2 =   1.3333, p = 8.5570e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 5D Functions
+  Friedman: chi2 =   9.8667, p = 4.2735e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     5.0000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 6D Functions
+  Friedman: chi2 =   1.8667, p = 7.6027e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 7D Functions
+  Friedman: chi2 =   3.4667, p = 4.8296e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 8D Functions
+  Friedman: chi2 =  11.4667, p = 2.1791e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     5.0000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 9D Functions
+  Friedman: chi2 =   2.9333, p = 5.6904e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 10D Functions
+  Friedman: chi2 =   4.0000, p = 4.0601e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+
+--------------------------------------------------------------------------------
+METRIC: SPEARMAN
+--------------------------------------------------------------------------------
+
+                             DESCRIPTIVE STATISTICS                             
+                     Proximity_Baseline Proximity_Method_A Proximity_Method_B Proximity_Method_C Proximity_Method_B_C
+--------------------------------------------------------------------------------
+All Functions        0.0924+/-0.2527   0.0875+/-0.2522   0.1579+/-0.2853   0.0951+/-0.2521   0.1083+/-0.2855  
+1D Functions         0.1953+/-0.3820   0.1497+/-0.3879   0.3638+/-0.3420   0.2098+/-0.3730   0.0193+/-0.3663  
+2D Functions         0.0410+/-0.1265   0.0415+/-0.1331   0.1707+/-0.2872   0.0306+/-0.1317   0.1508+/-0.3066  
+3D Functions         0.2036+/-0.2690   0.2069+/-0.2700   0.2472+/-0.2867   0.2034+/-0.2688   0.2413+/-0.2878  
+4D Functions         0.3666+/-0.3108   0.3673+/-0.3088   0.3942+/-0.2969   0.3685+/-0.3098   0.3952+/-0.2970  
+5D Functions         0.0773+/-0.1513   0.0794+/-0.1509   0.1160+/-0.1862   0.0803+/-0.1501   0.1215+/-0.1795  
+6D Functions         0.0096+/-0.1151   0.0153+/-0.1109   0.0748+/-0.1729   0.0219+/-0.1169   0.0931+/-0.2064  
+7D Functions         0.0819+/-0.0702   0.0836+/-0.0727   0.1095+/-0.1185   0.0837+/-0.0677   0.1090+/-0.1091  
+8D Functions         -0.0044+/-0.0359   -0.0062+/-0.0342   0.0226+/-0.0352   -0.0016+/-0.0358   0.0264+/-0.0368  
+9D Functions         -0.1377+/-0.1848   -0.1349+/-0.1832   -0.1405+/-0.2300   -0.1393+/-0.1875   -0.1543+/-0.2443  
+10D Functions        -0.0175+/-0.0598   -0.0182+/-0.0656   0.0158+/-0.0897   -0.0118+/-0.0626   0.0234+/-0.1110  
+
+          STATISTICAL TESTS (Friedman + Bonferroni-corrected Wilcoxon)          
+
+> All Functions
+  Friedman: chi2 =  21.4444, p = 2.5847e-04 ***
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     4.4136e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     6.6877e-04           [SIG]
+  Proximity_Baseline vs Proximity_Method_C     3.9295e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     1.6004e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_B     1.1676e-04           [SIG]
+  Proximity_Method_A vs Proximity_Method_C     3.9637e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     1.4592e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_C     1.8452e-03           [SIG]
+  Proximity_Method_B vs Proximity_Method_B_C     9.1966e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     4.7779e-02            [NS]
+
+> 1D Functions
+  Friedman: chi2 =   2.5600, p = 6.3393e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 2D Functions
+  Friedman: chi2 =   1.1200, p = 8.9109e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 3D Functions
+  Friedman: chi2 =   4.1600, p = 3.8479e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 4D Functions
+  Friedman: chi2 =   1.8667, p = 7.6027e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 5D Functions
+  Friedman: chi2 =   3.7333, p = 4.4330e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 6D Functions
+  Friedman: chi2 =  10.9333, p = 2.7324e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     5.0000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 7D Functions
+  Friedman: chi2 =   1.3333, p = 8.5570e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 8D Functions
+  Friedman: chi2 =  10.9333, p = 2.7324e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     7.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     5.0000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 9D Functions
+  Friedman: chi2 =   0.5333, p = 9.7018e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 10D Functions
+  Friedman: chi2 =  11.4667, p = 2.1791e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     7.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+
+--------------------------------------------------------------------------------
+METRIC: BRIER
+--------------------------------------------------------------------------------
+
+                             DESCRIPTIVE STATISTICS                             
+                     Proximity_Baseline Proximity_Method_A Proximity_Method_B Proximity_Method_C Proximity_Method_B_C
+--------------------------------------------------------------------------------
+All Functions        0.2449+/-0.0637   0.2451+/-0.0641   0.2155+/-0.0782   0.2423+/-0.0672   0.2154+/-0.0800  
+1D Functions         0.1530+/-0.1034   0.1495+/-0.1039   0.1410+/-0.1106   0.1417+/-0.1088   0.1348+/-0.1075  
+2D Functions         0.2644+/-0.0416   0.2640+/-0.0413   0.2418+/-0.0407   0.2649+/-0.0397   0.2455+/-0.0400  
+3D Functions         0.2724+/-0.0208   0.2733+/-0.0205   0.2525+/-0.0517   0.2735+/-0.0195   0.2583+/-0.0474  
+4D Functions         0.2748+/-0.0180   0.2750+/-0.0175   0.2548+/-0.0517   0.2767+/-0.0158   0.2625+/-0.0432  
+5D Functions         0.2766+/-0.0180   0.2771+/-0.0169   0.2365+/-0.0448   0.2782+/-0.0163   0.2475+/-0.0500  
+6D Functions         0.2327+/-0.0423   0.2345+/-0.0412   0.2172+/-0.0473   0.2336+/-0.0413   0.2198+/-0.0485  
+7D Functions         0.2646+/-0.0212   0.2657+/-0.0202   0.2591+/-0.0424   0.2639+/-0.0214   0.2631+/-0.0354  
+8D Functions         0.2677+/-0.0193   0.2678+/-0.0187   0.1725+/-0.1012   0.2563+/-0.0300   0.1536+/-0.0998  
+9D Functions         0.2412+/-0.0425   0.2425+/-0.0414   0.2120+/-0.0680   0.2385+/-0.0430   0.2082+/-0.0604  
+10D Functions        0.2313+/-0.0549   0.2339+/-0.0525   0.1749+/-0.0464   0.2275+/-0.0550   0.1655+/-0.0480  
+
+          STATISTICAL TESTS (Friedman + Bonferroni-corrected Wilcoxon)          
+
+> All Functions
+  Friedman: chi2 =  28.7111, p = 8.9480e-06 ***
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     1.0109e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     7.6381e-04           [SIG]
+  Proximity_Baseline vs Proximity_Method_C     1.0448e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.1586e-04           [SIG]
+  Proximity_Method_A vs Proximity_Method_B     4.1404e-04           [SIG]
+  Proximity_Method_A vs Proximity_Method_C     1.1520e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5036e-04           [SIG]
+  Proximity_Method_B vs Proximity_Method_C     6.2536e-04           [SIG]
+  Proximity_Method_B vs Proximity_Method_B_C     9.0736e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     4.1404e-04           [SIG]
+
+> 1D Functions
+  Friedman: chi2 =   6.2400, p = 1.8193e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 2D Functions
+  Friedman: chi2 =   6.8800, p = 1.4237e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 3D Functions
+  Friedman: chi2 =   5.1200, p = 2.7520e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 4D Functions
+  Friedman: chi2 =   1.8667, p = 7.6027e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 5D Functions
+  Friedman: chi2 =  10.4000, p = 3.4203e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     7.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 6D Functions
+  Friedman: chi2 =   1.6000, p = 8.0879e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 7D Functions
+  Friedman: chi2 =   1.8667, p = 7.6027e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 8D Functions
+  Friedman: chi2 =  10.9333, p = 2.7324e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     7.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     5.0000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 9D Functions
+  Friedman: chi2 =   2.9333, p = 5.6904e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 10D Functions
+  Friedman: chi2 =   7.4667, p = 1.1319e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+
+--------------------------------------------------------------------------------
+METRIC: MI
+--------------------------------------------------------------------------------
+
+                             DESCRIPTIVE STATISTICS                             
+                     Proximity_Baseline Proximity_Method_A Proximity_Method_B Proximity_Method_C Proximity_Method_B_C
+--------------------------------------------------------------------------------
+All Functions        0.2798+/-0.2436   0.2811+/-0.2482   0.4018+/-0.2378   0.2727+/-0.2386   0.3849+/-0.2409  
+1D Functions         0.7687+/-0.1329   0.7839+/-0.1350   0.7632+/-0.1178   0.7541+/-0.1539   0.7539+/-0.1438  
+2D Functions         0.2965+/-0.1341   0.2998+/-0.1353   0.4628+/-0.1362   0.2810+/-0.1221   0.4302+/-0.1505  
+3D Functions         0.2183+/-0.1754   0.2173+/-0.1747   0.3623+/-0.1740   0.2116+/-0.1672   0.3277+/-0.1637  
+4D Functions         0.1433+/-0.0898   0.1435+/-0.0885   0.2648+/-0.1372   0.1361+/-0.0916   0.2409+/-0.1370  
+5D Functions         0.2343+/-0.2143   0.2344+/-0.2163   0.3286+/-0.2230   0.2082+/-0.1815   0.2644+/-0.1558  
+6D Functions         0.1947+/-0.1120   0.1899+/-0.1108   0.2778+/-0.1326   0.1871+/-0.1113   0.2537+/-0.1296  
+7D Functions         0.1159+/-0.0540   0.1143+/-0.0552   0.2060+/-0.1099   0.1109+/-0.0538   0.1952+/-0.1094  
+8D Functions         0.1530+/-0.0773   0.1556+/-0.0808   0.4480+/-0.3079   0.1640+/-0.0916   0.4750+/-0.3265  
+9D Functions         0.1746+/-0.1128   0.1726+/-0.1098   0.2673+/-0.2080   0.1786+/-0.1136   0.2638+/-0.1970  
+10D Functions        0.2029+/-0.1431   0.1951+/-0.1346   0.3820+/-0.1124   0.2095+/-0.1433   0.4067+/-0.1232  
+
+          STATISTICAL TESTS (Friedman + Bonferroni-corrected Wilcoxon)          
+
+> All Functions
+  Friedman: chi2 =  47.5778, p = 1.1558e-09 ***
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     9.9381e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.2973e-06           [SIG]
+  Proximity_Baseline vs Proximity_Method_C     7.1754e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     4.7211e-05           [SIG]
+  Proximity_Method_A vs Proximity_Method_B     5.4222e-06           [SIG]
+  Proximity_Method_A vs Proximity_Method_C     1.3899e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     9.9569e-05           [SIG]
+  Proximity_Method_B vs Proximity_Method_C     2.0540e-06           [SIG]
+  Proximity_Method_B vs Proximity_Method_B_C     2.2878e-02            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.8647e-06           [SIG]
+
+> 1D Functions
+  Friedman: chi2 =   3.6800, p = 4.5104e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 2D Functions
+  Friedman: chi2 =  16.4800, p = 2.4383e-03 **
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     6.2500e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_C     3.1250e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_C     3.1250e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     6.2500e-02            [NS]
+
+> 3D Functions
+  Friedman: chi2 =  16.4800, p = 2.4383e-03 **
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     6.2500e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_C     3.1250e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_C     3.1250e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     1.8750e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     6.2500e-02            [NS]
+
+> 4D Functions
+  Friedman: chi2 =  10.9333, p = 2.7324e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     7.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     5.0000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 5D Functions
+  Friedman: chi2 =   8.2667, p = 8.2284e-02 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 6D Functions
+  Friedman: chi2 =   3.4667, p = 4.8296e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 7D Functions
+  Friedman: chi2 =   1.3333, p = 8.5570e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 8D Functions
+  Friedman: chi2 =   9.3333, p = 5.3287e-02 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 9D Functions
+  Friedman: chi2 =   1.8667, p = 7.6027e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 10D Functions
+  Friedman: chi2 =   9.8667, p = 4.2735e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     5.0000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+
+--------------------------------------------------------------------------------
+METRIC: JSD
+--------------------------------------------------------------------------------
+
+                             DESCRIPTIVE STATISTICS                             
+                     Proximity_Baseline Proximity_Method_A Proximity_Method_B Proximity_Method_C Proximity_Method_B_C
+--------------------------------------------------------------------------------
+All Functions        0.2968+/-0.2509   0.2981+/-0.2552   0.4304+/-0.2427   0.2895+/-0.2448   0.4115+/-0.2445  
+1D Functions         0.8000+/-0.1183   0.8140+/-0.1181   0.7980+/-0.1070   0.7831+/-0.1387   0.7845+/-0.1322  
+2D Functions         0.3177+/-0.1393   0.3212+/-0.1414   0.4976+/-0.1395   0.3034+/-0.1282   0.4630+/-0.1534  
+3D Functions         0.2345+/-0.1826   0.2340+/-0.1827   0.3922+/-0.1795   0.2268+/-0.1742   0.3557+/-0.1693  
+4D Functions         0.1586+/-0.1016   0.1586+/-0.1000   0.2922+/-0.1477   0.1504+/-0.1037   0.2668+/-0.1497  
+5D Functions         0.2521+/-0.2290   0.2525+/-0.2317   0.3559+/-0.2335   0.2254+/-0.1956   0.2909+/-0.1687  
+6D Functions         0.2069+/-0.1170   0.2021+/-0.1159   0.2991+/-0.1346   0.1993+/-0.1165   0.2738+/-0.1309  
+7D Functions         0.1259+/-0.0589   0.1245+/-0.0605   0.2305+/-0.1216   0.1209+/-0.0588   0.2192+/-0.1216  
+8D Functions         0.1698+/-0.0864   0.1729+/-0.0902   0.4740+/-0.3019   0.1827+/-0.1021   0.4980+/-0.3180  
+9D Functions         0.1793+/-0.1074   0.1774+/-0.1051   0.2864+/-0.2170   0.1834+/-0.1078   0.2806+/-0.2058  
+10D Functions        0.2153+/-0.1455   0.2073+/-0.1371   0.4133+/-0.1187   0.2228+/-0.1455   0.4372+/-0.1288  
+
+          STATISTICAL TESTS (Friedman + Bonferroni-corrected Wilcoxon)          
+
+> All Functions
+  Friedman: chi2 =  48.0444, p = 9.2386e-10 ***
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     9.1966e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     8.0437e-07           [SIG]
+  Proximity_Baseline vs Proximity_Method_C     7.9736e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.1233e-05           [SIG]
+  Proximity_Method_A vs Proximity_Method_B     2.2973e-06           [SIG]
+  Proximity_Method_A vs Proximity_Method_C     1.3477e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     4.7211e-05           [SIG]
+  Proximity_Method_B vs Proximity_Method_C     5.5420e-07           [SIG]
+  Proximity_Method_B vs Proximity_Method_B_C     1.4592e-02            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     1.6364e-06           [SIG]
+
+> 1D Functions
+  Friedman: chi2 =   4.4800, p = 3.4493e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 2D Functions
+  Friedman: chi2 =  16.4800, p = 2.4383e-03 **
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     6.2500e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_C     3.1250e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_C     3.1250e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     6.2500e-02            [NS]
+
+> 3D Functions
+  Friedman: chi2 =  16.4800, p = 2.4383e-03 **
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     6.2500e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_C     3.1250e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_C     3.1250e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     1.8750e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     6.2500e-02            [NS]
+
+> 4D Functions
+  Friedman: chi2 =  10.9333, p = 2.7324e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     1.0000e+00            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     5.0000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 5D Functions
+  Friedman: chi2 =   8.2667, p = 8.2284e-02 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 6D Functions
+  Friedman: chi2 =   3.4667, p = 4.8296e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 7D Functions
+  Friedman: chi2 =   1.3333, p = 8.5570e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 8D Functions
+  Friedman: chi2 =   9.3333, p = 5.3287e-02 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 9D Functions
+  Friedman: chi2 =   1.8667, p = 7.6027e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 10D Functions
+  Friedman: chi2 =   9.8667, p = 4.2735e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     5.0000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+
+--------------------------------------------------------------------------------
+METRIC: NAURC
+--------------------------------------------------------------------------------
+
+                             DESCRIPTIVE STATISTICS                             
+                     Proximity_Baseline Proximity_Method_A Proximity_Method_B Proximity_Method_C Proximity_Method_B_C
+--------------------------------------------------------------------------------
+All Functions        0.7465+/-0.3048   0.7477+/-0.3068   0.6842+/-0.3176   0.7438+/-0.3084   0.6961+/-0.3147  
+1D Functions         0.4114+/-0.3065   0.4174+/-0.3261   0.3456+/-0.2602   0.3791+/-0.2838   0.3744+/-0.2144  
+2D Functions         0.8497+/-0.1481   0.8503+/-0.1495   0.7065+/-0.2491   0.8534+/-0.1416   0.7236+/-0.2384  
+3D Functions         0.6396+/-0.3046   0.6376+/-0.3060   0.5730+/-0.3000   0.6416+/-0.3034   0.5773+/-0.3014  
+4D Functions         0.4854+/-0.3645   0.4872+/-0.3665   0.4467+/-0.3512   0.4825+/-0.3620   0.4423+/-0.3485  
+5D Functions         0.8172+/-0.2473   0.8177+/-0.2464   0.7405+/-0.2502   0.8195+/-0.2501   0.7486+/-0.2571  
+6D Functions         0.7899+/-0.1490   0.7906+/-0.1474   0.7304+/-0.1898   0.7858+/-0.1493   0.7283+/-0.1953  
+7D Functions         0.7755+/-0.1567   0.7775+/-0.1545   0.7312+/-0.1406   0.7733+/-0.1562   0.7338+/-0.1346  
+8D Functions         0.9563+/-0.0755   0.9588+/-0.0765   0.9691+/-0.1802   0.9764+/-0.1001   0.9993+/-0.2005  
+9D Functions         1.0842+/-0.1579   1.0817+/-0.1543   1.0445+/-0.2074   1.0856+/-0.1608   1.0656+/-0.2183  
+10D Functions        0.8814+/-0.1388   0.8830+/-0.1380   0.8391+/-0.1230   0.8785+/-0.1401   0.8431+/-0.1292  
+
+          STATISTICAL TESTS (Friedman + Bonferroni-corrected Wilcoxon)          
+
+> All Functions
+  Friedman: chi2 =  47.6889, p = 1.0958e-09 ***
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     2.0301e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     6.0106e-06           [SIG]
+  Proximity_Baseline vs Proximity_Method_C     2.3891e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     1.8572e-04           [SIG]
+  Proximity_Method_A vs Proximity_Method_B     6.6567e-06           [SIG]
+  Proximity_Method_A vs Proximity_Method_C     9.7796e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     3.1153e-04           [SIG]
+  Proximity_Method_B vs Proximity_Method_C     1.9360e-05           [SIG]
+  Proximity_Method_B vs Proximity_Method_B_C     4.4221e-02            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     5.4607e-04           [SIG]
+
+> 1D Functions
+  Friedman: chi2 =   4.3200, p = 3.6443e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 2D Functions
+  Friedman: chi2 =   6.5600, p = 1.6105e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 3D Functions
+  Friedman: chi2 =  16.8000, p = 2.1138e-03 **
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     1.2500e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Baseline vs Proximity_Method_C     4.3750e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_B     6.2500e-02            [NS]
+  Proximity_Method_A vs Proximity_Method_C     4.3750e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_C     6.2500e-02            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     4.3750e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     6.2500e-02            [NS]
+
+> 4D Functions
+  Friedman: chi2 =   9.8667, p = 4.2735e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     5.0000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     5.0000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+> 5D Functions
+  Friedman: chi2 =   9.3333, p = 5.3287e-02 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 6D Functions
+  Friedman: chi2 =   2.9333, p = 5.6904e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 7D Functions
+  Friedman: chi2 =   2.9333, p = 5.6904e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 8D Functions
+  Friedman: chi2 =   2.4000, p = 6.6263e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 9D Functions
+  Friedman: chi2 =   1.8667, p = 7.6027e-01 ns
+  -> No significant difference across methods (Friedman p >= 0.05)
+
+> 10D Functions
+  Friedman: chi2 =  10.9333, p = 2.7324e-02 *
+  Bonferroni alpha = 5.0000e-03
+  Pairwise Comparisons           p-value         Significant?   
+  -----------------------------------------------------------------
+  Proximity_Baseline vs Proximity_Method_A     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_C     5.0000e-01            [NS]
+  Proximity_Baseline vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_A vs Proximity_Method_B_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_C     2.5000e-01            [NS]
+  Proximity_Method_B vs Proximity_Method_B_C     5.0000e-01            [NS]
+  Proximity_Method_C vs Proximity_Method_B_C     2.5000e-01            [NS]
+
+================================================================================
+Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant
+================================================================================
+
+
+[Report] Results saved to: results/unified_cluster_sweep_optimized/uncertainty_quantification_results_rf5_k20_sparse_m5_linear_20260710_010903.txt and results/unified_cluster_sweep_optimized/uncertainty_quantification_results_rf5_k20_sparse_m5_linear_20260710_010903.json
