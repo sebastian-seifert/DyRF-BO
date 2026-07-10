@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=dyrf_uq_sweep
 #SBATCH --output=sweep_%j.log
-#SBATCH --gres=a100:4
+#SBATCH --gres=gpu:a100:4
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=64G
 #SBATCH --time=12:00:00
