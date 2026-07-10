@@ -1,4 +1,5 @@
 #!/bin/bash
+#SBATCH -p ai
 #SBATCH --job-name=dyrf_uq_sweep
 #SBATCH --output=sweep_%j.log
 #SBATCH --gres=gpu:a100:4

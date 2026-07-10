@@ -1,4 +1,5 @@
 #!/bin/bash
+#SBATCH -p ai
 #SBATCH --job-name=aleatoric_eval
 #SBATCH --output=aleatoric_%j.log
 #SBATCH --gres=gpu:a100:1
