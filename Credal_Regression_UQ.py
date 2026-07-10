@@ -100,6 +100,11 @@ class CredalRegressionUQ:
         X_test = np.atleast_2d(X_test)
         n_samples = X_test.shape[0]
         
+        import time
+        debug_timing = os.environ.get("PROXIMITY_DEBUG") == "1"
+        if debug_timing:
+            t0 = time.time()
+        
         is_gpu = backend == "gpu" or (backend == "auto" and HAS_GPU)
         resolved_backend = "gpu" if is_gpu else "cpu"
         
@@ -118,30 +123,54 @@ class CredalRegressionUQ:
         n_iter = 20
         
         # Precompute leaf assignments for all test points once
+        if debug_timing:
+            t_leaf_start = time.time()
         all_test_leaf_ids = self.model.apply(X_test)
+        if debug_timing:
+            print(f"   [Credal UQ Profile] Model apply (test leaf IDs) took: {time.time() - t_leaf_start:.6f}s")
         
         if n_samples <= batch_size:
-            return self._compute_uq_batch(all_test_leaf_ids, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver)
+            res = self._compute_uq_batch(all_test_leaf_ids, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver)
+            if debug_timing:
+                print(f"   [Credal UQ Profile] Total compute_uq execution took: {time.time() - t0:.6f}s")
+            return res
             
         # Batched execution to prevent OOM
         epistemic_vars = []
         aleatoric_vars = []
         
         for i in range(0, n_samples, batch_size):
+            if debug_timing:
+                t_batch_start = time.time()
             leaf_batch = all_test_leaf_ids[i : i + batch_size]
             epistemic_batch, aleatoric_batch = self._compute_uq_batch(
                 leaf_batch, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver
             )
             epistemic_vars.append(epistemic_batch)
             aleatoric_vars.append(aleatoric_batch)
+            if debug_timing:
+                print(f"   [Credal UQ Profile] Batch [{i}:{i+batch_size}] took: {time.time() - t_batch_start:.6f}s")
             
-        return np.concatenate(epistemic_vars), np.concatenate(aleatoric_vars)
+        res = np.concatenate(epistemic_vars), np.concatenate(aleatoric_vars)
+        if debug_timing:
+            print(f"   [Credal UQ Profile] Total batched compute_uq execution took: {time.time() - t0:.6f}s")
+        return res
 
     def _compute_uq_batch(self, X_test, backend="auto", n_grid=100, n_iter=15, integration_method="gauss_legendre", sup_solver="bisection"):
         """Internal method to compute UQ for a single batch using Method B (ensemble-level integration)."""
+        import time
+        debug_timing = os.environ.get("PROXIMITY_DEBUG") == "1"
+        
+        if debug_timing:
+            t0 = time.time()
+            
         # 1. Retrieve CPU leaf statistics
         means, variances, counts = self._calc_leaf_stats(X_test)
         sigmas = np.sqrt(variances)
+        
+        if debug_timing:
+            t_stats = time.time()
+            print(f"      [Credal UQ Profile] Leaf stats retrieval took: {t_stats - t0:.6f}s")
         
         is_gpu = backend == "gpu" or (backend == "auto" and HAS_GPU)
         xp = np
@@ -162,6 +191,10 @@ class CredalRegressionUQ:
             means_g = means
             sigmas_g = sigmas
             counts_g = counts
+            
+        if debug_timing:
+            t_transfer = time.time()
+            print(f"      [Credal UQ Profile] Host-to-device transfer took: {t_transfer - t_stats:.6f}s")
             
         n_trees, n_samples = means_g.shape
         
@@ -198,6 +231,10 @@ class CredalRegressionUQ:
         # Normalized grid coordinates z = (t - mean) / sigma
         z_b = (t_b - means_b) / sigmas_b
         
+        if debug_timing:
+            t_grid_setup = time.time()
+            print(f"      [Credal UQ Profile] Integration grid setup took: {t_grid_setup - t_transfer:.6f}s")
+            
         # Helper function for CDF of standard normal distribution
         def xp_cdf(x):
             if xp is np:
@@ -280,6 +317,10 @@ class CredalRegressionUQ:
                 
             pi_ge = xp.exp(-k_b * (a_ge**2) / 2.0)
         
+        if debug_timing:
+            t_solve = time.time()
+            print(f"      [Credal UQ Profile] supremum solver ({sup_solver}) took: {t_solve - t_grid_setup:.6f}s")
+            
         # 6. Ensemble-level averaging BEFORE integration (Method B)
         mean_pi_le = xp.mean(pi_le, axis=0)
         mean_pi_ge = xp.mean(pi_ge, axis=0)
@@ -305,6 +346,9 @@ class CredalRegressionUQ:
         epistemic_var = I_ep ** 2
         aleatoric_var = I_al ** 2
         
+        if debug_timing:
+            print(f"      [Credal UQ Profile] Integration & device sync took: {time.time() - t_solve:.6f}s")
+            
         return epistemic_var, aleatoric_var
 
     def _get_dynamic_batch_size(self, n_grid, backend):

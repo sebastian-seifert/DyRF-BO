@@ -233,6 +233,11 @@ class EpistemicQuantifier:
         
         Formula: E[-log2(p(y|x))], with y sampled from the tree GMM.
         """
+        import time
+        debug_timing = os.environ.get("PROXIMITY_DEBUG") == "1"
+        if debug_timing:
+            t0 = time.time()
+            
         X_test = np.atleast_2d(X_test)
         n_samples = X_test.shape[0]
         n_trees = len(self.model.estimators_)
@@ -248,13 +253,20 @@ class EpistemicQuantifier:
             all_test_leaf_ids = self.model.apply(X_test)
             
         # 1. Get predictions and variances for all trees: shapes (n_samples, n_trees)
+        if debug_timing:
+            t_pred_start = time.time()
         mu_all = self._get_tree_predictions(X_test, all_test_leaf_ids=all_test_leaf_ids).T # (n_samples, n_trees)
         vars_all = self._base_calc_per_tree_variance(X_test, all_test_leaf_ids=all_test_leaf_ids).T # (n_samples, n_trees)
         sigmas_all = np.sqrt(vars_all)
+        if debug_timing:
+            t_pred_end = time.time()
+            print(f"   [GMM Shaker Profile] Tree predictions and variance retrieval took: {t_pred_end - t_pred_start:.6f}s")
         
         total_entropy = np.zeros(n_samples)
         
         if backend == "gpu":
+            if debug_timing:
+                t_prep_start = time.time()
             # Copy to pinned memory for fast DMA transfers
             mu_all_pinned = cupyx.empty_pinned(mu_all.shape, dtype=np.float32)
             sigmas_all_pinned = cupyx.empty_pinned(sigmas_all.shape, dtype=np.float32)
@@ -263,6 +275,9 @@ class EpistemicQuantifier:
 
             cp.get_default_memory_pool().free_all_blocks()
             rng = self._mc_make_gpu_rng(random_state)
+            if debug_timing:
+                print(f"   [GMM Shaker Profile] GPU/DMA buffer setups took: {time.time() - t_prep_start:.6f}s")
+                t_loop_start = time.time()
             
             for start in range(0, n_samples, batch_size):
                 end = min(start + batch_size, n_samples)
@@ -309,9 +324,13 @@ class EpistemicQuantifier:
                 batch_entropy = -cp.mean(log_p_y, axis=1) / cp.log(2)
                 
                 total_entropy[start:end] = cp.asnumpy(batch_entropy)
+            if debug_timing:
+                print(f"   [GMM Shaker Profile] GPU MC Batch execution loop took: {time.time() - t_loop_start:.6f}s")
                 
         else: # CPU backend
             rng = self._mc_make_cpu_rng(random_state)
+            if debug_timing:
+                t_loop_start = time.time()
             
             for start in range(0, n_samples, batch_size):
                 end = min(start + batch_size, n_samples)
@@ -349,11 +368,13 @@ class EpistemicQuantifier:
                 
                 total_entropy[start:end] = batch_entropy
                 
+            if debug_timing:
+                print(f"   [GMM Shaker Profile] CPU MC Batch execution loop took: {time.time() - t_loop_start:.6f}s")
+                
+        if debug_timing:
+            print(f"   [GMM Shaker Profile] Total total_entropy calculation took: {time.time() - t0:.6f}s")
         return total_entropy
 
-    # ==========================================
-    # MONTE CARLO (MC) UTILITIES
-    # ==========================================
     def _mc_is_cupy_available(self):
         return HAS_GPU
 
