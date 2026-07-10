@@ -22,7 +22,7 @@ set -e
 
 # Define parameters for the experimental grid
 RF_CONFIGS=(1 5)
-K_VALUES=(20 100)
+K_VALUES=(10 20 30)
 SPARSE_MULTIPLIERS=(5 50)
 SCALING_LAWS=("linear" "leaf")
 GAP_TYPES=("empty" "sparse")
