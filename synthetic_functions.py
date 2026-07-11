@@ -239,3 +239,58 @@ def get_10d_functions():
         },
     }
     return functions
+
+def get_11d_functions():
+    """Returns 1 diverse 11D function with training gaps."""
+    functions = {
+        "sin_cos_11d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8) * np.sin(x9) * np.cos(x10) * np.sin(x11),
+            "gap": (4, 6),
+            "range": (0, 10),
+        }
+    }
+    return functions
+
+def get_12d_functions():
+    """Returns 1 diverse 12D function with training gaps."""
+    functions = {
+        "sin_cos_12d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8) * np.sin(x9) * np.cos(x10) * np.sin(x11) * np.cos(x12),
+            "gap": (4, 6),
+            "range": (0, 10),
+        }
+    }
+    return functions
+
+def get_13d_functions():
+    """Returns 1 diverse 13D function with training gaps."""
+    functions = {
+        "sin_cos_13d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8) * np.sin(x9) * np.cos(x10) * np.sin(x11) * np.cos(x12) * np.sin(x13),
+            "gap": (4, 6),
+            "range": (0, 10),
+        }
+    }
+    return functions
+
+def get_14d_functions():
+    """Returns 1 diverse 14D function with training gaps."""
+    functions = {
+        "sin_cos_14d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8) * np.sin(x9) * np.cos(x10) * np.sin(x11) * np.cos(x12) * np.sin(x13) * np.cos(x14),
+            "gap": (4, 6),
+            "range": (0, 10),
+        }
+    }
+    return functions
+
+def get_15d_functions():
+    """Returns 1 diverse 15D function with training gaps."""
+    functions = {
+        "sin_cos_15d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6) * np.sin(x7) * np.cos(x8) * np.sin(x9) * np.cos(x10) * np.sin(x11) * np.cos(x12) * np.sin(x13) * np.cos(x14) * np.sin(x15),
+            "gap": (4, 6),
+            "range": (0, 10),
+        }
+    }
+    return functions

@@ -6,7 +6,8 @@ from Credal_Regression_UQ import CredalRegressionUQ
 from synthetic_functions import (
     get_1d_functions, get_2d_functions, get_3d_functions, get_4d_functions,
     get_5d_functions, get_6d_functions, get_7d_functions, get_8d_functions,
-    get_9d_functions, get_10d_functions
+    get_9d_functions, get_10d_functions, get_11d_functions, get_12d_functions,
+    get_13d_functions, get_14d_functions, get_15d_functions
 )
 import sys
 import os
@@ -100,8 +101,8 @@ def evaluate_aleatoric_quality(X_train, y_train, X_test, y_test, sigma_test_true
 def main():
     parser = argparse.ArgumentParser(description="Evaluate Aleatoric Uncertainty Estimation Quality")
     parser.add_argument("--quick", action="store_true", help="Run a quick version for test validation")
-    parser.add_argument("--n_runs", type=int, default=5, help="Number of random seeds/runs to evaluate")
-    parser.add_argument("--dims", type=str, default="1,2,3,4,5,6,7,8,9,10", help="Comma-separated list of dimensions to run")
+    parser.add_argument("--n_runs", type=int, default=7, help="Number of random seeds/runs to evaluate")
+    parser.add_argument("--dims", type=str, default="1,2,3,4,5,6,7,8,9,10,11,12,13,14,15", help="Comma-separated list of dimensions to run")
     args = parser.parse_args()
     
     # Resolve parameters
@@ -120,7 +121,8 @@ def main():
     getters = [
         get_1d_functions, get_2d_functions, get_3d_functions, get_4d_functions,
         get_5d_functions, get_6d_functions, get_7d_functions, get_8d_functions,
-        get_9d_functions, get_10d_functions
+        get_9d_functions, get_10d_functions, get_11d_functions, get_12d_functions,
+        get_13d_functions, get_14d_functions, get_15d_functions
     ]
     
     func_dict = {}

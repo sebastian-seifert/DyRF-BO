@@ -29,4 +29,23 @@
    * Automatically queries first representative functions across all dimensions from $1\text{D}$ to $10\text{D}$ using imports from `synthetic_functions.py`.
    * Added `run_aleatoric_evaluation.sh` for cluster dispatches, adding support for a `--quick` flag to run fast TDD unit test runs in `tests/test_aleatoric_evaluation.py`.
 
+## Session: 2026-07-11
+* **Goal**: Expand synthetic dimension functions to 11D-15D, add pure aleatoric uncertainty approaches for manifold OOD evaluation, and set up a 7-seed cluster run.
+
+### Accomplishments
+1. **Dimension Expansion (11D-15D)**:
+   * Created new functions `get_11d_functions` through `get_15d_functions` in [synthetic_functions.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/synthetic_functions.py). Each defines one diverse dimension function (extended sine-cosine product waves).
+   * Updated [data_generator.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/data_generator.py) to dynamically scale dataset size linearly for higher dimensions (`n_samples = ndim * 1000`).
+   * Integrated 11D-15D functions into [Uncertainty_Quantification.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/Uncertainty_Quantification.py) and [evaluate_aleatoric.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/evaluate_aleatoric.py) (including parsing, printing, and result mappings).
+2. **Aleatoric UQ Evaluation in OOD Sweep**:
+   * Added support for `Standard_Aleatoric` and `Shaker_Aleatoric` as standalone approaches in [Uncertainty_Quantification.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/Uncertainty_Quantification.py). This enables direct OOD and manifold evaluation of pure data noise estimators.
+3. **TDD Validation**:
+   * Created a unit test suite [tests/test_new_synthetic_functions.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/tests/test_new_synthetic_functions.py) to verify the shapes, definitions, and integration of the 11D-15D functions and new aleatoric approaches before code changes.
+   * Ran the verification test suite via `bash run_tests.sh` confirming all 25 unit and smoke tests passed successfully.
+4. **Cluster Sweeping Configuration**:
+   * Configured the epistemic sweep script [run_unified_cluster_sweep.sh](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/run_unified_cluster_sweep.sh) to run with 7 runs/seeds (`--n_runs 7`) instead of 5.
+   * Configured the dedicated aleatoric sweep script [run_aleatoric_evaluation.sh](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/run_aleatoric_evaluation.sh) to run with 7 runs/seeds (`--n_runs 7`) instead of 5.
+
+
+
 

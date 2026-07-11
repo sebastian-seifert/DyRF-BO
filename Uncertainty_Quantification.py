@@ -89,7 +89,12 @@ from synthetic_functions import (
     get_7d_functions,
     get_8d_functions,
     get_9d_functions,
-    get_10d_functions
+    get_10d_functions,
+    get_11d_functions,
+    get_12d_functions,
+    get_13d_functions,
+    get_14d_functions,
+    get_15d_functions
 )
 
 
@@ -325,6 +330,14 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
     for app in approaches:
         t_app_start = time.perf_counter()
         if app == "Standard": uncertainties[app] = quantifier.standard_get_epistemic_variance(X_test)
+        elif app == "Standard_Aleatoric":
+            uncertainties[app] = u_a
+            u_a_credal_dict[app] = np.zeros_like(u_a)
+        elif app == "Shaker_Aleatoric":
+            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            _, u_a_shaker = credal_q.compute_uq(X_test, backend="auto")
+            uncertainties[app] = u_a_shaker
+            u_a_credal_dict[app] = np.zeros_like(u_a_shaker)
         elif app == "Shaker" or app == "Shaker_GMM_Entropy": uncertainties[app] = quantifier.shaker_get_epistemic_variance(X_test, random_state=seed)
         elif app == "Chen": uncertainties[app] = quantifier.chen_get_epistemic_variance(X_test)
         elif app == "Credal_GL_Bisect" or app == "Shaker_Likelihood_GL_Bisect":
@@ -598,13 +611,19 @@ if __name__ == "__main__":
     functions_8d = get_8d_functions()
     functions_9d = get_9d_functions()
     functions_10d = get_10d_functions()
+    functions_11d = get_11d_functions()
+    functions_12d = get_12d_functions()
+    functions_13d = get_13d_functions()
+    functions_14d = get_14d_functions()
+    functions_15d = get_15d_functions()
     all_functions = {
         **functions_1d, **functions_2d, **functions_3d, **functions_4d, **functions_5d,
-        **functions_6d, **functions_7d, **functions_8d, **functions_9d, **functions_10d
+        **functions_6d, **functions_7d, **functions_8d, **functions_9d, **functions_10d,
+        **functions_11d, **functions_12d, **functions_13d, **functions_14d, **functions_15d
     }
 
     print(f"\n[SETUP SUMMARY]")
-    print(f"  * Functions: {len(all_functions)} total (5 1D, 5 2D, 5 3D, 3 4D, 3 5D, 3 6D, 3 7D, 3 8D, 3 9D, 3 10D)")
+    print(f"  * Functions: {len(all_functions)} total (5 1D, 5 2D, 5 3D, 3 4D, 3 5D, 3 6D, 3 7D, 3 8D, 3 9D, 3 10D, 1 11D, 1 12D, 1 13D, 1 14D, 1 15D)")
     print(f"  * Runs: {n_runs} (total evaluations: {len(all_functions) * n_runs})")
     print(f"  * Approaches: {', '.join(approaches)}")
     print(f"  * Metrics: AUROC, FPR@95TPR, Spearman, Brier, MI, JSD")
@@ -642,6 +661,11 @@ if __name__ == "__main__":
         "8D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
         "9D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
         "10D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "11D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "12D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "13D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "14D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        "15D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
     }
 
     global_timings = {
@@ -702,8 +726,18 @@ if __name__ == "__main__":
                     dim_key = "8D"
                 elif func_name in functions_9d:
                     dim_key = "9D"
-                else:
+                elif func_name in functions_10d:
                     dim_key = "10D"
+                elif func_name in functions_11d:
+                    dim_key = "11D"
+                elif func_name in functions_12d:
+                    dim_key = "12D"
+                elif func_name in functions_13d:
+                    dim_key = "13D"
+                elif func_name in functions_14d:
+                    dim_key = "14D"
+                else:
+                    dim_key = "15D"
 
                 for app in approaches:
                     results_all[app]["auroc"].append(test_results[app]["auroc"])
@@ -765,7 +799,8 @@ if __name__ == "__main__":
         ("1D Functions", "1D"), ("2D Functions", "2D"), ("3D Functions", "3D"),
         ("4D Functions", "4D"), ("5D Functions", "5D"), ("6D Functions", "6D"),
         ("7D Functions", "7D"), ("8D Functions", "8D"), ("9D Functions", "9D"),
-        ("10D Functions", "10D")
+        ("10D Functions", "10D"), ("11D Functions", "11D"), ("12D Functions", "12D"),
+        ("13D Functions", "13D"), ("14D Functions", "14D"), ("15D Functions", "15D")
     ]:
         print(f"\n[DIMENSION] {dim_name}")
         print(f"{'-'*70}")

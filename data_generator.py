@@ -166,8 +166,8 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
             n_samples = 8000
         elif ndim == 9:
             n_samples = 9000
-        else: # 10D
-            n_samples = 10000
+        else:
+            n_samples = ndim * 1000
     else:
         if points_per_dim is None:
             if ndim == 1:
