@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH -p ai
+#SBATCH -p gpu
 #SBATCH --job-name=dyrf_uq_sweep
 #SBATCH --output=results/dyrf_uq_sweep/logs/run_%A_%a.log
 #SBATCH --error=results/dyrf_uq_sweep/logs/run_%A_%a.err
 #SBATCH --array=1-250%24
 #SBATCH --gres=gpu:2g.20gb:1
-#SBATCH --cpus-per-task=32
-#SBATCH --mem=64G
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=32G
 #SBATCH --time=12:00:00
 
 # Dedicated script to evaluate baseline and proximity UQ approaches
