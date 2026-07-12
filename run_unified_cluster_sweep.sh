@@ -3,7 +3,7 @@
 #SBATCH --job-name=dyrf_uq_sweep
 #SBATCH --output=results/dyrf_uq_sweep/logs/run_%A_%a.log
 #SBATCH --error=results/dyrf_uq_sweep/logs/run_%A_%a.err
-#SBATCH --array=1-738
+#SBATCH --array=1-738%24
 #SBATCH --gres=gpu:2g.20gb:1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=64G
