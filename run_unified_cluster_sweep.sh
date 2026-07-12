@@ -3,7 +3,7 @@
 #SBATCH --job-name=dyrf_uq_sweep
 #SBATCH --output=results/dyrf_uq_sweep/logs/run_%A_%a.log
 #SBATCH --error=results/dyrf_uq_sweep/logs/run_%A_%a.err
-#SBATCH --array=0-737
+#SBATCH --array=1-250%24
 #SBATCH --gres=gpu:2g.20gb:1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=64G
@@ -37,10 +37,10 @@ if [ ! -f "$PARAMS_FILE" ]; then
     exit 1
 fi
 
-PARAMS=$(sed -n "$((SLURM_ARRAY_TASK_ID + 1))p" "$PARAMS_FILE")
+PARAMS=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$PARAMS_FILE")
 
 if [ -z "$PARAMS" ]; then
-    echo "ERROR: No parameters found at line $((SLURM_ARRAY_TASK_ID + 1)) in $PARAMS_FILE."
+    echo "ERROR: No parameters found at line $SLURM_ARRAY_TASK_ID in $PARAMS_FILE."
     exit 1
 fi
 
