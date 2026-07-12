@@ -4,6 +4,9 @@
 # to comply with the MaxArraySize limit of 300 tasks per array job,
 # while maintaining a strict resource allocation ceiling of 8 physical A100 GPUs (24 concurrent tasks).
 
+# Create directory structure before sbatch submission to prevent SLURM path errors
+mkdir -p results/dyrf_uq_sweep/logs
+
 echo "Submitting unified sweep to cluster..."
 
 # Submit Chunk 1 (Tasks 1-250)
