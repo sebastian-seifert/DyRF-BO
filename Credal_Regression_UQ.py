@@ -32,7 +32,7 @@ except ImportError:
     HAS_GPU = False
 
 class CredalRegressionUQ:
-    def __init__(self, model, X_train, y_train):
+    def __init__(self, model, X_train, y_train, leaf_cache=None):
         """
         Implementation of the Continuous Relative Likelihood (Credal UQ) framework
         for Random Forest Regression.
@@ -40,6 +40,7 @@ class CredalRegressionUQ:
         self.model = model
         self.X_train = np.asarray(X_train)
         self.y_train = np.asarray(y_train)
+        self.leaf_cache = leaf_cache
 
     def _calc_leaf_stats(self, X_test, min_var=1e-6):
         """
@@ -124,40 +125,63 @@ class CredalRegressionUQ:
         n_iter = 20
         
         # Precompute leaf assignments for all test points once
-        if debug_timing:
-            t_leaf_start = time.time()
-        all_test_leaf_ids = self.model.apply(X_test)
-        if debug_timing:
-            print(f"   [Credal UQ Profile] Model apply (test leaf IDs) took: {time.time() - t_leaf_start:.6f}s")
-        
-        if n_samples <= batch_size:
-            res = self._compute_uq_batch(all_test_leaf_ids, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver, likelihood_type=likelihood_type)
+        if self.leaf_cache is not None:
+            all_test_leaf_ids = self.leaf_cache.all_test_leaf_ids
+        else:
             if debug_timing:
-                print(f"   [Credal UQ Profile] Total compute_uq execution took: {time.time() - t0:.6f}s")
-            return res
-            
-        # Batched execution to prevent OOM
+                t_leaf_start = time.time()
+            all_test_leaf_ids = self.model.apply(X_test)
+            if debug_timing:
+                print(f"   [Credal UQ Profile] Model apply (test leaf IDs) took: {time.time() - t_leaf_start:.6f}s")
+        
+        # Check if GPU is active
+        is_gpu = backend == "gpu" or (backend == "auto" and HAS_GPU)
+        
         epistemic_vars = []
         aleatoric_vars = []
         
-        for i in range(0, n_samples, batch_size):
+        i = 0
+        while i < n_samples:
             if debug_timing:
                 t_batch_start = time.time()
-            leaf_batch = all_test_leaf_ids[i : i + batch_size]
-            epistemic_batch, aleatoric_batch = self._compute_uq_batch(
-                leaf_batch, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver, likelihood_type=likelihood_type
-            )
-            epistemic_vars.append(epistemic_batch)
-            aleatoric_vars.append(aleatoric_batch)
-            if debug_timing:
-                print(f"   [Credal UQ Profile] Batch [{i}:{i+batch_size}] took: {time.time() - t_batch_start:.6f}s")
+            try:
+                current_batch_size = min(batch_size, n_samples - i)
+                leaf_batch = all_test_leaf_ids[i : i + current_batch_size]
+                batch_cache = self.leaf_cache.get_slice(i, i + current_batch_size) if self.leaf_cache is not None else None
+                epistemic_batch, aleatoric_batch = self._compute_uq_batch(
+                    leaf_batch, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver, likelihood_type=likelihood_type, leaf_cache=batch_cache
+                )
+                epistemic_vars.append(epistemic_batch)
+                aleatoric_vars.append(aleatoric_batch)
+                if debug_timing:
+                    print(f"   [Credal UQ Profile] Batch [{i}:{i+current_batch_size}] took: {time.time() - t_batch_start:.6f}s")
+                i += current_batch_size
+            except Exception as e:
+                # Catch GPU/CPU memory errors
+                is_oom = False
+                if is_gpu and cp is not None:
+                    if isinstance(e, cp.cuda.memory.OutOfMemoryError):
+                        is_oom = True
+                if isinstance(e, MemoryError):
+                    is_oom = True
+                
+                if is_oom:
+                    if is_gpu and cp is not None:
+                        cp.get_default_memory_pool().free_all_blocks()
+                    if batch_size <= 10:
+                        raise RuntimeError("OOM even with batch size <= 10")
+                    batch_size = max(10, batch_size // 2)
+                    if debug_timing:
+                        print(f"   [Credal UQ Profile] OOM encountered. Halving batch size to {batch_size}")
+                else:
+                    raise e
             
         res = np.concatenate(epistemic_vars), np.concatenate(aleatoric_vars)
         if debug_timing:
-            print(f"   [Credal UQ Profile] Total batched compute_uq execution took: {time.time() - t0:.6f}s")
+            print(f"   [Credal UQ Profile] Total compute_uq execution took: {time.time() - t0:.6f}s")
         return res
  
-    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100, n_iter=15, integration_method="gauss_legendre", sup_solver="bisection", likelihood_type="normal"):
+    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100, n_iter=15, integration_method="gauss_legendre", sup_solver="bisection", likelihood_type="normal", leaf_cache=None):
         """Internal method to compute UQ for a single batch using Method B (ensemble-level integration)."""
         import time
         debug_timing = os.environ.get("PROXIMITY_DEBUG") == "1"
@@ -171,7 +195,10 @@ class CredalRegressionUQ:
             t0 = time.time()
             
         # 1. Retrieve CPU leaf statistics
-        means, variances, counts = self._calc_leaf_stats(X_test)
+        if leaf_cache is not None:
+            means, variances, counts = leaf_cache.means, leaf_cache.variances, leaf_cache.counts
+        else:
+            means, variances, counts = self._calc_leaf_stats(X_test)
         sigmas = np.sqrt(variances)
         
         # Apply sample-size scale correction for student_t_corrected
@@ -408,21 +435,16 @@ class CredalRegressionUQ:
         if backend == "gpu" and cp is not None:
             try:
                 free_mem, _ = cp.cuda.Device().mem_info
-                # We target using no more than 5% of free memory
-                target_mem_bytes = free_mem * 0.05
+                # Target using 35% of free memory
+                target_mem_bytes = free_mem * 0.35
                 # Each float32 element is 4 bytes. In Credal UQ, we allocate ~6 tensors of shape
                 # (n_trees, B, n_grid) during parallel bisection/Newton iterations:
-                # 1. z_b (n_trees, B, n_grid)
-                # 2. u_le (n_trees, B, n_grid)
-                # 3. h_val (n_trees, B, n_grid)
-                # 4. h_prime (n_trees, B, n_grid)
-                # 5. bounds/intermediate arrays
                 bytes_per_sample = n_trees * n_grid * 4 * 6
                 batch_size = int(target_mem_bytes / bytes_per_sample)
-                # Restrict to a sane range: [100, 5000]
-                return int(np.clip(batch_size, 100, 5000))
+                # Restrict to a sane range: [100, 30000]
+                return int(np.clip(batch_size, 100, 30000))
             except Exception:
-                return 2000
+                return 1000
         else:
             # CPU cache-friendly batch size
             return 1000

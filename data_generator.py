@@ -123,12 +123,22 @@ def generate_manifold_data(func_obj, x_range, gap, ndim, n_samples, gap_type, sp
         X_ood = X_test_ood_manifold + lambdas[:, np.newaxis] * v + rng.normal(0, 0.05, size=X_test_ood_manifold.shape)
         X_test = np.concatenate([X_id, X_ood], axis=0)
         
-    # Evaluate labels
-    y_train = func_obj(*[X_train[:, d] for d in range(ndim)]).ravel()
-    y_train += rng.normal(0, noise, len(y_train))
+    # Evaluate clean labels first
+    y_train_raw = func_obj(*[X_train[:, d] for d in range(ndim)]).ravel()
+    y_test_raw = func_obj(*[X_test[:, d] for d in range(ndim)]).ravel()
     
-    y_test = func_obj(*[X_test[:, d] for d in range(ndim)]).ravel()
-    y_test += rng.normal(0, noise, len(y_test))
+    # Normalize target function outputs to unit variance based on train statistics
+    std_y = np.std(y_train_raw)
+    if std_y > 1e-8:
+        mean_y = np.mean(y_train_raw)
+        y_train_clean = (y_train_raw - mean_y) / std_y
+        y_test_clean = (y_test_raw - mean_y) / std_y
+    else:
+        y_train_clean = y_train_raw
+        y_test_clean = y_test_raw
+        
+    y_train = y_train_clean + rng.normal(0, noise, len(y_train_clean))
+    y_test = y_test_clean + rng.normal(0, noise, len(y_test_clean))
     
     y_true_binary = np.zeros(len(X_test), dtype=int)
     y_true_binary[n_id_actual:] = 1

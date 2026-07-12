@@ -30,9 +30,10 @@ from metrics import (
     calculate_random_rejection_curve,
     calculate_aurc_exact,
     calculate_roc_metrics,
-    calculate_aupr
+    calculate_aupr,
+    calculate_nlpd
 )
-from Epistemic_Quantifier import EpistemicQuantifier
+from Epistemic_Quantifier import EpistemicQuantifier, LeafCache
 
 # Helps on clusters where NVRTC does not directly support the GPU's native arch.
 os.environ.setdefault("CUPY_COMPILE_WITH_PTX", "1")
@@ -165,7 +166,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"COMPREHENSIVE STATISTICAL SUMMARY")
     print(f"{'='*80}\n")
 
-    metrics = ["auroc", "fpr95", "aupr", "spearman", "brier", "mi", "jsd", "naurc"]
+    metrics = ["auroc", "fpr95", "aupr", "spearman", "brier", "mi", "jsd", "naurc", "nlpd"]
     dimensions = [("All Functions", results_all),
                   ("1D Functions", results_by_dim["1D"]),
                   ("2D Functions", results_by_dim["2D"]),
@@ -311,7 +312,8 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         print(f"    [TIMING] Random Forest Fitting: {t2 - t1:.4f} s")
         sys.stdout.flush()
     
-    quantifier = EpistemicQuantifier(rf, X_train, y_train)
+    leaf_cache = LeafCache(rf, X_test)
+    quantifier = EpistemicQuantifier(rf, X_train, y_train, leaf_cache=leaf_cache)
     t3 = time.perf_counter()
 
     y_pred = rf.predict(X_test)
@@ -339,44 +341,44 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             uncertainties[app] = u_a
             u_a_credal_dict[app] = np.zeros_like(u_a)
         elif app == "Shaker_Aleatoric":
-            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
             _, u_a_shaker = credal_q.compute_uq(X_test, backend="auto")
             uncertainties[app] = u_a_shaker
             u_a_credal_dict[app] = np.zeros_like(u_a_shaker)
         elif app == "Shaker" or app == "Shaker_GMM_Entropy": uncertainties[app] = quantifier.shaker_get_epistemic_variance(X_test, random_state=seed)
         elif app == "Chen": uncertainties[app] = quantifier.chen_get_epistemic_variance(X_test)
         elif app == "Credal_GL_Bisect" or app == "Shaker_Likelihood_GL_Bisect":
-            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
             u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="gauss_legendre", sup_solver="bisection")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Credal_GL_Newton" or app == "Shaker_Likelihood_GL_Newton":
-            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
             u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="gauss_legendre", sup_solver="newton")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Credal_Trapz_Bisect" or app == "Shaker_Likelihood_Trapz_Bisect":
-            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
             u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Credal_Trapz_Newton" or app == "Shaker_Likelihood_Trapz_Newton":
-            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
             u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="newton")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Shaker_Likelihood_Normal":
-            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
             u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="normal")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Shaker_Likelihood_StudentT":
-            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
             u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="student_t")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Shaker_Likelihood_StudentT_Corrected":
-            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
             u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="student_t_corrected")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
@@ -436,7 +438,14 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
     t6 = time.perf_counter()
     for app in approaches:
         u_e = uncertainties[app]
-        results[app] = {"auroc": None, "fpr95": None, "aupr": None, "spearman": None, "brier": None, "mi": None, "jsd": None, "naurc": None}
+        results[app] = {"auroc": None, "fpr95": None, "aupr": None, "spearman": None, "brier": None, "mi": None, "jsd": None, "naurc": None, "nlpd": None}
+
+        # Calculate NLPD: total_var = epistemic + aleatoric
+        if app in u_a_credal_dict and u_a_credal_dict[app] is not None:
+            total_var = u_e + u_a_credal_dict[app]
+        else:
+            total_var = u_e + u_a
+        results[app]["nlpd"] = calculate_nlpd(y_test, y_pred, total_var)
 
         results[app]["auroc"], results[app]["fpr95"] = calculate_roc_metrics(y_true_binary, u_e)
         results[app]["aupr"] = calculate_aupr(y_true_binary, u_e)
@@ -580,6 +589,7 @@ if __name__ == "__main__":
     parser.add_argument("--sparse_multiplier", type=int, default=12, help="Multiplier for sparse gap points (n_keep = multiplier * ndim)")
     parser.add_argument("--scaling_law", type=str, default="linear", choices=["linear", "fractional", "leaf"], help="Scaling law for sparse gap points")
     parser.add_argument("--n_runs", type=int, default=10, help="Number of seeds/runs")
+    parser.add_argument("--seed_offset", type=int, default=0, help="Offset to add to the random seed index")
     parser.add_argument("--debug_timing", action="store_true", help="Print detailed execution timings for each section during evaluation")
     parser.add_argument("--use_density_scaling", action="store_true", help="Use leaf density scaling to prevent the overconfidence trap in Proximity UQ")
     parser.add_argument("--density_scaling_alpha", type=float, default=1.0, help="Exponent parameter alpha for leaf density scaling")
@@ -588,6 +598,7 @@ if __name__ == "__main__":
     parser.add_argument("--approaches", type=str, default="Standard,Proximity", help="Comma-separated list of approaches to run")
     parser.add_argument("--output_dir", type=str, default=None, help="Custom directory path to save results")
     parser.add_argument("--ood_type", type=str, default="hypercube", choices=["hypercube", "manifold"], help="OOD generation type")
+    parser.add_argument("--function", type=str, default=None, help="Evaluate only a specific function by name")
     args = parser.parse_args()
 
     rf_config_arg = args.rf_config
@@ -641,6 +652,11 @@ if __name__ == "__main__":
         **functions_6d, **functions_7d, **functions_8d, **functions_9d, **functions_10d,
         **functions_11d, **functions_12d, **functions_13d, **functions_14d, **functions_15d
     }
+    if args.function is not None:
+        if args.function in all_functions:
+            all_functions = {args.function: all_functions[args.function]}
+        else:
+            raise ValueError(f"Function '{args.function}' not found in registered functions.")
 
     print(f"\n[SETUP SUMMARY]")
     print(f"  * Functions: {len(all_functions)} total (5 1D, 5 2D, 5 3D, 3 4D, 3 5D, 3 6D, 3 7D, 3 8D, 3 9D, 3 10D, 1 11D, 1 12D, 1 13D, 1 14D, 1 15D)")
@@ -669,23 +685,10 @@ if __name__ == "__main__":
     print(f"{'#'*70}")
     print(f"Running {len(all_functions)} functions x {n_runs} seeds = {len(all_functions) * n_runs} evaluations (single pass)\n")
 
-    results_all = {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches}
+    results_all = {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": [], "nlpd": []} for app in approaches}
     results_by_dim = {
-        "1D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "2D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "3D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "4D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "5D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "6D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "7D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "8D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "9D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "10D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "11D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "12D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "13D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "14D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
-        "15D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": []} for app in approaches},
+        f"{d}D": {app: {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": [], "nlpd": []} for app in approaches}
+        for d in range(1, 16)
     }
 
     global_timings = {
@@ -701,9 +704,10 @@ if __name__ == "__main__":
         global_timings[f"app_uq_{app}"] = 0.0
 
     test_start = time.time()
-    for seed in range(n_runs):
+    for run_idx in range(n_runs):
+        seed = run_idx + args.seed_offset
         seed_start = time.time()
-        print(f"[RUN {seed+1}/{n_runs}] ", end="", flush=True)
+        print(f"[RUN {run_idx+1}/{n_runs}] ", end="", flush=True)
 
         for func_name in all_functions:
             try:
@@ -768,6 +772,7 @@ if __name__ == "__main__":
                     results_all[app]["mi"].append(test_results[app]["mi"])
                     results_all[app]["jsd"].append(test_results[app]["jsd"])
                     results_all[app]["naurc"].append(test_results[app]["naurc"])
+                    results_all[app]["nlpd"].append(test_results[app]["nlpd"])
 
                     results_by_dim[dim_key][app]["auroc"].append(test_results[app]["auroc"])
                     results_by_dim[dim_key][app]["fpr95"].append(test_results[app]["fpr95"])
@@ -777,6 +782,7 @@ if __name__ == "__main__":
                     results_by_dim[dim_key][app]["mi"].append(test_results[app]["mi"])
                     results_by_dim[dim_key][app]["jsd"].append(test_results[app]["jsd"])
                     results_by_dim[dim_key][app]["naurc"].append(test_results[app]["naurc"])
+                    results_by_dim[dim_key][app]["nlpd"].append(test_results[app]["nlpd"])
 
             except Exception as e:
                 print(f"\n[ERROR] in seed={seed}, func={func_name}: {str(e)}")
@@ -889,6 +895,8 @@ if __name__ == "__main__":
     
     # Executing file generator to dump everything into a clean timestamped report txt file
     suffix_str = f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}_m{sparse_multiplier_arg}_{scaling_law_arg}"
+    if args.function is not None:
+        suffix_str += f"_{args.function}"
     if ood_type_arg != "hypercube":
         suffix_str += f"_{ood_type_arg}"
     if topological_decay_lambda_arg is not None:

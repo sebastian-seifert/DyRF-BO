@@ -25,11 +25,51 @@ except ImportError:
     HAS_CUPY = False
     HAS_GPU = False
 
+class LeafCache:
+    def __init__(self, model, X_test, means=None, variances=None, counts=None, leaf_ids=None):
+        self.model = model
+        if leaf_ids is not None:
+            self.all_test_leaf_ids = leaf_ids
+            self.means = means
+            self.variances = variances
+            self.counts = counts
+        else:
+            X_test_2d = np.atleast_2d(np.asarray(X_test))
+            self.all_test_leaf_ids = model.apply(X_test_2d)
+            n_samples, n_trees = self.all_test_leaf_ids.shape
+            
+            self.means = np.zeros((n_trees, n_samples))
+            self.variances = np.zeros((n_trees, n_samples))
+            self.counts = np.zeros((n_trees, n_samples))
+            
+            for i, estimator in enumerate(model.estimators_):
+                test_leaf_ids = self.all_test_leaf_ids[:, i]
+                node_means = estimator.tree_.value[:, 0, 0]
+                node_impurities = estimator.tree_.impurity
+                node_samples = estimator.tree_.n_node_samples
+                
+                self.means[i, :] = node_means[test_leaf_ids]
+                n_samples_node = node_samples[test_leaf_ids]
+                scale = np.where(n_samples_node > 1, n_samples_node / (n_samples_node - 1), 0.0)
+                self.variances[i, :] = node_impurities[test_leaf_ids] * scale + 1e-6
+                self.counts[i, :] = n_samples_node
+
+    def get_slice(self, start, end):
+        return LeafCache(
+            self.model,
+            None,
+            means=self.means[:, start:end],
+            variances=self.variances[:, start:end],
+            counts=self.counts[:, start:end],
+            leaf_ids=self.all_test_leaf_ids[start:end, :]
+        )
+
 class EpistemicQuantifier:
-    def __init__(self, model, X_train, y_train):
+    def __init__(self, model, X_train, y_train, leaf_cache=None):
         self.model = model
         self.X_train = np.asarray(X_train)
         self.y_train = np.asarray(y_train)
+        self.leaf_cache = leaf_cache
 
     # ==========================================
     # BASE / SHARED METHODS
@@ -42,6 +82,9 @@ class EpistemicQuantifier:
         
         Returns: np.array of shape (n_trees, n_samples_test)
         """
+        if self.leaf_cache is not None:
+            return self.leaf_cache.variances
+            
         X_test = np.atleast_2d(X_test)
         n_trees = len(self.model.estimators_)
         n_samples = X_test.shape[0]
@@ -72,6 +115,9 @@ class EpistemicQuantifier:
         
         Returns: np.array of shape (n_trees, n_samples)
         """
+        if self.leaf_cache is not None:
+            return self.leaf_cache.means
+            
         X_test = np.atleast_2d(X_test)
         if all_test_leaf_ids is None:
             all_test_leaf_ids = self.model.apply(X_test)
@@ -226,12 +272,16 @@ class EpistemicQuantifier:
         """Converts differential entropy in bits to the variance of a Gaussian."""
         return (2.0 ** (2.0 * entropy_bits)) / (2.0 * np.pi * np.e)
 
+    def _shaker_convert_var_to_entropy(self, var):
+        """Converts variance of a Gaussian to differential entropy in bits."""
+        return 0.5 * np.log2(2.0 * np.pi * np.e * var)
+
     def _shaker_calc_total_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", all_test_leaf_ids=None):
-        """
+        r"""
         Calculates the Total Uncertainty (Entropy of the GMM) via fully vectorized
-        Monte Carlo estimation over batches of test query points.
+        1D deterministic trapezoidal quadrature over batches of test query points.
         
-        Formula: E[-log2(p(y|x))], with y sampled from the tree GMM.
+        Formula: H = \int -p(y) \log_2 p(y) dy
         """
         import time
         debug_timing = os.environ.get("PROXIMITY_DEBUG") == "1"
@@ -243,138 +293,113 @@ class EpistemicQuantifier:
         n_trees = len(self.model.estimators_)
         
         backend = self._mc_resolve_backend(backend)
-        print(f"Vectorized Monte Carlo backend: {backend}")
+        is_gpu = backend == "gpu"
+        xp = cp if is_gpu else np
+        
+        n_grid = 128
         
         if batch_size == "auto":
-            batch_size = self._get_dynamic_shaker_batch_size(num_samples, n_trees, backend)
-            print(f"Dynamically resolved Shaker batch size: {batch_size}")
+            batch_size = self._get_dynamic_shaker_batch_size(n_grid, n_trees, backend)
+            if debug_timing:
+                print(f"Dynamically resolved Shaker batch size: {batch_size}")
         
         if all_test_leaf_ids is None:
-            all_test_leaf_ids = self.model.apply(X_test)
+            if self.leaf_cache is not None:
+                all_test_leaf_ids = self.leaf_cache.all_test_leaf_ids
+            else:
+                all_test_leaf_ids = self.model.apply(X_test)
             
-        # 1. Get predictions and variances for all trees: shapes (n_samples, n_trees)
-        if debug_timing:
-            t_pred_start = time.time()
-        mu_all = self._get_tree_predictions(X_test, all_test_leaf_ids=all_test_leaf_ids).T # (n_samples, n_trees)
-        vars_all = self._base_calc_per_tree_variance(X_test, all_test_leaf_ids=all_test_leaf_ids).T # (n_samples, n_trees)
+        if self.leaf_cache is not None:
+            mu_all = self.leaf_cache.means
+            vars_all = self.leaf_cache.variances
+        else:
+            mu_all = self._get_tree_predictions(X_test, all_test_leaf_ids=all_test_leaf_ids)
+            vars_all = self._base_calc_per_tree_variance(X_test, all_test_leaf_ids=all_test_leaf_ids)
+            
         sigmas_all = np.sqrt(vars_all)
-        if debug_timing:
-            t_pred_end = time.time()
-            print(f"   [GMM Shaker Profile] Tree predictions and variance retrieval took: {t_pred_end - t_pred_start:.6f}s")
         
         total_entropy = np.zeros(n_samples)
         
-        if backend == "gpu":
-            import cupy as cp
-            import cupyx
-            if debug_timing:
-                t_prep_start = time.time()
-            # Copy to pinned memory for fast DMA transfers
-            mu_all_pinned = cupyx.empty_pinned(mu_all.shape, dtype=np.float32)
-            sigmas_all_pinned = cupyx.empty_pinned(sigmas_all.shape, dtype=np.float32)
-            mu_all_pinned[...] = mu_all
-            sigmas_all_pinned[...] = sigmas_all
-
-            cp.get_default_memory_pool().free_all_blocks()
-            rng = self._mc_make_gpu_rng(random_state)
-            if debug_timing:
-                print(f"   [GMM Shaker Profile] GPU/DMA buffer setups took: {time.time() - t_prep_start:.6f}s")
-                t_loop_start = time.time()
+        if is_gpu:
+            mu_g = cp.asarray(mu_all)
+            sigmas_g = cp.asarray(sigmas_all)
+        else:
+            mu_g = mu_all
+            sigmas_g = sigmas_all
             
-            for start in range(0, n_samples, batch_size):
-                end = min(start + batch_size, n_samples)
+        start = 0
+        while start < n_samples:
+            end = min(start + batch_size, n_samples)
+            try:
+                mu_batch = mu_g[:, start:end]
+                sigma_batch = sigmas_g[:, start:end]
                 B = end - start
                 
-                # Move this batch of mu and sigma to the GPU in float32 from pinned memory
-                mu_batch = cp.asarray(mu_all_pinned[start:end, :], dtype=cp.float32)
-                sigma_batch = cp.asarray(sigmas_all_pinned[start:end, :], dtype=cp.float32)
+                # Define integration range per sample: y_min, y_max of shape (B,)
+                y_min = xp.min(mu_batch - 6.0 * sigma_batch, axis=0)
+                y_max = xp.max(mu_batch + 6.0 * sigma_batch, axis=0)
                 
-                # Sample tree components: shape (B, num_samples)
-                if hasattr(rng, "integers"):
-                    components = rng.integers(0, n_trees, size=(B, num_samples))
+                # Setup 1D grid per sample: shape (B, n_grid)
+                grid_steps = xp.linspace(0.0, 1.0, n_grid)
+                y_grid = y_min[:, xp.newaxis] + grid_steps[xp.newaxis, :] * (y_max - y_min)[:, xp.newaxis]
+                dy = (y_max - y_min) / (n_grid - 1)
+                
+                # Reshape for multi-dimensional broadcasting:
+                # y_b: (1, B, n_grid)
+                # mu_b: (n_trees, B, 1)
+                # sigma_b: (n_trees, B, 1)
+                y_b = y_grid[xp.newaxis, :, :]
+                mu_b = mu_batch[:, :, xp.newaxis]
+                sigma_b = sigma_batch[:, :, xp.newaxis]
+                
+                # Compute component PDF: shape (n_trees, B, n_grid)
+                z = (y_b - mu_b) / sigma_b
+                inv_sqrt_2pi = 1.0 / np.sqrt(2.0 * np.pi)
+                pdf_comp = (xp.exp(-0.5 * z**2) * inv_sqrt_2pi) / sigma_b
+                
+                # Mixture PDF p(y): shape (B, n_grid)
+                p_y = xp.mean(pdf_comp, axis=0)
+                p_y_safe = xp.maximum(p_y, 1e-300)
+                
+                # Integrand: -p(y) * log2(p(y))
+                integrand = -p_y * xp.log2(p_y_safe)
+                
+                # Trapezoidal integration
+                trapz_weights = xp.ones(n_grid)
+                trapz_weights[0] = 0.5
+                trapz_weights[-1] = 0.5
+                
+                batch_entropy = xp.sum(integrand * trapz_weights[xp.newaxis, :], axis=1) * dy
+                
+                if is_gpu:
+                    total_entropy[start:end] = cp.asnumpy(batch_entropy)
                 else:
-                    components = rng.randint(0, n_trees, size=(B, num_samples))
-                
-                # Sample standard normals: shape (B, num_samples)
-                eps = self._mc_gpu_standard_normal(rng, (B, num_samples)).astype(cp.float32)
-                
-                # Select the mean and std dev corresponding to the sampled components
-                batch_indices = cp.arange(B)[:, None]
-                mu_sampled = mu_batch[batch_indices, components]
-                sigma_sampled = sigma_batch[batch_indices, components]
-                
-                # Generate sample targets: shape (B, num_samples)
-                y_samples = mu_sampled + sigma_sampled * eps
-                
-                # Evaluate log GMM probability in float32 to reduce memory footprint:
-                y_expanded = y_samples[:, :, None] # (B, num_samples, 1)
-                mu_expanded = mu_batch[:, None, :] # (B, 1, n_trees)
-                sigma_expanded = sigma_batch[:, None, :] # (B, 1, n_trees)
-                
-                # Precompute constant log factor
-                log_const = cp.log(sigma_batch * cp.sqrt(2 * cp.pi)) # (B, n_trees)
-                log_const_expanded = log_const[:, None, :] # (B, 1, n_trees)
-                
-                # Perform in-place operations to avoid massive memory allocations
-                diff = y_expanded - mu_expanded # (B, num_samples, n_trees)
-                diff /= sigma_expanded
-                diff **= 2
-                diff *= -0.5
-                diff -= log_const_expanded
-                
-                log_p_y = cp_logsumexp(diff, axis=2) - cp.log(n_trees)
-                batch_entropy = -cp.mean(log_p_y, axis=1) / cp.log(2)
-                
-                total_entropy[start:end] = cp.asnumpy(batch_entropy)
-            if debug_timing:
-                print(f"   [GMM Shaker Profile] GPU MC Batch execution loop took: {time.time() - t_loop_start:.6f}s")
-                
-        else: # CPU backend
-            rng = self._mc_make_cpu_rng(random_state)
-            if debug_timing:
-                t_loop_start = time.time()
-            
-            for start in range(0, n_samples, batch_size):
-                end = min(start + batch_size, n_samples)
-                B = end - start
-                
-                mu_batch = mu_all[start:end, :].astype(np.float32)
-                sigma_batch = sigmas_all[start:end, :].astype(np.float32)
-                
-                components = rng.integers(0, n_trees, size=(B, num_samples))
-                eps = rng.normal(0, 1, size=(B, num_samples)).astype(np.float32)
-                
-                batch_indices = np.arange(B)[:, None]
-                mu_sampled = mu_batch[batch_indices, components]
-                sigma_sampled = sigma_batch[batch_indices, components]
-                
-                y_samples = mu_sampled + sigma_sampled * eps
-                
-                y_expanded = y_samples[:, :, None]
-                mu_expanded = mu_batch[:, None, :]
-                sigma_expanded = sigma_batch[:, None, :]
-                
-                # Precompute constant log factor
-                log_const = np.log(sigma_batch * np.sqrt(2 * np.pi)) # (B, n_trees)
-                log_const_expanded = log_const[:, None, :] # (B, 1, n_trees)
-                
-                # Perform in-place operations to avoid massive memory allocations
-                diff = y_expanded - mu_expanded # (B, num_samples, n_trees)
-                diff /= sigma_expanded
-                diff **= 2
-                diff *= -0.5
-                diff -= log_const_expanded
-                
-                log_p_y = logsumexp(diff, axis=2) - np.log(n_trees)
-                batch_entropy = -np.mean(log_p_y, axis=1) / np.log(2)
-                
-                total_entropy[start:end] = batch_entropy
-                
-            if debug_timing:
-                print(f"   [GMM Shaker Profile] CPU MC Batch execution loop took: {time.time() - t_loop_start:.6f}s")
-                
+                    total_entropy[start:end] = batch_entropy
+                    
+                start += B
+            except Exception as e:
+                # Catch GPU/CPU memory errors
+                is_oom = False
+                if is_gpu and cp is not None:
+                    if isinstance(e, cp.cuda.memory.OutOfMemoryError):
+                        is_oom = True
+                if isinstance(e, MemoryError):
+                    is_oom = True
+                    
+                if is_oom:
+                    if is_gpu and cp is not None:
+                        cp.get_default_memory_pool().free_all_blocks()
+                    if batch_size <= 10:
+                        raise RuntimeError("OOM even with batch size <= 10")
+                    batch_size = max(10, batch_size // 2)
+                    if debug_timing:
+                        print(f"   [GMM Shaker Profile] OOM encountered. Halving batch size to {batch_size}")
+                else:
+                    raise e
+                    
         if debug_timing:
             print(f"   [GMM Shaker Profile] Total total_entropy calculation took: {time.time() - t0:.6f}s")
+            
         return total_entropy
 
     def _mc_is_cupy_available(self):
@@ -386,41 +411,21 @@ class EpistemicQuantifier:
         if backend == "auto":
             return "gpu" if HAS_GPU else "cpu"
         if backend == "gpu" and not HAS_GPU:
-            print("CuPy/CUDA is not available. Falling back to CPU Monte Carlo.")
             return "cpu"
         return backend
 
-    def _mc_make_gpu_rng(self, random_state):
-        if hasattr(cp.random, "default_rng"):
-            return cp.random.default_rng(random_state)
-        return cp.random.RandomState(random_state)
-
-    def _mc_make_cpu_rng(self, random_state):
-        return np.random.default_rng(random_state)
-
-    def _mc_gpu_standard_normal(self, rng, size):
-        if hasattr(rng, "standard_normal"):
-            return rng.standard_normal(size=size)
-        return cp.random.standard_normal(size=size)
-
-    def _get_dynamic_shaker_batch_size(self, num_samples, n_trees, backend):
+    def _get_dynamic_shaker_batch_size(self, n_grid, n_trees, backend):
         if backend == "gpu" and cp is not None:
             try:
                 free_mem, _ = cp.cuda.Device().mem_info
-                # We target using no more than 1% of free memory to be extremely safe in multi-job/shared environments
-                target_mem_bytes = free_mem * 0.01
-                # Each element in float32 takes 4 bytes. We need ~10 tensors of size (B, num_samples, n_trees)
-                # due to intermediate arrays created in expressions and cached by CuPy's memory pool:
-                # 1. z_samples (B, num_samples, n_trees)
-                # 2. log_prob_components (B, num_samples, n_trees)
-                # 3. intermediate arithmetic allocations (sub, div, pow, mul)
-                bytes_per_sample = num_samples * n_trees * 4 * 10
+                # Target using 35% of free memory
+                target_mem_bytes = free_mem * 0.35
+                # We need ~4 tensors of shape (n_trees, B, n_grid) of float32
+                bytes_per_sample = n_trees * n_grid * 4 * 4
                 batch_size = int(target_mem_bytes / bytes_per_sample)
-                # Restrict to a safe range: [10, 1000]
-                return int(np.clip(batch_size, 10, 1000))
+                # Restrict to a safe range: [100, 30000]
+                return int(np.clip(batch_size, 100, 30000))
             except Exception:
-                return 200
+                return 1000
         else:
-            # CPU backend has L3 cache limitations. For 10,000 samples, keeping the batch small
-            # (e.g. 100 to 500) fits the memory footprint within L3 cache slices, avoiding page thrashing.
-            return 200
+            return 2000

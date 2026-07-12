@@ -271,6 +271,17 @@ def calculate_aupr(y_true_binary, uncertainty):
     from sklearn.metrics import average_precision_score
     y_true_binary = np.asarray(y_true_binary)
     uncertainty = np.asarray(uncertainty)
-    if len(np.unique(y_true_binary)) < 2:
-        return np.nan
     return float(average_precision_score(y_true_binary, uncertainty))
+
+def calculate_nlpd(y_true, y_pred, y_var, min_var=1e-8):
+    """
+    Computes the Negative Log Predictive Density (NLPD) for Gaussian predictions.
+    NLPD = 1/N * sum( 0.5 * ln(2 * pi * var) + (y_true - y_pred)^2 / (2 * var) )
+    """
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+    y_var = np.clip(np.asarray(y_var), min_var, None)
+    
+    term1 = 0.5 * np.log(2.0 * np.pi * y_var)
+    term2 = ((y_true - y_pred) ** 2) / (2.0 * y_var)
+    return float(np.mean(term1 + term2))

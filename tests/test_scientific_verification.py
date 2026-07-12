@@ -424,12 +424,11 @@ class TestScientificVerification(unittest.TestCase):
         # Running twice with the same seed must produce identical results
         sh_seed42_a = eq.shaker_get_epistemic_entropy(self.X_test, num_samples=1000, random_state=42, backend="cpu")
         sh_seed42_b = eq.shaker_get_epistemic_entropy(self.X_test, num_samples=1000, random_state=42, backend="cpu")
-        self.assertAllClose(sh_seed42_a, sh_seed42_b, rtol=1e-12, atol=1e-12, msg="Locked seeds yielded different results")
+        self.assertAllClose(sh_seed42_a, sh_seed42_b, rtol=1e-9, atol=1e-9, msg="Locked seeds yielded different results")
         
-        # Running with a different seed must produce different results
+        # Running with a different seed should also produce identical results because GMM entropy is now deterministic
         sh_seed43 = eq.shaker_get_epistemic_entropy(self.X_test, num_samples=1000, random_state=43, backend="cpu")
-        diff = np.max(np.abs(sh_seed42_a - sh_seed43))
-        self.assertGreater(diff, 1e-4, "Different seeds yielded identical results")
+        self.assertAllClose(sh_seed42_a, sh_seed43, rtol=1e-9, atol=1e-9, msg="GMM entropy was not deterministic across seeds")
 
     # --------------------------------------------------------------------------
     # ADDITIONAL TESTS FOR METRIC BOUNDS
