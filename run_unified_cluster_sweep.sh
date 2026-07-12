@@ -5,9 +5,9 @@
 #SBATCH --error=results/dyrf_uq_sweep/logs/run_%A_%a.err
 #SBATCH --array=1-250%24
 #SBATCH --gres=gpu:2g.20gb:1
-#SBATCH --cpus-per-task=16
-#SBATCH --mem=32G
-#SBATCH --time=12:00:00
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=02:00:00
 
 # Dedicated script to evaluate baseline and proximity UQ approaches
 # using a SLURM Job Array where each task processes a single function + config.
