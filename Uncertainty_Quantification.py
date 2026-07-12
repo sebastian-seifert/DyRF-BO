@@ -365,6 +365,21 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="newton")
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
+        elif app == "Shaker_Likelihood_Normal":
+            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="normal")
+            uncertainties[app] = u_e_credal
+            u_a_credal_dict[app] = u_a_credal
+        elif app == "Shaker_Likelihood_StudentT":
+            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="student_t")
+            uncertainties[app] = u_e_credal
+            u_a_credal_dict[app] = u_a_credal
+        elif app == "Shaker_Likelihood_StudentT_Corrected":
+            credal_q = CredalRegressionUQ(rf, X_train, y_train)
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="student_t_corrected")
+            uncertainties[app] = u_e_credal
+            u_a_credal_dict[app] = u_a_credal
         elif app == "Proximity":
             prox_q = GPUProximityRegressionUQ(
                 rf, X_train, y_train, device="auto", batch_size="auto",

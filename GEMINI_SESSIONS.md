@@ -58,6 +58,13 @@
 3. **Aleatoric Sweep Analysis**:
    * Evaluated standard leaf-level variance against Shaker's continuous credal aleatoric uncertainty over 1D to 15D.
    * Discovered a dimensional crossover point: standard variance is slightly superior or comparable in 1D-2D, but Shaker heavily dominates standard variance in all higher dimensions ($3D$ to $15D$), showing significantly higher resilience against partition boundary noise and leaf sample scarcity.
+4. **Student-t Likelihood Model Integration**:
+   * Integrated **Student-t distribution** and **Corrected Student-t distribution** (with scale inflation $s \cdot \sqrt{1 + 1/n}$) as alternative models in [Credal_Regression_UQ.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/Credal_Regression_UQ.py).
+   * Developed a highly optimized and fast normal CDF approximation based on Abramowitz & Stegun 26.7.10 to replace SciPy's slow incomplete beta function (`betainc`) for CPU execution, dropping test run times from minutes to milliseconds.
+   * Registered `Shaker_Likelihood_Normal`, `Shaker_Likelihood_StudentT`, and `Shaker_Likelihood_StudentT_Corrected` in [Uncertainty_Quantification.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/Uncertainty_Quantification.py).
+   * Created [tests/test_student_t_likelihood.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/tests/test_student_t_likelihood.py) verifying both Student-t and Corrected scale models against edge cases (like count=1 leaves) under 0.1s.
+   * Wrote the cluster dispatch script [run_student_t_sweep.sh](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/run_student_t_sweep.sh) ready to sbatch on 10 seeds over a 4x A100 GPU partition.
+
 
 
 

@@ -79,7 +79,7 @@ class CredalRegressionUQ:
             
         return means, variances, counts
 
-    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size="auto", integration_method="gauss_legendre", sup_solver="bisection"):
+    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size="auto", integration_method="gauss_legendre", sup_solver="bisection", likelihood_type="normal"):
         """
         Computes the epistemic and aleatoric uncertainties using the continuous
         relative likelihood framework. Fully vectorized and GPU-accelerated when available.
@@ -92,6 +92,7 @@ class CredalRegressionUQ:
             batch_size: Maximum number of test samples to process in a single batch
             integration_method: 'gauss_legendre' or 'trapezoid'
             sup_solver: 'bisection' or 'newton'
+            likelihood_type: 'normal', 'student_t', or 'student_t_corrected'
             
         Returns:
             epistemic_var: np.ndarray of shape (n_samples,) in variance-like units
@@ -130,7 +131,7 @@ class CredalRegressionUQ:
             print(f"   [Credal UQ Profile] Model apply (test leaf IDs) took: {time.time() - t_leaf_start:.6f}s")
         
         if n_samples <= batch_size:
-            res = self._compute_uq_batch(all_test_leaf_ids, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver)
+            res = self._compute_uq_batch(all_test_leaf_ids, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver, likelihood_type=likelihood_type)
             if debug_timing:
                 print(f"   [Credal UQ Profile] Total compute_uq execution took: {time.time() - t0:.6f}s")
             return res
@@ -144,7 +145,7 @@ class CredalRegressionUQ:
                 t_batch_start = time.time()
             leaf_batch = all_test_leaf_ids[i : i + batch_size]
             epistemic_batch, aleatoric_batch = self._compute_uq_batch(
-                leaf_batch, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver
+                leaf_batch, backend=backend, n_grid=n_grid, n_iter=n_iter, integration_method=integration_method, sup_solver=sup_solver, likelihood_type=likelihood_type
             )
             epistemic_vars.append(epistemic_batch)
             aleatoric_vars.append(aleatoric_batch)
@@ -155,12 +156,17 @@ class CredalRegressionUQ:
         if debug_timing:
             print(f"   [Credal UQ Profile] Total batched compute_uq execution took: {time.time() - t0:.6f}s")
         return res
-
-    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100, n_iter=15, integration_method="gauss_legendre", sup_solver="bisection"):
+ 
+    def _compute_uq_batch(self, X_test, backend="auto", n_grid=100, n_iter=15, integration_method="gauss_legendre", sup_solver="bisection", likelihood_type="normal"):
         """Internal method to compute UQ for a single batch using Method B (ensemble-level integration)."""
         import time
         debug_timing = os.environ.get("PROXIMITY_DEBUG") == "1"
         
+        if likelihood_type in ["student_t", "student_t_corrected"] and sup_solver == "newton":
+            import warnings
+            warnings.warn("Newton solver is not supported for Student-t likelihood. Falling back to bisection.")
+            sup_solver = "bisection"
+
         if debug_timing:
             t0 = time.time()
             
@@ -168,6 +174,11 @@ class CredalRegressionUQ:
         means, variances, counts = self._calc_leaf_stats(X_test)
         sigmas = np.sqrt(variances)
         
+        # Apply sample-size scale correction for student_t_corrected
+        if likelihood_type == "student_t_corrected":
+            counts_clipped = np.maximum(counts, 1.0)
+            sigmas = sigmas * np.sqrt(1.0 + 1.0 / counts_clipped)
+
         if debug_timing:
             t_stats = time.time()
             print(f"      [Credal UQ Profile] Leaf stats retrieval took: {t_stats - t0:.6f}s")
@@ -251,6 +262,15 @@ class CredalRegressionUQ:
                 return np_log_ndtr(x)
             else:
                 return cp_log_ndtr(x)
+
+        if likelihood_type in ["student_t", "student_t_corrected"]:
+            df_b = xp.maximum(k_b - 1.0, 1.0)
+            
+            def xp_log_t_cdf(x, df_val):
+                df_clipped = xp.maximum(df_val, 1.0)
+                # Abramowitz & Stegun 26.7.10 Student-t CDF normal approximation
+                w = x * (1.0 - 0.25 / df_clipped) / xp.sqrt(1.0 + x**2 / (2.0 * df_clipped))
+                return xp_log_ndtr(w)
             
         if sup_solver == "newton":
             # Newton-Raphson iterations: 8 is more than enough for machine precision
@@ -292,33 +312,62 @@ class CredalRegressionUQ:
             pi_ge = xp.exp(-k_b * u_ge**2 / 2.0)
             
         else: # bisection
-            # 4. Vectorized Bisection to find the supremum root for pi_le
-            a_le = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
-            b_le = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
-            
-            for _ in range(n_iter):
-                mu_u = 0.5 * (a_le + b_le)
-                log_pi_H = -0.5 * k_b * mu_u**2
-                log_phi_val = xp_log_ndtr(z_b - mu_u)
-                mask = log_pi_H < log_phi_val
-                a_le = xp.where(mask, mu_u, a_le)
-                b_le = xp.where(mask, b_le, mu_u)
+            if likelihood_type in ["student_t", "student_t_corrected"]:
+                # 4. Vectorized Bisection to find the supremum root for pi_le
+                a_le = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
+                b_le = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
                 
-            pi_le = xp.exp(-k_b * (a_le**2) / 2.0)
-            
-            # 5. Vectorized Bisection to find the supremum root for pi_ge
-            a_ge = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
-            b_ge = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
-            
-            for _ in range(n_iter):
-                mu_u = 0.5 * (a_ge + b_ge)
-                log_pi_H = -0.5 * k_b * mu_u**2
-                log_phi_val = xp_log_ndtr(mu_u - z_b)
-                mask = log_pi_H < log_phi_val
-                a_ge = xp.where(mask, a_ge, mu_u)
-                b_ge = xp.where(mask, mu_u, b_ge)
+                for _ in range(n_iter):
+                    mu_u = 0.5 * (a_le + b_le)
+                    log_pi_H = -0.5 * (df_b + 1.0) * xp.log(1.0 + ((df_b + 1.0) / df_b) * mu_u**2)
+                    log_phi_val = xp_log_t_cdf(z_b - mu_u, df_b)
+                    mask = log_pi_H < log_phi_val
+                    a_le = xp.where(mask, mu_u, a_le)
+                    b_le = xp.where(mask, b_le, mu_u)
+                    
+                pi_le = xp.exp(-0.5 * (df_b + 1.0) * xp.log(1.0 + ((df_b + 1.0) / df_b) * a_le**2))
                 
-            pi_ge = xp.exp(-k_b * (a_ge**2) / 2.0)
+                # 5. Vectorized Bisection to find the supremum root for pi_ge
+                a_ge = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
+                b_ge = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
+                
+                for _ in range(n_iter):
+                    mu_u = 0.5 * (a_ge + b_ge)
+                    log_pi_H = -0.5 * (df_b + 1.0) * xp.log(1.0 + ((df_b + 1.0) / df_b) * mu_u**2)
+                    log_phi_val = xp_log_t_cdf(mu_u - z_b, df_b)
+                    mask = log_pi_H < log_phi_val
+                    a_ge = xp.where(mask, a_ge, mu_u)
+                    b_ge = xp.where(mask, mu_u, b_ge)
+                    
+                pi_ge = xp.exp(-0.5 * (df_b + 1.0) * xp.log(1.0 + ((df_b + 1.0) / df_b) * a_ge**2))
+            else:
+                # 4. Vectorized Bisection to find the supremum root for pi_le
+                a_le = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
+                b_le = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
+                
+                for _ in range(n_iter):
+                    mu_u = 0.5 * (a_le + b_le)
+                    log_pi_H = -0.5 * k_b * mu_u**2
+                    log_phi_val = xp_log_ndtr(z_b - mu_u)
+                    mask = log_pi_H < log_phi_val
+                    a_le = xp.where(mask, mu_u, a_le)
+                    b_le = xp.where(mask, b_le, mu_u)
+                    
+                pi_le = xp.exp(-k_b * (a_le**2) / 2.0)
+                
+                # 5. Vectorized Bisection to find the supremum root for pi_ge
+                a_ge = xp.zeros((n_trees, n_samples, n_grid)) - 10.0 / xp.sqrt(k_b)
+                b_ge = xp.zeros((n_trees, n_samples, n_grid)) + 10.0 / xp.sqrt(k_b)
+                
+                for _ in range(n_iter):
+                    mu_u = 0.5 * (a_ge + b_ge)
+                    log_pi_H = -0.5 * k_b * mu_u**2
+                    log_phi_val = xp_log_ndtr(mu_u - z_b)
+                    mask = log_pi_H < log_phi_val
+                    a_ge = xp.where(mask, a_ge, mu_u)
+                    b_ge = xp.where(mask, mu_u, b_ge)
+                    
+                pi_ge = xp.exp(-k_b * (a_ge**2) / 2.0)
         
         if debug_timing:
             t_solve = time.time()
