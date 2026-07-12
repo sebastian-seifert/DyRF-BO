@@ -176,7 +176,12 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
                   ("7D Functions", results_by_dim["7D"]),
                   ("8D Functions", results_by_dim["8D"]),
                   ("9D Functions", results_by_dim["9D"]),
-                  ("10D Functions", results_by_dim["10D"])]
+                  ("10D Functions", results_by_dim["10D"]),
+                  ("11D Functions", results_by_dim["11D"]),
+                  ("12D Functions", results_by_dim["12D"]),
+                  ("13D Functions", results_by_dim["13D"]),
+                  ("14D Functions", results_by_dim["14D"]),
+                  ("15D Functions", results_by_dim["15D"])]
 
     for metric in metrics:
         print(f"\n{'-'*80}")

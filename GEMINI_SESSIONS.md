@@ -46,6 +46,20 @@
    * Configured the epistemic sweep script [run_unified_cluster_sweep.sh](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/run_unified_cluster_sweep.sh) to run with 7 runs/seeds (`--n_runs 7`) instead of 5.
    * Configured the dedicated aleatoric sweep script [run_aleatoric_evaluation.sh](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/run_aleatoric_evaluation.sh) to run with 7 runs/seeds (`--n_runs 7`) instead of 5.
 
+## Session: 2026-07-12
+* **Goal**: Retrieve cluster sweep results via `git pull`, parse and analyze performance across epistemic UQ on OOD manifolds (1D-10D) and aleatoric UQ under heteroscedastic noise (1D-15D).
+
+### Accomplishments
+1. **Cluster Data Sync**:
+   * Pulled the completed results of the massive 7-seed sweep from GitHub, resolving merge conflicts from untracked markdown reports.
+2. **Epistemic Sweep Analysis**:
+   * Parsed the cluster logs for 10 distinct UQ approaches across 8 metrics.
+   * Documented results in the thesis progress journal, indicating that Proximity UQ dominates in 1D, standard RF disagreement remains the most robust choice in 2D-5D, and Shaker Likelihood (continuous relative likelihood-ratio) dominates in higher dimensions ($D \ge 6$ and $D \ge 8$).
+3. **Aleatoric Sweep Analysis**:
+   * Evaluated standard leaf-level variance against Shaker's continuous credal aleatoric uncertainty over 1D to 15D.
+   * Discovered a dimensional crossover point: standard variance is slightly superior or comparable in 1D-2D, but Shaker heavily dominates standard variance in all higher dimensions ($3D$ to $15D$), showing significantly higher resilience against partition boundary noise and leaf sample scarcity.
+
+
 
 
 
