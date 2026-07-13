@@ -17,7 +17,7 @@ def main():
         funcs.update(g())
 
     BASELINES = "Standard,Chen,Shaker_GMM_Entropy,Shaker_Likelihood_GL_Bisect,Shaker_Likelihood_GL_Newton,Shaker_Likelihood_Trapz_Bisect,Shaker_Likelihood_Trapz_Newton"
-    PROXIMITY_METHODS = "Proximity_Baseline,Proximity_Method_A,Proximity_Method_B,Proximity_Method_C,Proximity_Method_B_C"
+    PROXIMITY_METHODS = "Proximity_Baseline,Proximity_Method_B,Proximity_Method_C,Proximity_Method_B_C"
 
     # Write out parameter strings for SLURM Job Array tasks (locking scaling law to "linear" only)
     with open("unified_sweep_params.txt", "w") as f:
