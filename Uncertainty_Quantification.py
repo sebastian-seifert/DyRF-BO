@@ -34,6 +34,7 @@ from metrics import (
     calculate_nlpd
 )
 from Epistemic_Quantifier import EpistemicQuantifier, LeafCache
+from Hybrid_Proximity_Epistemic_UQ import HybridProximityEpistemicUQ
 
 # Helps on clusters where NVRTC does not directly support the GPU's native arch.
 os.environ.setdefault("CUPY_COMPILE_WITH_PTX", "1")
@@ -429,6 +430,61 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
                 topological_decay_lambda=5.0
             )
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
+        elif app == "Proximity_Method_B_Norm":
+            prox_q = GPUProximityRegressionUQ(
+                rf, X_train, y_train, device="auto", batch_size="auto",
+                use_density_scaling=False,
+                topological_decay_lambda=1.0,
+                normalize_by_depth=True
+            )
+            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
+        elif app == "Proximity_Method_C_Norm":
+            prox_q = GPUProximityRegressionUQ(
+                rf, X_train, y_train, device="auto", batch_size="auto",
+                use_density_scaling=True,
+                density_scaling_alpha=density_scaling_alpha,
+                topological_decay_lambda=5.0,
+                normalize_by_depth=True
+            )
+            k_val = 20 if isinstance(k_neighbors, str) and k_neighbors == "auto" else k_neighbors
+            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
+        elif app == "Proximity_Method_B_C_Norm":
+            prox_q = GPUProximityRegressionUQ(
+                rf, X_train, y_train, device="auto", batch_size="auto",
+                use_density_scaling=True,
+                density_scaling_alpha=density_scaling_alpha,
+                topological_decay_lambda=5.0,
+                normalize_by_depth=True
+            )
+            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
+        elif app in ["Hybrid_Shaker_Entropy_L20", "Hybrid_Shaker_Entropy_L40", "Hybrid_Shaker_Entropy_L70"]:
+            lambda_val = 0.2 if "L20" in app else (0.4 if "L40" in app else 0.7)
+            k_val = 20 if isinstance(k_neighbors, str) and k_neighbors == "auto" else k_neighbors
+            hybrid_q = HybridProximityEpistemicUQ(
+                rf, X_train, y_train,
+                base_epistemic_method="shaker_entropy",
+                proximity_decay_lambda=1.0,
+                normalize_by_depth=False,
+                lambda_blend=lambda_val,
+                k_neighbors=k_val,
+                device="auto",
+                batch_size="auto"
+            )
+            uncertainties[app] = hybrid_q.compute_uq(X_test)
+        elif app in ["Hybrid_Likelihood_L20", "Hybrid_Likelihood_L40", "Hybrid_Likelihood_L70"]:
+            lambda_val = 0.2 if "L20" in app else (0.4 if "L40" in app else 0.7)
+            k_val = 20 if isinstance(k_neighbors, str) and k_neighbors == "auto" else k_neighbors
+            hybrid_q = HybridProximityEpistemicUQ(
+                rf, X_train, y_train,
+                base_epistemic_method="likelihood",
+                proximity_decay_lambda=1.0,
+                normalize_by_depth=False,
+                lambda_blend=lambda_val,
+                k_neighbors=k_val,
+                device="auto",
+                batch_size="auto"
+            )
+            uncertainties[app] = hybrid_q.compute_uq(X_test)
         t_app_end = time.perf_counter()
         app_timings[app] = t_app_end - t_app_start
         if debug_timing:

@@ -233,6 +233,24 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         train_mask = ~gap_mask_train
         X_train = X[train_mask]
     
+    # Construct test set by explicitly sampling ID and OOD points (preserving hypercube structure)
+    id_split = 0.7
+    n_id = int(n_samples * id_split)
+    n_ood = n_samples - n_id
+    
+    X_ood = rng.uniform(gap[0], gap[1], size=(n_ood, ndim))
+    
+    X_id = []
+    while len(X_id) < n_id:
+        batch = rng.uniform(x_range[0], x_range[1], size=(n_id - len(X_id), ndim))
+        batch_in_gap = np.ones(len(batch), dtype=bool)
+        for d in range(ndim):
+            batch_in_gap &= (batch[:, d] >= gap[0]) & (batch[:, d] <= gap[1])
+        X_id.extend(batch[~batch_in_gap])
+    X_id = np.array(X_id)
+    
+    X_test = np.concatenate([X_id, X_ood], axis=0)
+    
     y_train_raw = func_obj(*[X_train[:, d] for d in range(ndim)]).ravel()
     y_test_raw = func_obj(*[X_test[:, d] for d in range(ndim)]).ravel()
     

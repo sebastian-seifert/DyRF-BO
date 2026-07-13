@@ -30,7 +30,7 @@ except ImportError:
     HAS_GPU = False
 
 class GPUProximityRegressionUQ:
-    def __init__(self, model, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None):
+    def __init__(self, model, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None, normalize_by_depth=False):
         """
         GPU-Accelerated Wrapper for Localized Uncertainty Quantification in Random Forests
         via Proximities (RF-FIRE / RF-GAP). Supports dynamic NumPy and CuPy backends.
@@ -46,6 +46,7 @@ class GPUProximityRegressionUQ:
             use_density_scaling: bool, if True, scales proximity uncertainty inversely with leaf density.
             density_scaling_alpha: float, power exponent for leaf density scaling.
             topological_decay_lambda: float or None, exponential decay factor lambda for topological walking.
+            normalize_by_depth: bool, if True, normalizes topological distances by 2 * max_tree_depth.
         """
         self.model = model
         self.X_train = np.asarray(X_train)
@@ -55,6 +56,7 @@ class GPUProximityRegressionUQ:
         self.use_density_scaling = use_density_scaling
         self.density_scaling_alpha = density_scaling_alpha
         self.topological_decay_lambda = topological_decay_lambda
+        self.normalize_by_depth = normalize_by_depth
 
         
         # Configure backend dynamically
@@ -436,8 +438,14 @@ class GPUProximityRegressionUQ:
                     dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
                     # Vectorized 2D gather from precomputed distance matrix
                     d_t = self.tree_leaf_distances[t][dense_test[:, None], dense_train[None, :]]
-                    # Compute exponential decay kernel: e^(-lambda * d_t)
-                    decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
+                    # Compute exponential decay kernel: e^(-lambda * d_t) or normalized p_walk
+                    if self.normalize_by_depth:
+                        max_depth = self.tree_max_depths[t]
+                        # Avoid division by zero for extremely small/stub trees
+                        max_depth_val = max(1.0, float(max_depth))
+                        decay_t = self.xp.exp(-self.topological_decay_lambda * d_t / (2.0 * max_depth_val))
+                    else:
+                        decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
                     # Accumulate walked proximity
                     prox_batch += decay_t * self.train_weights_xp[None, :, t]
                     
@@ -551,6 +559,7 @@ class GPUProximityRegressionUQ:
         if not hasattr(self, "tree_paths"):
             self.tree_paths = {}
             self.tree_depths = {}
+            self.tree_max_depths = {}
             
         tree = self.estimators[tree_idx].tree_
         node_count = tree.node_count
@@ -587,6 +596,7 @@ class GPUProximityRegressionUQ:
                 
         self.tree_paths[tree_idx] = self.xp.asarray(node_paths)
         self.tree_depths[tree_idx] = self.xp.asarray(depth)
+        self.tree_max_depths[tree_idx] = np.max(depth)
 
     def compute_tree_topological_distances(self, leaf_test, leaf_train, tree_idx):
         """
@@ -698,3 +708,51 @@ class GPUProximityRegressionUQ:
             val = self.xp.where(zero_weight_mask, fallback_val, val)
             
         return val
+
+    def compute_proximity_matrix(self, X_test):
+        """
+        Computes the full proximity matrix between X_test and X_train.
+        Returns: np.ndarray of shape (n_test, n_train) or cp.ndarray.
+        """
+        X_test = np.atleast_2d(X_test)
+        n_test = X_test.shape[0]
+        
+        leaf_matrix_test = self.model.apply(X_test)
+        if self.using_gpu:
+            leaf_matrix_test_xp = cp.asarray(leaf_matrix_test)
+        else:
+            leaf_matrix_test_xp = leaf_matrix_test
+            
+        if self.batch_size_param == "auto":
+            batch_size = self._get_dynamic_batch_size(n_test)
+        else:
+            batch_size = int(self.batch_size_param)
+            
+        prox_matrix = self.xp.zeros((n_test, self.n_train), dtype=self.xp.float32)
+        
+        for start in range(0, n_test, batch_size):
+            end = min(start + batch_size, n_test)
+            batch_len = end - start
+            leaf_batch = leaf_matrix_test_xp[start:end, :]
+            
+            prox_batch = self.xp.zeros((batch_len, self.n_train), dtype=self.xp.float32)
+            for t in range(self.n_estimators):
+                if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+                    id_to_dense = self.tree_leaf_id_to_dense[t]
+                    dense_test = id_to_dense[leaf_batch[:, t]]
+                    dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
+                    d_t = self.tree_leaf_distances[t][dense_test[:, None], dense_train[None, :]]
+                    if self.normalize_by_depth:
+                        max_depth = self.tree_max_depths[t]
+                        max_depth_val = max(1.0, float(max_depth))
+                        decay_t = self.xp.exp(-self.topological_decay_lambda * d_t / (2.0 * max_depth_val))
+                    else:
+                        decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
+                    prox_batch += decay_t * self.train_weights_xp[None, :, t]
+                else:
+                    matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                    prox_batch += matches_t * self.train_weights_xp[None, :, t]
+            prox_batch /= self.n_estimators
+            prox_matrix[start:end, :] = prox_batch
+            
+        return prox_matrix

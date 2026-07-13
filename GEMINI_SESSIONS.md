@@ -65,6 +65,26 @@
    * Created [tests/test_student_t_likelihood.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/tests/test_student_t_likelihood.py) verifying both Student-t and Corrected scale models against edge cases (like count=1 leaves) under 0.1s.
    * Wrote the cluster dispatch script [run_student_t_sweep.sh](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/run_student_t_sweep.sh) ready to sbatch on 10 seeds over a 4x A100 GPU partition.
 
+## Session: 2026-07-13
+* **Goal**: Implement depth-normalized proximity UQ approaches (B, C, B+C), develop the Hybrid Proximity-Epistemic neighborhood-blended UQ model, and resolve test runner failures.
+
+### Accomplishments
+1. **Depth-Normalized Proximity Decay**:
+   * Added the `normalize_by_depth` hyperparameter to `GPUProximityRegressionUQ` to scale the topological decay kernel $p_{\text{walk}} = \exp\left(-\frac{\lambda \cdot d(x_i, x_j)}{2 \cdot \text{max\_tree\_depth}}\right)$ and ensure scale-independence of $\lambda$ across trees of varying depths.
+   * Registered `Proximity_Method_B_Norm`, `Proximity_Method_C_Norm`, and `Proximity_Method_B_C_Norm` approaches in `Uncertainty_Quantification.py`.
+2. **Hybrid Proximity-Epistemic UQ Model**:
+   * Designed and implemented `HybridProximityEpistemicUQ` in [Hybrid_Proximity_Epistemic_UQ.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/Hybrid_Proximity_Epistemic_UQ.py). Blends weighted epistemic signals from the KNN (retrieved via RF Proximity KNN) with the query point's own epistemic uncertainty using a convex combination:
+     $$U_{\text{hybrid}}(x) = \lambda_1 \cdot U_{\text{neighbors}}(x) + (1.0 - \lambda_1) \cdot U_{\text{query}}(x)$$
+   * Added a `compute_proximity_matrix` method to `GPUProximityRegressionUQ` to compute and expose the raw test-to-train proximity matrix of shape `(n_test, n_train)` in a vectorized way.
+   * Registered the 6 requested hybrid configurations (`Hybrid_Shaker_Entropy_L20`, `_L40`, `_L70` and `Hybrid_Likelihood_L20`, `_L40`, `_L70` using Proximity Method B) in [Uncertainty_Quantification.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/Uncertainty_Quantification.py).
+3. **Cluster Sweep Setup**:
+   * Created [generate_hybrid_sweep_params.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/generate_hybrid_sweep_params.py) and [run_hybrid_sweep.sh](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/run_hybrid_sweep.sh) to execute the 246 parameter sweep configurations on a single SLURM job allocation requesting 6 A100 GPUs, executing background processes concurrently in a round-robin routing layout.
+4. **TDD Validation & Parity**:
+   * Created a unit test suite [tests/test_hybrid_proximity_epistemic.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/tests/test_hybrid_proximity_epistemic.py) to mathematically assert the blending kernel, neighborhood mapping, and boundary conditions.
+   * Refactored tests to subclass `unittest.TestCase` so that the local test runner (`bash run_tests.sh`) automatically runs all 36 test cases cleanly.
+5. **Data Generator Bugfix**:
+   * Resolved a `NameError: name 'X_test' is not defined` in `data_generator.py`'s hypercube boundary OOD generation path by restoring the missing test set construction code block.
+
 
 
 
