@@ -15,6 +15,12 @@
 eval "$(conda shell.bash hook)"
 conda activate dyrf || true
 
+# Limit thread counts to prevent OpenBLAS thread/memory exhaustion from parallel dispatches
+export OPENBLAS_NUM_THREADS=4
+export MKL_NUM_THREADS=4
+export OMP_NUM_THREADS=4
+export NUMEXPR_NUM_THREADS=4
+
 # Setup directory structure
 mkdir -p results/hybrid_sweep/logs
 
