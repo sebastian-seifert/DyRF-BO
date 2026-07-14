@@ -99,7 +99,7 @@ class CARPSDynamicRFOptimizer(Optimizer):
     def ask(self) -> TrialInfo:
         """
         Asks the optimizer for the next configuration to evaluate.
-        Uses LCB acquisition function over a candidate pool.
+        Uses Expected Improvement (EI) acquisition function over a candidate pool.
         """
         # Ensure setup is complete
         if self.surrogate is None:
@@ -121,11 +121,21 @@ class CARPSDynamicRFOptimizer(Optimizer):
         # Predict using surrogate (triggers updates inside sliding window adaptor)
         preds, epistemic_unc = self.surrogate.predict(X_cand)
         
-        # Compute LCB acquisition function: mean - kappa * epistemic_unc
-        lcb = preds - self.kappa * epistemic_unc
+        # Compute Expected Improvement (minimization: we want to improve below y_best)
+        from scipy.stats import norm
+        y_best = min(t[1].cost for t in self.history)
         
-        # Select candidate that minimizes LCB
-        best_idx = int(np.argmin(lcb))
+        # Avoid division by zero
+        sigma = np.where(epistemic_unc > 1e-9, epistemic_unc, 1e-9)
+        z = (y_best - preds) / sigma
+        
+        ei = (y_best - preds) * norm.cdf(z) + sigma * norm.pdf(z)
+        
+        # Handle cases where uncertainty is close to zero
+        ei = np.where(epistemic_unc > 1e-9, ei, np.maximum(0.0, y_best - preds))
+        
+        # Select candidate that maximizes Expected Improvement
+        best_idx = int(np.argmax(ei))
         
         return self.convert_to_trial(candidates[best_idx])
 
