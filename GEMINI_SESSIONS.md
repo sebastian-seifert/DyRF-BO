@@ -11,8 +11,9 @@
 2. **Workflow Enhancements**:
    * Formulated and documented a new Git Branching & Sweep Workflow in [README.md](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/README.md) to keep `main` stable and isolate experimental runs.
    * Codified the branching rules into the agent mandates ([AGENTS.md](file:///home/sebastians/.gemini/config/AGENTS.md)) to enforce working on isolated `feat/<name>` branches.
-3. **Cluster Sweep Script Configuration**:
+3. **Cluster Sweep Script & Parameter Configuration**:
    * Configured [run_hybrid_sweep.sh](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/run_hybrid_sweep.sh) to allocate 3 A100 GPUs, 32 CPUs, and 64G memory on `-p ai`, implementing a round-robin schedule that runs exactly 2 concurrent jobs per GPU (6 total jobs at any given time).
+   * Rewrote [generate_hybrid_sweep_params.py](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/generate_hybrid_sweep_params.py) to target only one empty gap and one sparse gap (multiplier 12) per function and config, reducing the sweep scale from 246 to 164 total execution configurations.
    * Ensured standard virtual environment commands (`conda activate dyrf`) run before executing python scripts.
 
 ## Session: 2026-07-10

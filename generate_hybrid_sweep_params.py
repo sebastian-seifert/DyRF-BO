@@ -22,13 +22,11 @@ def main():
             for config in [1, 5]:
                 # Empty gap type
                 f.write(f"--function {func_name} --rf_config {config} --gap_type empty\n")
-                # Sparse gap type (linear only, mult=5 and 50)
-                for law in ["linear"]:
-                    for mult in [5, 50]:
-                        f.write(f"--function {func_name} --rf_config {config} --gap_type sparse --scaling_law {law} --sparse_multiplier {mult}\n")
+                # Sparse gap type (linear only, mult=12)
+                f.write(f"--function {func_name} --rf_config {config} --gap_type sparse --scaling_law linear --sparse_multiplier 12\n")
 
-    # 41 functions * 2 configs * 3 gap scenarios = 246 runs
-    print(f"Generated hybrid_sweep_params.txt with {len(funcs) * 2 * 3} execution configurations.")
+    # 41 functions * 2 configs * 2 gap scenarios = 164 runs
+    print(f"Generated hybrid_sweep_params.txt with {len(funcs) * 2 * 2} execution configurations.")
 
 if __name__ == "__main__":
     main()
