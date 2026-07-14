@@ -85,6 +85,13 @@
 5. **Data Generator Bugfix**:
    * Resolved a `NameError: name 'X_test' is not defined` in `data_generator.py`'s hypercube boundary OOD generation path by restoring the missing test set construction code block.
 
+### Active Issues & Notes
+* **OpenBLAS/Memory Allocation Error (`run_1.log`)**:
+  * Encountered thread contention and memory allocation failure in `run_1.log` (OpenBLAS giving up after 10 retries).
+  * Determined that running 6 concurrent parallel scripts with the default `n_jobs=-1` (scikit-learn using all CPU cores) caused a process/thread overflow.
+  * Mitigated by updating `run_hybrid_sweep.sh` to restrict thread environments to 1 (`OPENBLAS_NUM_THREADS=1`) and passing `--n_jobs 4` to control CPU load. Needs observation upon restart.
+
+
 
 
 
