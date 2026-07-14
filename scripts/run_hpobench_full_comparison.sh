@@ -44,6 +44,16 @@ for task in "${TASKS[@]}"; do
                 optimizer.telemetry_path="results/telemetry_${approach}_${task_name}_seed${seed}.json"
         done
     done
+    
+    # Submit standard SMAC3-HPO Baseline
+    for seed in "${SEEDS[@]}"; do
+        echo "Submitting Baseline: SMAC3-HPO on $task_name (Seed $seed)"
+        sbatch scripts/submit_hpobench_carps_sweep.sbatch \
+            +optimizer/smac20=hpo \
+            "$task" \
+            task.optimization_resources.n_trials=$TRIALS \
+            seed=$seed
+    done
 done
 
 echo "=========================================================="
