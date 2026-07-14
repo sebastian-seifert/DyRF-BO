@@ -24,7 +24,6 @@ export PYTHONPATH=.
 # Run CARP-S with our custom patched launcher
 $PYTHON_EXEC scripts/run_carps_patched.py \
     --config-dir carps_integration/configs \
-    +optimizer=dyrf_epistemic_hpobench \
     "$@"
 
 echo "=================================================="
