@@ -3,13 +3,13 @@
 #SBATCH --job-name=hybrid_sweep
 #SBATCH --output=results/hybrid_sweep/sweep_%j.log
 #SBATCH --error=results/hybrid_sweep/sweep_%j.err
-#SBATCH --gres=gpu:a100:6
-#SBATCH --cpus-per-task=24
-#SBATCH --mem=48G
+#SBATCH --gres=gpu:a100:3
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=64G
 #SBATCH --time=12:00:00
 
 # Dedicated script to evaluate the Hybrid Proximity-Epistemic approaches
-# Optimized for parallel execution across 4 A100 GPUs in a single job allocation.
+# Optimized for parallel execution across A100 GPUs in a single job allocation.
 
 # Initialize Conda and activate environment
 eval "$(conda shell.bash hook)"
@@ -48,14 +48,14 @@ if [ -n "$CUDA_VISIBLE_DEVICES" ]; then
     NUM_GPUS=${#GPUS_ARR[@]}
     echo "Detected $NUM_GPUS allocated GPUs from salloc (CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES)"
 else
-    GPUS_ARR=(0 1 2 3)
-    NUM_GPUS=4
-    echo "No active CUDA_VISIBLE_DEVICES found. Defaulting to 4 GPUs layout."
+    GPUS_ARR=(0 1 2)
+    NUM_GPUS=3
+    echo "No active CUDA_VISIBLE_DEVICES found. Defaulting to 3 GPUs layout."
 fi
 
-# Max concurrent jobs: 1 per GPU
-MAX_JOBS=$NUM_GPUS
-echo "Running up to $MAX_JOBS parallel jobs concurrently..."
+# Max concurrent jobs: 2 per GPU
+MAX_JOBS=$(( NUM_GPUS * 2 ))
+echo "Running up to $MAX_JOBS parallel jobs concurrently ($(( MAX_JOBS / NUM_GPUS )) per GPU)..."
 
 APPROACHES="Hybrid_Shaker_Entropy_L20,Hybrid_Shaker_Entropy_L40,Hybrid_Shaker_Entropy_L70,Hybrid_Likelihood_L20,Hybrid_Likelihood_L40,Hybrid_Likelihood_L70"
 total_runs=$(wc -l < "$PARAMS_FILE")

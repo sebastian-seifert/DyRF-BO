@@ -1,5 +1,20 @@
 # Gemini Sessions Log
 
+## Session: 2026-07-14
+* **Goal**: Conduct a token-efficient Codebase Quality Audit of the repository focusing on modularity, cleanliness, and hygiene.
+
+### Accomplishments
+1. **Repository Auditing**:
+   * Spawned a specialized `research` subagent to audit file structure, module separation, dependencies, and code hygiene in a token-friendly manner.
+   * Documented high-level modularity strengths, clean architectural separation in core UQ estimators, and verified correct test suite structure.
+   * Pinpointed actionable code hygiene recommendations (protecting sweeps/figures in `.gitignore`, consolidating CUDA device-checking hooks, and centralizing script CLI parsing).
+2. **Workflow Enhancements**:
+   * Formulated and documented a new Git Branching & Sweep Workflow in [README.md](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/README.md) to keep `main` stable and isolate experimental runs.
+   * Codified the branching rules into the agent mandates ([AGENTS.md](file:///home/sebastians/.gemini/config/AGENTS.md)) to enforce working on isolated `feat/<name>` branches.
+3. **Cluster Sweep Script Configuration**:
+   * Configured [run_hybrid_sweep.sh](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/run_hybrid_sweep.sh) to allocate 3 A100 GPUs, 32 CPUs, and 64G memory on `-p ai`, implementing a round-robin schedule that runs exactly 2 concurrent jobs per GPU (6 total jobs at any given time).
+   * Ensured standard virtual environment commands (`conda activate dyrf`) run before executing python scripts.
+
 ## Session: 2026-07-10
 * **Goal**: Process topological cluster sweep results, generate comparative tables, optimize configuration spaces, and integrate profiling timers.
 
