@@ -25,14 +25,14 @@ class CARPSDynamicRFOptimizer(Optimizer):
         kappa: float = 1.96,
         telemetry_path: str = "dyrf_bo_telemetry.json",
         window_size: int = 5,
-        n_base: int = 100,
-        n_min: int = 10,
-        n_max: int = 200,
-        gamma: float = 1.0,
-        depth_base: int = 12,
-        depth_min: int = 5,
-        depth_max: int = 30,
-        beta: float = 5.0,
+        min_samples_leaf_base: int = 2,
+        min_samples_leaf_min: int = 1,
+        min_samples_leaf_max: int = 15,
+        alpha: float = 1.0,
+        max_features_base: float = 0.5,
+        max_features_min: float = 0.1,
+        max_features_max: float = 0.8,
+        eta: float = 0.5,
         extractor_kwargs: dict | None = None,
         rf_kwargs: dict | None = None
     ) -> None:
@@ -51,14 +51,14 @@ class CARPSDynamicRFOptimizer(Optimizer):
         
         # Dynamic RF hyperparameters
         self.window_size = window_size
-        self.n_base = n_base
-        self.n_min = n_min
-        self.n_max = n_max
-        self.gamma = gamma
-        self.depth_base = depth_base
-        self.depth_min = depth_min
-        self.depth_max = depth_max
-        self.beta = beta
+        self.min_samples_leaf_base = min_samples_leaf_base
+        self.min_samples_leaf_min = min_samples_leaf_min
+        self.min_samples_leaf_max = min_samples_leaf_max
+        self.alpha = alpha
+        self.max_features_base = max_features_base
+        self.max_features_min = max_features_min
+        self.max_features_max = max_features_max
+        self.eta = eta
         self.extractor_kwargs = extractor_kwargs or {}
         self.rf_kwargs = rf_kwargs or {}
         
@@ -72,14 +72,14 @@ class CARPSDynamicRFOptimizer(Optimizer):
         self.surrogate = DynamicRFSurrogate(
             extractor_name=self.extractor_name,
             window_size=self.window_size,
-            n_base=self.n_base,
-            n_min=self.n_min,
-            n_max=self.n_max,
-            gamma=self.gamma,
-            depth_base=self.depth_base,
-            depth_min=self.depth_min,
-            depth_max=self.depth_max,
-            beta=self.beta,
+            min_samples_leaf_base=self.min_samples_leaf_base,
+            min_samples_leaf_min=self.min_samples_leaf_min,
+            min_samples_leaf_max=self.min_samples_leaf_max,
+            alpha=self.alpha,
+            max_features_base=self.max_features_base,
+            max_features_min=self.max_features_min,
+            max_features_max=self.max_features_max,
+            eta=self.eta,
             extractor_kwargs=self.extractor_kwargs,
             rf_kwargs=self.rf_kwargs
         )
@@ -136,7 +136,6 @@ class CARPSDynamicRFOptimizer(Optimizer):
         
         # Select candidate that maximizes Expected Improvement
         best_idx = int(np.argmax(ei))
-        
         return self.convert_to_trial(candidates[best_idx])
 
     def tell(self, trial_info: TrialInfo, trial_value: TrialValue) -> None:
@@ -147,10 +146,10 @@ class CARPSDynamicRFOptimizer(Optimizer):
         self.history.append((trial_info, trial_value))
         
         # Determine current surrogate parameter state for telemetry
-        n_trees = self.n_base
-        max_depth = self.depth_base
+        min_samples_leaf = self.min_samples_leaf_base
+        max_features = self.max_features_base
         if self.surrogate is not None:
-            n_trees, max_depth = self.surrogate.adaptor.get_next_parameters()
+            min_samples_leaf, max_features = self.surrogate.adaptor.get_next_parameters()
             
         # Fit surrogate on updated training set
         if len(self.history) >= self.n_init:
@@ -163,13 +162,12 @@ class CARPSDynamicRFOptimizer(Optimizer):
             "trial_idx": len(self.history) - 1,
             "config": dict(trial_info.config),
             "cost": float(trial_value.cost),
-            "surrogate_n_estimators": n_trees,
-            "surrogate_max_depth": max_depth,
+            "surrogate_min_samples_leaf": min_samples_leaf,
+            "surrogate_max_features": max_features,
             "virtual_time": float(trial_value.virtual_time)
         }
         self.telemetry_records.append(record)
         
-        # Persist telemetry to disk
         self._write_telemetry()
 
     def _write_telemetry(self) -> None:

@@ -24,7 +24,7 @@ class TestCARPSConfigs(unittest.TestCase):
         self.assertEqual(cfg.optimizer._target_, "carps_integration.optimizer.CARPSDynamicRFOptimizer")
         self.assertEqual(cfg.optimizer.extractor_name, "standard_disagreement")
         self.assertEqual(cfg.optimizer.kappa, 1.96)
-        self.assertEqual(cfg.optimizer.n_base, 100)
+        self.assertEqual(cfg.optimizer.min_samples_leaf_base, 2)
 
 if __name__ == "__main__":
     unittest.main()

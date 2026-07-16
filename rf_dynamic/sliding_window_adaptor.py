@@ -4,39 +4,41 @@ from collections import deque
 class SlidingWindowRFAdaptor:
     """
     Manages sliding-window statistics of epistemic uncertainty signals
-    and dynamically maps them to Random Forest hyperparameters.
+    and dynamically maps them to Random Forest hyperparameters (min_samples_leaf, max_features).
     """
     def __init__(
         self,
         window_size: int = 5,
-        n_base: int = 100,
-        n_min: int = 10,
-        n_max: int = 200,
-        gamma: float = 1.0,
-        depth_base: int = 12,
-        depth_min: int = 5,
-        depth_max: int = 30,
-        beta: float = 5.0
+        min_samples_leaf_base: int = 2,
+        min_samples_leaf_min: int = 1,
+        min_samples_leaf_max: int = 15,
+        alpha: float = 1.0,
+        max_features_base: float = 0.5,
+        max_features_min: float = 0.1,
+        max_features_max: float = 0.8,
+        eta: float = 0.5
     ):
         self.window_size = window_size
-        self.n_base = n_base
-        self.n_min = n_min
-        self.n_max = n_max
-        self.gamma = gamma
-        self.depth_base = depth_base
-        self.depth_min = depth_min
-        self.depth_max = depth_max
-        self.beta = beta
+        
+        self.min_samples_leaf_base = min_samples_leaf_base
+        self.min_samples_leaf_min = min_samples_leaf_min
+        self.min_samples_leaf_max = min_samples_leaf_max
+        self.alpha = alpha
+        
+        self.max_features_base = max_features_base
+        self.max_features_min = max_features_min
+        self.max_features_max = max_features_max
+        self.eta = eta
 
         # FIFO queues for sliding window history
         self.q95_history = deque(maxlen=window_size)
         self.mean_scaled_history = deque(maxlen=window_size)
 
         # Current parameter values (initialized to base values)
-        self.current_n_trees = n_base
-        self.current_max_depth = depth_base
+        self.current_min_samples_leaf = min_samples_leaf_base
+        self.current_max_features = max_features_base
 
-    def update_and_normalize(self, raw_signals: np.ndarray) -> np.ndarray:
+    def update_and_normalize(self, raw_signals: np.ndarray, n_samples: int) -> np.ndarray:
         """
         Updates the window statistics with raw signals from a new candidate pool,
         normalizes the signals using the moving Hybrid Normalization Scheme,
@@ -46,6 +48,8 @@ class SlidingWindowRFAdaptor:
         -----------
         raw_signals : np.ndarray
             Epistemic signals of shape (n_candidates,).
+        n_samples : int
+            Current number of training samples (to dynamically cap min_samples_leaf).
             
         Returns:
         --------
@@ -73,24 +77,27 @@ class SlidingWindowRFAdaptor:
         mean_scaled = float(np.mean(scaled_signals))
         self.mean_scaled_history.append(mean_scaled)
 
-        # 4. Calculate moving average and dispersion over the window
+        # 4. Calculate moving average over the window
         mu_scaled = float(np.mean(self.mean_scaled_history))
-        if len(self.mean_scaled_history) > 1:
-            sigma_scaled = float(np.std(self.mean_scaled_history))
-        else:
-            sigma_scaled = 0.0
 
         # 5. Adapt parameters using moving window statistics
-        self.current_n_trees = int(np.clip(
-            np.floor(self.n_base * (1.0 + self.gamma * mu_scaled)),
-            self.n_min,
-            self.n_max
+        # min_samples_leaf scales with average uncertainty
+        # Dynamically cap the max leaf size at 25% of training samples (min 1) to prevent stump collapse
+        leaf_upper_bound = min(self.min_samples_leaf_max, max(1, n_samples // 4))
+        
+        raw_leaf = np.floor(self.min_samples_leaf_base * (1.0 + self.alpha * mu_scaled))
+        self.current_min_samples_leaf = int(np.clip(
+            raw_leaf,
+            self.min_samples_leaf_min,
+            leaf_upper_bound
         ))
 
-        self.current_max_depth = int(np.clip(
-            np.floor(self.depth_base + self.beta * sigma_scaled),
-            self.depth_min,
-            self.depth_max
+        # max_features scales inversely with average uncertainty
+        raw_features = self.max_features_base * (1.0 - self.eta * mu_scaled)
+        self.current_max_features = float(np.clip(
+            raw_features,
+            self.max_features_min,
+            self.max_features_max
         ))
 
         return scaled_signals
@@ -101,7 +108,7 @@ class SlidingWindowRFAdaptor:
         
         Returns:
         --------
-        n_estimators : int
-        max_depth : int
+        min_samples_leaf : int
+        max_features : float
         """
-        return self.current_n_trees, self.current_max_depth
+        return self.current_min_samples_leaf, self.current_max_features

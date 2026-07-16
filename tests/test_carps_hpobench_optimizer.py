@@ -45,9 +45,14 @@ class TestCARPSDynamicRFOptimizer(unittest.TestCase):
             kappa=1.96,
             telemetry_path=self.telemetry_file,
             window_size=3,
-            n_base=15,
-            n_min=5,
-            n_max=30
+            min_samples_leaf_base=2,
+            min_samples_leaf_min=1,
+            min_samples_leaf_max=5,
+            alpha=1.0,
+            max_features_base=0.5,
+            max_features_min=0.1,
+            max_features_max=0.8,
+            eta=0.5
         )
         
         # Run optimization
@@ -69,13 +74,14 @@ class TestCARPSDynamicRFOptimizer(unittest.TestCase):
         # Check first trial (should be warmstart, so no fitted surrogate yet)
         first_trial = data["trials"][0]
         self.assertEqual(first_trial["trial_idx"], 0)
-        self.assertEqual(first_trial["surrogate_n_estimators"], 15)  # initial base value
+        self.assertEqual(first_trial["surrogate_min_samples_leaf"], 2)  # initial base value
+        self.assertEqual(first_trial["surrogate_max_features"], 0.5)  # initial base value
         
         # Check last trial (should have fitted surrogate and adapted parameters)
         last_trial = data["trials"][-1]
         self.assertEqual(last_trial["trial_idx"], 11)
-        self.assertIn("surrogate_n_estimators", last_trial)
-        self.assertIn("surrogate_max_depth", last_trial)
+        self.assertIn("surrogate_min_samples_leaf", last_trial)
+        self.assertIn("surrogate_max_features", last_trial)
         
 if __name__ == "__main__":
     unittest.main()

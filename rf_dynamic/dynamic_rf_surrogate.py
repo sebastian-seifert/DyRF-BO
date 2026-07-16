@@ -6,21 +6,21 @@ from rf_dynamic.sliding_window_adaptor import SlidingWindowRFAdaptor
 class DynamicRFSurrogate:
     """
     Random Forest surrogate model wrapper that dynamically adjusts its 
-    hyperparameters (n_estimators, max_depth) based on epistemic uncertainty 
+    hyperparameters (min_samples_leaf, max_features) based on epistemic uncertainty 
     signals computed on evaluated candidate points.
     """
     def __init__(
         self,
         extractor_name: str = "standard_disagreement",
         window_size: int = 5,
-        n_base: int = 100,
-        n_min: int = 10,
-        n_max: int = 200,
-        gamma: float = 1.0,
-        depth_base: int = 12,
-        depth_min: int = 5,
-        depth_max: int = 30,
-        beta: float = 5.0,
+        min_samples_leaf_base: int = 2,
+        min_samples_leaf_min: int = 1,
+        min_samples_leaf_max: int = 15,
+        alpha: float = 1.0,
+        max_features_base: float = 0.5,
+        max_features_min: float = 0.1,
+        max_features_max: float = 0.8,
+        eta: float = 0.5,
         extractor_kwargs: dict = None,
         rf_kwargs: dict = None
     ):
@@ -30,31 +30,35 @@ class DynamicRFSurrogate:
         
         self.adaptor = SlidingWindowRFAdaptor(
             window_size=window_size,
-            n_base=n_base,
-            n_min=n_min,
-            n_max=n_max,
-            gamma=gamma,
-            depth_base=depth_base,
-            depth_min=depth_min,
-            depth_max=depth_max,
-            beta=beta
+            min_samples_leaf_base=min_samples_leaf_base,
+            min_samples_leaf_min=min_samples_leaf_min,
+            min_samples_leaf_max=min_samples_leaf_max,
+            alpha=alpha,
+            max_features_base=max_features_base,
+            max_features_min=max_features_min,
+            max_features_max=max_features_max,
+            eta=eta
         )
         
         self.model = None
         self.extractor = None
+        self.n_samples = 0
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> None:
         """
         Fits the Random Forest model using the adapted parameters, 
         and updates/fits the epistemic extractor on the new training set.
         """
+        # Save training sample count for dynamic capping
+        self.n_samples = X.shape[0]
+        
         # Get next adapted parameters
-        n_estimators, max_depth = self.adaptor.get_next_parameters()
+        min_samples_leaf, max_features = self.adaptor.get_next_parameters()
         
         # Instantiate and fit the RF model
         self.model = RandomForestRegressor(
-            n_estimators=n_estimators,
-            max_depth=max_depth,
+            min_samples_leaf=min_samples_leaf,
+            max_features=max_features,
             **self.rf_kwargs
         )
         self.model.fit(X, y)
@@ -83,7 +87,7 @@ class DynamicRFSurrogate:
         raw_signals = self.extractor.extract_epistemic_signal(X)
         
         # Update sliding window adaptor (updates RF hyperparameters internally)
-        _ = self.adaptor.update_and_normalize(raw_signals)
+        _ = self.adaptor.update_and_normalize(raw_signals, n_samples=self.n_samples)
         
         # Compute standard disagreement (standard deviation) of the forest for acquisition function
         X_test = np.atleast_2d(X)
