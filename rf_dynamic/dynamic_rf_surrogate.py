@@ -69,18 +69,33 @@ class DynamicRFSurrogate:
 
     def predict(self, X: np.ndarray):
         """
-        Predicts mean and returns the epistemic uncertainty signal.
-        Also triggers parameter updates in the sliding window adaptor.
+        Predicts mean and returns the standard disagreement (standard deviation) 
+        as the uncertainty value.
+        Also extracts the epistemic uncertainty signal of the selected approach 
+        to trigger parameter updates in the sliding window adaptor.
         """
         if self.model is None or self.extractor is None:
             raise RuntimeError("Surrogate must be fitted before prediction.")
             
         preds = self.model.predict(X)
         
-        # Extract raw epistemic uncertainty signal
+        # Extract raw epistemic uncertainty signal for hyperparameter adaptation
         raw_signals = self.extractor.extract_epistemic_signal(X)
         
-        # Update sliding window adaptor and retrieve normalized signals
-        normalized_signals = self.adaptor.update_and_normalize(raw_signals)
+        # Update sliding window adaptor (updates RF hyperparameters internally)
+        _ = self.adaptor.update_and_normalize(raw_signals)
         
-        return preds, normalized_signals
+        # Compute standard disagreement (standard deviation) of the forest for acquisition function
+        X_test = np.atleast_2d(X)
+        all_test_leaf_ids = self.model.apply(X_test)
+        n_samples = X_test.shape[0]
+        n_trees = len(self.model.estimators_)
+        
+        tree_preds = np.zeros((n_trees, n_samples))
+        for t, estimator in enumerate(self.model.estimators_):
+            tree_preds[t, :] = estimator.tree_.value[all_test_leaf_ids[:, t], 0, 0]
+            
+        # Standard deviation of the tree predictions
+        std_disagreement = np.std(tree_preds, axis=0)
+        
+        return preds, std_disagreement
