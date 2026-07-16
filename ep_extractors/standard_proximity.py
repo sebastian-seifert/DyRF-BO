@@ -5,7 +5,7 @@ from GPU_Proximity_Regression_UQ import GPUProximityRegressionUQ
 
 @UQExtractorRegistry.register("standard_proximity")
 class StandardProximityExtractor(BaseEpistemicExtractor):
-    def __init__(self, model, device="cpu", **kwargs):
+    def __init__(self, model, device="auto", **kwargs):
         """
         Proximity A: Standard Leaf Incidence Proximity.
         Co-occurrence index (topological_decay_lambda = None, use_density_scaling = False).

@@ -5,7 +5,7 @@ from GPU_Proximity_Regression_UQ import GPUProximityRegressionUQ
 
 @UQExtractorRegistry.register("proximity_bc")
 class ProximityBCExtractor(BaseEpistemicExtractor):
-    def __init__(self, model, device="cpu", decay_lambda=1.0, alpha=1.0, **kwargs):
+    def __init__(self, model, device="auto", decay_lambda=1.0, alpha=1.0, **kwargs):
         """
         Proximity B+C: Topological Decay Proximity with Density Scaling.
         """
