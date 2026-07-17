@@ -14,10 +14,11 @@ def parse_telemetry_directory(results_dir="results"):
         return results
 
     # Pattern for telemetry filenames: telemetry_{approach}_{task_name}_seed{seed}.json
-    # Note: task_name can contain underscores (e.g., cfg_ml_svm_12)
+    # Note: task_name can contain underscores (e.g., cfg_ml_svm_12, cfg_lcbench_167168)
     filename_pattern = re.compile(
-        r"^telemetry_(?P<approach>.+?)_(?P<task>cfg_ml_.+?)_seed(?P<seed>\d+)\.json$"
+        r"^telemetry_(?P<approach>.+?)_(?P<task>cfg_.+?)_seed(?P<seed>\d+)\.json$"
     )
+
 
     for filename in os.listdir(results_dir):
         if not filename.endswith(".json"):
