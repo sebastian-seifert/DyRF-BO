@@ -11,8 +11,26 @@ tasks = [
     "+task/HPOBench/blackbox/tabular/ml=cfg_ml_xgboost_3",
     "+task/HPOBench/blackbox/tabular/ml=cfg_ml_xgboost_12",
     "+task/HPOBench/blackbox/tabular/ml=cfg_ml_xgboost_31",
-    "+task/YAHPO/blackbox=cfg_iaml_ranger_1067",
-    "+task/YAHPO/SO=cfg_lcbench_167168"
+    "+task/YAHPO/SO=cfg_lcbench_167168",
+    "+task/YAHPO/SO=cfg_lcbench_189873",
+    "+task/YAHPO/SO=cfg_lcbench_189906",
+    "+task/YAHPO/SO=cfg_nb301_CIFAR10",
+    "+task/YAHPO/SO=cfg_rbv2_glmnet_375",
+    "+task/YAHPO/SO=cfg_rbv2_glmnet_458",
+    "+task/YAHPO/SO=cfg_rbv2_ranger_16",
+    "+task/YAHPO/SO=cfg_rbv2_ranger_42",
+    "+task/YAHPO/SO=cfg_rbv2_rpart_14",
+    "+task/YAHPO/SO=cfg_rbv2_rpart_40499",
+    "+task/YAHPO/SO=cfg_rbv2_super_1053",
+    "+task/YAHPO/SO=cfg_rbv2_super_1063",
+    "+task/YAHPO/SO=cfg_rbv2_super_1457",
+    "+task/YAHPO/SO=cfg_rbv2_super_1468",
+    "+task/YAHPO/SO=cfg_rbv2_super_1479",
+    "+task/YAHPO/SO=cfg_rbv2_super_15",
+    "+task/YAHPO/SO=cfg_rbv2_xgboost_12",
+    "+task/YAHPO/SO=cfg_rbv2_xgboost_1501",
+    "+task/YAHPO/SO=cfg_rbv2_xgboost_16",
+    "+task/YAHPO/SO=cfg_rbv2_xgboost_40499"
 ]
 
 
