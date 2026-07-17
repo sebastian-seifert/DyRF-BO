@@ -10,8 +10,11 @@ tasks = [
     "+task/HPOBench/blackbox/tabular/ml=cfg_ml_svm_31",
     "+task/HPOBench/blackbox/tabular/ml=cfg_ml_xgboost_3",
     "+task/HPOBench/blackbox/tabular/ml=cfg_ml_xgboost_12",
-    "+task/HPOBench/blackbox/tabular/ml=cfg_ml_xgboost_31"
+    "+task/HPOBench/blackbox/tabular/ml=cfg_ml_xgboost_31",
+    "+task/YAHPO/blackbox=cfg_iaml_ranger_1067",
+    "+task/YAHPO/SO=cfg_lcbench_167168"
 ]
+
 
 approaches = [
     "standard_disagreement",
