@@ -6,7 +6,8 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=12:00:00
-#SBATCH --array=1-240%15
+#SBATCH --array=1-1040%15
+
 
 # Polite Slurm Job Array runner.
 # %15 restricts concurrency to a maximum of 15 running jobs at any given time.
