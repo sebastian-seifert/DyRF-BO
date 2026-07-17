@@ -1,4 +1,14 @@
+import os
+from pathlib import Path
+
+# Override data directories for CARPS/YAHPO and HPOBench
+os.environ["CARPS_TASK_DATA_DIR"] = "/bigwork/nhwpseis/benchmarks"
+
+import hpobench
+hpobench.config_file.data_dir = Path("/bigwork/nhwpseis/benchmarks/hpobench")
+
 import argparse
+
 
 # Monkey-patch argparse.ArgumentParser._check_help to bypass compatibility crashes
 # with older Hydra-Core (LazyCompletionHelp) under Python 3.14.

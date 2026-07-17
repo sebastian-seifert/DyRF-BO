@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
+import os
 import sys
+from pathlib import Path
+
+# Override data directories for CARPS/YAHPO and HPOBench
+os.environ["CARPS_TASK_DATA_DIR"] = "/bigwork/nhwpseis/benchmarks"
 
 try:
+    import hpobench
+    hpobench.config_file.data_dir = Path("/bigwork/nhwpseis/benchmarks/hpobench")
     from hpobench.benchmarks.ml.tabular_benchmark import TabularBenchmark
     from hpobench.util.data_manager import SurrogateSVMDataManager
 except ImportError:
+
     print("ERROR: HPOBench is not installed. Please run 'pip install --ignore-requires-python -r requirements.txt' first.")
     sys.exit(1)
 
