@@ -20,8 +20,9 @@
    - Fixed the Hydra composition error (`Could not override 'optimizer'`) on baseline runs by restoring the correct append syntax `+optimizer/smac20=hpo` (which is necessary because `optimizer/smac20` is a config group, not `optimizer`).
 5. **OOB Score Optimization**:
    - Programmatically enabled `oob_score=True` in `dynamic_rf_surrogate.py` for proximity UQ extractors. This prevents warnings and eliminates double Random Forest fitting at every Bayesian Optimization iteration.
-6. **YAHPO Data Directory Diagnosis**:
-   - Diagnosed cluster `FileNotFoundError` for `rbv2_xgboost/encoding.json`. The programmatic data override `/bigwork/nhwpseis/benchmarks` requires cloning the official LMU `yahpo_data` repository directly on the cluster login node.
+6. **YAHPO Data Directory Override Fix**:
+   - Programmatically overrode `YAHPO_TASK_DATA_DIR` in `carps.objective_functions.yahpo` inside `scripts/run_carps_patched.py` to point to the hyphenated `/bigwork/nhwpseis/benchmarks/yahpo-data` path. This aligns the code with your cluster folder name without breaking other applications.
+   - Added unit test coverage `test_run_carps_patched_overrides_yahpo_dir` in `tests/test_carps_configs.py` asserting that the programmatic redirection is applied.
 7. **Git Branching & Push**: Verified changes and pushed to branch `feat/carp-s-epistemic-rf` on `origin`.
 
 ## Session: 2026-07-14 (CARP-S Integration Planning & Implementation)
