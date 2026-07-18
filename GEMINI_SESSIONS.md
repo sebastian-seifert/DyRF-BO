@@ -1,5 +1,18 @@
 # Gemini Sessions Log
 
+## Session: 2026-07-18 (CARP-S Array Sweep Hydra Resolution Fix)
+* **Goal**: Fix the Hydra `MissingMandatoryValue` error (`optimizer_id` missing when evaluating `hydra.run.dir`) that caused the last CARP-S parameter sweep array to fail.
+
+### Accomplishments
+1. **Root Cause Analysis**: Identified that the CARP-S Hydra configuration requires `optimizer_id` to evaluate `hydra.run.dir`. When loading baseline SMAC3 runs (`+optimizer/smac20=hpo`), this variable remains unset at the global level during early directory resolution.
+2. **Implementation of CLI Overrides**:
+   - Modified `scripts/generate_array_tasks.py` to append explicit CLI overrides (`optimizer_id=SMAC3-HPOFacade optimizer_container_id=SMAC3`) for baseline SMAC3 runs, and changed the package group selection from `+optimizer/smac20=hpo` to `optimizer=smac20/hpo`.
+   - Regenerated `results/array_tasks.txt` with 1,040 correct command lines.
+3. **TDD Unit Testing**:
+   - Created a unit test suite `tests/test_generate_array_tasks.py` under the strict TDD mandate to verify the syntax and format of the generated commands (confirming the presence of `optimizer_id` and `optimizer_container_id` on all tasks).
+   - Validated that the new test runs and passes successfully.
+4. **Git Branching & Push**: Verified changes and pushed to branch `feat/carp-s-epistemic-rf` on `origin`.
+
 ## Session: 2026-07-14 (CARP-S Integration Planning & Implementation)
 * **Goal**: Engineer dynamic Random Forest hyperparameter adaptation based on epistemic signals and construct a comprehensive implementation plan to benchmark epistemic UQ methods using CARP-S.
 
