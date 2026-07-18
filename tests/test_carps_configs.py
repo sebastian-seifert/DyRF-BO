@@ -64,12 +64,18 @@ class TestCARPSConfigs(unittest.TestCase):
         run_cmd = [sys.executable, "scripts/run_carps_patched.py"]
         result = subprocess.run(run_cmd, capture_output=True, text=True)
         
-        # The exit code should be non-zero (since task and optimizer are missing)
+        # The exit code should be non-zero (since configuration is incomplete)
         self.assertNotEqual(result.returncode, 0)
         
-        # The stderr/stdout should report the missing 'task' or 'optimizer', NOT 'optimizer_id'
+        # Verify that Hydra's exception formatter did NOT crash, meaning the real traceback was printed.
+        # When the formatter crashes, it prints "An error occurred during Hydra's exception formatting" 
+        # and has "full_key: hydra.run.dir" due to path interpolation failure.
         combined_output = result.stdout + result.stderr
-        self.assertNotIn("Missing mandatory value: optimizer_id", combined_output)
+        self.assertNotIn("An error occurred during Hydra's exception formatting", combined_output)
+        self.assertNotIn("full_key: hydra.run.dir", combined_output)
+        
+        # Verify that the normal config missing value error is raised at runtime
+        self.assertIn("Missing mandatory value", combined_output)
 
 if __name__ == "__main__":
     unittest.main()

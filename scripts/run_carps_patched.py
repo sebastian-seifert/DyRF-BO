@@ -38,12 +38,23 @@ if hasattr(argparse.ArgumentParser, "_check_help"):
     argparse.ArgumentParser._check_help = custom_check_help
 
 import sys
-# Safeguard against Hydra's exception formatter crash by providing fallback defaults
-# for optimizer_id and optimizer_container_id if they are not overridden.
-if not any(arg.startswith("optimizer_id=") for arg in sys.argv):
-    sys.argv.append("optimizer_id=unknown_optimizer")
-if not any(arg.startswith("optimizer_container_id=") for arg in sys.argv):
-    sys.argv.append("optimizer_container_id=unknown_container")
+import omegaconf
+
+# Monkey-patch OmegaConf.select to prevent Hydra's exception formatter from crashing
+# on MissingMandatoryValue errors when resolving output directories.
+original_select = omegaconf.OmegaConf.select
+
+def patched_select(cfg, key, *args, **kwargs):
+    try:
+        return original_select(cfg, key, *args, **kwargs)
+    except Exception as e:
+        # If it's a directory key in Hydra and failed to resolve due to missing mandatory values,
+        # return a fallback directory path to allow the real error to be printed.
+        if key in ("hydra.run.dir", "hydra.sweep.dir", "hydra.sweep.subdir"):
+            return "runs/unknown_optimizer/unknown_benchmark/unknown_task/1"
+        raise e
+
+omegaconf.OmegaConf.select = patched_select
 
 from carps.run import main
 
