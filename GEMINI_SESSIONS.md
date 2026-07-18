@@ -23,7 +23,12 @@
 6. **YAHPO Data Directory Override Fix**:
    - Programmatically overrode `YAHPO_TASK_DATA_DIR` in `carps.objective_functions.yahpo` inside `scripts/run_carps_patched.py` to point to the hyphenated `/bigwork/nhwpseis/benchmarks/yahpo-data` path. This aligns the code with your cluster folder name without breaking other applications.
    - Added unit test coverage `test_run_carps_patched_overrides_yahpo_dir` in `tests/test_carps_configs.py` asserting that the programmatic redirection is applied.
-7. **Git Branching & Push**: Verified changes and pushed to branch `feat/carp-s-epistemic-rf` on `origin`.
+7. **Environment Logging Folder Auto-Creation & Sweep Dry-Run Checks**:
+   - Diagnosed that `carps.loggers.file_logger.FileLogger` executes `log_python_env()` to write `env_info.txt` inside the output directory. If the run directory has not been created on the filesystem yet, `open()` throws a `FileNotFoundError`.
+   - Programmatically patched `carps.utils.loggingutils.log_python_env` in `scripts/run_carps_patched.py` to ensure that parent directories are recursively created (`mkdir(parents=True, exist_ok=True)`) before writing.
+   - Added unit test coverage `test_log_python_env_creates_directory_if_missing` in `tests/test_carps_configs.py` to verify this behavior.
+   - Added comprehensive dry-run configuration composition tests `test_sweep_configs_composition` in `tests/test_generate_array_tasks.py` which executes a config composition validation (`--cfg job`) for each of the 26 unique tasks in the sweep, confirming no configuration composition crashes occur.
+8. **Git Branching & Push**: Verified changes and pushed to branch `feat/carp-s-epistemic-rf` on `origin`.
 
 ## Session: 2026-07-14 (CARP-S Integration Planning & Implementation)
 * **Goal**: Engineer dynamic Random Forest hyperparameter adaptation based on epistemic signals and construct a comprehensive implementation plan to benchmark epistemic UQ methods using CARP-S.
