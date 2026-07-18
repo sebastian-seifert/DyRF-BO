@@ -60,6 +60,6 @@ with open(task_file_path, "w") as f:
     # 2. Write the standard SMAC3 baseline runs
     for task in tasks:
         for seed in seeds:
-            f.write(f"+optimizer/smac20=hpo {task} task.optimization_resources.n_trials={trials} seed={seed}\n")
+            f.write(f"optimizer=smac20/hpo {task} task.optimization_resources.n_trials={trials} seed={seed} optimizer_id=SMAC3-HPOFacade optimizer_container_id=SMAC3\n")
 
 print(f"Generated {sum(1 for _ in open(task_file_path))} configuration lines in {task_file_path}")
