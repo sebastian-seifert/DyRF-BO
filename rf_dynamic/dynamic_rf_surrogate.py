@@ -55,11 +55,16 @@ class DynamicRFSurrogate:
         # Get next adapted parameters
         min_samples_leaf, max_features = self.adaptor.get_next_parameters()
         
+        # Pre-enable oob_score for proximity extractors to prevent double fitting
+        rf_kwargs = dict(self.rf_kwargs)
+        if "proximity" in self.extractor_name:
+            rf_kwargs["oob_score"] = True
+
         # Instantiate and fit the RF model
         self.model = RandomForestRegressor(
             min_samples_leaf=min_samples_leaf,
             max_features=max_features,
-            **self.rf_kwargs
+            **rf_kwargs
         )
         self.model.fit(X, y)
         

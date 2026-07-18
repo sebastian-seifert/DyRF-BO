@@ -35,10 +35,10 @@ class TestGenerateArrayTasks(unittest.TestCase):
             self.assertIn("optimizer_id=", line, f"Line {idx+1} missing 'optimizer_id': {line}")
             self.assertIn("optimizer_container_id=", line, f"Line {idx+1} missing 'optimizer_container_id': {line}")
             
-            # Baseline smac20 runs should use optimizer=smac20/hpo, NOT +optimizer/smac20=hpo
+            # Baseline smac20 runs should use +optimizer/smac20=hpo, NOT optimizer=smac20/hpo or +optimizer=smac20/hpo
             if "smac20" in line:
-                self.assertIn("optimizer=smac20/hpo", line, f"Line {idx+1} should use 'optimizer=smac20/hpo': {line}")
-                self.assertNotIn("+optimizer/smac20=hpo", line, f"Line {idx+1} should not use '+optimizer/smac20=hpo': {line}")
+                self.assertIn("+optimizer/smac20=hpo", line, f"Line {idx+1} should use '+optimizer/smac20=hpo': {line}")
+                self.assertNotIn("optimizer=smac20/hpo", line, f"Line {idx+1} should not use 'optimizer=smac20/hpo': {line}")
                 self.assertIn("optimizer_id=SMAC3-HPOFacade", line, f"Line {idx+1} missing SMAC3-HPOFacade ID: {line}")
                 self.assertIn("optimizer_container_id=SMAC3", line, f"Line {idx+1} missing SMAC3 container ID: {line}")
 
