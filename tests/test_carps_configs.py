@@ -57,5 +57,19 @@ class TestCARPSConfigs(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir)
 
+    def test_run_carps_patched_safeguards_missing_optimizer_id(self):
+        import subprocess
+        
+        # Run scripts/run_carps_patched.py with NO overrides to trigger execution crash
+        run_cmd = [sys.executable, "scripts/run_carps_patched.py"]
+        result = subprocess.run(run_cmd, capture_output=True, text=True)
+        
+        # The exit code should be non-zero (since task and optimizer are missing)
+        self.assertNotEqual(result.returncode, 0)
+        
+        # The stderr/stdout should report the missing 'task' or 'optimizer', NOT 'optimizer_id'
+        combined_output = result.stdout + result.stderr
+        self.assertNotIn("Missing mandatory value: optimizer_id", combined_output)
+
 if __name__ == "__main__":
     unittest.main()

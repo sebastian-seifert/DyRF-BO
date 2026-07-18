@@ -37,6 +37,14 @@ if hasattr(argparse.ArgumentParser, "_check_help"):
             pass
     argparse.ArgumentParser._check_help = custom_check_help
 
+import sys
+# Safeguard against Hydra's exception formatter crash by providing fallback defaults
+# for optimizer_id and optimizer_container_id if they are not overridden.
+if not any(arg.startswith("optimizer_id=") for arg in sys.argv):
+    sys.argv.append("optimizer_id=unknown_optimizer")
+if not any(arg.startswith("optimizer_container_id=") for arg in sys.argv):
+    sys.argv.append("optimizer_container_id=unknown_container")
+
 from carps.run import main
 
 if __name__ == "__main__":
