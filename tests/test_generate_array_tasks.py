@@ -42,5 +42,18 @@ class TestGenerateArrayTasks(unittest.TestCase):
                 self.assertIn("optimizer_id=SMAC3-HPOFacade", line, f"Line {idx+1} missing SMAC3-HPOFacade ID: {line}")
                 self.assertIn("optimizer_container_id=SMAC3", line, f"Line {idx+1} missing SMAC3 container ID: {line}")
 
+    def test_sbatch_array_limit(self):
+        sbatch_path = Path("scripts/submit_hpobench_array.sbatch")
+        self.assertTrue(sbatch_path.exists())
+        
+        content = sbatch_path.read_text()
+        for line in content.splitlines():
+            if "#SBATCH --array=" in line:
+                # Extract range (e.g. 1-260%15 -> 1-260)
+                array_spec = line.split("=")[-1].split("%")[0]
+                start, end = map(int, array_spec.split("-"))
+                task_count = end - start + 1
+                self.assertLessEqual(task_count, 300, f"SBATCH array size {task_count} exceeds LUIS cluster limit of 300.")
+
 if __name__ == "__main__":
     unittest.main()
