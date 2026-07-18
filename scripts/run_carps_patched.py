@@ -7,6 +7,9 @@ os.environ["CARPS_TASK_DATA_DIR"] = "/bigwork/nhwpseis/benchmarks"
 import hpobench
 hpobench.config_file.data_dir = Path("/bigwork/nhwpseis/benchmarks/hpobench")
 
+import carps.objective_functions.yahpo
+carps.objective_functions.yahpo.YAHPO_TASK_DATA_DIR = Path("/bigwork/nhwpseis/benchmarks/yahpo-data")
+
 
 
 import argparse
