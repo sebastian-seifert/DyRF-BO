@@ -55,5 +55,42 @@ class TestGenerateArrayTasks(unittest.TestCase):
                 task_count = end - start + 1
                 self.assertLessEqual(task_count, 300, f"SBATCH array size {task_count} exceeds LUIS cluster limit of 300.")
 
+    def test_sweep_configs_composition(self):
+        import subprocess
+        import shlex
+        
+        # Verify array_tasks.txt exists
+        self.assertTrue(self.task_file.exists())
+        lines = self.task_file.read_text().splitlines()
+        
+        # Group tasks to find one representative command for each unique task config
+        unique_tasks = {}
+        for line in lines:
+            if not line.strip():
+                continue
+            # Extract the task identifier, e.g., +task/YAHPO/SO=cfg_lcbench_167168
+            parts = line.split()
+            task_part = next((p for p in parts if "+task/" in p), None)
+            if task_part and task_part not in unique_tasks:
+                unique_tasks[task_part] = line
+                
+        # Run composition dry-run (--cfg job) for each unique task
+        for task_part, command in unique_tasks.items():
+            cmd_args = shlex.split(command)
+            # Remove any trailing empty strings or values and append --cfg job
+            run_cmd = [
+                sys.executable,
+                "scripts/run_carps_patched.py",
+                "--config-dir",
+                "carps_integration/configs"
+            ] + cmd_args + ["--cfg", "job"]
+            
+            result = subprocess.run(run_cmd, capture_output=True, text=True)
+            self.assertEqual(
+                result.returncode,
+                0,
+                f"Configuration composition failed for task {task_part}.\nStderr: {result.stderr}\nStdout: {result.stdout}"
+            )
+
 if __name__ == "__main__":
     unittest.main()

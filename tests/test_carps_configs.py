@@ -37,5 +37,25 @@ class TestCARPSConfigs(unittest.TestCase):
             "/bigwork/nhwpseis/benchmarks/yahpo-data"
         )
 
+    def test_log_python_env_creates_directory_if_missing(self):
+        import tempfile
+        import shutil
+        import scripts.run_carps_patched
+        from carps.utils.loggingutils import log_python_env
+        
+        # Create a temporary directory path that does NOT exist
+        temp_dir = tempfile.mkdtemp()
+        nested_dir = os.path.join(temp_dir, "nested", "path", "to", "logs")
+        log_file = os.path.join(nested_dir, "env_info.txt")
+        
+        try:
+            # Call log_python_env - this should succeed and create the directories
+            log_python_env(log_file=log_file)
+            
+            # Verify the file was created
+            self.assertTrue(os.path.isfile(log_file))
+        finally:
+            shutil.rmtree(temp_dir)
+
 if __name__ == "__main__":
     unittest.main()
