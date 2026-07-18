@@ -11,12 +11,18 @@
 3. **TDD Unit Testing**:
    - Created a unit test suite `tests/test_generate_array_tasks.py` under the strict TDD mandate to verify the syntax and format of the generated commands (confirming the presence of `optimizer_id` and `optimizer_container_id` on all tasks).
    - Added a test case `test_sbatch_array_limit` asserting that the default `#SBATCH --array` parameter does not exceed LUIS's 300 task limit.
+   - Created a unit test suite `tests/test_dynamic_rf_surrogate.py` verifying that `DynamicRFSurrogate` enables `oob_score=True` on Random Forest model instantiation if and only if using a proximity extractor.
    - Validated that the new test runs and passes successfully.
-4. **SLURM MaxArraySize Fix**:
+4. **SLURM MaxArraySize Fix & Hydra Composition Resolution**:
    - Researched LUIS cluster limitations and identified that SLURM enforces a maximum of 300 jobs per array (`MaxArraySize = 300`). Specifying `1-1040` inside the sbatch file caused the `invalid job specification` error.
    - Adjusted `scripts/submit_hpobench_array.sbatch` default array size to `1-260%15`.
    - Created `scripts/submit_hpobench_all.sh` to submit the 1,040 tasks in 4 dependent, sequential chunks of 260 tasks using `--dependency=afterany`.
-5. **Git Branching & Push**: Verified changes and pushed to branch `feat/carp-s-epistemic-rf` on `origin`.
+   - Fixed the Hydra composition error (`Could not override 'optimizer'`) on baseline runs by restoring the correct append syntax `+optimizer/smac20=hpo` (which is necessary because `optimizer/smac20` is a config group, not `optimizer`).
+5. **OOB Score Optimization**:
+   - Programmatically enabled `oob_score=True` in `dynamic_rf_surrogate.py` for proximity UQ extractors. This prevents warnings and eliminates double Random Forest fitting at every Bayesian Optimization iteration.
+6. **YAHPO Data Directory Diagnosis**:
+   - Diagnosed cluster `FileNotFoundError` for `rbv2_xgboost/encoding.json`. The programmatic data override `/bigwork/nhwpseis/benchmarks` requires cloning the official LMU `yahpo_data` repository directly on the cluster login node.
+7. **Git Branching & Push**: Verified changes and pushed to branch `feat/carp-s-epistemic-rf` on `origin`.
 
 ## Session: 2026-07-14 (CARP-S Integration Planning & Implementation)
 * **Goal**: Engineer dynamic Random Forest hyperparameter adaptation based on epistemic signals and construct a comprehensive implementation plan to benchmark epistemic UQ methods using CARP-S.
