@@ -54,7 +54,8 @@ with open(task_file_path, "w") as f:
         for approach in approaches:
             for seed in seeds:
                 telemetry = f"results/telemetry_{approach}_{task_name}_seed{seed}.json"
-                f.write(f"+optimizer=dyrf_epistemic_hpobench optimizer.extractor_name={approach} {task} task.optimization_resources.n_trials={trials} seed={seed} optimizer.telemetry_path={telemetry}\n")
+                f.write(f"+optimizer=dyrf_epistemic_hpobench optimizer.extractor_name={approach} {task} task.optimization_resources.n_trials={trials} seed={seed} optimizer.telemetry_path={telemetry} optimizer_id=CARPSDynamicRF optimizer_container_id=CARPSDynamicRF\n")
+
                 
     # 2. Write the standard SMAC3 baseline runs
     for task in tasks:
