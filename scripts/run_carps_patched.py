@@ -10,6 +10,12 @@ hpobench.config_file.data_dir = Path("/bigwork/nhwpseis/benchmarks/hpobench")
 import carps.objective_functions.yahpo
 carps.objective_functions.yahpo.YAHPO_TASK_DATA_DIR = Path("/bigwork/nhwpseis/benchmarks/yahpo-data")
 
+import yahpo_gym
+try:
+    yahpo_gym.local_config.init_config(data_path="/bigwork/nhwpseis/benchmarks/yahpo-data")
+except Exception:
+    pass
+
 import carps.utils.loggingutils
 # Patch log_python_env to ensure parent directories exist
 original_log_python_env = carps.utils.loggingutils.log_python_env
@@ -20,6 +26,41 @@ def patched_log_python_env(log_file="env_log.txt"):
     original_log_python_env(log_file=log_file_path)
 
 carps.utils.loggingutils.log_python_env = patched_log_python_env
+
+import carps.loggers.file_logger
+import carps.loggers.abstract_logger
+from carps.loggers.file_logger import get_run_directory, logger
+
+def safe_file_logger_init(self, overwrite: bool = False, directory=None):
+    carps.loggers.abstract_logger.AbstractLogger.__init__(self)
+
+    directory = Path(directory) if directory is not None else get_run_directory()
+    assert directory is not None, "Directory must be specified in FileLogger or hydra run dir must be available."
+    self.directory = directory
+    
+    filename = getattr(self, "_filename", "trial_logs.jsonl")
+    if (directory / filename).is_file():
+        if overwrite:
+            logger.info(f"Found previous run. Removing '{directory}'.")
+            for root, _dirs, files in os.walk(directory):
+                for f in files:
+                    full_fn = Path(root) / f
+                    if ".hydra" not in str(full_fn):
+                        try:
+                            Path(full_fn).unlink()
+                            logger.debug(f"Removed {full_fn}")
+                        except (FileNotFoundError, OSError):
+                            pass
+        else:
+            raise RuntimeError(
+                f"Found previous run at '{directory}'. Stopping run. If you want to overwrite, specify overwrite "
+                f"for the file logger in the config (CARP-S/carps/configs/logger.yaml)."
+            )
+
+    carps.utils.loggingutils.log_python_env(log_file=Path(directory) / "env_info.txt")
+
+carps.loggers.file_logger.FileLogger.__init__ = safe_file_logger_init
+
 
 
 

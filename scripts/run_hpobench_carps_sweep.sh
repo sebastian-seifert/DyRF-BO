@@ -20,6 +20,11 @@ echo "=================================================="
 
 # Set PYTHONPATH to include the current directory so carps_integration can be imported
 export PYTHONPATH=.
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
 
 # Run CARP-S with our custom patched launcher
 $PYTHON_EXEC scripts/run_carps_patched.py \

@@ -115,15 +115,22 @@ class CARPSDynamicRFOptimizer(Optimizer):
         n_candidates = 5000
         candidates = [self.configspace.sample_configuration() for _ in range(n_candidates)]
         
-        # Convert candidates to numpy array representation
+        # Convert candidates to numpy array representation (imputing NaNs in hierarchical spaces)
         X_cand = np.array([cfg.get_array() for cfg in candidates])
+        X_cand = np.nan_to_num(X_cand, nan=-1.0)
         
+        # Check if all runs in history failed (inf cost)
+        valid_costs = [t[1].cost for t in self.history if not np.isinf(t[1].cost)]
+        if not valid_costs:
+            best_idx = np.random.randint(len(candidates))
+            return self.convert_to_trial(candidates[best_idx])
+
         # Predict using surrogate (triggers updates inside sliding window adaptor)
         preds, epistemic_unc = self.surrogate.predict(X_cand)
         
         # Compute Expected Improvement (minimization: we want to improve below y_best)
         from scipy.stats import norm
-        y_best = min(t[1].cost for t in self.history)
+        y_best = min(valid_costs)
         
         # Avoid division by zero
         sigma = np.where(epistemic_unc > 1e-9, epistemic_unc, 1e-9)
@@ -154,8 +161,16 @@ class CARPSDynamicRFOptimizer(Optimizer):
         # Fit surrogate on updated training set
         if len(self.history) >= self.n_init:
             X_train = np.array([t[0].config.get_array() for t in self.history])
+            X_train = np.nan_to_num(X_train, nan=-1.0)
             y_train = np.array([t[1].cost for t in self.history])
+            
+            # Replace inf cost in failed runs with max finite cost + penalty for surrogate fitting
+            finite_y = y_train[np.isfinite(y_train)]
+            penalty_val = (float(np.max(finite_y)) + 10.0) if len(finite_y) > 0 else 1e9
+            y_train = np.nan_to_num(y_train, posinf=penalty_val, neginf=-penalty_val)
+            
             self.surrogate.fit(X_train, y_train)
+
             
         # Log telemetry record
         record = {
