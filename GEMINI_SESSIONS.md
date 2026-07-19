@@ -1,5 +1,17 @@
 # Gemini Sessions Log
 
+## Session: 2026-07-19 (Cluster Sweep Array File Diagnosis)
+* **Goal**: Diagnose missing `results/array_tasks.txt` error during LUIS cluster array sweep dispatch.
+
+### Accomplishments
+1. **Root Cause Analysis**:
+   - `results/array_tasks.txt` is an uncommitted generated artifact produced dynamically by `scripts/generate_array_tasks.py`.
+   - When submitting array jobs on the cluster via `sbatch` or `submit_hpobench_all.sh`, Slurm task nodes expect `results/array_tasks.txt` to exist in the workspace root.
+   - If the task file was not generated directly on the cluster prior to running `sbatch`, Slurm workers fail with `results/array_tasks.txt: No such file or directory`.
+2. **Resolution & Prevention**:
+   - Identified that running `python scripts/generate_array_tasks.py` on the cluster populates `results/array_tasks.txt` with all 1,040 task lines.
+   - Recommended adding automatic file check in `scripts/submit_hpobench_all.sh` to ensure `results/array_tasks.txt` is created automatically before `sbatch` invocation.
+
 ## Session: 2026-07-18 (CARP-S Array Sweep Hydra Resolution Fix)
 * **Goal**: Fix the Hydra `MissingMandatoryValue` error (`optimizer_id` missing when evaluating `hydra.run.dir`) that caused the last CARP-S parameter sweep array to fail.
 

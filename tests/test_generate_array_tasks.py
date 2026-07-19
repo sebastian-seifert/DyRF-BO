@@ -92,5 +92,23 @@ class TestGenerateArrayTasks(unittest.TestCase):
                 f"Configuration composition failed for task {task_part}.\nStderr: {result.stderr}\nStdout: {result.stdout}"
             )
 
+    def test_submit_scripts_task_file_check(self):
+        script_all = Path("scripts/submit_hpobench_all.sh")
+        sbatch_script = Path("scripts/submit_hpobench_array.sbatch")
+        
+        self.assertTrue(script_all.exists())
+        self.assertTrue(sbatch_script.exists())
+        
+        content_all = script_all.read_text()
+        content_sbatch = sbatch_script.read_text()
+        
+        # Verify submit_hpobench_all.sh checks and generates array_tasks.txt
+        self.assertIn("generate_array_tasks.py", content_all)
+        self.assertIn("array_tasks.txt", content_all)
+        
+        # Verify submit_hpobench_array.sbatch checks array_tasks.txt
+        self.assertIn("array_tasks.txt", content_sbatch)
+
 if __name__ == "__main__":
     unittest.main()
+

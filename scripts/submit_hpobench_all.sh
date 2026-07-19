@@ -4,6 +4,13 @@
 
 mkdir -p results
 
+# Auto-generate results/array_tasks.txt if missing
+if [ ! -f "results/array_tasks.txt" ]; then
+    echo "results/array_tasks.txt not found. Generating array tasks..."
+    python3 scripts/generate_array_tasks.py
+fi
+
+
 # Chunk 1 (1-260)
 JOB1=$(sbatch --parsable --array=1-260%15 scripts/submit_hpobench_array.sbatch)
 echo "Submitted Chunk 1 (Tasks 1-260) -> Job ID: $JOB1"

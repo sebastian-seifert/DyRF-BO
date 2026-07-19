@@ -22,6 +22,11 @@ export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
+if [ ! -f "results/array_tasks.txt" ]; then
+    echo "ERROR: results/array_tasks.txt missing. Attempting auto-generation..." >&2
+    python3 scripts/generate_array_tasks.py || exit 1
+fi
+
 # Retrieve the specific command arguments corresponding to this array task index
 TASK_ARGS=$(sed -n "${SLURM_ARRAY_TASK_ID}p" results/array_tasks.txt)
 
