@@ -20,6 +20,10 @@
    - Created `tests/test_optimizer.py` with `test_nan_imputation_hierarchical_spaces` and `test_inf_cost_fallback`.
 5. **Thread Allocation Safeguards**:
    - Exported `OPENBLAS_NUM_THREADS=1`, `MKL_NUM_THREADS=1`, `OMP_NUM_THREADS=1`, and `NUMEXPR_NUM_THREADS=1` in `scripts/run_hpobench_carps_sweep.sh`.
+6. **ConfigSpace `_sort_hyperparameters` Backward Compatibility**:
+   - Monkey-patched `ConfigSpace.ConfigurationSpace._sort_hyperparameters` in `scripts/run_carps_patched.py` to alias to `list(self.values())` for compatibility with legacy `yahpo_gym` calls under ConfigSpace v0.7+.
+   - Added unit test `test_configspace_sort_hyperparameters_compatibility` in `tests/test_carps_monkeypatches.py`.
+
 
 
 ## Session: 2026-07-18 (CARP-S Array Sweep Hydra Resolution Fix)

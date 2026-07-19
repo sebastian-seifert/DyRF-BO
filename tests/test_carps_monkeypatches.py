@@ -38,5 +38,16 @@ class TestCARPSMonkeypatches(unittest.TestCase):
         expected_path = Path("/bigwork/nhwpseis/benchmarks/yahpo-data")
         self.assertEqual(Path(yahpo_gym.local_config.data_path), expected_path)
 
+    def test_configspace_sort_hyperparameters_compatibility(self):
+        import ConfigSpace
+        from ConfigSpace import ConfigurationSpace, Float
+        cs = ConfigurationSpace()
+        cs.add(Float("x", (0.0, 1.0)))
+        
+        self.assertTrue(hasattr(ConfigSpace.ConfigurationSpace, "_sort_hyperparameters"))
+        hps = cs._sort_hyperparameters()
+        self.assertEqual(len(hps), 1)
+
 if __name__ == "__main__":
     unittest.main()
+

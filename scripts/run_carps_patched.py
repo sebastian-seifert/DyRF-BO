@@ -16,7 +16,14 @@ try:
 except Exception:
     pass
 
+import ConfigSpace
+if not hasattr(ConfigSpace.ConfigurationSpace, "_sort_hyperparameters"):
+    def _sort_hyperparameters_compat(self):
+        return list(self.values()) if hasattr(self, "values") else self.get_hyperparameters()
+    ConfigSpace.ConfigurationSpace._sort_hyperparameters = _sort_hyperparameters_compat
+
 import carps.utils.loggingutils
+
 # Patch log_python_env to ensure parent directories exist
 original_log_python_env = carps.utils.loggingutils.log_python_env
 
