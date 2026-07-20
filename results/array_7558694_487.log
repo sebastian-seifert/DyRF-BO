@@ -1,0 +1,547 @@
+==================================================
+Array Job ID: 7558694 | Task Index: 487
+Running arguments: +optimizer=dyrf_epistemic_hpobench optimizer.extractor_name=proximity_bc +task/YAHPO/SO=cfg_rbv2_ranger_42 task.optimization_resources.n_trials=50 seed=2 optimizer.telemetry_path=results/telemetry_proximity_bc_cfg_rbv2_ranger_42_seed2.json optimizer_id=CARPSDynamicRF optimizer_container_id=CARPSDynamicRF
+==================================================
+==================================================
+Running CARP-S HPOBench Dynamic BO Benchmark Sweep
+Using python: python3
+==================================================
+[[36m2026-07-19 19:40:17,631[0m][[34m/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/carps/run.py[0m][[32mINFO[0m] - Runcommand: `python -m carps.run +optimizer=dyrf_epistemic_hpobench optimizer.extractor_name=proximity_bc +task/YAHPO/SO=cfg_rbv2_ranger_42 task.optimization_resources.n_trials=50 seed=2 optimizer.telemetry_path=results/telemetry_proximity_bc_cfg_rbv2_ranger_42_seed2.json optimizer_id=CARPSDynamicRF optimizer_container_id=CARPSDynamicRF`[0m
+{
+    'seed': 2,
+    'task': {
+        '_target_': 'carps.utils.task.Task',
+        'name': 'yahpo/so/rbv2_ranger/42/None',
+        'seed': 2,
+        'objective_function': {
+            '_target_': 
+'carps.objective_functions.yahpo.YahpoObjectiveFunction',
+            'bench': 'rbv2_ranger',
+            'instance': '42',
+            'budget_type': None,
+            'metric': ['acc'],
+            'seed': 2
+        },
+        'input_space': {
+            '_target_': 'carps.utils.task.InputSpace',
+            'configuration_space': {
+                '_target_': 
+'ConfigSpace.configuration_space.ConfigurationSpace.from_serialized_dict',
+                '_convert_': 'object',
+                'd': {
+                    'name': None,
+                    'hyperparameters': [
+                        {
+                            'type': 'uniform_int',
+                            'name': 'min.node.size',
+                            'lower': 1,
+                            'upper': 100,
+                            'default_value': 50,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'mtry.power',
+                            'lower': 0.0,
+                            'upper': 1.0,
+                            'default_value': 0.0,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'num.impute.selected.cpo',
+                            'choices': [
+                                'impute.mean',
+                                'impute.median',
+                                'impute.hist'
+                            ],
+                            'weights': None,
+                            'default_value': 'impute.mean',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'num.trees',
+                            'lower': 1,
+                            'upper': 2000,
+                            'default_value': 1000,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'respect.unordered.factors',
+                            'choices': ['ignore', 'order', 'partition'],
+                            'weights': None,
+                            'default_value': 'ignore',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'sample.fraction',
+                            'lower': 0.1,
+                            'upper': 1.0,
+                            'default_value': 0.55,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'splitrule',
+                            'choices': ['gini', 'extratrees'],
+                            'weights': None,
+                            'default_value': 'gini',
+                            'meta': None
+                        },
+                        {
+                            'type': 'constant',
+                            'name': 'task_id',
+                            'value': '42',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'num.random.splits',
+                            'lower': 1,
+                            'upper': 100,
+                            'default_value': 1,
+                            'log': False,
+                            'meta': None
+                        }
+                    ],
+                    'conditions': [
+                        {
+                            'type': 'EQ',
+                            'child': 'num.random.splits',
+                            'parent': 'splitrule',
+                            'value': 'extratrees'
+                        }
+                    ],
+                    'forbiddens': [],
+                    'python_module_version': '1.2.0',
+                    'format_version': 0.4
+                }
+            },
+            'fidelity_space': {
+                '_target_': 'carps.utils.task.FidelitySpace',
+                'is_multifidelity': False,
+                'fidelity_type': None,
+                'min_fidelity': None,
+                'max_fidelity': None
+            },
+            'instance_space': None
+        },
+        'output_space': {
+            '_target_': 'carps.utils.task.OutputSpace',
+            'n_objectives': 1,
+            'objectives': ['acc']
+        },
+        'optimization_resources': {
+            '_target_': 'carps.utils.task.OptimizationResources',
+            'n_trials': 50,
+            'time_budget': None,
+            'n_workers': 1
+        },
+        'metadata': {
+            '_target_': 'carps.utils.task.TaskMetadata',
+            'has_constraints': False,
+            'domain': 'ML',
+            'objective_function_approximation': 'surrogate',
+            'has_virtual_time': False,
+            'deterministic': False,
+            'dimensions': 8,
+            'search_space_n_categoricals': 3,
+            'search_space_n_ordinals': 0,
+            'search_space_n_integers': 3,
+            'search_space_n_floats': 2,
+            'search_space_has_conditionals': True,
+            'search_space_has_forbiddens': False,
+            'search_space_has_priors': False
+        }
+    },
+    'benchmark_id': 'YAHPO',
+    'task_id': 'yahpo/so/rbv2_ranger/42/None',
+    'optimizer': {
+        '_target_': 'carps_integration.optimizer.CARPSDynamicRFOptimizer',
+        '_partial_': True,
+        'extractor_name': 'proximity_bc',
+        'n_init': 10,
+        'kappa': 1.96,
+        'telemetry_path': 
+'results/telemetry_proximity_bc_cfg_rbv2_ranger_42_seed2.json',
+        'window_size': 5,
+        'min_samples_leaf_base': 2,
+        'min_samples_leaf_min': 1,
+        'min_samples_leaf_max': 15,
+        'alpha': 1.0,
+        'max_features_base': 0.5,
+        'max_features_min': 0.1,
+        'max_features_max': 0.8,
+        'eta': 0.5
+    },
+    'optimizer_id': 'CARPSDynamicRF',
+    'optimizer_container_id': 'CARPSDynamicRF',
+    'pyexperimenter_configuration_file_path': None,
+    'database_credential_file_path': None,
+    'use_special_conda_env': False,
+    'conda_env_name': 'carps_YAHPO_CARPSDynamicRF',
+    'timestamp': '2026-07-19/19-40-17',
+    'baserundir': 'runs',
+    'outdir': 'runs/CARPSDynamicRF/YAHPO/yahpo/so/rbv2_ranger/42/None/2',
+    'loggers': [
+        {
+            '_target_': 'carps.loggers.file_logger.FileLogger',
+            '_partial_': True,
+            'overwrite': True
+        },
+        {
+            '_target_': 'carps.loggers.database_logger.DatabaseLogger',
+            '_partial_': True
+        }
+    ]
+}
+[[36m2026-07-19 19:40:17,656[0m][[34mFileLogger[0m][[32mINFO[0m] - Found previous run. Removing 'runs/CARPSDynamicRF/YAHPO/yahpo/so/rbv2_ranger/42/None/2'.[0m
+[[36m2026-07-19 19:40:18,029[0m][[34mDatabaseLogger[0m][[32mINFO[0m] - Not logging to database (result processor is None).[0m
+Please make sure to also cite:
+Binder M., Pfisterer F. & Bischl B. (2020). Collecting Empirical Data About Hyperparameters for Data Driven AutoML. 7th ICML Workshop on Automated Machine Learning.
+╭────────────────────── <class 'carps.utils.task.Task'> ───────────────────────╮
+│ Task.                                                                        │
+│                                                                              │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ Task(                                                                    │ │
+│ │ │   name='yahpo/so/rbv2_ranger/42/None',                                 │ │
+│ │ │                                                                        │ │
+│ │ objective_function=<carps.objective_functions.yahpo.YahpoObjectiveFuncti │ │
+│ │ on object at 0x14f5d69201a0>,                                            │ │
+│ │ │   input_space=InputSpace(                                              │ │
+│ │ │   │   configuration_space=Configuration space object:                  │ │
+│ │   Hyperparameters:                                                       │ │
+│ │ │   min.node.size, Type: UniformInteger, Range: [1, 100], Default: 50    │ │
+│ │ │   mtry.power, Type: UniformFloat, Range: [0.0, 1.0], Default: 0.0      │ │
+│ │ │   num.impute.selected.cpo, Type: Categorical, Choices: {impute.mean,   │ │
+│ │ impute.median, impute.hist}, Default: impute.mean                        │ │
+│ │ │   num.random.splits, Type: UniformInteger, Range: [1, 100], Default: 1 │ │
+│ │ │   num.trees, Type: UniformInteger, Range: [1, 2000], Default: 1000     │ │
+│ │ │   respect.unordered.factors, Type: Categorical, Choices: {ignore,      │ │
+│ │ order, partition}, Default: ignore                                       │ │
+│ │ │   sample.fraction, Type: UniformFloat, Range: [0.1, 1.0], Default:     │ │
+│ │ 0.55                                                                     │ │
+│ │ │   splitrule, Type: Categorical, Choices: {gini, extratrees}, Default:  │ │
+│ │ gini                                                                     │ │
+│ │ │   task_id, Type: Constant, Value: 42                                   │ │
+│ │   Conditions:                                                            │ │
+│ │ │   num.random.splits | splitrule == 'extratrees'                        │ │
+│ │ ,                                                                        │ │
+│ │ │   │   fidelity_space=FidelitySpace(                                    │ │
+│ │ │   │   │   is_multifidelity=False,                                      │ │
+│ │ │   │   │   fidelity_type=None,                                          │ │
+│ │ │   │   │   min_fidelity=None,                                           │ │
+│ │ │   │   │   max_fidelity=None                                            │ │
+│ │ │   │   ),                                                               │ │
+│ │ │   │   instance_space=None                                              │ │
+│ │ │   ),                                                                   │ │
+│ │ │   output_space=OutputSpace(n_objectives=1, objectives=['acc']),        │ │
+│ │ │   optimization_resources=OptimizationResources(                        │ │
+│ │ │   │   n_trials=50,                                                     │ │
+│ │ │   │   time_budget=None,                                                │ │
+│ │ │   │   n_workers=1                                                      │ │
+│ │ │   ),                                                                   │ │
+│ │ │   metadata=TaskMetadata(                                               │ │
+│ │ │   │   has_constraints=False,                                           │ │
+│ │ │   │   domain='ML',                                                     │ │
+│ │ │   │   objective_function_approximation='surrogate',                    │ │
+│ │ │   │   has_virtual_time=False,                                          │ │
+│ │ │   │   deterministic=False,                                             │ │
+│ │ │   │   dimensions=8,                                                    │ │
+│ │ │   │   search_space_n_categoricals=3,                                   │ │
+│ │ │   │   search_space_n_ordinals=0,                                       │ │
+│ │ │   │   search_space_n_integers=3,                                       │ │
+│ │ │   │   search_space_n_floats=2,                                         │ │
+│ │ │   │   search_space_has_conditionals=True,                              │ │
+│ │ │   │   search_space_has_forbiddens=False,                               │ │
+│ │ │   │   search_space_has_priors=False                                    │ │
+│ │ │   ),                                                                   │ │
+│ │ │   seed=2                                                               │ │
+│ │ )                                                                        │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│            input_space = InputSpace(                                         │
+│                              configuration_space=Configuration space object: │
+│                            Hyperparameters:                                  │
+│                              min.node.size, Type: UniformInteger, Range: [1, │
+│                          100], Default: 50                                   │
+│                              mtry.power, Type: UniformFloat, Range: [0.0,    │
+│                          1.0], Default: 0.0                                  │
+│                              num.impute.selected.cpo, Type: Categorical,     │
+│                          Choices: {impute.mean, impute.median, impute.hist}, │
+│                          Default: impute.mean                                │
+│                              num.random.splits, Type: UniformInteger, Range: │
+│                          [1, 100], Default: 1                                │
+│                              num.trees, Type: UniformInteger, Range: [1,     │
+│                          2000], Default: 1000                                │
+│                              respect.unordered.factors, Type: Categorical,   │
+│                          Choices: {ignore, order, partition}, Default:       │
+│                          ignore                                              │
+│                              sample.fraction, Type: UniformFloat, Range:     │
+│                          [0.1, 1.0], Default: 0.55                           │
+│                              splitrule, Type: Categorical, Choices: {gini,   │
+│                          extratrees}, Default: gini                          │
+│                              task_id, Type: Constant, Value: 42              │
+│                            Conditions:                                       │
+│                              num.random.splits | splitrule == 'extratrees'   │
+│                          ,                                                   │
+│                              fidelity_space=FidelitySpace(                   │
+│                                  is_multifidelity=False,                     │
+│                                  fidelity_type=None,                         │
+│                                  min_fidelity=None,                          │
+│                                  max_fidelity=None                           │
+│                              ),                                              │
+│                              instance_space=None                             │
+│                          )                                                   │
+│               metadata = TaskMetadata(                                       │
+│                              has_constraints=False,                          │
+│                              domain='ML',                                    │
+│                              objective_function_approximation='surrogate',   │
+│                              has_virtual_time=False,                         │
+│                              deterministic=False,                            │
+│                              dimensions=8,                                   │
+│                              search_space_n_categoricals=3,                  │
+│                              search_space_n_ordinals=0,                      │
+│                              search_space_n_integers=3,                      │
+│                              search_space_n_floats=2,                        │
+│                              search_space_has_conditionals=True,             │
+│                              search_space_has_forbiddens=False,              │
+│                              search_space_has_priors=False                   │
+│                          )                                                   │
+│                   name = 'yahpo/so/rbv2_ranger/42/None'                      │
+│     objective_function = <carps.objective_functions.yahpo.YahpoObjectiveFun… │
+│                          object at 0x14f5d69201a0>                           │
+│ optimization_resources = OptimizationResources(                              │
+│                              n_trials=50,                                    │
+│                              time_budget=None,                               │
+│                              n_workers=1                                     │
+│                          )                                                   │
+│           output_space = OutputSpace(n_objectives=1, objectives=['acc'])     │
+│                   seed = 2                                                   │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─────── <class 'carps_integration.optimizer.CARPSDynamicRFOptimizer'> ────────╮
+│ CARP-S compatible Bayesian Optimization optimizer wrapper that uses          │
+│ Dynamic RF surrogate models with Extensible Epistemic UQ Extractors.         │
+│                                                                              │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ <carps_integration.optimizer.CARPSDynamicRFOptimizer object at           │ │
+│ │ 0x14f5d65c52b0>                                                          │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│                        alpha = 1.0                                           │
+│                  configspace = Configuration space object:                   │
+│                                  Hyperparameters:                            │
+│                                    min.node.size, Type: UniformInteger,      │
+│                                Range: [1, 100], Default: 50                  │
+│                                    mtry.power, Type: UniformFloat, Range:    │
+│                                [0.0, 1.0], Default: 0.0                      │
+│                                    num.impute.selected.cpo, Type:            │
+│                                Categorical, Choices: {impute.mean,           │
+│                                impute.median, impute.hist}, Default:         │
+│                                impute.mean                                   │
+│                                    num.random.splits, Type: UniformInteger,  │
+│                                Range: [1, 100], Default: 1                   │
+│                                    num.trees, Type: UniformInteger, Range:   │
+│                                [1, 2000], Default: 1000                      │
+│                                    respect.unordered.factors, Type:          │
+│                                Categorical, Choices: {ignore, order,         │
+│                                partition}, Default: ignore                   │
+│                                    sample.fraction, Type: UniformFloat,      │
+│                                Range: [0.1, 1.0], Default: 0.55              │
+│                                    splitrule, Type: Categorical, Choices:    │
+│                                {gini, extratrees}, Default: gini             │
+│                                    task_id, Type: Constant, Value: 42        │
+│                                  Conditions:                                 │
+│                                    num.random.splits | splitrule ==          │
+│                                'extratrees'                                  │
+│                                                                              │
+│                          eta = 0.5                                           │
+│           expects_fidelities = False                                         │
+│  expects_multiple_objectives = False                                         │
+│             extractor_kwargs = {}                                            │
+│               extractor_name = 'proximity_bc'                                │
+│             fidelity_enabled = False                                         │
+│                      history = []                                            │
+│                        kappa = 1.96                                          │
+│                      loggers = [<carps.loggers.file_logger.FileLogger object │
+│                                at 0x14f5d6920440>,                           │
+│                                <carps.loggers.database_logger.DatabaseLogger │
+│                                object at 0x14f5d6920830>]                    │
+│            max_features_base = 0.5                                           │
+│             max_features_max = 0.8                                           │
+│             max_features_min = 0.1                                           │
+│        min_samples_leaf_base = 2                                             │
+│         min_samples_leaf_max = 15                                            │
+│         min_samples_leaf_min = 1                                             │
+│                       n_init = 10                                            │
+│                    rf_kwargs = {}                                            │
+│                       solver = None                                          │
+│                    surrogate = None                                          │
+│                         task = Task(                                         │
+│                                    name='yahpo/so/rbv2_ranger/42/None',      │
+│                                    objective_function=<carps.objective_func… │
+│                                object at 0x14f5d69201a0>,                    │
+│                                    input_space=InputSpace(                   │
+│                                        configuration_space=Configuration     │
+│                                space object:                                 │
+│                                  Hyperparameters:                            │
+│                                    min.node.size, Type: UniformInteger,      │
+│                                Range: [1, 100], Default: 50                  │
+│                                    mtry.power, Type: UniformFloat, Range:    │
+│                                [0.0, 1.0], Default: 0.0                      │
+│                                    num.impute.selected.cpo, Type:            │
+│                                Categorical, Choices: {impute.mean,           │
+│                                impute.median, impute.hist}, Default:         │
+│                                impute.mean                                   │
+│                                    num.random.splits, Type: UniformInteger,  │
+│                                Range: [1, 100], Default: 1                   │
+│                                    num.trees, Type: UniformInteger, Range:   │
+│                                [1, 2000], Default: 1000                      │
+│                                    respect.unordered.factors, Type:          │
+│                                Categorical, Choices: {ignore, order,         │
+│                                partition}, Default: ignore                   │
+│                                    sample.fraction, Type: UniformFloat,      │
+│                                Range: [0.1, 1.0], Default: 0.55              │
+│                                    splitrule, Type: Categorical, Choices:    │
+│                                {gini, extratrees}, Default: gini             │
+│                                    task_id, Type: Constant, Value: 42        │
+│                                  Conditions:                                 │
+│                                    num.random.splits | splitrule ==          │
+│                                'extratrees'                                  │
+│                                ,                                             │
+│                                        fidelity_space=FidelitySpace(         │
+│                                            is_multifidelity=False,           │
+│                                            fidelity_type=None,               │
+│                                            min_fidelity=None,                │
+│                                            max_fidelity=None                 │
+│                                        ),                                    │
+│                                        instance_space=None                   │
+│                                    ),                                        │
+│                                    output_space=OutputSpace(                 │
+│                                        n_objectives=1,                       │
+│                                        objectives=['acc']                    │
+│                                    ),                                        │
+│                                    optimization_resources=OptimizationResou… │
+│                                        n_trials=50,                          │
+│                                        time_budget=None,                     │
+│                                        n_workers=1                           │
+│                                    ),                                        │
+│                                    metadata=TaskMetadata(                    │
+│                                        has_constraints=False,                │
+│                                        domain='ML',                          │
+│                                        objective_function_approximation='su… │
+│                                        has_virtual_time=False,               │
+│                                        deterministic=False,                  │
+│                                        dimensions=8,                         │
+│                                        search_space_n_categoricals=3,        │
+│                                        search_space_n_ordinals=0,            │
+│                                        search_space_n_integers=3,            │
+│                                        search_space_n_floats=2,              │
+│                                        search_space_has_conditionals=True,   │
+│                                        search_space_has_forbiddens=False,    │
+│                                        search_space_has_priors=False         │
+│                                    ),                                        │
+│                                    seed=2                                    │
+│                                )                                             │
+│               telemetry_path = 'results/telemetry_proximity_bc_cfg_rbv2_ran… │
+│            telemetry_records = []                                            │
+│                  time_budget = None                                          │
+│                trial_counter = 0                                             │
+│ virtual_time_elapsed_seconds = 0.0                                           │
+│                  window_size = 5                                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+[[36m2026-07-19 19:40:18,508[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 1, n_function_calls: 1, config: [41, 0.4353223926183, np.str_('impute.hist'), 680, np.str_('partition'), 0.8619053368217, np.str_('extratrees'), '42', 77], cost: -0.9449719190597534[0m
+[[36m2026-07-19 19:40:18,524[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 2, n_function_calls: 2, config: [80, 0.201743226265, np.str_('impute.mean'), 1898, np.str_('ignore'), 0.3328598542868, np.str_('gini'), '42'], cost: -0.6359300017356873[0m
+[[36m2026-07-19 19:40:18,533[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 3, n_function_calls: 3, config: [71, 0.9411933047368, np.str_('impute.mean'), 1745, np.str_('order'), 0.1049899774886, np.str_('gini'), '42'], cost: -0.18748359382152557[0m
+[[36m2026-07-19 19:40:18,541[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 4, n_function_calls: 4, config: [50, 0.1127762152381, np.str_('impute.hist'), 1430, np.str_('partition'), 0.8187270886892, np.str_('extratrees'), '42', 80], cost: -0.8468641638755798[0m
+[[36m2026-07-19 19:40:18,548[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 5, n_function_calls: 5, config: [35, 0.1767121615844, np.str_('impute.hist'), 359, np.str_('partition'), 0.5242688717227, np.str_('extratrees'), '42', 63], cost: -0.8536234498023987[0m
+[[36m2026-07-19 19:40:18,556[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 6, n_function_calls: 6, config: [16, 0.2295740287443, np.str_('impute.median'), 1233, np.str_('partition'), 0.1023243193155, np.str_('gini'), '42'], cost: -0.7200325727462769[0m
+[[36m2026-07-19 19:40:18,564[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 7, n_function_calls: 7, config: [46, 0.0099719075679, np.str_('impute.median'), 1152, np.str_('order'), 0.1226812813037, np.str_('gini'), '42'], cost: -0.553360104560852[0m
+[[36m2026-07-19 19:40:18,572[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 8, n_function_calls: 8, config: [74, 0.7803018689503, np.str_('impute.median'), 96, np.str_('partition'), 0.8130971973756, np.str_('gini'), '42'], cost: -0.8812375068664551[0m
+[[36m2026-07-19 19:40:18,580[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 9, n_function_calls: 9, config: [94, 0.7196875377244, np.str_('impute.median'), 148, np.str_('partition'), 0.405696945065, np.str_('gini'), '42'], cost: -0.6524933576583862[0m
+[[36m2026-07-19 19:40:18,587[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 10, n_function_calls: 10, config: [30, 0.2066187518059, np.str_('impute.mean'), 1215, np.str_('partition'), 0.8514692667725, np.str_('gini'), '42'], cost: -0.9242109060287476[0m
+[[36m2026-07-19 19:40:19,329[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 11, n_function_calls: 11, config: [13, 0.5300234050122, np.str_('impute.mean'), 1972, np.str_('partition'), 0.8816784240549, np.str_('extratrees'), '42', 94], cost: -0.9825928211212158[0m
+[[36m2026-07-19 19:40:20,092[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 12, n_function_calls: 12, config: [1, 0.5846741456453, np.str_('impute.hist'), 1779, np.str_('order'), 0.8859034076565, np.str_('extratrees'), '42', 86], cost: -0.9895710349082947[0m
+[[36m2026-07-19 19:40:20,852[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 13, n_function_calls: 13, config: [9, 0.7535952847981, np.str_('impute.median'), 1962, np.str_('ignore'), 0.9874423639644, np.str_('extratrees'), '42', 90], cost: -0.9863167405128479[0m
+[[36m2026-07-19 19:40:21,608[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 14, n_function_calls: 14, config: [9, 0.8945471251085, np.str_('impute.mean'), 1890, np.str_('ignore'), 0.9189379407812, np.str_('extratrees'), '42', 32], cost: -0.982939600944519[0m
+[[36m2026-07-19 19:40:22,357[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 15, n_function_calls: 15, config: [98, 0.9200073288038, np.str_('impute.mean'), 1613, np.str_('ignore'), 0.872723130802, np.str_('extratrees'), '42', 81], cost: -0.7900510430335999[0m
+[[36m2026-07-19 19:40:23,135[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 16, n_function_calls: 16, config: [64, 0.5163895614398, np.str_('impute.median'), 1799, np.str_('order'), 0.955185898982, np.str_('extratrees'), '42', 99], cost: -0.9139646291732788[0m
+[[36m2026-07-19 19:40:23,894[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 17, n_function_calls: 17, config: [4, 0.8787757877325, np.str_('impute.hist'), 1744, np.str_('order'), 0.538259712223, np.str_('extratrees'), '42', 87], cost: -0.9795669913291931[0m
+[[36m2026-07-19 19:40:24,679[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 18, n_function_calls: 18, config: [7, 0.4557088029633, np.str_('impute.hist'), 1882, np.str_('ignore'), 0.2869966779416, np.str_('extratrees'), '42', 95], cost: -0.9372085928916931[0m
+[[36m2026-07-19 19:40:25,453[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 19, n_function_calls: 19, config: [12, 0.6361449380827, np.str_('impute.hist'), 1805, np.str_('order'), 0.3634105004531, np.str_('extratrees'), '42', 87], cost: -0.9540114998817444[0m
+[[36m2026-07-19 19:40:26,257[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 20, n_function_calls: 20, config: [3, 0.9126370627421, np.str_('impute.mean'), 1962, np.str_('ignore'), 0.3436375072871, np.str_('extratrees'), '42', 86], cost: -0.9635041356086731[0m
+[[36m2026-07-19 19:40:27,039[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 21, n_function_calls: 21, config: [5, 0.5803665201784, np.str_('impute.hist'), 1937, np.str_('ignore'), 0.1432107200101, np.str_('extratrees'), '42', 60], cost: -0.8985540866851807[0m
+[[36m2026-07-19 19:40:27,818[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 22, n_function_calls: 22, config: [2, 0.936620851646, np.str_('impute.median'), 1938, np.str_('partition'), 0.161921904793, np.str_('extratrees'), '42', 92], cost: -0.9452346563339233[0m
+[[36m2026-07-19 19:40:28,606[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 23, n_function_calls: 23, config: [14, 0.5866046101475, np.str_('impute.median'), 1910, np.str_('order'), 0.136471655349, np.str_('extratrees'), '42', 88], cost: -0.8223266005516052[0m
+[[36m2026-07-19 19:40:29,418[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 24, n_function_calls: 24, config: [13, 0.977111755032, np.str_('impute.mean'), 499, np.str_('ignore'), 0.9238297907769, np.str_('extratrees'), '42', 86], cost: -0.9802678823471069[0m
+[[36m2026-07-19 19:40:30,222[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 25, n_function_calls: 25, config: [5, 0.8352429625566, np.str_('impute.mean'), 1979, np.str_('ignore'), 0.1005678557578, np.str_('extratrees'), '42', 7], cost: -0.8817948698997498[0m
+[[36m2026-07-19 19:40:31,011[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 26, n_function_calls: 26, config: [1, 0.7715699104735, np.str_('impute.hist'), 1005, np.str_('partition'), 0.1284082848894, np.str_('extratrees'), '42', 92], cost: -0.9431037902832031[0m
+[[36m2026-07-19 19:40:31,798[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 27, n_function_calls: 27, config: [7, 0.5797282448217, np.str_('impute.mean'), 601, np.str_('order'), 0.102512250152, np.str_('extratrees'), '42', 87], cost: -0.8736249208450317[0m
+[[36m2026-07-19 19:40:32,644[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 28, n_function_calls: 28, config: [68, 0.7222688137938, np.str_('impute.mean'), 1954, np.str_('ignore'), 0.9393247553665, np.str_('extratrees'), '42', 8], cost: -0.8847249150276184[0m
+[[36m2026-07-19 19:40:33,441[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 29, n_function_calls: 29, config: [2, 0.7724932455132, np.str_('impute.mean'), 1228, np.str_('order'), 0.1087132295086, np.str_('extratrees'), '42', 88], cost: -0.922227680683136[0m
+[[36m2026-07-19 19:40:34,240[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 30, n_function_calls: 30, config: [4, 0.9996444060599, np.str_('impute.hist'), 1787, np.str_('ignore'), 0.8024483133535, np.str_('gini'), '42'], cost: -0.9740131497383118[0m
+[[36m2026-07-19 19:40:35,049[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 31, n_function_calls: 31, config: [100, 0.983637810048, np.str_('impute.hist'), 1999, np.str_('partition'), 0.8592956063383, np.str_('extratrees'), '42', 99], cost: -0.8366304039955139[0m
+[[36m2026-07-19 19:40:35,879[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 32, n_function_calls: 32, config: [3, 0.9736542910532, np.str_('impute.hist'), 1734, np.str_('order'), 0.1071235895428, np.str_('extratrees'), '42', 91], cost: -0.9119551181793213[0m
+[[36m2026-07-19 19:40:36,696[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 33, n_function_calls: 33, config: [5, 0.9918787834224, np.str_('impute.hist'), 1839, np.str_('ignore'), 0.9883346821365, np.str_('extratrees'), '42', 30], cost: -0.984081506729126[0m
+[[36m2026-07-19 19:40:37,525[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 34, n_function_calls: 34, config: [3, 0.8845775418413, np.str_('impute.mean'), 1745, np.str_('ignore'), 0.973167077155, np.str_('gini'), '42'], cost: -0.9781335592269897[0m
+[[36m2026-07-19 19:40:38,352[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 35, n_function_calls: 35, config: [11, 0.9010252109856, np.str_('impute.mean'), 1793, np.str_('ignore'), 0.6919847331617, np.str_('gini'), '42'], cost: -0.9711822867393494[0m
+[[36m2026-07-19 19:40:39,178[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 36, n_function_calls: 36, config: [4, 0.9954088430852, np.str_('impute.hist'), 1804, np.str_('order'), 0.9433920998049, np.str_('gini'), '42'], cost: -0.9820213317871094[0m
+[[36m2026-07-19 19:40:40,004[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 37, n_function_calls: 37, config: [8, 0.9711752128436, np.str_('impute.hist'), 1770, np.str_('order'), 0.3302287189026, np.str_('gini'), '42'], cost: -0.959896981716156[0m
+[[36m2026-07-19 19:40:40,839[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 38, n_function_calls: 38, config: [9, 0.9804857244077, np.str_('impute.mean'), 1810, np.str_('order'), 0.533452293189, np.str_('gini'), '42'], cost: -0.9743861556053162[0m
+[[36m2026-07-19 19:40:41,684[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 39, n_function_calls: 39, config: [1, 0.8640965992694, np.str_('impute.hist'), 1743, np.str_('order'), 0.9629834689704, np.str_('gini'), '42'], cost: -0.9871434569358826[0m
+[[36m2026-07-19 19:40:42,528[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 40, n_function_calls: 40, config: [8, 0.8162175383276, np.str_('impute.mean'), 1744, np.str_('ignore'), 0.5699038562521, np.str_('gini'), '42'], cost: -0.9728949666023254[0m
+[[36m2026-07-19 19:40:43,378[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 41, n_function_calls: 41, config: [1, 0.8298980852953, np.str_('impute.mean'), 1739, np.str_('order'), 0.3982864626387, np.str_('gini'), '42'], cost: -0.977342426776886[0m
+[[36m2026-07-19 19:40:44,241[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 42, n_function_calls: 42, config: [7, 0.9305987337854, np.str_('impute.mean'), 1831, np.str_('order'), 0.9801740162839, np.str_('gini'), '42'], cost: -0.9823599457740784[0m
+[[36m2026-07-19 19:40:45,098[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 43, n_function_calls: 43, config: [54, 0.9431386466785, np.str_('impute.hist'), 1809, np.str_('ignore'), 0.9401488756903, np.str_('gini'), '42'], cost: -0.8967695832252502[0m
+[[36m2026-07-19 19:40:45,958[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 44, n_function_calls: 44, config: [9, 0.8730494975544, np.str_('impute.median'), 1673, np.str_('ignore'), 0.3506274787216, np.str_('gini'), '42'], cost: -0.9578536152839661[0m
+[[36m2026-07-19 19:40:46,820[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 45, n_function_calls: 45, config: [3, 0.9684485191633, np.str_('impute.mean'), 1844, np.str_('partition'), 0.9591607252335, np.str_('gini'), '42'], cost: -0.984174907207489[0m
+[[36m2026-07-19 19:40:47,688[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 46, n_function_calls: 46, config: [5, 0.1677344945286, np.str_('impute.mean'), 1823, np.str_('order'), 0.9575067331697, np.str_('gini'), '42'], cost: -0.9347699880599976[0m
+[[36m2026-07-19 19:40:48,557[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 47, n_function_calls: 47, config: [9, 0.6674140101676, np.str_('impute.mean'), 1755, np.str_('order'), 0.2771731864991, np.str_('gini'), '42'], cost: -0.9565313458442688[0m
+[[36m2026-07-19 19:40:49,536[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 48, n_function_calls: 48, config: [3, 0.9696298074179, np.str_('impute.hist'), 566, np.str_('order'), 0.3150862883662, np.str_('gini'), '42'], cost: -0.969088613986969[0m
+[[36m2026-07-19 19:40:50,471[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 49, n_function_calls: 49, config: [2, 0.8536834715035, np.str_('impute.hist'), 1490, np.str_('ignore'), 0.119820122259, np.str_('gini'), '42'], cost: -0.922643780708313[0m
+[[36m2026-07-19 19:40:51,352[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 50, n_function_calls: 50, config: [10, 0.9525367129966, np.str_('impute.mean'), 352, np.str_('order'), 0.875138534262, np.str_('gini'), '42'], cost: -0.9816557168960571[0m
+Solution found: 
+(
+    TrialInfo(
+        config=Configuration(values={
+  'min.node.size': 1,
+  'mtry.power': 0.5846741456453,
+  'num.impute.selected.cpo': np.str_('impute.hist'),
+  'num.trees': 1779,
+  'respect.unordered.factors': np.str_('order'),
+  'sample.fraction': 0.8859034076565,
+  'splitrule': np.str_('extratrees'),
+  'task_id': '42',
+  'num.random.splits': 86,
+}),
+        instance=None,
+        seed=None,
+        budget=None,
+        normalized_budget=None,
+        name=None,
+        checkpoint=None,
+        additional_info={}
+    ),
+    TrialValue(
+        cost=np.float32(-0.98957103),
+        time=0.004889726638793945,
+        virtual_time=0.0,
+        status=<StatusType.SUCCESS: 1>,
+        starttime=1784482820.086624,
+        endtime=1784482820.0915136,
+        additional_info={}
+    )
+)
+==================================================
+BENCHMARK SWEEP STEP COMPLETED SUCCESSFULLY!
+==================================================
+==================================================
+Array Task Index 487 Finished
+==================================================

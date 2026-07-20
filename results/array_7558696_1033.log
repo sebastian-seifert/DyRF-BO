@@ -1,0 +1,810 @@
+==================================================
+Array Job ID: 7558696 | Task Index: 1033
+Running arguments: +optimizer/smac20=hpo +task/YAHPO/SO=cfg_rbv2_xgboost_16 task.optimization_resources.n_trials=50 seed=3 optimizer_id=SMAC3-HPOFacade optimizer_container_id=SMAC3
+==================================================
+==================================================
+Running CARP-S HPOBench Dynamic BO Benchmark Sweep
+Using python: python3
+==================================================
+[[36m2026-07-20 00:06:43,355[0m][[34m/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/carps/run.py[0m][[32mINFO[0m] - Runcommand: `python -m carps.run +optimizer/smac20=hpo +task/YAHPO/SO=cfg_rbv2_xgboost_16 task.optimization_resources.n_trials=50 seed=3 optimizer_id=SMAC3-HPOFacade optimizer_container_id=SMAC3`[0m
+{
+    'seed': 3,
+    'task': {
+        '_target_': 'carps.utils.task.Task',
+        'name': 'yahpo/so/rbv2_xgboost/16/None',
+        'seed': 3,
+        'objective_function': {
+            '_target_': 
+'carps.objective_functions.yahpo.YahpoObjectiveFunction',
+            'bench': 'rbv2_xgboost',
+            'instance': '16',
+            'budget_type': None,
+            'metric': ['acc'],
+            'seed': 3
+        },
+        'input_space': {
+            '_target_': 'carps.utils.task.InputSpace',
+            'configuration_space': {
+                '_target_': 
+'ConfigSpace.configuration_space.ConfigurationSpace.from_serialized_dict',
+                '_convert_': 'object',
+                'd': {
+                    'name': None,
+                    'hyperparameters': [
+                        {
+                            'type': 'uniform_float',
+                            'name': 'alpha',
+                            'lower': 0.0009118819656,
+                            'upper': 1096.6331584284585,
+                            'default_value': 1.0,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'booster',
+                            'choices': ['gblinear', 'gbtree', 'dart'],
+                            'weights': None,
+                            'default_value': 'gblinear',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'lambda',
+                            'lower': 0.0009118819656,
+                            'upper': 1096.6331584284585,
+                            'default_value': 1.0,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'nrounds',
+                            'lower': 7,
+                            'upper': 2981,
+                            'default_value': 144,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'num.impute.selected.cpo',
+                            'choices': [
+                                'impute.mean',
+                                'impute.median',
+                                'impute.hist'
+                            ],
+                            'weights': None,
+                            'default_value': 'impute.mean',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'subsample',
+                            'lower': 0.1,
+                            'upper': 1.0,
+                            'default_value': 0.55,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'constant',
+                            'name': 'task_id',
+                            'value': '16',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'colsample_bylevel',
+                            'lower': 0.01,
+                            'upper': 1.0,
+                            'default_value': 0.505,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'colsample_bytree',
+                            'lower': 0.01,
+                            'upper': 1.0,
+                            'default_value': 0.505,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'eta',
+                            'lower': 0.0009118819656,
+                            'upper': 1.0,
+                            'default_value': 0.0301973834,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'gamma',
+                            'lower': 4.53999298e-05,
+                            'upper': 7.3890560989306,
+                            'default_value': 0.0183156389,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'max_depth',
+                            'lower': 1,
+                            'upper': 15,
+                            'default_value': 8,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'min_child_weight',
+                            'lower': 2.718281828459,
+                            'upper': 148.4131591025766,
+                            'default_value': 20.0855369232,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'rate_drop',
+                            'lower': 0.0,
+                            'upper': 1.0,
+                            'default_value': 0.5,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'skip_drop',
+                            'lower': 0.0,
+                            'upper': 1.0,
+                            'default_value': 0.5,
+                            'log': False,
+                            'meta': None
+                        }
+                    ],
+                    'conditions': [
+                        {
+                            'type': 'IN',
+                            'child': 'colsample_bylevel',
+                            'parent': 'booster',
+                            'values': ['dart', 'gbtree']
+                        },
+                        {
+                            'type': 'IN',
+                            'child': 'colsample_bytree',
+                            'parent': 'booster',
+                            'values': ['dart', 'gbtree']
+                        },
+                        {
+                            'type': 'IN',
+                            'child': 'eta',
+                            'parent': 'booster',
+                            'values': ['dart', 'gbtree']
+                        },
+                        {
+                            'type': 'IN',
+                            'child': 'gamma',
+                            'parent': 'booster',
+                            'values': ['dart', 'gbtree']
+                        },
+                        {
+                            'type': 'IN',
+                            'child': 'max_depth',
+                            'parent': 'booster',
+                            'values': ['dart', 'gbtree']
+                        },
+                        {
+                            'type': 'IN',
+                            'child': 'min_child_weight',
+                            'parent': 'booster',
+                            'values': ['dart', 'gbtree']
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'rate_drop',
+                            'parent': 'booster',
+                            'value': 'dart'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'skip_drop',
+                            'parent': 'booster',
+                            'value': 'dart'
+                        }
+                    ],
+                    'forbiddens': [],
+                    'python_module_version': '1.2.0',
+                    'format_version': 0.4
+                }
+            },
+            'fidelity_space': {
+                '_target_': 'carps.utils.task.FidelitySpace',
+                'is_multifidelity': False,
+                'fidelity_type': None,
+                'min_fidelity': None,
+                'max_fidelity': None
+            },
+            'instance_space': None
+        },
+        'output_space': {
+            '_target_': 'carps.utils.task.OutputSpace',
+            'n_objectives': 1,
+            'objectives': ['acc']
+        },
+        'optimization_resources': {
+            '_target_': 'carps.utils.task.OptimizationResources',
+            'n_trials': 50,
+            'time_budget': None,
+            'n_workers': 1
+        },
+        'metadata': {
+            '_target_': 'carps.utils.task.TaskMetadata',
+            'has_constraints': False,
+            'domain': 'ML',
+            'objective_function_approximation': 'surrogate',
+            'has_virtual_time': False,
+            'deterministic': False,
+            'dimensions': 14,
+            'search_space_n_categoricals': 2,
+            'search_space_n_ordinals': 0,
+            'search_space_n_integers': 2,
+            'search_space_n_floats': 10,
+            'search_space_has_conditionals': True,
+            'search_space_has_forbiddens': False,
+            'search_space_has_priors': False
+        }
+    },
+    'benchmark_id': 'YAHPO',
+    'task_id': 'yahpo/so/rbv2_xgboost/16/None',
+    'optimizer': {
+        '_target_': 'carps.optimizers.smac20.SMAC3Optimizer',
+        '_partial_': True,
+        'smac_cfg': {
+            'scenario': {
+                'seed': 3,
+                'n_trials': 50,
+                'objectives': ['acc'],
+                'deterministic': True,
+                'n_workers': 1,
+                'output_directory': 
+'runs/SMAC3-HPOFacade/YAHPO/yahpo/so/rbv2_xgboost/16/None/3/3/smac3_output',
+                'min_budget': None,
+                'max_budget': None
+            },
+            'smac_kwargs': {'dask_client': None, 'overwrite': True},
+            'smac_class': 'smac.facade.HyperparameterOptimizationFacade'
+        }
+    },
+    'optimizer_id': 'SMAC3-HPOFacade',
+    'optimizer_container_id': 'SMAC3',
+    'pyexperimenter_configuration_file_path': None,
+    'database_credential_file_path': None,
+    'use_special_conda_env': False,
+    'conda_env_name': 'carps_YAHPO_SMAC3',
+    'timestamp': '2026-07-20/00-06-43',
+    'baserundir': 'runs',
+    'outdir': 'runs/SMAC3-HPOFacade/YAHPO/yahpo/so/rbv2_xgboost/16/None/3',
+    'loggers': [
+        {
+            '_target_': 'carps.loggers.file_logger.FileLogger',
+            '_partial_': True,
+            'overwrite': True
+        },
+        {
+            '_target_': 'carps.loggers.database_logger.DatabaseLogger',
+            '_partial_': True
+        }
+    ]
+}
+[[36m2026-07-20 00:06:43,781[0m][[34mDatabaseLogger[0m][[32mINFO[0m] - Not logging to database (result processor is None).[0m
+Please make sure to also cite:
+Binder M., Pfisterer F. & Bischl B. (2020). Collecting Empirical Data About Hyperparameters for Data Driven AutoML. 7th ICML Workshop on Automated Machine Learning.
+╭────────────────────── <class 'carps.utils.task.Task'> ───────────────────────╮
+│ Task.                                                                        │
+│                                                                              │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ Task(                                                                    │ │
+│ │ │   name='yahpo/so/rbv2_xgboost/16/None',                                │ │
+│ │ │                                                                        │ │
+│ │ objective_function=<carps.objective_functions.yahpo.YahpoObjectiveFuncti │ │
+│ │ on object at 0x1486cb32bb60>,                                            │ │
+│ │ │   input_space=InputSpace(                                              │ │
+│ │ │   │   configuration_space=Configuration space object:                  │ │
+│ │   Hyperparameters:                                                       │ │
+│ │ │   alpha, Type: UniformFloat, Range: [0.0009118819656,                  │ │
+│ │ 1096.6331584284585], Default: 1.0, on log-scale                          │ │
+│ │ │   booster, Type: Categorical, Choices: {gblinear, gbtree, dart},       │ │
+│ │ Default: gblinear                                                        │ │
+│ │ │   colsample_bylevel, Type: UniformFloat, Range: [0.01, 1.0], Default:  │ │
+│ │ 0.505                                                                    │ │
+│ │ │   colsample_bytree, Type: UniformFloat, Range: [0.01, 1.0], Default:   │ │
+│ │ 0.505                                                                    │ │
+│ │ │   eta, Type: UniformFloat, Range: [0.0009118819656, 1.0], Default:     │ │
+│ │ 0.0301973834, on log-scale                                               │ │
+│ │ │   gamma, Type: UniformFloat, Range: [4.53999298e-05, 7.3890560989306], │ │
+│ │ Default: 0.0183156389, on log-scale                                      │ │
+│ │ │   lambda, Type: UniformFloat, Range: [0.0009118819656,                 │ │
+│ │ 1096.6331584284585], Default: 1.0, on log-scale                          │ │
+│ │ │   max_depth, Type: UniformInteger, Range: [1, 15], Default: 8          │ │
+│ │ │   min_child_weight, Type: UniformFloat, Range: [2.718281828459,        │ │
+│ │ 148.4131591025766], Default: 20.0855369232, on log-scale                 │ │
+│ │ │   nrounds, Type: UniformInteger, Range: [7, 2981], Default: 144, on    │ │
+│ │ log-scale                                                                │ │
+│ │ │   num.impute.selected.cpo, Type: Categorical, Choices: {impute.mean,   │ │
+│ │ impute.median, impute.hist}, Default: impute.mean                        │ │
+│ │ │   rate_drop, Type: UniformFloat, Range: [0.0, 1.0], Default: 0.5       │ │
+│ │ │   skip_drop, Type: UniformFloat, Range: [0.0, 1.0], Default: 0.5       │ │
+│ │ │   subsample, Type: UniformFloat, Range: [0.1, 1.0], Default: 0.55      │ │
+│ │ │   task_id, Type: Constant, Value: 16                                   │ │
+│ │   Conditions:                                                            │ │
+│ │ │   colsample_bylevel | booster in {'dart', 'gbtree'}                    │ │
+│ │ │   colsample_bytree | booster in {'dart', 'gbtree'}                     │ │
+│ │ │   eta | booster in {'dart', 'gbtree'}                                  │ │
+│ │ │   gamma | booster in {'dart', 'gbtree'}                                │ │
+│ │ │   max_depth | booster in {'dart', 'gbtree'}                            │ │
+│ │ │   min_child_weight | booster in {'dart', 'gbtree'}                     │ │
+│ │ │   rate_drop | booster == 'dart'                                        │ │
+│ │ │   skip_drop | booster == 'dart'                                        │ │
+│ │ ,                                                                        │ │
+│ │ │   │   fidelity_space=FidelitySpace(                                    │ │
+│ │ │   │   │   is_multifidelity=False,                                      │ │
+│ │ │   │   │   fidelity_type=None,                                          │ │
+│ │ │   │   │   min_fidelity=None,                                           │ │
+│ │ │   │   │   max_fidelity=None                                            │ │
+│ │ │   │   ),                                                               │ │
+│ │ │   │   instance_space=None                                              │ │
+│ │ │   ),                                                                   │ │
+│ │ │   output_space=OutputSpace(n_objectives=1, objectives=['acc']),        │ │
+│ │ │   optimization_resources=OptimizationResources(                        │ │
+│ │ │   │   n_trials=50,                                                     │ │
+│ │ │   │   time_budget=None,                                                │ │
+│ │ │   │   n_workers=1                                                      │ │
+│ │ │   ),                                                                   │ │
+│ │ │   metadata=TaskMetadata(                                               │ │
+│ │ │   │   has_constraints=False,                                           │ │
+│ │ │   │   domain='ML',                                                     │ │
+│ │ │   │   objective_function_approximation='surrogate',                    │ │
+│ │ │   │   has_virtual_time=False,                                          │ │
+│ │ │   │   deterministic=False,                                             │ │
+│ │ │   │   dimensions=14,                                                   │ │
+│ │ │   │   search_space_n_categoricals=2,                                   │ │
+│ │ │   │   search_space_n_ordinals=0,                                       │ │
+│ │ │   │   search_space_n_integers=2,                                       │ │
+│ │ │   │   search_space_n_floats=10,                                        │ │
+│ │ │   │   search_space_has_conditionals=True,                              │ │
+│ │ │   │   search_space_has_forbiddens=False,                               │ │
+│ │ │   │   search_space_has_priors=False                                    │ │
+│ │ │   ),                                                                   │ │
+│ │ │   seed=3                                                               │ │
+│ │ )                                                                        │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│            input_space = InputSpace(                                         │
+│                              configuration_space=Configuration space object: │
+│                            Hyperparameters:                                  │
+│                              alpha, Type: UniformFloat, Range:               │
+│                          [0.0009118819656, 1096.6331584284585], Default:     │
+│                          1.0, on log-scale                                   │
+│                              booster, Type: Categorical, Choices: {gblinear, │
+│                          gbtree, dart}, Default: gblinear                    │
+│                              colsample_bylevel, Type: UniformFloat, Range:   │
+│                          [0.01, 1.0], Default: 0.505                         │
+│                              colsample_bytree, Type: UniformFloat, Range:    │
+│                          [0.01, 1.0], Default: 0.505                         │
+│                              eta, Type: UniformFloat, Range:                 │
+│                          [0.0009118819656, 1.0], Default: 0.0301973834, on   │
+│                          log-scale                                           │
+│                              gamma, Type: UniformFloat, Range:               │
+│                          [4.53999298e-05, 7.3890560989306], Default:         │
+│                          0.0183156389, on log-scale                          │
+│                              lambda, Type: UniformFloat, Range:              │
+│                          [0.0009118819656, 1096.6331584284585], Default:     │
+│                          1.0, on log-scale                                   │
+│                              max_depth, Type: UniformInteger, Range: [1,     │
+│                          15], Default: 8                                     │
+│                              min_child_weight, Type: UniformFloat, Range:    │
+│                          [2.718281828459, 148.4131591025766], Default:       │
+│                          20.0855369232, on log-scale                         │
+│                              nrounds, Type: UniformInteger, Range: [7,       │
+│                          2981], Default: 144, on log-scale                   │
+│                              num.impute.selected.cpo, Type: Categorical,     │
+│                          Choices: {impute.mean, impute.median, impute.hist}, │
+│                          Default: impute.mean                                │
+│                              rate_drop, Type: UniformFloat, Range: [0.0,     │
+│                          1.0], Default: 0.5                                  │
+│                              skip_drop, Type: UniformFloat, Range: [0.0,     │
+│                          1.0], Default: 0.5                                  │
+│                              subsample, Type: UniformFloat, Range: [0.1,     │
+│                          1.0], Default: 0.55                                 │
+│                              task_id, Type: Constant, Value: 16              │
+│                            Conditions:                                       │
+│                              colsample_bylevel | booster in {'dart',         │
+│                          'gbtree'}                                           │
+│                              colsample_bytree | booster in {'dart',          │
+│                          'gbtree'}                                           │
+│                              eta | booster in {'dart', 'gbtree'}             │
+│                              gamma | booster in {'dart', 'gbtree'}           │
+│                              max_depth | booster in {'dart', 'gbtree'}       │
+│                              min_child_weight | booster in {'dart',          │
+│                          'gbtree'}                                           │
+│                              rate_drop | booster == 'dart'                   │
+│                              skip_drop | booster == 'dart'                   │
+│                          ,                                                   │
+│                              fidelity_space=FidelitySpace(                   │
+│                                  is_multifidelity=False,                     │
+│                                  fidelity_type=None,                         │
+│                                  min_fidelity=None,                          │
+│                                  max_fidelity=None                           │
+│                              ),                                              │
+│                              instance_space=None                             │
+│                          )                                                   │
+│               metadata = TaskMetadata(                                       │
+│                              has_constraints=False,                          │
+│                              domain='ML',                                    │
+│                              objective_function_approximation='surrogate',   │
+│                              has_virtual_time=False,                         │
+│                              deterministic=False,                            │
+│                              dimensions=14,                                  │
+│                              search_space_n_categoricals=2,                  │
+│                              search_space_n_ordinals=0,                      │
+│                              search_space_n_integers=2,                      │
+│                              search_space_n_floats=10,                       │
+│                              search_space_has_conditionals=True,             │
+│                              search_space_has_forbiddens=False,              │
+│                              search_space_has_priors=False                   │
+│                          )                                                   │
+│                   name = 'yahpo/so/rbv2_xgboost/16/None'                     │
+│     objective_function = <carps.objective_functions.yahpo.YahpoObjectiveFun… │
+│                          object at 0x1486cb32bb60>                           │
+│ optimization_resources = OptimizationResources(                              │
+│                              n_trials=50,                                    │
+│                              time_budget=None,                               │
+│                              n_workers=1                                     │
+│                          )                                                   │
+│           output_space = OutputSpace(n_objectives=1, objectives=['acc'])     │
+│                   seed = 3                                                   │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭────────────── <class 'carps.optimizers.smac20.SMAC3Optimizer'> ──────────────╮
+│ SMAC3 Optimizer.                                                             │
+│                                                                              │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ <carps.optimizers.smac20.SMAC3Optimizer object at 0x1486cb1dfb60>        │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│                  configspace = Configuration space object:                   │
+│                                  Hyperparameters:                            │
+│                                    alpha, Type: UniformFloat, Range:         │
+│                                [0.0009118819656, 1096.6331584284585],        │
+│                                Default: 1.0, on log-scale                    │
+│                                    booster, Type: Categorical, Choices:      │
+│                                {gblinear, gbtree, dart}, Default: gblinear   │
+│                                    colsample_bylevel, Type: UniformFloat,    │
+│                                Range: [0.01, 1.0], Default: 0.505            │
+│                                    colsample_bytree, Type: UniformFloat,     │
+│                                Range: [0.01, 1.0], Default: 0.505            │
+│                                    eta, Type: UniformFloat, Range:           │
+│                                [0.0009118819656, 1.0], Default:              │
+│                                0.0301973834, on log-scale                    │
+│                                    gamma, Type: UniformFloat, Range:         │
+│                                [4.53999298e-05, 7.3890560989306], Default:   │
+│                                0.0183156389, on log-scale                    │
+│                                    lambda, Type: UniformFloat, Range:        │
+│                                [0.0009118819656, 1096.6331584284585],        │
+│                                Default: 1.0, on log-scale                    │
+│                                    max_depth, Type: UniformInteger, Range:   │
+│                                [1, 15], Default: 8                           │
+│                                    min_child_weight, Type: UniformFloat,     │
+│                                Range: [2.718281828459, 148.4131591025766],   │
+│                                Default: 20.0855369232, on log-scale          │
+│                                    nrounds, Type: UniformInteger, Range: [7, │
+│                                2981], Default: 144, on log-scale             │
+│                                    num.impute.selected.cpo, Type:            │
+│                                Categorical, Choices: {impute.mean,           │
+│                                impute.median, impute.hist}, Default:         │
+│                                impute.mean                                   │
+│                                    rate_drop, Type: UniformFloat, Range:     │
+│                                [0.0, 1.0], Default: 0.5                      │
+│                                    skip_drop, Type: UniformFloat, Range:     │
+│                                [0.0, 1.0], Default: 0.5                      │
+│                                    subsample, Type: UniformFloat, Range:     │
+│                                [0.1, 1.0], Default: 0.55                     │
+│                                    task_id, Type: Constant, Value: 16        │
+│                                  Conditions:                                 │
+│                                    colsample_bylevel | booster in {'dart',   │
+│                                'gbtree'}                                     │
+│                                    colsample_bytree | booster in {'dart',    │
+│                                'gbtree'}                                     │
+│                                    eta | booster in {'dart', 'gbtree'}       │
+│                                    gamma | booster in {'dart', 'gbtree'}     │
+│                                    max_depth | booster in {'dart', 'gbtree'} │
+│                                    min_child_weight | booster in {'dart',    │
+│                                'gbtree'}                                     │
+│                                    rate_drop | booster == 'dart'             │
+│                                    skip_drop | booster == 'dart'             │
+│                                                                              │
+│           expects_fidelities = False                                         │
+│  expects_multiple_objectives = False                                         │
+│             fidelity_enabled = False                                         │
+│                      loggers = [<carps.loggers.file_logger.FileLogger object │
+│                                at 0x1486cb1dc440>,                           │
+│                                <carps.loggers.database_logger.DatabaseLogger │
+│                                object at 0x1486cb1dc830>]                    │
+│                     smac_cfg = {'scenario': {'seed': 3, 'n_trials': 50,      │
+│                                'objectives': ['acc'], 'deterministic': True, │
+│                                'n_workers': 1, 'output_directory':           │
+│                                'runs/SMAC3-HPOFacade/YAHPO/yahpo/so/rbv2_xg… │
+│                                'min_budget': None, 'max_budget': None},      │
+│                                'smac_kwargs': {'dask_client': None,          │
+│                                'overwrite': True}, 'smac_class':             │
+│                                'smac.facade.HyperparameterOptimizationFacad… │
+│                       solver = None                                          │
+│                         task = Task(                                         │
+│                                    name='yahpo/so/rbv2_xgboost/16/None',     │
+│                                    objective_function=<carps.objective_func… │
+│                                object at 0x1486cb32bb60>,                    │
+│                                    input_space=InputSpace(                   │
+│                                        configuration_space=Configuration     │
+│                                space object:                                 │
+│                                  Hyperparameters:                            │
+│                                    alpha, Type: UniformFloat, Range:         │
+│                                [0.0009118819656, 1096.6331584284585],        │
+│                                Default: 1.0, on log-scale                    │
+│                                    booster, Type: Categorical, Choices:      │
+│                                {gblinear, gbtree, dart}, Default: gblinear   │
+│                                    colsample_bylevel, Type: UniformFloat,    │
+│                                Range: [0.01, 1.0], Default: 0.505            │
+│                                    colsample_bytree, Type: UniformFloat,     │
+│                                Range: [0.01, 1.0], Default: 0.505            │
+│                                    eta, Type: UniformFloat, Range:           │
+│                                [0.0009118819656, 1.0], Default:              │
+│                                0.0301973834, on log-scale                    │
+│                                    gamma, Type: UniformFloat, Range:         │
+│                                [4.53999298e-05, 7.3890560989306], Default:   │
+│                                0.0183156389, on log-scale                    │
+│                                    lambda, Type: UniformFloat, Range:        │
+│                                [0.0009118819656, 1096.6331584284585],        │
+│                                Default: 1.0, on log-scale                    │
+│                                    max_depth, Type: UniformInteger, Range:   │
+│                                [1, 15], Default: 8                           │
+│                                    min_child_weight, Type: UniformFloat,     │
+│                                Range: [2.718281828459, 148.4131591025766],   │
+│                                Default: 20.0855369232, on log-scale          │
+│                                    nrounds, Type: UniformInteger, Range: [7, │
+│                                2981], Default: 144, on log-scale             │
+│                                    num.impute.selected.cpo, Type:            │
+│                                Categorical, Choices: {impute.mean,           │
+│                                impute.median, impute.hist}, Default:         │
+│                                impute.mean                                   │
+│                                    rate_drop, Type: UniformFloat, Range:     │
+│                                [0.0, 1.0], Default: 0.5                      │
+│                                    skip_drop, Type: UniformFloat, Range:     │
+│                                [0.0, 1.0], Default: 0.5                      │
+│                                    subsample, Type: UniformFloat, Range:     │
+│                                [0.1, 1.0], Default: 0.55                     │
+│                                    task_id, Type: Constant, Value: 16        │
+│                                  Conditions:                                 │
+│                                    colsample_bylevel | booster in {'dart',   │
+│                                'gbtree'}                                     │
+│                                    colsample_bytree | booster in {'dart',    │
+│                                'gbtree'}                                     │
+│                                    eta | booster in {'dart', 'gbtree'}       │
+│                                    gamma | booster in {'dart', 'gbtree'}     │
+│                                    max_depth | booster in {'dart', 'gbtree'} │
+│                                    min_child_weight | booster in {'dart',    │
+│                                'gbtree'}                                     │
+│                                    rate_drop | booster == 'dart'             │
+│                                    skip_drop | booster == 'dart'             │
+│                                ,                                             │
+│                                        fidelity_space=FidelitySpace(         │
+│                                            is_multifidelity=False,           │
+│                                            fidelity_type=None,               │
+│                                            min_fidelity=None,                │
+│                                            max_fidelity=None                 │
+│                                        ),                                    │
+│                                        instance_space=None                   │
+│                                    ),                                        │
+│                                    output_space=OutputSpace(                 │
+│                                        n_objectives=1,                       │
+│                                        objectives=['acc']                    │
+│                                    ),                                        │
+│                                    optimization_resources=OptimizationResou… │
+│                                        n_trials=50,                          │
+│                                        time_budget=None,                     │
+│                                        n_workers=1                           │
+│                                    ),                                        │
+│                                    metadata=TaskMetadata(                    │
+│                                        has_constraints=False,                │
+│                                        domain='ML',                          │
+│                                        objective_function_approximation='su… │
+│                                        has_virtual_time=False,               │
+│                                        deterministic=False,                  │
+│                                        dimensions=14,                        │
+│                                        search_space_n_categoricals=2,        │
+│                                        search_space_n_ordinals=0,            │
+│                                        search_space_n_integers=2,            │
+│                                        search_space_n_floats=10,             │
+│                                        search_space_has_conditionals=True,   │
+│                                        search_space_has_forbiddens=False,    │
+│                                        search_space_has_priors=False         │
+│                                    ),                                        │
+│                                    seed=3                                    │
+│                                )                                             │
+│                  time_budget = None                                          │
+│                trial_counter = 0                                             │
+│ virtual_time_elapsed_seconds = 0.0                                           │
+╰──────────────────────────────────────────────────────────────────────────────╯
+<class 
+'smac.facade.hyperparameter_optimization_facade.HyperparameterOptimizationFacade
+'>
+{
+    'dask_client': None,
+    'overwrite': True,
+    'scenario': Scenario(
+        configspace=Configuration space object:
+  Hyperparameters:
+    alpha, Type: UniformFloat, Range: [0.0009118819656, 1096.6331584284585], 
+Default: 1.0, on log-scale
+    booster, Type: Categorical, Choices: {gblinear, gbtree, dart}, Default: 
+gblinear
+    colsample_bylevel, Type: UniformFloat, Range: [0.01, 1.0], Default: 0.505
+    colsample_bytree, Type: UniformFloat, Range: [0.01, 1.0], Default: 0.505
+    eta, Type: UniformFloat, Range: [0.0009118819656, 1.0], Default: 
+0.0301973834, on log-scale
+    gamma, Type: UniformFloat, Range: [4.53999298e-05, 7.3890560989306], 
+Default: 0.0183156389, on log-scale
+    lambda, Type: UniformFloat, Range: [0.0009118819656, 1096.6331584284585], 
+Default: 1.0, on log-scale
+    max_depth, Type: UniformInteger, Range: [1, 15], Default: 8
+    min_child_weight, Type: UniformFloat, Range: [2.718281828459, 
+148.4131591025766], Default: 20.0855369232, on log-scale
+    nrounds, Type: UniformInteger, Range: [7, 2981], Default: 144, on log-scale
+    num.impute.selected.cpo, Type: Categorical, Choices: {impute.mean, 
+impute.median, impute.hist}, Default: impute.mean
+    rate_drop, Type: UniformFloat, Range: [0.0, 1.0], Default: 0.5
+    skip_drop, Type: UniformFloat, Range: [0.0, 1.0], Default: 0.5
+    subsample, Type: UniformFloat, Range: [0.1, 1.0], Default: 0.55
+    task_id, Type: Constant, Value: 16
+  Conditions:
+    colsample_bylevel | booster in {'dart', 'gbtree'}
+    colsample_bytree | booster in {'dart', 'gbtree'}
+    eta | booster in {'dart', 'gbtree'}
+    gamma | booster in {'dart', 'gbtree'}
+    max_depth | booster in {'dart', 'gbtree'}
+    min_child_weight | booster in {'dart', 'gbtree'}
+    rate_drop | booster == 'dart'
+    skip_drop | booster == 'dart'
+,
+        name=None,
+        output_directory='runs/SMAC3-HPOFacade/YAHPO/yahpo/so/rbv2_xgboost/16/No
+ne/3/3/smac3_output',
+        deterministic=True,
+        objectives=['acc'],
+        crash_cost=inf,
+        termination_cost_threshold=inf,
+        walltime_limit=inf,
+        cputime_limit=inf,
+        trial_walltime_limit=None,
+        trial_memory_limit=None,
+        n_trials=50,
+        use_default_config=False,
+        instances=None,
+        instance_features=None,
+        adaptive_capping=False,
+        adaptive_capping_slackfactor=None,
+        runtime_cutoff=None,
+        min_budget=None,
+        max_budget=None,
+        seed=3,
+        n_workers=1
+    ),
+    'callbacks': []
+}
+[INFO][abstract_initial_design.py:91] Reducing the number of initial configurations from 150 to 12 (max_ratio == 0.25).
+[WARNING][target_function_runner.py:74] The argument budget is not set by SMAC: Consider removing it from the target function.
+[WARNING][target_function_runner.py:74] The argument instance is not set by SMAC: Consider removing it from the target function.
+[INFO][abstract_initial_design.py:143] Using 12 initial design configurations and 0 additional configurations.
+<smac.facade.hyperparameter_optimization_facade.HyperparameterOptimizationFacade
+object at 0x1486c8bf3e00>
+[INFO][abstract_intensifier.py:313] Using only one seed for deterministic scenario.
+[INFO][file_logger.py:201] n_trials: 1, n_function_calls: 1, config: [30.2946098813227, np.str_('gbtree'), 0.0785833019098, 107, np.str_('impute.mean'), 0.6297975152731, '16', 0.5297396369837, 0.6116963343695, 0.0051806226012, 0.0618029646977, 13, 8.4624227533714], cost: -0.8896304965019226
+[INFO][abstract_intensifier.py:523] Added config a9da7e as new incumbent because there are no incumbents yet.
+[INFO][file_logger.py:201] n_trials: 2, n_function_calls: 2, config: [0.0019396809949, np.str_('dart'), 8.2885323104343, 349, np.str_('impute.median'), 0.2383932872675, '16', 0.4689812520798, 0.1078617090173, 0.5533959439746, 0.0014177659576, 7, 61.6765767703449, 0.4629941219464, 0.4539059279487], cost: -0.0937441885471344
+[INFO][file_logger.py:201] n_trials: 3, n_function_calls: 3, config: [0.2395952522984, np.str_('gblinear'), 0.0018704889872, 12, np.str_('impute.hist'), 0.5114623343572, '16'], cost: -0.6842116713523865
+[INFO][file_logger.py:201] n_trials: 4, n_function_calls: 4, config: [112.1325506780096, np.str_('gbtree'), 831.8176122217355, 686, np.str_('impute.mean'), 0.792222223524, '16', 0.0149184708577, 0.8173854010925, 0.0158325324991, 4.6740396985437, 10, 3.1852767114019], cost: -0.10459475964307785
+[INFO][file_logger.py:201] n_trials: 5, n_function_calls: 5, config: [394.5410977383714, np.str_('gblinear'), 3.7929817902696, 2425, np.str_('impute.mean'), 0.7012552657165, '16'], cost: -0.09934748709201813
+[INFO][file_logger.py:201] n_trials: 6, n_function_calls: 6, config: [0.1632832298188, np.str_('gbtree'), 0.4099491634922, 15, np.str_('impute.hist'), 0.1946164702997, '16', 0.2274421928078, 0.9142977733258, 0.0064013953, 0.1336551033477, 10, 43.8698628395818], cost: -0.09479387104511261
+[INFO][file_logger.py:201] n_trials: 7, n_function_calls: 7, config: [0.0182641362179, np.str_('gbtree'), 41.7676680998657, 231, np.str_('impute.hist'), 0.35572711071, '16', 0.7490271623526, 0.6385229551885, 0.0014369788812, 0.4801569872023, 13, 121.9948577074364], cost: -0.09646883606910706
+[INFO][file_logger.py:201] n_trials: 8, n_function_calls: 8, config: [1.3406160469459, np.str_('dart'), 0.0156112391331, 36, np.str_('impute.median'), 0.9765258699656, '16', 0.3186507026479, 0.1351978653949, 0.2018616250184, 0.0001227176223, 6, 18.8955730666681, 0.298155923374, 0.5214486224577], cost: -0.8463385701179504
+[INFO][file_logger.py:201] n_trials: 9, n_function_calls: 9, config: [3.7713227014142, np.str_('gblinear'), 164.0338062434927, 26, np.str_('impute.median'), 0.8769417222589, '16'], cost: -0.09842706471681595
+[INFO][file_logger.py:201] n_trials: 10, n_function_calls: 10, config: [0.0100283886673, np.str_('gbtree'), 0.0093566321446, 1961, np.str_('impute.mean'), 0.4834363254718, '16', 0.1658762484975, 0.9875627171621, 0.0099998832815, 0.0005334684793, 12, 70.3902153472288], cost: -0.8666303753852844
+[INFO][file_logger.py:201] n_trials: 11, n_function_calls: 11, config: [0.0371140950433, np.str_('gblinear'), 1.0625746646765, 63, np.str_('impute.mean'), 0.3224218154326, '16'], cost: -0.8990739583969116
+[INFO][abstract_intensifier.py:630] Added config 005a9d and rejected config a9da7e as incumbent because it is not better than the incumbents on 1 instances: 
+[INFO][file_logger.py:201] n_trials: 12, n_function_calls: 12, config: [465.7587779577808, np.str_('dart'), 0.6046695542798, 187, np.str_('impute.hist'), 0.6015749876387, '16', 0.3798682048731, 0.2159557247348, 0.3142525223942, 0.0317759498826, 4, 4.3212369412301, 0.9273990113288, 0.9247954096645], cost: -0.0968131572008133
+[INFO][file_logger.py:201] n_trials: 13, n_function_calls: 13, config: [0.0017849634929, np.str_('gblinear'), 0.0938427778269, 138, np.str_('impute.mean'), 0.8768125235905, '16'], cost: -0.9576362371444702
+[INFO][abstract_intensifier.py:630] Added config 65b6a2 and rejected config 005a9d as incumbent because it is not better than the incumbents on 1 instances: 
+[INFO][file_logger.py:201] n_trials: 14, n_function_calls: 14, config: [0.0034032956363, np.str_('gblinear'), 0.0592494200804, 114, np.str_('impute.mean'), 0.7982028371315, '16'], cost: -0.9560083746910095
+[INFO][file_logger.py:201] n_trials: 15, n_function_calls: 15, config: [0.0077946142264, np.str_('gblinear'), 0.0390580660362, 66, np.str_('impute.mean'), 0.9669786373097, '16'], cost: -0.9490156173706055
+[INFO][file_logger.py:201] n_trials: 16, n_function_calls: 16, config: [0.0513509923706, np.str_('gblinear'), 0.0571086091537, 27, np.str_('impute.mean'), 0.8163485743223, '16'], cost: -0.8930919766426086
+[INFO][file_logger.py:201] n_trials: 17, n_function_calls: 17, config: [0.0011178964301, np.str_('gblinear'), 0.0663059041345, 22, np.str_('impute.mean'), 0.9901696617049, '16'], cost: -0.9414471387863159
+[INFO][file_logger.py:201] n_trials: 18, n_function_calls: 18, config: [0.0060899931094, np.str_('gblinear'), 0.0402568305122, 7, np.str_('impute.mean'), 0.9787950013182, '16'], cost: -0.9191755652427673
+[INFO][file_logger.py:201] n_trials: 19, n_function_calls: 19, config: [383.5765405059192, np.str_('gbtree'), 129.9967689850172, 1507, np.str_('impute.median'), 0.2648805851273, '16', 0.3125268262824, 0.5026200083963, 0.2280221884439, 1.1875930835591, 12, 3.505279288078], cost: -0.09746161848306656
+[INFO][file_logger.py:201] n_trials: 20, n_function_calls: 20, config: [0.0411298552294, np.str_('gblinear'), 0.0519531361644, 103, np.str_('impute.mean'), 0.8157302198424, '16'], cost: -0.9239901304244995
+[INFO][file_logger.py:201] n_trials: 21, n_function_calls: 21, config: [0.047197980711, np.str_('dart'), 0.0158372578315, 15, np.str_('impute.hist'), 0.1261361460008, '16', 0.0442761072254, 0.5721688191609, 0.1565642427552, 0.0001539714126, 9, 53.2276746489189, 0.1007351685049, 0.1256007744847], cost: -0.09572558850049973
+[INFO][file_logger.py:201] n_trials: 22, n_function_calls: 22, config: [0.001676836882, np.str_('dart'), 0.1209445698746, 145, np.str_('impute.mean'), 0.9141913051625, '16', 0.3186507026479, 0.1767372334604, 0.2018616250184, 8.09261536e-05, 14, 13.8027678772725, 0.1468882572303, 0.4937444139337], cost: -0.9472307562828064
+[INFO][file_logger.py:201] n_trials: 23, n_function_calls: 23, config: [22.860400146072, np.str_('dart'), 0.3216516515686, 71, np.str_('impute.mean'), 0.610316124217, '16', 0.0394582370097, 0.808241474869, 0.5349266915445, 0.0001610222547, 11, 40.7849619678189, 0.2230008800314, 0.1960271903793], cost: -0.7190485596656799
+[INFO][file_logger.py:201] n_trials: 24, n_function_calls: 24, config: [0.0022157466079, np.str_('dart'), 0.1698216004475, 250, np.str_('impute.mean'), 0.9082843940162, '16', 0.8341625752796, 0.6876838170319, 0.816580314462, 0.0001120892435, 2, 4.8765970760023, 0.4073606983536, 0.3206838248846], cost: -0.8673199415206909
+[INFO][file_logger.py:201] n_trials: 25, n_function_calls: 25, config: [0.0020677151658, np.str_('dart'), 0.1337037623223, 112, np.str_('impute.mean'), 0.9027818739846, '16', 0.8954163772173, 0.9877997259623, 0.0094089879584, 0.0002817017489, 7, 15.3960360670815, 0.4823805888201, 0.4230328813054], cost: -0.8397363424301147
+[INFO][file_logger.py:201] n_trials: 26, n_function_calls: 26, config: [0.0019632308118, np.str_('dart'), 0.07948377038, 1729, np.str_('impute.mean'), 0.9278951560002, '16', 0.4538495001116, 0.3217578797605, 0.0137381880921, 6.7968028329785, 6, 21.1933476232308, 0.6897104146531, 0.0132144906221], cost: -0.8327502012252808
+[INFO][file_logger.py:201] n_trials: 27, n_function_calls: 27, config: [0.001224113651, np.str_('dart'), 0.1588207883746, 1092, np.str_('impute.mean'), 0.9343701870264, '16', 0.9407326661334, 0.0387665345907, 0.0031051928912, 0.0019834938693, 4, 43.9755356375944, 0.250236049508, 0.5647199393334], cost: -0.8678759932518005
+[INFO][file_logger.py:201] n_trials: 28, n_function_calls: 28, config: [0.0021825800828, np.str_('dart'), 0.1366975575022, 854, np.str_('impute.mean'), 0.9232267206385, '16', 0.4702429059637, 0.2275805564492, 0.0017667943263, 0.17571188227, 13, 38.1645483146323, 0.2233747555004, 0.8262020327696], cost: -0.8852397799491882
+[INFO][file_logger.py:201] n_trials: 29, n_function_calls: 29, config: [0.6461432932981, np.str_('gblinear'), 0.1052197097806, 14, np.str_('impute.hist'), 0.4595386089444, '16'], cost: -0.2574608027935028
+[INFO][file_logger.py:201] n_trials: 30, n_function_calls: 30, config: [0.0013176367996, np.str_('gblinear'), 0.0349132256417, 166, np.str_('impute.median'), 0.9814120610897, '16'], cost: -0.9659500122070312
+[INFO][abstract_intensifier.py:630] Added config 844f07 and rejected config 65b6a2 as incumbent because it is not better than the incumbents on 1 instances: 
+[INFO][file_logger.py:201] n_trials: 31, n_function_calls: 31, config: [0.0019305582189, np.str_('gblinear'), 0.0848358495212, 176, np.str_('impute.median'), 0.9524149319332, '16'], cost: -0.9619896411895752
+[INFO][file_logger.py:201] n_trials: 32, n_function_calls: 32, config: [0.0009682510162, np.str_('gblinear'), 0.0321968723076, 559, np.str_('impute.median'), 0.925084655962, '16'], cost: -0.9683407545089722
+[INFO][abstract_intensifier.py:630] Added config df2428 and rejected config 844f07 as incumbent because it is not better than the incumbents on 1 instances: 
+[INFO][file_logger.py:201] n_trials: 33, n_function_calls: 33, config: [0.0016680712202, np.str_('gblinear'), 0.1819867408445, 877, np.str_('impute.hist'), 0.9003039869458, '16'], cost: -0.9534844160079956
+[INFO][file_logger.py:201] n_trials: 34, n_function_calls: 34, config: [0.0019632308118, np.str_('dart'), 0.0506898013915, 1729, np.str_('impute.mean'), 0.8799030317076, '16', 0.2667258520151, 0.4279294010749, 0.0044903207651, 9.31781675e-05, 12, 11.4185324111187, 0.0156888535301, 0.0132144906221], cost: -0.9509598612785339
+[INFO][file_logger.py:201] n_trials: 35, n_function_calls: 35, config: [0.2541440293618, np.str_('gblinear'), 78.3694020510205, 115, np.str_('impute.hist'), 0.5511947698785, '16'], cost: -0.579567551612854
+[INFO][file_logger.py:201] n_trials: 36, n_function_calls: 36, config: [0.0019215204095, np.str_('gblinear'), 0.0248624945108, 2541, np.str_('impute.median'), 0.959303165467, '16'], cost: -0.9654416441917419
+[INFO][file_logger.py:201] n_trials: 37, n_function_calls: 37, config: [0.001056517894, np.str_('dart'), 0.025718160272, 334, np.str_('impute.median'), 0.7981830330163, '16', 0.3493812553855, 0.4279294010749, 0.0473955821259, 9.02195609e-05, 8, 12.1756260019755, 0.1138763000654, 0.0249796670778], cost: -0.9122452139854431
+[INFO][file_logger.py:201] n_trials: 38, n_function_calls: 38, config: [0.0011020960292, np.str_('dart'), 0.0111090010525, 73, np.str_('impute.median'), 0.770111986519, '16', 0.19216090168, 0.947828015746, 0.00214637614, 0.0001396814932, 9, 57.3904800147318, 0.8705214955697, 0.6665325249321], cost: -0.7452945113182068
+[INFO][file_logger.py:201] n_trials: 39, n_function_calls: 39, config: [0.0010058517928, np.str_('dart'), 0.0120145862174, 202, np.str_('impute.median'), 0.8034807193578, '16', 0.0638052559284, 0.858812534529, 0.0565125138744, 8.42657983e-05, 6, 17.023122878618, 0.3116522813668, 0.9372902971091], cost: -0.9612724781036377
+[INFO][file_logger.py:201] n_trials: 40, n_function_calls: 40, config: [0.000994107424, np.str_('dart'), 0.0044329174841, 45, np.str_('impute.hist'), 0.7844166784517, '16', 0.2240639470568, 0.6811855063466, 0.1769266167435, 0.7448809274403, 7, 15.8502493095656, 0.9639575198501, 0.9980248098017], cost: -0.9447029232978821
+[INFO][file_logger.py:201] n_trials: 41, n_function_calls: 41, config: [0.0009653997926, np.str_('gbtree'), 0.0324154823891, 145, np.str_('impute.median'), 0.7734472580931, '16', 0.3329368590478, 0.5886938211737, 0.0272491937219, 0.0013890052076, 12, 2.982877716258], cost: -0.9747728109359741
+[INFO][abstract_intensifier.py:630] Added config 406d90 and rejected config df2428 as incumbent because it is not better than the incumbents on 1 instances: 
+[INFO][file_logger.py:201] n_trials: 42, n_function_calls: 42, config: [0.0009357099608, np.str_('gblinear'), 0.0015572535503, 7, np.str_('impute.hist'), 0.8016516243125, '16'], cost: -0.9390081763267517
+[INFO][file_logger.py:201] n_trials: 43, n_function_calls: 43, config: [0.0009732352686, np.str_('dart'), 0.0043745575722, 44, np.str_('impute.median'), 0.9118018042911, '16', 0.2913147608002, 0.8794233497794, 0.0026286767788, 0.1847661489373, 11, 28.8506826640591, 0.4345260106893, 0.6896348650375], cost: -0.8496980667114258
+[INFO][file_logger.py:201] n_trials: 44, n_function_calls: 44, config: [0.0009266392764, np.str_('gblinear'), 0.0024323417205, 14, np.str_('impute.hist'), 0.9177662989098, '16'], cost: -0.9475234746932983
+[INFO][file_logger.py:201] n_trials: 45, n_function_calls: 45, config: [0.001056517894, np.str_('dart'), 0.0236816906193, 1555, np.str_('impute.hist'), 0.7590399134033, '16', 0.2838226519257, 0.0904770623127, 0.0728689688603, 0.0020334980497, 14, 12.1756260019755, 0.2070303105906, 0.3755970489355], cost: -0.9614558219909668
+[INFO][file_logger.py:201] n_trials: 46, n_function_calls: 46, config: [0.0011991864577, np.str_('gbtree'), 123.172100684488, 12, np.str_('impute.hist'), 0.7310279919044, '16', 0.2713438056404, 0.4384432082572, 0.013758764971, 0.0593923549644, 5, 33.5101154660396], cost: -0.8169409036636353
+[INFO][file_logger.py:201] n_trials: 47, n_function_calls: 47, config: [0.0010058517928, np.str_('dart'), 0.0299963525576, 383, np.str_('impute.hist'), 0.7748606376995, '16', 0.0864154819526, 0.8528223504699, 0.0565125138744, 0.000986442022, 13, 14.8630355617981, 0.2286991354649, 0.9636821814909], cost: -0.9646593928337097
+[INFO][file_logger.py:201] n_trials: 48, n_function_calls: 48, config: [0.0014692207771, np.str_('gbtree'), 0.0086514043431, 1025, np.str_('impute.hist'), 0.481336991887, '16', 0.2910450993796, 0.8360548862841, 0.0115284254664, 1.2842988308076, 13, 5.3022167964688], cost: -0.9702079892158508
+[INFO][file_logger.py:201] n_trials: 49, n_function_calls: 49, config: [0.0010700348176, np.str_('dart'), 0.0056405411493, 363, np.str_('impute.median'), 0.605400468809, '16', 0.1853432359784, 0.7318631716704, 0.6256613264204, 0.0034375063035, 15, 14.0607067430581, 0.3313544394662, 0.5930726061352], cost: -0.9034988284111023
+[INFO][file_logger.py:201] n_trials: 50, n_function_calls: 50, config: [0.0010726292096, np.str_('dart'), 0.0034762690444, 619, np.str_('impute.hist'), 0.2730574691095, '16', 0.3156352937803, 0.0651179018569, 0.0080598560769, 0.0057909009541, 15, 12.5740322989258, 0.3930338592182, 0.6457575300653], cost: -0.8776692152023315
+Solution found: 
+(
+    TrialInfo(
+        config=Configuration(values={
+  'alpha': 0.0009653997926,
+  'booster': np.str_('gbtree'),
+  'lambda': 0.0324154823891,
+  'nrounds': 145,
+  'num.impute.selected.cpo': np.str_('impute.median'),
+  'subsample': 0.7734472580931,
+  'task_id': '16',
+  'colsample_bylevel': 0.3329368590478,
+  'colsample_bytree': 0.5886938211737,
+  'eta': 0.0272491937219,
+  'gamma': 0.0013890052076,
+  'max_depth': 12,
+  'min_child_weight': 2.982877716258,
+}),
+        instance=None,
+        seed=None,
+        budget=None,
+        normalized_budget=None,
+        name=None,
+        checkpoint=None,
+        additional_info={}
+    ),
+    TrialValue(
+        cost=-0.9747728109359741,
+        time=0.0,
+        virtual_time=0.0,
+        status=<StatusType.SUCCESS: 1>,
+        starttime=0.0,
+        endtime=0.0,
+        additional_info={}
+    )
+)
+==================================================
+BENCHMARK SWEEP STEP COMPLETED SUCCESSFULLY!
+==================================================
+==================================================
+Array Task Index 1033 Finished
+==================================================
