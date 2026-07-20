@@ -1,7 +1,11 @@
 import os
 import re
+import glob
 import json
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 def parse_telemetry_directory(results_dir="results"):
     """
@@ -13,39 +17,28 @@ def parse_telemetry_directory(results_dir="results"):
     if not os.path.exists(results_dir):
         return results
 
-    # Pattern for telemetry filenames: telemetry_{approach}_{task_name}_seed{seed}.json
-    # Note: task_name can contain underscores (e.g., cfg_ml_svm_12, cfg_lcbench_167168)
     filename_pattern = re.compile(
         r"^telemetry_(?P<approach>.+?)_(?P<task>cfg_.+?)_seed(?P<seed>\d+)\.json$"
     )
 
-
     for filename in os.listdir(results_dir):
-        if not filename.endswith(".json"):
+        if not filename.endswith(".json") or not filename.startswith("telemetry_"):
             continue
+        filepath = os.path.join(results_dir, filename)
+        
         match = filename_pattern.match(filename)
-        if not match:
-            # Fall back to checking content task_name if format differs slightly
-            filepath = os.path.join(results_dir, filename)
+        if match:
+            meta = match.groupdict()
+            task = meta["task"]
+            approach = meta["approach"]
+        else:
             try:
                 with open(filepath, "r") as f:
                     content = json.load(f)
                 task = content.get("task_name", "unknown").replace("/", "_")
                 approach = content.get("extractor_name", "unknown")
-                trials = content.get("trials", [])
-                if not trials:
-                    continue
-                best_cost = min(t["cost"] for t in trials)
-                
-                results.setdefault(task, {}).setdefault(approach, []).append(best_cost)
             except Exception:
-                pass
-            continue
-
-        meta = match.groupdict()
-        task = meta["task"]
-        approach = meta["approach"]
-        filepath = os.path.join(results_dir, filename)
+                continue
 
         try:
             with open(filepath, "r") as f:
@@ -60,43 +53,365 @@ def parse_telemetry_directory(results_dir="results"):
 
     return results
 
-def main():
-    results = parse_telemetry_directory("results")
-    if not results:
-        print("No CARP-S telemetry results found in results/")
-        return
+def parse_array_logs(results_dir="results"):
+    """
+    Extracts the final cost value, task, approach, and seed out of each array_*.log file.
+    Returns:
+        dict: {task: {approach: {seed: final_cost}}}
+    """
+    final_costs = {}
+    if not os.path.exists(results_dir):
+        return final_costs
+
+    log_files = glob.glob(os.path.join(results_dir, "array_*.log"))
+
+    for file_path in log_files:
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except Exception:
+            continue
+
+        arg_match = re.search(r"Running arguments:\s+(.*)", content)
+        if not arg_match:
+            continue
+        args = arg_match.group(1)
+
+        # Task extraction
+        task_match = re.search(r"\+task/[^=\s]+=([^\s]+)", args)
+        if not task_match:
+            task_match = re.search(r"ml=([^\s]+)", args)
+        if not task_match:
+            task_match = re.search(r"\+task/YAHPO/SO=([^\s]+)", args)
+        if not task_match:
+            continue
+        task = task_match.group(1)
+
+        # Seed extraction
+        seed_match = re.search(r"\bseed=(\d+)", args)
+        if not seed_match:
+            continue
+        seed = int(seed_match.group(1))
+
+        # Approach extraction
+        if "smac20" in args:
+            approach = "smac3_bo"
+        else:
+            app_match = re.search(r"optimizer\.extractor_name=(\w+)", args)
+            if app_match:
+                approach = app_match.group(1)
+            else:
+                continue
+
+        # Extract final cost
+        cost = None
+        sol_match = re.search(r"Solution found:.*?TrialValue\(\s*cost=([0-9\.e\-\+]+)", content, re.DOTALL)
+        if sol_match:
+            cost = float(sol_match.group(1))
+        else:
+            # Fallback to telemetry or trial cost logs
+            costs = re.findall(r"cost:\s*([0-9\.\-+e]+)", content)
+            if costs:
+                cost = min(float(c) for c in costs)
+            else:
+                telem_match = re.search(r"optimizer\.telemetry_path=(\S+)", args)
+                if telem_match and os.path.exists(telem_match.group(1)):
+                    try:
+                        with open(telem_match.group(1), "r") as tf:
+                            tdata = json.load(tf)
+                        trials = tdata.get("trials", [])
+                        if trials:
+                            cost = min(t["cost"] for t in trials)
+                    except Exception:
+                        pass
+
+        if cost is not None:
+            final_costs.setdefault(task, {}).setdefault(approach, {})[seed] = cost
+
+    return final_costs
+
+def parse_bo_histories(results_dir="results"):
+    """
+    Parses trial cost history for each benchmark task, approach, and seed.
+    Uses telemetry JSON files when available, and array logs as fallback (e.g. for smac3_bo).
+    Returns:
+        dict: {task: {approach: {seed: [cost_0, cost_1, ...]}}}
+    """
+    bo_histories = {}
+    if not os.path.exists(results_dir):
+        return bo_histories
+
+    # 1. Parse telemetry files
+    telemetry_files = glob.glob(os.path.join(results_dir, "telemetry_*.json"))
+    filename_pattern = re.compile(
+        r"^telemetry_(?P<approach>.+?)_(?P<task>cfg_.+?)_seed(?P<seed>\d+)\.json$"
+    )
+
+    for file_path in telemetry_files:
+        filename = os.path.basename(file_path)
+        match = filename_pattern.match(filename)
+        if not match:
+            continue
+        meta = match.groupdict()
+        task = meta["task"]
+        approach = meta["approach"]
+        seed = int(meta["seed"])
+
+        try:
+            with open(file_path, "r") as f:
+                tdata = json.load(f)
+            trials = tdata.get("trials", [])
+            if not trials:
+                continue
+            # Sort trials by trial_idx
+            sorted_trials = sorted(trials, key=lambda x: x.get("trial_idx", 0))
+            costs = [t["cost"] for t in sorted_trials]
+            bo_histories.setdefault(task, {}).setdefault(approach, {})[seed] = costs
+        except Exception as e:
+            print(f"Error reading telemetry {filename}: {e}")
+
+    # 2. Parse array logs for approaches missing telemetry (e.g. smac3_bo)
+    log_files = glob.glob(os.path.join(results_dir, "array_*.log"))
+    for file_path in log_files:
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+        except Exception:
+            continue
+
+        arg_match = re.search(r"Running arguments:\s+(.*)", content)
+        if not arg_match:
+            continue
+        args = arg_match.group(1)
+
+        task_match = re.search(r"\+task/[^=\s]+=([^\s]+)", args)
+        if not task_match:
+            task_match = re.search(r"ml=([^\s]+)", args)
+        if not task_match:
+            task_match = re.search(r"\+task/YAHPO/SO=([^\s]+)", args)
+        if not task_match:
+            continue
+        task = task_match.group(1)
+
+        seed_match = re.search(r"\bseed=(\d+)", args)
+        if not seed_match:
+            continue
+        seed = int(seed_match.group(1))
+
+        if "smac20" in args:
+            approach = "smac3_bo"
+        else:
+            app_match = re.search(r"optimizer\.extractor_name=(\w+)", args)
+            approach = app_match.group(1) if app_match else None
+
+        if not approach:
+            continue
+
+        # Check if already present from telemetry
+        if task in bo_histories and approach in bo_histories[task] and seed in bo_histories[task][approach]:
+            continue
+
+        # Extract costs sequence from log file
+        costs = [float(c) for c in re.findall(r"cost:\s*([0-9\.\-+e]+)", content)]
+        if costs:
+            bo_histories.setdefault(task, {}).setdefault(approach, {})[seed] = costs
+
+    return bo_histories
+
+def compute_anytime_stats(seed_histories):
+    """
+    Computes the mean incumbent trajectory and standard error across seeds.
+    Args:
+        seed_histories (dict): {seed: [cost_0, cost_1, ...]}
+    Returns:
+        tuple: (trial_indices, mean_incumbents, standard_errors)
+    """
+    if not seed_histories:
+        return np.array([]), np.array([]), np.array([])
+
+    # Compute incumbent trajectory per seed
+    incumbent_trajectories = []
+    max_len = max(len(costs) for costs in seed_histories.values())
+
+    for seed, costs in seed_histories.items():
+        if not costs:
+            continue
+        incumbent = np.minimum.accumulate(costs)
+        if len(incumbent) < max_len:
+            # Pad with last known incumbent value
+            incumbent = np.pad(incumbent, (0, max_len - len(incumbent)), mode='edge')
+        incumbent_trajectories.append(incumbent)
+
+    incumbent_matrix = np.array(incumbent_trajectories) # shape: (n_seeds, max_len)
+    n_seeds = incumbent_matrix.shape[0]
+
+    mean_traj = np.mean(incumbent_matrix, axis=0)
+    if n_seeds > 1:
+        std_traj = np.std(incumbent_matrix, axis=0, ddof=1)
+        se_traj = std_traj / np.sqrt(n_seeds)
+    else:
+        se_traj = np.zeros_like(mean_traj)
+
+    trial_indices = np.arange(1, max_len + 1)
+    return trial_indices, mean_traj, se_traj
+
+def generate_benchmark_tables(final_costs, output_dir="results/carps_summary"):
+    """
+    Generates comparison tables per benchmark and a summary markdown report.
+    Args:
+        final_costs (dict): {task: {approach: {seed: cost}}}
+        output_dir (str): directory to save tables and report
+    Returns:
+        str: full markdown report string
+    """
+    tables_dir = os.path.join(output_dir, "tables")
+    os.makedirs(tables_dir, exist_ok=True)
 
     report_lines = []
-    report_lines.append("# CARP-S Optimization Sweep Summary Report\n")
-    report_lines.append("This report summarizes the performance (minimum cost reached in 50 trials) for 7 dynamic Random Forest UQ approaches across 6 HPOBench tasks, aggregated across 5 seeds.\n")
+    report_lines.append("# CARP-S Optimization Benchmark Summary Report\n")
+    report_lines.append("This report presents the final cost comparison across different BO approaches and Dynamic RF UQ extractors for CARP-S benchmarks.\n")
 
-    for task_name in sorted(results.keys()):
-        report_lines.append(f"## Task: {task_name}\n")
-        report_lines.append("| Approach | Mean Best Cost | Std Dev | Finished Seeds | Best Individual Cost |")
-        report_lines.append("| --- | --- | --- | --- | --- |")
+    for task_name in sorted(final_costs.keys()):
+        approaches = final_costs[task_name]
+        report_lines.append(f"## Benchmark Task: `{task_name}`\n")
+        report_lines.append("| Approach | Mean Final Cost | Std Dev | Std Error | Finished Seeds | Best Seed Cost | Worst Seed Cost |")
+        report_lines.append("| --- | --- | --- | --- | --- | --- | --- |")
 
-        # Sort approaches by mean best cost (lower cost is better)
+        csv_lines = ["Approach,Mean_Final_Cost,Std_Dev,Std_Error,Finished_Seeds,Best_Cost,Worst_Cost"]
+
         approaches_perf = []
-        for approach, costs in results[task_name].items():
-            mean_cost = np.mean(costs)
-            std_cost = np.std(costs)
-            best_cost = np.min(costs)
-            approaches_perf.append((approach, mean_cost, std_cost, len(costs), best_cost))
+        for app_name, seed_dict in approaches.items():
+            costs = list(seed_dict.values())
+            if not costs:
+                continue
+            mean_c = float(np.mean(costs))
+            std_c = float(np.std(costs, ddof=1)) if len(costs) > 1 else 0.0
+            se_c = std_c / np.sqrt(len(costs)) if len(costs) > 1 else 0.0
+            best_c = float(np.min(costs))
+            worst_c = float(np.max(costs))
+            n_seeds = len(costs)
 
+            approaches_perf.append((app_name, mean_c, std_c, se_c, n_seeds, best_c, worst_c))
+
+        # Sort by mean cost ascending (lower cost = better performance)
         approaches_perf.sort(key=lambda x: x[1])
 
-        for app, mean, std, n_seeds, best in approaches_perf:
-            report_lines.append(f"| {app} | {mean:.5f} | {std:.5f} | {n_seeds}/5 | {best:.5f} |")
-        report_lines.append("")
+        for app_name, mean_c, std_c, se_c, n_seeds, best_c, worst_c in approaches_perf:
+            report_lines.append(
+                f"| `{app_name}` | {mean_c:.6f} | {std_c:.6f} | {se_c:.6f} | {n_seeds}/5 | {best_c:.6f} | {worst_c:.6f} |"
+            )
+            csv_lines.append(f"{app_name},{mean_c:.6f},{std_c:.6f},{se_c:.6f},{n_seeds}/5,{best_c:.6f},{worst_c:.6f}")
+
+        report_lines.append("\n")
+
+        # Write CSV table for this benchmark
+        csv_path = os.path.join(tables_dir, f"{task_name}_comparison.csv")
+        with open(csv_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(csv_lines))
 
     report_content = "\n".join(report_lines)
-    print(report_content)
-
-    # Save to summary_report.md
-    report_path = "results/summary_report.md"
-    with open(report_path, "w") as f:
+    summary_path = os.path.join(output_dir, "summary_report.md")
+    with open(summary_path, "w", encoding="utf-8") as f:
         f.write(report_content)
-    print(f"Summary report written to {report_path}")
+
+    print(f"Benchmark tables and summary report written to {summary_path}")
+    return report_content
+
+def generate_anytime_plots(bo_histories, output_dir="results/carps_summary"):
+    """
+    Generates anytime performance plots for every benchmark task.
+    Plots every approach into the same plot per benchmark.
+    Uses right-continuous step functions (where='post' / step='post') for non-continuous progress.
+    Args:
+        bo_histories (dict): {task: {approach: {seed: [cost_0, cost_1, ...]}}}
+        output_dir (str): directory to save plots
+    Returns:
+        list: paths of generated plot files
+    """
+    plots_dir = os.path.join(output_dir, "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+
+    created_plots = []
+
+    # Distinct color palette for up to 8 approaches
+    colors = [
+        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
+        "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"
+    ]
+
+    for task_name in sorted(bo_histories.keys()):
+        approaches = bo_histories[task_name]
+        if not approaches:
+            continue
+
+        fig, ax = plt.subplots(figsize=(10, 6), dpi=300)
+
+        for i, app_name in enumerate(sorted(approaches.keys())):
+            seed_histories = approaches[app_name]
+            trial_indices, mean_traj, se_traj = compute_anytime_stats(seed_histories)
+            if len(trial_indices) == 0:
+                continue
+
+            color = colors[i % len(colors)]
+
+            # Step plot (non-continuous from the left side -> right-continuous step function `where='post'`)
+            ax.step(
+                trial_indices,
+                mean_traj,
+                where="post",
+                label=app_name,
+                color=color,
+                linewidth=2.0,
+            )
+
+            # Shaded standard error band (step='post')
+            ax.fill_between(
+                trial_indices,
+                mean_traj - se_traj,
+                mean_traj + se_traj,
+                step="post",
+                color=color,
+                alpha=0.18,
+            )
+
+        ax.set_title(f"Anytime Performance: {task_name}", fontsize=14, fontweight="bold", pad=12)
+        ax.set_xlabel("BO Trial Index / Function Evaluations", fontsize=12)
+        ax.set_ylabel("Incumbent Cost (Lower is Better)", fontsize=12)
+        ax.grid(True, linestyle="--", alpha=0.5)
+        ax.legend(title="Approach", bbox_to_anchor=(1.04, 1), loc="upper left", frameon=True)
+
+        fig.tight_layout()
+
+        png_path = os.path.join(plots_dir, f"{task_name}_anytime.png")
+        pdf_path = os.path.join(plots_dir, f"{task_name}_anytime.pdf")
+        fig.savefig(png_path)
+        fig.savefig(pdf_path)
+        plt.close(fig)
+
+        created_plots.append(png_path)
+
+    print(f"Generated {len(created_plots)} anytime performance plots in {plots_dir}")
+    return created_plots
+
+def main():
+    results_dir = "results"
+    output_dir = "results/carps_summary"
+
+    print("Extracting final costs from array logs...")
+    final_costs = parse_array_logs(results_dir)
+    print(f"Found final costs for {len(final_costs)} benchmark tasks.")
+
+    print("Generating benchmark comparison tables and summary report...")
+    generate_benchmark_tables(final_costs, output_dir)
+
+    print("Parsing BO run histories for anytime performance...")
+    bo_histories = parse_bo_histories(results_dir)
+    print(f"Parsed BO histories for {len(bo_histories)} benchmark tasks.")
+
+    print("Creating anytime performance step plots...")
+    generate_anytime_plots(bo_histories, output_dir)
+
+    print("CARP-S analysis complete! Output saved in:", output_dir)
 
 if __name__ == "__main__":
     main()

@@ -66,9 +66,10 @@ class CARPSDynamicRFOptimizer(Optimizer):
         self.telemetry_records: List[dict] = []
         
         self.surrogate = None
+        self.initial_design_configs: List[Configuration] = []
 
     def _setup_optimizer(self) -> DynamicRFSurrogate:
-        """Initializes the Dynamic RF surrogate model."""
+        """Initializes the Dynamic RF surrogate model and Sobol initial design."""
         self.surrogate = DynamicRFSurrogate(
             extractor_name=self.extractor_name,
             window_size=self.window_size,
@@ -83,6 +84,27 @@ class CARPSDynamicRFOptimizer(Optimizer):
             extractor_kwargs=self.extractor_kwargs,
             rf_kwargs=self.rf_kwargs
         )
+        
+        # Setup SobolInitialDesign matching SMAC3
+        try:
+            import copy
+            from smac.initial_design.sobol_design import SobolInitialDesign
+            from smac.scenario import Scenario
+
+            seed = getattr(self.task, "seed", None)
+            if seed is None and hasattr(self.task, "objective_function"):
+                seed = getattr(self.task.objective_function, "seed", None)
+            if seed is None:
+                seed = 0
+            
+            n_trials = getattr(getattr(self.task, "optimization_resources", None), "n_trials", 50) or 50
+            scenario = Scenario(configspace=copy.deepcopy(self.configspace), seed=seed, n_trials=n_trials)
+            sobol = SobolInitialDesign(scenario=scenario, n_configs=self.n_init)
+            self.initial_design_configs = sobol.select_configurations()
+        except Exception as e:
+            print(f"Warning: Failed to initialize SobolInitialDesign ({e}), falling back to ConfigSpace sampling.")
+            self.initial_design_configs = []
+
         return self.surrogate
 
     def convert_configspace(self, configspace: ConfigurationSpace) -> SearchSpace:
@@ -106,8 +128,11 @@ class CARPSDynamicRFOptimizer(Optimizer):
             self.setup_optimizer()
             
         if len(self.history) < self.n_init:
-            # Warmstart / Initial random sampling
-            config = self.configspace.sample_configuration()
+            # Warmstart / Initial Sobol sampling matching SMAC3
+            if len(self.history) < len(self.initial_design_configs):
+                config = self.initial_design_configs[len(self.history)]
+            else:
+                config = self.configspace.sample_configuration()
             return self.convert_to_trial(config)
             
         # Bayesian Optimization phase

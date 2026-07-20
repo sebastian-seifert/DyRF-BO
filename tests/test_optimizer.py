@@ -18,8 +18,9 @@ class MockObjectiveFunction:
         self.configspace = cs
 
 class MockTask:
-    def __init__(self, cs, name="mock_task"):
+    def __init__(self, cs, name="mock_task", seed=42):
         self.name = name
+        self.seed = seed
         self.objective_function = MockObjectiveFunction(cs)
         self.optimization_resources = OptimizationResources(n_trials=50, time_budget=None)
 
@@ -31,12 +32,13 @@ class TestCARPSDynamicRFOptimizer(unittest.TestCase):
         model = Categorical("model", ["rf", "svm"])
         rf_depth = Float("rf_depth", (1.0, 10.0), default=5.0)
         svm_gamma = Float("svm_gamma", (0.01, 1.0), default=0.1)
-        self.cs.add_hyperparameters([model, rf_depth, svm_gamma])
-        self.cs.add_conditions([
+        self.cs.add([model, rf_depth, svm_gamma])
+        self.cs.add([
             EqualsCondition(rf_depth, model, "rf"),
             EqualsCondition(svm_gamma, model, "svm")
         ])
-        self.task = MockTask(self.cs)
+
+        self.task = MockTask(self.cs, seed=42)
 
     def test_nan_imputation_hierarchical_spaces(self):
         opt = CARPSDynamicRFOptimizer(task=self.task, n_init=2, telemetry_path=None)
@@ -64,6 +66,40 @@ class TestCARPSDynamicRFOptimizer(unittest.TestCase):
         # Asking for next trial should fallback to random candidate selection without crashing
         next_trial = opt.ask()
         self.assertIsNotNone(next_trial.config)
+
+    def test_sobol_initial_design(self):
+        import copy
+        from smac.initial_design.sobol_design import SobolInitialDesign
+        from smac.scenario import Scenario
+        
+        seed = 42
+        np.random.seed(seed)
+        cs = ConfigurationSpace(seed=seed)
+        model = Categorical("model", ["rf", "svm"])
+        rf_depth = Float("rf_depth", (1.0, 10.0), default=5.0)
+        svm_gamma = Float("svm_gamma", (0.01, 1.0), default=0.1)
+        cs.add([model, rf_depth, svm_gamma])
+        cs.add([
+            EqualsCondition(rf_depth, model, "rf"),
+            EqualsCondition(svm_gamma, model, "svm")
+        ])
+        task = MockTask(cs, seed=seed)
+        
+        opt = CARPSDynamicRFOptimizer(task=task, n_init=5, telemetry_path=None)
+        sampled_configs = []
+        for _ in range(5):
+            trial_info = opt.ask()
+            sampled_configs.append(trial_info.config)
+            opt.tell(trial_info, TrialValue(cost=1.0, virtual_time=0.1))
+        
+        np.random.seed(seed)
+        scenario = Scenario(configspace=copy.deepcopy(cs), seed=seed, n_trials=50)
+        sobol_design = SobolInitialDesign(scenario=scenario, n_configs=5)
+        expected_configs = sobol_design.select_configurations()
+        
+        self.assertEqual(len(sampled_configs), 5)
+        for expected, sampled in zip(expected_configs, sampled_configs):
+            self.assertEqual(dict(expected), dict(sampled))
 
 if __name__ == "__main__":
     unittest.main()
