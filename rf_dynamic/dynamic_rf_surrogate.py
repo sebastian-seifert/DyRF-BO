@@ -76,10 +76,9 @@ class DynamicRFSurrogate:
         )
         self.extractor.fit(X, y)
 
-    def predict(self, X: np.ndarray):
+    def predict(self, X: np.ndarray, uncertainty_type: str = "epistemic"):
         """
-        Predicts mean and returns the standard disagreement (standard deviation) 
-        as the uncertainty value.
+        Predicts mean and returns requested uncertainty metric ('epistemic' signal or 'total' standard disagreement).
         Also extracts the epistemic uncertainty signal of the selected approach 
         to trigger parameter updates in the sliding window adaptor.
         """
@@ -94,17 +93,21 @@ class DynamicRFSurrogate:
         # Update sliding window adaptor (updates RF hyperparameters internally)
         _ = self.adaptor.update_and_normalize(raw_signals, n_samples=self.n_samples)
         
-        # Compute standard disagreement (standard deviation) of the forest for acquisition function
-        X_test = np.atleast_2d(X)
-        all_test_leaf_ids = self.model.apply(X_test)
-        n_samples = X_test.shape[0]
-        n_trees = len(self.model.estimators_)
-        
-        tree_preds = np.zeros((n_trees, n_samples))
-        for t, estimator in enumerate(self.model.estimators_):
-            tree_preds[t, :] = estimator.tree_.value[all_test_leaf_ids[:, t], 0, 0]
+        if uncertainty_type == "epistemic":
+            return preds, raw_signals
+        elif uncertainty_type == "total":
+            # Compute standard disagreement (standard deviation) of the forest for acquisition function
+            X_test = np.atleast_2d(X)
+            all_test_leaf_ids = self.model.apply(X_test)
+            n_samples = X_test.shape[0]
+            n_trees = len(self.model.estimators_)
             
-        # Standard deviation of the tree predictions
-        std_disagreement = np.std(tree_preds, axis=0)
-        
-        return preds, std_disagreement
+            tree_preds = np.zeros((n_trees, n_samples))
+            for t, estimator in enumerate(self.model.estimators_):
+                tree_preds[t, :] = estimator.tree_.value[all_test_leaf_ids[:, t], 0, 0]
+                
+            # Standard deviation of the tree predictions
+            std_disagreement = np.std(tree_preds, axis=0)
+            return preds, std_disagreement
+        else:
+            raise ValueError(f"Unknown uncertainty_type '{uncertainty_type}'. Must be 'epistemic' or 'total'.")

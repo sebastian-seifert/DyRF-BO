@@ -1,5 +1,22 @@
 # Gemini Sessions Log
 
+## Session: 2026-07-21 (Epistemic EI Acquisition Function Implementation & Cluster Sweep Setup)
+* **Goal**: Replace total uncertainty ($\sigma_{\text{disagreement}}$) in Expected Improvement (EI) acquisition function with pure epistemic uncertainty ($\sigma_{\text{ep}}$) across all UQ extractors, test under strict TDD, and set up cluster sweeps vs. basic SMAC3 BO.
+
+### Accomplishments
+1. **Branch Management**: Created isolated feature branch `feat/epistemic-ei-acq`.
+2. **TDD Unit Testing Suite**:
+   - Created `tests/test_epistemic_acquisition.py` verifying `DynamicRFSurrogate.predict(X, uncertainty_type="epistemic"|"total")`, `CARPSDynamicRFOptimizer` with `acq_uncertainty_type="epistemic"`, zero-uncertainty boundary conditions, and compatibility across all 8 registered extractors.
+   - Created `tests/test_generate_epistemic_ei_array_tasks.py` verifying SLURM cluster array task generation.
+3. **Surrogate & Optimizer Epistemic EI Integration**:
+   - Refactored `DynamicRFSurrogate.predict(X, uncertainty_type)` in `rf_dynamic/dynamic_rf_surrogate.py` to return raw epistemic signals directly when `uncertainty_type="epistemic"`.
+   - Updated `CARPSDynamicRFOptimizer.__init__` and `ask()` in `carps_integration/optimizer.py` to compute EI using `acq_uncertainty_type`.
+4. **CARP-S Hydra Configs & Array Sweep Scripting**:
+   - Created CARP-S hydra configs `carps_integration/configs/optimizer/dyrf_epistemic_ei.yaml` and `carps_integration/configs/optimizer/dyrf_total_ei.yaml`.
+   - Created array generator `scripts/generate_epistemic_ei_array_tasks.py` generating 2,210 array task lines across 26 benchmark tasks, 8 UQ extractors, 2 acquisition modes (`epistemic` vs `total`), 5 random seeds, and baseline SMAC3 BO.
+   - Created SLURM script `scripts/submit_epistemic_ei_array.sbatch` (`#SBATCH --array=1-2210%15`).
+5. **Full Test Suite Verification**: Ran `./run_tests.sh` and confirmed all 35 test modules pass 100%.
+
 ## Session: 2026-07-21 (CARP-S 1,040 Array Sweep Execution Analysis & Report Generation)
 * **Goal**: Analyze overnight CARP-S benchmark array sweep results across 1,040 Slurm array tasks, extract execution duration, add CLI `--results_dir` and `--output_dir` arguments to the analysis script under TDD, and generate a new summary subfolder `results/carps_summary_21072026/`.
 
