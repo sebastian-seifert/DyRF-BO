@@ -294,3 +294,110 @@ def get_15d_functions():
         }
     }
     return functions
+
+
+def branin_func(x1, x2):
+    """
+    Branin-Hoo 2D benchmark function.
+    Inputs in [0, 10] mapped to x1_real in [-5, 10] and x2_real in [0, 15].
+    Global minimum value f(x*) = 0.397887.
+    """
+    x1_real = x1 - 5.0
+    x2_real = 1.5 * x2
+    a = 1.0
+    b = 5.1 / (4.0 * np.pi**2)
+    c = 5.0 / np.pi
+    r = 6.0
+    s = 10.0
+    t = 1.0 / (8.0 * np.pi)
+    return a * (x2_real - b * x1_real**2 + c * x1_real - r)**2 + s * (1.0 - t) * np.cos(x1_real) + s
+
+
+def hartmann3_func(x1, x2, x3):
+    """
+    Hartmann 3D benchmark function.
+    Inputs x_j in [0, 1]. Global minimum value f(x*) = -3.86278.
+    """
+    alpha = np.array([1.0, 1.2, 3.0, 3.2])
+    A = np.array([
+        [3.0, 10.0, 30.0],
+        [0.1, 10.0, 35.0],
+        [3.0, 10.0, 30.0],
+        [0.1, 10.0, 35.0]
+    ])
+    P = 1e-4 * np.array([
+        [3689, 1170, 2673],
+        [4699, 4387, 7470],
+        [1091, 8732, 5547],
+        [3815, 7636, 3165]
+    ])
+    
+    x1_arr = np.asarray(x1)
+    x2_arr = np.asarray(x2)
+    x3_arr = np.asarray(x3)
+    
+    X = np.stack([x1_arr, x2_arr, x3_arr], axis=-1)
+    res = np.zeros(X.shape[:-1], dtype=np.float64)
+    for i in range(4):
+        diff = X - P[i]
+        res += alpha[i] * np.exp(-np.sum(A[i] * diff**2, axis=-1))
+    return -res
+
+
+def hartmann6_func(x1, x2, x3, x4, x5, x6):
+    """
+    Hartmann 6D benchmark function.
+    Inputs x_j in [0, 1]. Global minimum value f(x*) = -3.32237.
+    """
+    alpha = np.array([1.0, 1.2, 3.0, 3.2])
+    A = np.array([
+        [10.0, 3.0, 17.0, 3.5, 1.7, 8.0],
+        [0.05, 10.0, 17.0, 0.1, 8.0, 14.0],
+        [3.0, 3.5, 1.7, 10.0, 17.0, 8.0],
+        [17.0, 8.0, 0.05, 10.0, 0.1, 14.0]
+    ])
+    P = 1e-4 * np.array([
+        [1312, 1696, 5569, 124, 8283, 5886],
+        [2329, 4135, 8307, 3736, 1004, 9991],
+        [2348, 1451, 3522, 2883, 3047, 6650],
+        [4047, 8828, 8732, 5743, 1091, 381]
+    ])
+    
+    x1_arr = np.asarray(x1)
+    x2_arr = np.asarray(x2)
+    x3_arr = np.asarray(x3)
+    x4_arr = np.asarray(x4)
+    x5_arr = np.asarray(x5)
+    x6_arr = np.asarray(x6)
+    
+    X = np.stack([x1_arr, x2_arr, x3_arr, x4_arr, x5_arr, x6_arr], axis=-1)
+    res = np.zeros(X.shape[:-1], dtype=np.float64)
+    for i in range(4):
+        diff = X - P[i]
+        res += alpha[i] * np.exp(-np.sum(A[i] * diff**2, axis=-1))
+    return -res
+
+
+def get_branin_hartmann_functions():
+    """
+    Returns dedicated dictionary containing classic Branin (2D), Hartmann-3D,
+    and Hartmann-6D benchmark functions for BO and UQ evaluation.
+    """
+    functions = {
+        "branin": {
+            "func": branin_func,
+            "gap": (4, 6),
+            "range": (0, 10),
+        },
+        "hartmann3": {
+            "func": hartmann3_func,
+            "gap": (0.4, 0.6),
+            "range": (0, 1),
+        },
+        "hartmann6": {
+            "func": hartmann6_func,
+            "gap": (0.4, 0.6),
+            "range": (0, 1),
+        }
+    }
+    return functions

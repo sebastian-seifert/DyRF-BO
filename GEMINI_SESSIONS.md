@@ -1,5 +1,17 @@
 # Gemini Sessions Log
 
+## Session: 2026-07-21 (Branin & Hartmann Synthetic Benchmark Functions Integration)
+* **Goal**: Implement dedicated `get_branin_hartmann_functions()` generator in `synthetic_functions.py` defining classic Branin (2D), Hartmann-3D, and Hartmann-6D benchmark functions for BO and UQ evaluation without modifying existing synthetic function getters or benchmark scripts.
+
+### Accomplishments
+1. **Branin & Hartmann Implementations**:
+   - Added vectorized `branin_func`, `hartmann3_func`, and `hartmann6_func` in `synthetic_functions.py`.
+   - Added dedicated generator `get_branin_hartmann_functions()` returning function metadata, bounds, and OOD gap specifications.
+2. **TDD Unit Testing Suite**:
+   - Created `tests/test_branin_hartmann.py` asserting global minimum values $f(\mathbf{x}^*)$ and `data_generator.py` compatibility across all 3 functions.
+3. **Full Test Suite Verification**:
+   - Ran `./run_tests.sh` confirming all 37 test modules passed 100%.
+
 ## Session: 2026-07-21 (Dynamic Lambda OOM Refactoring & Parity Validation)
 * **Goal**: Refactor `GPUProximityRegressionUQ.compute_oob_nll` to eliminate unbatched 3D tensor allocations of shape $(N_{\text{train}}, N_{\text{train}}, N_{\text{estimators}})$ that cause GPU/Host OOM, implement memory-safe row-chunked batching, and verify parity under strict TDD.
 
