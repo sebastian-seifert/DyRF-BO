@@ -11,7 +11,7 @@ class TestEvaluateOODDynamicLambda(unittest.TestCase):
     def test_run_ood_evaluation_hypercube_and_manifold(self):
         # Run a quick evaluation with 1 seed on sin_1d for both ood_types
         results = run_ood_evaluation(
-            funcs=["sin_1d"],
+            funcs=["sin"],
             seeds=[42],
             ood_types=["hypercube", "manifold"],
             gap_types=["empty"]
@@ -20,8 +20,8 @@ class TestEvaluateOODDynamicLambda(unittest.TestCase):
         self.assertIn("manifold", results)
         
         for ood_type in ["hypercube", "manifold"]:
-            self.assertIn("sin_1d", results[ood_type])
-            func_res = results[ood_type]["sin_1d"]
+            self.assertIn("sin", results[ood_type])
+            func_res = results[ood_type]["sin"]
             self.assertIn("standard_rf", func_res)
             self.assertIn("proximity_auto_lambda", func_res)
             

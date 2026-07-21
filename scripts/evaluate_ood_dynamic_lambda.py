@@ -22,36 +22,33 @@ from metrics import (
 )
 from GPU_Proximity_Regression_UQ import GPUProximityRegressionUQ
 
-DEFAULT_FUNC_DICT = {
-    "sin_1d": {
-        "func": lambda x: np.sin(x),
-        "gap": [4.0, 6.0],
-        "range": [0.0, 10.0]
-    },
-    "sin_cos_2d": {
-        "func": lambda x, y: np.sin(x) * np.cos(y),
-        "gap": [4.0, 6.0],
-        "range": [0.0, 10.0]
-    },
-    "sin_cos_sin_3d": {
-        "func": lambda x, y, z: np.sin(x) * np.cos(y) * np.sin(z),
-        "gap": [4.0, 6.0],
-        "range": [0.0, 10.0]
-    },
-    "friedman1_5d": {
-        "func": lambda x1, x2, x3, x4, x5: 10 * np.sin(np.pi * x1 * x2) + 20 * (x3 - 0.5)**2 + 10 * x4 + 5 * x5,
-        "gap": [4.0, 6.0],
-        "range": [0.0, 10.0]
-    },
-    "borehole_8d": {
-        "func": lambda rw, r, Tu, Hu, Tl, Hl, L, Kw: (
-            (2 * np.pi * Tu * (Hu - Hl)) /
-            (np.log(r / rw) * (1 + (2 * L * Tu) / (np.log(r / rw) * rw**2 * Kw) + Tu / Tl))
-        ),
-        "gap": [4.0, 6.0],
-        "range": [0.05, 0.15]
-    }
-}
+import synthetic_functions
+
+DEFAULT_FUNC_DICT = {}
+_getters = [
+    synthetic_functions.get_1d_functions,
+    synthetic_functions.get_2d_functions,
+    synthetic_functions.get_3d_functions,
+    synthetic_functions.get_4d_functions,
+    synthetic_functions.get_5d_functions,
+    synthetic_functions.get_6d_functions,
+    synthetic_functions.get_7d_functions,
+    synthetic_functions.get_8d_functions,
+    synthetic_functions.get_9d_functions,
+    synthetic_functions.get_10d_functions,
+    synthetic_functions.get_11d_functions,
+    synthetic_functions.get_12d_functions,
+    synthetic_functions.get_13d_functions,
+    synthetic_functions.get_14d_functions,
+    synthetic_functions.get_15d_functions,
+]
+
+for getter in _getters:
+    funcs = getter()
+    # Select the first function in the dict for clean 1-15D coverage
+    first_key = list(funcs.keys())[0]
+    DEFAULT_FUNC_DICT[first_key] = funcs[first_key]
+
 
 def compute_metrics_for_uncertainty(uncertainty, predictions, y_test, y_true_binary):
     auroc, fpr95 = calculate_roc_metrics(y_true_binary, uncertainty)
@@ -77,7 +74,7 @@ def compute_metrics_for_uncertainty(uncertainty, predictions, y_test, y_true_bin
 
 def run_ood_evaluation(funcs=None, seeds=None, ood_types=None, gap_types=None):
     if funcs is None:
-        funcs = ["sin_1d", "sin_cos_2d", "sin_cos_sin_3d", "friedman1_5d"]
+        funcs = list(DEFAULT_FUNC_DICT.keys())
     if seeds is None:
         seeds = [42, 43, 44, 45, 46]
     if ood_types is None:
@@ -165,7 +162,7 @@ def main():
     
     print("Running Pure OOD Performance Benchmark (Hypercube & Manifold OOD)...")
     summary = run_ood_evaluation(
-        funcs=["sin_1d", "sin_cos_2d", "sin_cos_sin_3d", "friedman1_5d"],
+        funcs=list(DEFAULT_FUNC_DICT.keys()),
         seeds=[42, 43, 44, 45, 46],
         ood_types=["hypercube", "manifold"],
         gap_types=["empty"]
