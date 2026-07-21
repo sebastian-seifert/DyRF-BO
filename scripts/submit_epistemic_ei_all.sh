@@ -7,7 +7,11 @@ mkdir -p results
 # Auto-generate results/epistemic_ei_array_tasks.txt if missing
 if [ ! -f "results/epistemic_ei_array_tasks.txt" ]; then
     echo "results/epistemic_ei_array_tasks.txt not found. Generating array tasks..."
-    python3 scripts/generate_epistemic_ei_array_tasks.py
+    if [ -f ".venv/bin/python" ]; then
+        .venv/bin/python scripts/generate_epistemic_ei_array_tasks.py
+    else
+        python3 scripts/generate_epistemic_ei_array_tasks.py
+    fi
 fi
 
 # Chunk 1 (1-300)

@@ -20,7 +20,11 @@ export NUMEXPR_NUM_THREADS=1
 
 if [ ! -f "results/epistemic_ei_array_tasks.txt" ]; then
     echo "ERROR: results/epistemic_ei_array_tasks.txt missing. Attempting auto-generation..." >&2
-    python3 scripts/generate_epistemic_ei_array_tasks.py || exit 1
+    if [ -f ".venv/bin/python" ]; then
+        .venv/bin/python scripts/generate_epistemic_ei_array_tasks.py || exit 1
+    else
+        python3 scripts/generate_epistemic_ei_array_tasks.py || exit 1
+    fi
 fi
 
 # Retrieve the specific command arguments corresponding to this array task index
