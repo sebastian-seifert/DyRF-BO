@@ -40,29 +40,27 @@ def generate_array_tasks(output_path: str = "results/epistemic_ei_array_tasks.tx
     ]
 
     approaches = UQExtractorRegistry.list_registered()
-    acq_modes = ["epistemic", "total"]
 
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
     lines = []
 
-    # 1. Epistemic vs Total EI runs for DyRF-BO across all approaches
+    # 1. DyRF-BO Epistemic EI runs across all 8 approaches (1,040 tasks)
     for task in tasks:
         task_name = task.split("=")[-1]
         for approach in approaches:
-            for acq in acq_modes:
-                for seed in seeds:
-                    telemetry = f"results/telemetry_{acq}_{approach}_{task_name}_seed{seed}.json"
-                    line = (
-                        f"+optimizer=dyrf_epistemic_hpobench "
-                        f"optimizer.extractor_name={approach} "
-                        f"optimizer.acq_uncertainty_type={acq} "
-                        f"{task} task.optimization_resources.n_trials={trials} "
-                        f"seed={seed} optimizer.telemetry_path={telemetry} "
-                        f"optimizer_id=CARPSDynamicRF_{acq} optimizer_container_id=CARPSDynamicRF"
-                    )
-                    lines.append(line)
+            for seed in seeds:
+                telemetry = f"results/telemetry_epistemic_{approach}_{task_name}_seed{seed}.json"
+                line = (
+                    f"+optimizer=dyrf_epistemic_hpobench "
+                    f"optimizer.extractor_name={approach} "
+                    f"optimizer.acq_uncertainty_type=epistemic "
+                    f"{task} task.optimization_resources.n_trials={trials} "
+                    f"seed={seed} optimizer.telemetry_path={telemetry} "
+                    f"optimizer_id=CARPSDynamicRF_epistemic optimizer_container_id=CARPSDynamicRF"
+                )
+                lines.append(line)
 
-    # 2. Standard SMAC3 BO baseline runs
+    # 2. Standard SMAC3 BO baseline runs (130 tasks)
     for task in tasks:
         for seed in seeds:
             line = (
