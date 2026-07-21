@@ -27,8 +27,8 @@ echo ">> [2/3] Running 1D End-to-End Smoke Test..."
 $PYTHON_EXEC tests/smoke_test.py
 
 echo ""
-echo ">> [3/3] Running All Unit Tests..."
-$PYTHON_EXEC -m unittest discover -s tests -p "test_*.py"
+echo ">> [3/3] Running All Unit Tests (Parallel Execution)..."
+$PYTHON_EXEC scripts/run_tests_parallel.py
 
 echo ""
 echo "=================================================="

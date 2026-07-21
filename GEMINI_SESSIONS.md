@@ -1,6 +1,32 @@
 # Gemini Sessions Log
 
-## Session: 2026-07-19 (Cluster Sweep Array File & CARP-S Logging/Optimizer Fixes)
+## Session: 2026-07-21 (CARP-S 1,040 Array Sweep Execution Analysis & Report Generation)
+* **Goal**: Analyze overnight CARP-S benchmark array sweep results across 1,040 Slurm array tasks, extract execution duration, add CLI `--results_dir` and `--output_dir` arguments to the analysis script under TDD, and generate a new summary subfolder `results/carps_summary_21072026/`.
+
+### Accomplishments
+1. **Execution Duration Quantification**:
+   - Parsed timestamps across all 1,040 Slurm array log files (`array_*.log`).
+   - Calculated total wall-clock execution duration: **9 hours, 9 minutes, 50 seconds (9.16 hours)** (launched `2026-07-19 15:30:36`, finished `2026-07-20 00:40:26`).
+2. **TDD Unit Testing & CLI Parameterization**:
+   - Added unit test `test_main_cli_arguments` in `tests/test_analyze_carps_results.py` testing custom CLI arguments.
+   - Refactored `scripts/analyze_carps_results.py` using `argparse`.
+   - Verified that all 61 tests pass 100%.
+3. **Automated Summary Subfolder Creation**:
+   - Generated new summary subfolder `results/carps_summary_21072026/`.
+   - Created `summary_report.md` summarizing mean final costs, standard error, and seed bounds for all 26 CARP-S tasks.
+   - Rendered 26 CSV comparison tables and 26 step-function anytime performance plots (PNG/PDF).
+4. **Thesis Diary & Executive Summary Documentation**:
+   - Updated `results/carps_summary_21072026/summary_report.md` with an Executive Summary & Scenario Superiority breakdown.
+   - Appended detailed theoretical mechanisms for `proximity_bc` (NAS/NB301), `shaker_entropy` (DL HPO/LCBench), `chen_variance` (Multi-pipeline/Super Pipe), and `smac3_bo` (Low-dim HPO) in `[[University/Bachelorthesis_Diary.md]]`.
+5. **Dynamic Lambda Slurm Array & Pure OOD Evaluation Setup**:
+   - Created `ep_extractors/proximity_auto_lambda.py` registering `proximity_auto_lambda`.
+   - Created `scripts/generate_dynamic_lambda_array_tasks.py`, `scripts/submit_dynamic_lambda_array.sbatch` (`#SBATCH --array=1-130%15`), and `scripts/submit_dynamic_lambda_all.sh` to run only the dynamic lambda approach on the cluster.
+   - Built pure OOD evaluation harness `scripts/evaluate_ood_dynamic_lambda.py` comparing `proximity_auto_lambda` vs. `standard_rf` baseline on Hypercube and Manifold OOD regimes including NAURC, AUROC, AUPRC, FPR95, JSD, and NMI.
+   - Validated with unit test `tests/test_evaluate_ood_dynamic_lambda.py` (34 test modules passing 100%).
+
+
+
+
 * **Goal**: Fix cluster sweep dispatch issues (`results/array_tasks.txt`), CARP-S `FileLogger` `os.unlink` `FileNotFoundError`, hierarchical `NaN` imputation, `yahpo_gym` path redirection, and `inf` cost fallback.
 
 ### Accomplishments

@@ -390,6 +390,17 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
                 density_scaling_alpha=density_scaling_alpha,
                 topological_decay_lambda=topological_decay_lambda
             )
+            if topological_decay_lambda is not None and topological_decay_lambda < 0:
+                prox_q.tune_lambda_oob()
+            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
+        elif app == "Proximity_Auto_Lambda":
+            prox_q = GPUProximityRegressionUQ(
+                rf, X_train, y_train, device="auto", batch_size="auto",
+                use_density_scaling=use_density_scaling,
+                density_scaling_alpha=density_scaling_alpha,
+                topological_decay_lambda=1.0
+            )
+            prox_q.tune_lambda_oob()
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
         elif app == "Proximity_Baseline":
             prox_q = GPUProximityRegressionUQ(

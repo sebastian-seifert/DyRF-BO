@@ -89,6 +89,8 @@ class MockCuPyModule:
         self.where = lambda *args, **kwargs: to_gp(np.where(*args, **kwargs))
         self.any = lambda *args, **kwargs: to_gp(np.any(*args, **kwargs))
         self.cumsum = lambda *args, **kwargs: to_gp(np.cumsum(*args, **kwargs))
+        self.linspace = lambda *args, **kwargs: to_gp(np.linspace(*args, **kwargs))
+        self.log2 = lambda *args, **kwargs: to_gp(np.log2(*args, **kwargs))
         self.newaxis = np.newaxis
         
         self.get_default_memory_pool = MagicMock()
@@ -98,6 +100,9 @@ class MockCuPyModule:
         self.cupyx.scipy.special.erf = scipy.special.erf
         self.cupyx.scipy.special.log_ndtr = scipy.special.log_ndtr
         self.cupyx.empty_pinned = lambda shape, dtype=None, order='C': np.empty(shape, dtype=dtype, order=order)
+        self.cupyx.zeros_pinned = lambda shape, dtype=None, order='C': np.zeros(shape, dtype=dtype, order=order)
+
+        self.cuda.memory.OutOfMemoryError = MemoryError
 
 # Register the mock cupy/cupyx packages in sys.modules
 mock_cp = MockCuPyModule()

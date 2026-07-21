@@ -87,5 +87,9 @@ class TestEpistemicExtractors(unittest.TestCase):
     def test_proximity_bc_extractor(self):
         self._verify_extractor_behavior("proximity_bc")
 
+    def test_proximity_auto_lambda_extractor(self):
+        self._verify_extractor_behavior("proximity_auto_lambda")
+
 if __name__ == "__main__":
     unittest.main()
+

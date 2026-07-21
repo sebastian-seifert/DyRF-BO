@@ -170,6 +170,18 @@ class TestAnalyzeCARPSResults(unittest.TestCase):
         self.assertEqual(len(plots_created), 1)
         self.assertTrue(os.path.exists(os.path.join(self.out_dir, "plots", "mock_task_anytime.png")))
 
+    def test_main_cli_arguments(self):
+        from scripts.analyze_carps_results import main
+        custom_out = os.path.join(self.test_dir, "custom_carps_summary")
+        test_args = ["analyze_carps_results.py", "--results_dir", self.test_dir, "--output_dir", custom_out]
+        orig_argv = sys.argv
+        try:
+            sys.argv = test_args
+            main()
+            self.assertTrue(os.path.exists(os.path.join(custom_out, "summary_report.md")))
+        finally:
+            sys.argv = orig_argv
 
 if __name__ == "__main__":
     unittest.main()
+

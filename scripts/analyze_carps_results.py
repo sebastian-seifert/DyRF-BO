@@ -393,15 +393,22 @@ def generate_anytime_plots(bo_histories, output_dir="results/carps_summary"):
     print(f"Generated {len(created_plots)} anytime performance plots in {plots_dir}")
     return created_plots
 
-def main():
-    results_dir = "results"
-    output_dir = "results/carps_summary"
+import argparse
 
-    print("Extracting final costs from array logs...")
+def main():
+    parser = argparse.ArgumentParser(description="Analyze CARP-S benchmark results")
+    parser.add_argument("--results_dir", type=str, default="results", help="Directory containing array log files and telemetry JSONs")
+    parser.add_argument("--output_dir", type=str, default="results/carps_summary", help="Directory to save summary tables, plots, and report")
+    args = parser.parse_args()
+
+    results_dir = args.results_dir
+    output_dir = args.output_dir
+
+    print(f"Extracting final costs from array logs in {results_dir}...")
     final_costs = parse_array_logs(results_dir)
     print(f"Found final costs for {len(final_costs)} benchmark tasks.")
 
-    print("Generating benchmark comparison tables and summary report...")
+    print(f"Generating benchmark comparison tables and summary report in {output_dir}...")
     generate_benchmark_tables(final_costs, output_dir)
 
     print("Parsing BO run histories for anytime performance...")
@@ -415,3 +422,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

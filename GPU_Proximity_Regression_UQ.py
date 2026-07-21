@@ -256,27 +256,9 @@ class GPUProximityRegressionUQ:
         self.in_bag_counts_xp = self.xp.asarray(self.in_bag_counts)
 
         # Precompute leaf-to-leaf distance matrices
-        if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
-            self.tree_leaf_distances = []
-            self.tree_leaf_id_to_dense = []
-            
-            for t in range(self.n_estimators):
-                tree = self.estimators[t].tree_
-                children_left = tree.children_left
-                # Leaves are nodes where children_left == -1
-                leaf_nodes = np.where(children_left == -1)[0].astype(np.int32)
-                
-                # Compute path distances between all leaves in this tree
-                leaf_nodes_xp = self.xp.asarray(leaf_nodes)
-                d_t_leaves = self.compute_tree_topological_distances(leaf_nodes_xp, leaf_nodes_xp, t)
-                self.tree_leaf_distances.append(d_t_leaves)
-                
-                # Fast mapping array from absolute node ID to dense leaf index
-                id_to_dense = np.full(tree.node_count, -1, dtype=np.int32)
-                for dense_idx, leaf_id in enumerate(leaf_nodes):
-                    id_to_dense[leaf_id] = dense_idx
-                self.tree_leaf_id_to_dense.append(self.xp.asarray(id_to_dense))
+        self._precompute_tree_distances()
 
+        if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
             # Subsample up to 250 training points for performance/memory stability (prevents OOM on concurrent cluster jobs)
             if self.n_train > 250:
                 np.random.seed(42)
@@ -319,6 +301,126 @@ class GPUProximityRegressionUQ:
             t_transfer = time.perf_counter()
             print(f"[TIMING] Transfer structures to backend: {(t_transfer - t_weights)*1000:.2f} ms")
             print(f"[TIMING] Total fit: {(t_transfer - t_start)*1000:.2f} ms")
+
+    def _precompute_tree_distances(self):
+        """Precomputes path distances between all terminal leaves for each tree in the forest."""
+        if hasattr(self, "tree_leaf_distances") and self.tree_leaf_distances is not None:
+            return
+            
+        self.tree_leaf_distances = []
+        self.tree_leaf_id_to_dense = []
+        
+        for t in range(self.n_estimators):
+            tree = self.estimators[t].tree_
+            children_left = tree.children_left
+            leaf_nodes = np.where(children_left == -1)[0].astype(np.int32)
+            
+            leaf_nodes_xp = self.xp.asarray(leaf_nodes)
+            d_t_leaves = self.compute_tree_topological_distances(leaf_nodes_xp, leaf_nodes_xp, t)
+            self.tree_leaf_distances.append(d_t_leaves)
+            
+            id_to_dense = np.full(tree.node_count, -1, dtype=np.int32)
+            for dense_idx, leaf_id in enumerate(leaf_nodes):
+                id_to_dense[leaf_id] = dense_idx
+            self.tree_leaf_id_to_dense.append(self.xp.asarray(id_to_dense))
+
+    def _precompute_oob_distance_tensor(self):
+        """Precomputes and masks leaf distances for Out-of-Bag samples across all trees."""
+        if hasattr(self, "d_oob_tensor_xp") and self.d_oob_tensor_xp is not None:
+            return
+        self._precompute_tree_distances()
+        
+        oob_mask = self.oob_indices  # shape (n_train, n_estimators)
+        leaf_matrix = self.leaf_matrix_train # shape (n_train, n_estimators)
+        
+        d_oob = np.full((self.n_train, self.n_train, self.n_estimators), np.inf, dtype=np.float32)
+        for t in range(self.n_estimators):
+            oob_col = oob_mask[:, t]
+            if not np.any(oob_col):
+                continue
+            id_to_dense = self.tree_leaf_id_to_dense[t]
+            if self.using_gpu:
+                id_to_dense = self.xp.asnumpy(id_to_dense)
+                leaf_mat_t = leaf_matrix[:, t]
+                tree_dist_t = self.xp.asnumpy(self.tree_leaf_distances[t])
+            else:
+                leaf_mat_t = leaf_matrix[:, t]
+                tree_dist_t = self.tree_leaf_distances[t]
+                
+            dense_leaves = id_to_dense[leaf_mat_t]
+            d_t = tree_dist_t[dense_leaves[:, None], dense_leaves[None, :]].copy() # (n_train, n_train)
+            
+            # Mask out non-OOB rows for this tree so exp(-lambda * inf) = 0
+            d_t[oob_col == 0, :] = np.inf
+            d_oob[:, :, t] = d_t
+
+        # Set self-distance to infinity so P_oob[i, i] is zero
+        for i in range(self.n_train):
+            d_oob[i, i, :] = np.inf
+            
+        self.d_oob_tensor_xp = self.xp.asarray(d_oob)
+        self.oob_counts_xp = self.xp.asarray(np.maximum(np.sum(oob_mask, axis=1, keepdims=True), 1.0))
+
+    def compute_oob_nll(self, lmbda: float, n_neighbors: int = 20, sigma_0_sq: float = 1e-6) -> float:
+        """
+        Computes the out-of-bag Negative Log-Likelihood (NLL) for a candidate lambda value.
+        """
+        if not hasattr(self, "estimators"):
+            self.fit()
+            
+        if self.n_train < 3:
+            return 0.0
+
+        self._precompute_oob_distance_tensor()
+        
+        decay = self.xp.exp(-float(lmbda) * self.d_oob_tensor_xp) # (n_train, n_train, n_estimators)
+        prox_oob_sum = self.xp.sum(decay, axis=2) # (n_train, n_train)
+        P_oob = prox_oob_sum / self.oob_counts_xp
+            
+        K = min(n_neighbors, self.n_train - 1)
+        if K < 1:
+            return 0.0
+            
+        top_k_indices = self.xp.argpartition(P_oob, -K, axis=1)[:, -K:]
+        row_indices = self.xp.arange(self.n_train)[:, None]
+        top_k_weights = P_oob[row_indices, top_k_indices]
+        
+        u_oob = (self.oob_residuals_xp)**2
+        top_k_u = u_oob[top_k_indices]
+        
+        weight_sum = self.xp.sum(top_k_weights, axis=1)
+        weight_sum_safe = self.xp.maximum(weight_sum, 1e-12)
+        
+        weighted_u = self.xp.sum(top_k_weights * top_k_u, axis=1) / weight_sum_safe
+        sigma_sq = weighted_u + sigma_0_sq
+        
+        sq_residuals = u_oob
+        nll_per_sample = 0.5 * ((sq_residuals / sigma_sq) + self.xp.log(2.0 * np.pi * sigma_sq))
+        
+        return float(self.xp.mean(nll_per_sample))
+
+    def tune_lambda_oob(self, bounds=(0.001, 20.0), xtol=1e-4) -> float:
+        """
+        Dynamically finds the optimal continuous lambda* at step t 
+        by minimizing the OOB Negative Log-Likelihood via Brent's method.
+        """
+        from scipy.optimize import fminbound
+        
+        if not hasattr(self, "estimators"):
+            self.fit()
+            
+        if self.n_train < 3:
+            self.topological_decay_lambda = 1.0
+            return 1.0
+
+        optimal_lambda = fminbound(
+            func=lambda lmbda: self.compute_oob_nll(lmbda),
+            x1=bounds[0],
+            x2=bounds[1],
+            xtol=xtol
+        )
+        self.topological_decay_lambda = float(optimal_lambda)
+        return float(optimal_lambda)
 
     def compute_uq(self, X_test, n_neighbors="auto", level=0.95, use_density_scaling=None):
         """
