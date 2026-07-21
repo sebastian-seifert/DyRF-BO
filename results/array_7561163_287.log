@@ -1,0 +1,518 @@
+==================================================
+Array Job ID: 7561163 | Task Index: 287
+Running arguments: +optimizer=dyrf_epistemic_hpobench optimizer.extractor_name=chen_variance +task/YAHPO/SO=cfg_lcbench_189906 task.optimization_resources.n_trials=50 seed=2 optimizer.telemetry_path=results/telemetry_chen_variance_cfg_lcbench_189906_seed2.json optimizer_id=CARPSDynamicRF optimizer_container_id=CARPSDynamicRF
+==================================================
+==================================================
+Running CARP-S HPOBench Dynamic BO Benchmark Sweep
+Using python: python3
+==================================================
+[[36m2026-07-20 22:40:02,695[0m][[34m/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/carps/run.py[0m][[32mINFO[0m] - Runcommand: `python -m carps.run +optimizer=dyrf_epistemic_hpobench optimizer.extractor_name=chen_variance +task/YAHPO/SO=cfg_lcbench_189906 task.optimization_resources.n_trials=50 seed=2 optimizer.telemetry_path=results/telemetry_chen_variance_cfg_lcbench_189906_seed2.json optimizer_id=CARPSDynamicRF optimizer_container_id=CARPSDynamicRF`[0m
+{
+    'seed': 2,
+    'task': {
+        '_target_': 'carps.utils.task.Task',
+        'name': 'yahpo/so/lcbench/189906/None',
+        'seed': 2,
+        'objective_function': {
+            '_target_': 
+'carps.objective_functions.yahpo.YahpoObjectiveFunction',
+            'bench': 'lcbench',
+            'instance': '189906',
+            'budget_type': None,
+            'metric': ['val_accuracy'],
+            'seed': 2
+        },
+        'input_space': {
+            '_target_': 'carps.utils.task.InputSpace',
+            'configuration_space': {
+                '_target_': 
+'ConfigSpace.configuration_space.ConfigurationSpace.from_serialized_dict',
+                '_convert_': 'object',
+                'd': {
+                    'name': None,
+                    'hyperparameters': [
+                        {
+                            'type': 'constant',
+                            'name': 'OpenML_task_id',
+                            'value': '189906',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'batch_size',
+                            'lower': 16,
+                            'upper': 512,
+                            'default_value': 91,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'learning_rate',
+                            'lower': 0.0001,
+                            'upper': 0.1,
+                            'default_value': 0.0031622777,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'max_dropout',
+                            'lower': 0.0,
+                            'upper': 1.0,
+                            'default_value': 0.5,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'max_units',
+                            'lower': 64,
+                            'upper': 1024,
+                            'default_value': 256,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'momentum',
+                            'lower': 0.1,
+                            'upper': 0.99,
+                            'default_value': 0.545,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'num_layers',
+                            'lower': 1,
+                            'upper': 5,
+                            'default_value': 3,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'weight_decay',
+                            'lower': 1e-05,
+                            'upper': 0.1,
+                            'default_value': 0.050005,
+                            'log': False,
+                            'meta': None
+                        }
+                    ],
+                    'conditions': [],
+                    'forbiddens': [],
+                    'python_module_version': '1.2.0',
+                    'format_version': 0.4
+                }
+            },
+            'fidelity_space': {
+                '_target_': 'carps.utils.task.FidelitySpace',
+                'is_multifidelity': False,
+                'fidelity_type': None,
+                'min_fidelity': None,
+                'max_fidelity': None
+            },
+            'instance_space': None
+        },
+        'output_space': {
+            '_target_': 'carps.utils.task.OutputSpace',
+            'n_objectives': 1,
+            'objectives': ['val_accuracy']
+        },
+        'optimization_resources': {
+            '_target_': 'carps.utils.task.OptimizationResources',
+            'n_trials': 50,
+            'time_budget': None,
+            'n_workers': 1
+        },
+        'metadata': {
+            '_target_': 'carps.utils.task.TaskMetadata',
+            'has_constraints': False,
+            'domain': 'ML',
+            'objective_function_approximation': 'surrogate',
+            'has_virtual_time': False,
+            'deterministic': False,
+            'dimensions': 7,
+            'search_space_n_categoricals': 0,
+            'search_space_n_ordinals': 0,
+            'search_space_n_integers': 3,
+            'search_space_n_floats': 4,
+            'search_space_has_conditionals': False,
+            'search_space_has_forbiddens': False,
+            'search_space_has_priors': False
+        }
+    },
+    'benchmark_id': 'YAHPO',
+    'task_id': 'yahpo/so/lcbench/189906/None',
+    'optimizer': {
+        '_target_': 'carps_integration.optimizer.CARPSDynamicRFOptimizer',
+        '_partial_': True,
+        'extractor_name': 'chen_variance',
+        'n_init': 10,
+        'kappa': 1.96,
+        'telemetry_path': 
+'results/telemetry_chen_variance_cfg_lcbench_189906_seed2.json',
+        'window_size': 5,
+        'min_samples_leaf_base': 2,
+        'min_samples_leaf_min': 1,
+        'min_samples_leaf_max': 15,
+        'alpha': 1.0,
+        'max_features_base': 0.5,
+        'max_features_min': 0.1,
+        'max_features_max': 0.8,
+        'eta': 0.5
+    },
+    'optimizer_id': 'CARPSDynamicRF',
+    'optimizer_container_id': 'CARPSDynamicRF',
+    'pyexperimenter_configuration_file_path': None,
+    'database_credential_file_path': None,
+    'use_special_conda_env': False,
+    'conda_env_name': 'carps_YAHPO_CARPSDynamicRF',
+    'timestamp': '2026-07-20/22-40-02',
+    'baserundir': 'runs',
+    'outdir': 'runs/CARPSDynamicRF/YAHPO/yahpo/so/lcbench/189906/None/2',
+    'loggers': [
+        {
+            '_target_': 'carps.loggers.file_logger.FileLogger',
+            '_partial_': True,
+            'overwrite': True
+        },
+        {
+            '_target_': 'carps.loggers.database_logger.DatabaseLogger',
+            '_partial_': True
+        }
+    ]
+}
+[[36m2026-07-20 22:40:02,716[0m][[34mFileLogger[0m][[32mINFO[0m] - Found previous run. Removing 'runs/CARPSDynamicRF/YAHPO/yahpo/so/lcbench/189906/None/2'.[0m
+[[36m2026-07-20 22:40:03,103[0m][[34mDatabaseLogger[0m][[32mINFO[0m] - Not logging to database (result processor is None).[0m
+Please make sure to also cite:
+Zimmer, L., Lindauer, M., & Hutter, F. (2021). Auto-Pytorch: Multi-Fidelity Metalearning for Efficient and Robust AutoDL. IEEE Transactions on Pattern Analysis and Machine Intelligence, 43(9), 3079-3090.
+Zimmer, L. (2020). data_2k_lw.zip. figshare. Dataset. https://doi.org/10.6084/m9.figshare.11662422.v1, Apache License, Version 2.0.
+╭────────────────────── <class 'carps.utils.task.Task'> ───────────────────────╮
+│ Task.                                                                        │
+│                                                                              │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ Task(                                                                    │ │
+│ │ │   name='yahpo/so/lcbench/189906/None',                                 │ │
+│ │ │                                                                        │ │
+│ │ objective_function=<carps.objective_functions.yahpo.YahpoObjectiveFuncti │ │
+│ │ on object at 0x14b0f205c1a0>,                                            │ │
+│ │ │   input_space=InputSpace(                                              │ │
+│ │ │   │   configuration_space=Configuration space object:                  │ │
+│ │   Hyperparameters:                                                       │ │
+│ │ │   OpenML_task_id, Type: Constant, Value: 189906                        │ │
+│ │ │   batch_size, Type: UniformInteger, Range: [16, 512], Default: 91, on  │ │
+│ │ log-scale                                                                │ │
+│ │ │   learning_rate, Type: UniformFloat, Range: [0.0001, 0.1], Default:    │ │
+│ │ 0.0031622777, on log-scale                                               │ │
+│ │ │   max_dropout, Type: UniformFloat, Range: [0.0, 1.0], Default: 0.5     │ │
+│ │ │   max_units, Type: UniformInteger, Range: [64, 1024], Default: 256, on │ │
+│ │ log-scale                                                                │ │
+│ │ │   momentum, Type: UniformFloat, Range: [0.1, 0.99], Default: 0.545     │ │
+│ │ │   num_layers, Type: UniformInteger, Range: [1, 5], Default: 3          │ │
+│ │ │   weight_decay, Type: UniformFloat, Range: [1e-05, 0.1], Default:      │ │
+│ │ 0.050005                                                                 │ │
+│ │ ,                                                                        │ │
+│ │ │   │   fidelity_space=FidelitySpace(                                    │ │
+│ │ │   │   │   is_multifidelity=False,                                      │ │
+│ │ │   │   │   fidelity_type=None,                                          │ │
+│ │ │   │   │   min_fidelity=None,                                           │ │
+│ │ │   │   │   max_fidelity=None                                            │ │
+│ │ │   │   ),                                                               │ │
+│ │ │   │   instance_space=None                                              │ │
+│ │ │   ),                                                                   │ │
+│ │ │   output_space=OutputSpace(                                            │ │
+│ │ │   │   n_objectives=1,                                                  │ │
+│ │ │   │   objectives=['val_accuracy']                                      │ │
+│ │ │   ),                                                                   │ │
+│ │ │   optimization_resources=OptimizationResources(                        │ │
+│ │ │   │   n_trials=50,                                                     │ │
+│ │ │   │   time_budget=None,                                                │ │
+│ │ │   │   n_workers=1                                                      │ │
+│ │ │   ),                                                                   │ │
+│ │ │   metadata=TaskMetadata(                                               │ │
+│ │ │   │   has_constraints=False,                                           │ │
+│ │ │   │   domain='ML',                                                     │ │
+│ │ │   │   objective_function_approximation='surrogate',                    │ │
+│ │ │   │   has_virtual_time=False,                                          │ │
+│ │ │   │   deterministic=False,                                             │ │
+│ │ │   │   dimensions=7,                                                    │ │
+│ │ │   │   search_space_n_categoricals=0,                                   │ │
+│ │ │   │   search_space_n_ordinals=0,                                       │ │
+│ │ │   │   search_space_n_integers=3,                                       │ │
+│ │ │   │   search_space_n_floats=4,                                         │ │
+│ │ │   │   search_space_has_conditionals=False,                             │ │
+│ │ │   │   search_space_has_forbiddens=False,                               │ │
+│ │ │   │   search_space_has_priors=False                                    │ │
+│ │ │   ),                                                                   │ │
+│ │ │   seed=2                                                               │ │
+│ │ )                                                                        │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│            input_space = InputSpace(                                         │
+│                              configuration_space=Configuration space object: │
+│                            Hyperparameters:                                  │
+│                              OpenML_task_id, Type: Constant, Value: 189906   │
+│                              batch_size, Type: UniformInteger, Range: [16,   │
+│                          512], Default: 91, on log-scale                     │
+│                              learning_rate, Type: UniformFloat, Range:       │
+│                          [0.0001, 0.1], Default: 0.0031622777, on log-scale  │
+│                              max_dropout, Type: UniformFloat, Range: [0.0,   │
+│                          1.0], Default: 0.5                                  │
+│                              max_units, Type: UniformInteger, Range: [64,    │
+│                          1024], Default: 256, on log-scale                   │
+│                              momentum, Type: UniformFloat, Range: [0.1,      │
+│                          0.99], Default: 0.545                               │
+│                              num_layers, Type: UniformInteger, Range: [1,    │
+│                          5], Default: 3                                      │
+│                              weight_decay, Type: UniformFloat, Range:        │
+│                          [1e-05, 0.1], Default: 0.050005                     │
+│                          ,                                                   │
+│                              fidelity_space=FidelitySpace(                   │
+│                                  is_multifidelity=False,                     │
+│                                  fidelity_type=None,                         │
+│                                  min_fidelity=None,                          │
+│                                  max_fidelity=None                           │
+│                              ),                                              │
+│                              instance_space=None                             │
+│                          )                                                   │
+│               metadata = TaskMetadata(                                       │
+│                              has_constraints=False,                          │
+│                              domain='ML',                                    │
+│                              objective_function_approximation='surrogate',   │
+│                              has_virtual_time=False,                         │
+│                              deterministic=False,                            │
+│                              dimensions=7,                                   │
+│                              search_space_n_categoricals=0,                  │
+│                              search_space_n_ordinals=0,                      │
+│                              search_space_n_integers=3,                      │
+│                              search_space_n_floats=4,                        │
+│                              search_space_has_conditionals=False,            │
+│                              search_space_has_forbiddens=False,              │
+│                              search_space_has_priors=False                   │
+│                          )                                                   │
+│                   name = 'yahpo/so/lcbench/189906/None'                      │
+│     objective_function = <carps.objective_functions.yahpo.YahpoObjectiveFun… │
+│                          object at 0x14b0f205c1a0>                           │
+│ optimization_resources = OptimizationResources(                              │
+│                              n_trials=50,                                    │
+│                              time_budget=None,                               │
+│                              n_workers=1                                     │
+│                          )                                                   │
+│           output_space = OutputSpace(                                        │
+│                              n_objectives=1,                                 │
+│                              objectives=['val_accuracy']                     │
+│                          )                                                   │
+│                   seed = 2                                                   │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─────── <class 'carps_integration.optimizer.CARPSDynamicRFOptimizer'> ────────╮
+│ CARP-S compatible Bayesian Optimization optimizer wrapper that uses          │
+│ Dynamic RF surrogate models with Extensible Epistemic UQ Extractors.         │
+│                                                                              │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ <carps_integration.optimizer.CARPSDynamicRFOptimizer object at           │ │
+│ │ 0x14b0f1ce92b0>                                                          │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│                        alpha = 1.0                                           │
+│                  configspace = Configuration space object:                   │
+│                                  Hyperparameters:                            │
+│                                    OpenML_task_id, Type: Constant, Value:    │
+│                                189906                                        │
+│                                    batch_size, Type: UniformInteger, Range:  │
+│                                [16, 512], Default: 91, on log-scale          │
+│                                    learning_rate, Type: UniformFloat, Range: │
+│                                [0.0001, 0.1], Default: 0.0031622777, on      │
+│                                log-scale                                     │
+│                                    max_dropout, Type: UniformFloat, Range:   │
+│                                [0.0, 1.0], Default: 0.5                      │
+│                                    max_units, Type: UniformInteger, Range:   │
+│                                [64, 1024], Default: 256, on log-scale        │
+│                                    momentum, Type: UniformFloat, Range:      │
+│                                [0.1, 0.99], Default: 0.545                   │
+│                                    num_layers, Type: UniformInteger, Range:  │
+│                                [1, 5], Default: 3                            │
+│                                    weight_decay, Type: UniformFloat, Range:  │
+│                                [1e-05, 0.1], Default: 0.050005               │
+│                                                                              │
+│                          eta = 0.5                                           │
+│           expects_fidelities = False                                         │
+│  expects_multiple_objectives = False                                         │
+│             extractor_kwargs = {}                                            │
+│               extractor_name = 'chen_variance'                               │
+│             fidelity_enabled = False                                         │
+│                      history = []                                            │
+│       initial_design_configs = []                                            │
+│                        kappa = 1.96                                          │
+│                      loggers = [<carps.loggers.file_logger.FileLogger object │
+│                                at 0x14b0f205c440>,                           │
+│                                <carps.loggers.database_logger.DatabaseLogger │
+│                                object at 0x14b0f205c830>]                    │
+│            max_features_base = 0.5                                           │
+│             max_features_max = 0.8                                           │
+│             max_features_min = 0.1                                           │
+│        min_samples_leaf_base = 2                                             │
+│         min_samples_leaf_max = 15                                            │
+│         min_samples_leaf_min = 1                                             │
+│                       n_init = 10                                            │
+│                    rf_kwargs = {}                                            │
+│                       solver = None                                          │
+│                    surrogate = None                                          │
+│                         task = Task(                                         │
+│                                    name='yahpo/so/lcbench/189906/None',      │
+│                                    objective_function=<carps.objective_func… │
+│                                object at 0x14b0f205c1a0>,                    │
+│                                    input_space=InputSpace(                   │
+│                                        configuration_space=Configuration     │
+│                                space object:                                 │
+│                                  Hyperparameters:                            │
+│                                    OpenML_task_id, Type: Constant, Value:    │
+│                                189906                                        │
+│                                    batch_size, Type: UniformInteger, Range:  │
+│                                [16, 512], Default: 91, on log-scale          │
+│                                    learning_rate, Type: UniformFloat, Range: │
+│                                [0.0001, 0.1], Default: 0.0031622777, on      │
+│                                log-scale                                     │
+│                                    max_dropout, Type: UniformFloat, Range:   │
+│                                [0.0, 1.0], Default: 0.5                      │
+│                                    max_units, Type: UniformInteger, Range:   │
+│                                [64, 1024], Default: 256, on log-scale        │
+│                                    momentum, Type: UniformFloat, Range:      │
+│                                [0.1, 0.99], Default: 0.545                   │
+│                                    num_layers, Type: UniformInteger, Range:  │
+│                                [1, 5], Default: 3                            │
+│                                    weight_decay, Type: UniformFloat, Range:  │
+│                                [1e-05, 0.1], Default: 0.050005               │
+│                                ,                                             │
+│                                        fidelity_space=FidelitySpace(         │
+│                                            is_multifidelity=False,           │
+│                                            fidelity_type=None,               │
+│                                            min_fidelity=None,                │
+│                                            max_fidelity=None                 │
+│                                        ),                                    │
+│                                        instance_space=None                   │
+│                                    ),                                        │
+│                                    output_space=OutputSpace(                 │
+│                                        n_objectives=1,                       │
+│                                        objectives=['val_accuracy']           │
+│                                    ),                                        │
+│                                    optimization_resources=OptimizationResou… │
+│                                        n_trials=50,                          │
+│                                        time_budget=None,                     │
+│                                        n_workers=1                           │
+│                                    ),                                        │
+│                                    metadata=TaskMetadata(                    │
+│                                        has_constraints=False,                │
+│                                        domain='ML',                          │
+│                                        objective_function_approximation='su… │
+│                                        has_virtual_time=False,               │
+│                                        deterministic=False,                  │
+│                                        dimensions=7,                         │
+│                                        search_space_n_categoricals=0,        │
+│                                        search_space_n_ordinals=0,            │
+│                                        search_space_n_integers=3,            │
+│                                        search_space_n_floats=4,              │
+│                                        search_space_has_conditionals=False,  │
+│                                        search_space_has_forbiddens=False,    │
+│                                        search_space_has_priors=False         │
+│                                    ),                                        │
+│                                    seed=2                                    │
+│                                )                                             │
+│               telemetry_path = 'results/telemetry_chen_variance_cfg_lcbench… │
+│            telemetry_records = []                                            │
+│                  time_budget = None                                          │
+│                trial_counter = 0                                             │
+│ virtual_time_elapsed_seconds = 0.0                                           │
+│                  window_size = 5                                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+[[36m2026-07-20 22:40:03,925[0m][[34msmac.initial_design.abstract_initial_design[0m][[32mINFO[0m] - Using `n_configs` and ignoring `n_configs_per_hyperparameter`.[0m
+[[36m2026-07-20 22:40:03,938[0m][[34msmac.initial_design.abstract_initial_design[0m][[32mINFO[0m] - Using 10 initial design configurations and 0 additional configurations.[0m
+[[36m2026-07-20 22:40:03,943[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 1, n_function_calls: 1, config: ['189906', 177, 0.0001024157386, 0.8771129790694, 130, 0.4446207247116, 1, 0.0568309224285], cost: -27.868724822998047[0m
+[[36m2026-07-20 22:40:03,968[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 2, n_function_calls: 2, config: ['189906', 23, 0.0628695613627, 0.411604902707, 323, 0.8635159651563, 4, 0.0301782899525], cost: -80.50497436523438[0m
+[[36m2026-07-20 22:40:03,981[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 3, n_function_calls: 3, config: ['189906', 78, 0.0009221101953, 0.5942769125104, 83, 0.6867163472809, 5, 0.0860722913648], cost: -19.148141860961914[0m
+[[36m2026-07-20 22:40:03,989[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 4, n_function_calls: 4, config: ['189906', 329, 0.0161711297247, 0.070160006173, 535, 0.1573247119412, 2, 3.99399578e-05], cost: -73.26232147216797[0m
+[[36m2026-07-20 22:40:03,997[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 5, n_function_calls: 5, config: ['189906', 382, 0.0015474040566, 0.3368836008012, 898, 0.2862174304575, 2, 0.0943578766463], cost: -63.062896728515625[0m
+[[36m2026-07-20 22:40:04,007[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 6, n_function_calls: 6, config: ['189906', 39, 0.0043337706693, 0.8746724883094, 99, 0.5908208411746, 3, 0.0178960004183], cost: -64.29995727539062[0m
+[[36m2026-07-20 22:40:04,015[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 7, n_function_calls: 7, config: ['189906', 30, 0.0004435760993, 0.1819906961173, 383, 0.9846136317402, 4, 0.0736851118712], cost: -54.36061096191406[0m
+[[36m2026-07-20 22:40:04,023[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 8, n_function_calls: 8, config: ['189906', 96, 0.0350132058957, 0.6533580152318, 219, 0.3461449043266, 3, 0.0378548772531], cost: -75.73395538330078[0m
+[[36m2026-07-20 22:40:04,031[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 9, n_function_calls: 9, config: ['189906', 114, 0.0006900162237, 0.2471219236031, 122, 0.7690358197317, 2, 0.0892198932552], cost: -51.45267105102539[0m
+[[36m2026-07-20 22:40:04,043[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 10, n_function_calls: 10, config: ['189906', 35, 0.0097510708188, 0.7132554240525, 859, 0.5200031175651, 5, 0.0219354634677], cost: -75.99369049072266[0m
+[[36m2026-07-20 22:40:04,984[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 11, n_function_calls: 11, config: ['189906', 72, 0.0705873177745, 0.6957914584593, 307, 0.4753071774563, 5, 0.0515588799058], cost: -38.25790023803711[0m
+[[36m2026-07-20 22:40:06,272[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 12, n_function_calls: 12, config: ['189906', 96, 0.025980878576, 0.6751202624738, 528, 0.4103230859832, 5, 0.0374032379614], cost: -51.84435272216797[0m
+[[36m2026-07-20 22:40:07,201[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 13, n_function_calls: 13, config: ['189906', 25, 0.0004288978644, 0.5716435048873, 694, 0.2849178973309, 4, 0.032218073344], cost: -40.48816680908203[0m
+[[36m2026-07-20 22:40:08,118[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 14, n_function_calls: 14, config: ['189906', 84, 0.0904006467257, 0.3814280994362, 162, 0.6472639004437, 1, 0.0167018976422], cost: -86.25794219970703[0m
+[[36m2026-07-20 22:40:09,049[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 15, n_function_calls: 15, config: ['189906', 62, 0.0420490850086, 0.2121947955181, 165, 0.6176691793643, 5, 0.0245464231361], cost: -77.37378692626953[0m
+[[36m2026-07-20 22:40:09,976[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 16, n_function_calls: 16, config: ['189906', 54, 0.0001309967638, 0.3983754507748, 257, 0.6530506524146, 5, 0.0037761444024], cost: -17.20459747314453[0m
+[[36m2026-07-20 22:40:10,917[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 17, n_function_calls: 17, config: ['189906', 99, 0.0596466798057, 0.3107523868899, 166, 0.7535224293152, 2, 0.0129922587888], cost: -84.55375671386719[0m
+[[36m2026-07-20 22:40:11,850[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 18, n_function_calls: 18, config: ['189906', 53, 0.0686679590905, 0.3473005544601, 130, 0.6621461281972, 1, 0.0083019142232], cost: -87.88141632080078[0m
+[[36m2026-07-20 22:40:12,947[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 19, n_function_calls: 19, config: ['189906', 309, 0.0743711664579, 0.4339553943527, 164, 0.6270207718335, 2, 0.0183887671785], cost: -81.85202026367188[0m
+[[36m2026-07-20 22:40:14,036[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 20, n_function_calls: 20, config: ['189906', 18, 0.0506856977072, 0.3972178790492, 129, 0.9294445199842, 1, 0.0096493186633], cost: -88.09590148925781[0m
+[[36m2026-07-20 22:40:14,948[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 21, n_function_calls: 21, config: ['189906', 16, 0.0985531596947, 0.3764429107112, 76, 0.9628102258728, 1, 0.0921156460447], cost: -83.3022689819336[0m
+[[36m2026-07-20 22:40:15,852[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 22, n_function_calls: 22, config: ['189906', 19, 0.0721581244084, 0.4043281883375, 107, 0.9842819257447, 4, 0.008521777712], cost: -82.79570007324219[0m
+[[36m2026-07-20 22:40:16,758[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 23, n_function_calls: 23, config: ['189906', 69, 0.0918368694349, 0.9979237468565, 67, 0.9282603114951, 1, 0.004520207269], cost: -88.61055755615234[0m
+[[36m2026-07-20 22:40:17,686[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 24, n_function_calls: 24, config: ['189906', 138, 0.074511934396, 0.9725819803363, 71, 0.7551177682579, 1, 0.0153320540283], cost: -85.40990447998047[0m
+[[36m2026-07-20 22:40:18,599[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 25, n_function_calls: 25, config: ['189906', 181, 0.0737465900214, 0.480730151104, 87, 0.863404062776, 5, 0.0066009428271], cost: -84.51634216308594[0m
+[[36m2026-07-20 22:40:19,539[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 26, n_function_calls: 26, config: ['189906', 83, 0.0011266879363, 0.9992821105014, 106, 0.9344201349318, 1, 0.0042665538062], cost: -72.4585189819336[0m
+[[36m2026-07-20 22:40:20,453[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 27, n_function_calls: 27, config: ['189906', 54, 0.0904345095156, 0.5883416354882, 147, 0.7450436030737, 1, 0.010045255712], cost: -87.38799285888672[0m
+[[36m2026-07-20 22:40:21,360[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 28, n_function_calls: 28, config: ['189906', 456, 0.0815262406271, 0.5966690813073, 79, 0.6907465974909, 1, 0.007666859289], cost: -81.36170959472656[0m
+[[36m2026-07-20 22:40:22,276[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 29, n_function_calls: 29, config: ['189906', 38, 0.0664926301893, 0.7846451455178, 87, 0.704090886839, 1, 0.0056327789286], cost: -88.02803802490234[0m
+[[36m2026-07-20 22:40:23,218[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 30, n_function_calls: 30, config: ['189906', 57, 0.0001392210925, 0.5142165190775, 78, 0.9192694657591, 1, 0.0143542483052], cost: -49.29493713378906[0m
+[[36m2026-07-20 22:40:24,218[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 31, n_function_calls: 31, config: ['189906', 18, 0.0001742586634, 0.1079238301396, 89, 0.7539971644848, 1, 0.0116404619141], cost: -54.528526306152344[0m
+[[36m2026-07-20 22:40:28,445[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 32, n_function_calls: 32, config: ['189906', 46, 0.0945349326284, 0.511901631498, 140, 0.8082028457324, 1, 0.0407179103212], cost: -85.1551742553711[0m
+[[36m2026-07-20 22:40:29,375[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 33, n_function_calls: 33, config: ['189906', 220, 0.0957122282896, 0.6074784060947, 112, 0.4470599456184, 1, 0.0052974408883], cost: -84.52117919921875[0m
+[[36m2026-07-20 22:40:30,444[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 34, n_function_calls: 34, config: ['189906', 16, 0.0887011243199, 0.56771223373, 76, 0.6337129656873, 4, 0.0062710553247], cost: -83.8839111328125[0m
+[[36m2026-07-20 22:40:31,443[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 35, n_function_calls: 35, config: ['189906', 43, 0.086335779357, 0.5038293603597, 129, 0.6782333096627, 1, 0.0525669236837], cost: -84.61893463134766[0m
+[[36m2026-07-20 22:40:32,504[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 36, n_function_calls: 36, config: ['189906', 66, 0.0960364544312, 0.4362059213556, 233, 0.7813935881474, 1, 0.0690693502469], cost: -84.45059967041016[0m
+[[36m2026-07-20 22:40:33,481[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 37, n_function_calls: 37, config: ['189906', 16, 0.0747751804848, 0.791202627576, 163, 0.8194424444531, 1, 0.0838736914284], cost: -83.853515625[0m
+[[36m2026-07-20 22:40:34,483[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 38, n_function_calls: 38, config: ['189906', 87, 0.0798591074293, 0.7986454350641, 86, 0.8193327714388, 1, 0.0541009460133], cost: -83.62384033203125[0m
+[[36m2026-07-20 22:40:35,417[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 39, n_function_calls: 39, config: ['189906', 44, 0.0887877845871, 0.7169650035942, 152, 0.6645348270513, 1, 0.0911665475339], cost: -83.4068832397461[0m
+[[36m2026-07-20 22:40:36,363[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 40, n_function_calls: 40, config: ['189906', 18, 0.0010162212936, 0.5862865653115, 189, 0.7074415234488, 1, 0.0088393839432], cost: -73.7450180053711[0m
+[[36m2026-07-20 22:40:37,423[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 41, n_function_calls: 41, config: ['189906', 24, 0.0976826439904, 0.2039022778067, 230, 0.7524751368344, 5, 0.0024595831947], cost: -88.6220474243164[0m
+[[36m2026-07-20 22:40:38,410[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 42, n_function_calls: 42, config: ['189906', 62, 0.0978869437271, 0.5683998044189, 130, 0.9489811715214, 5, 0.00141934551], cost: -88.2967529296875[0m
+[[36m2026-07-20 22:40:39,349[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 43, n_function_calls: 43, config: ['189906', 42, 0.0963279331872, 0.5265612936481, 256, 0.7550993065546, 1, 0.0214230714818], cost: -86.44866943359375[0m
+[[36m2026-07-20 22:40:40,289[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 44, n_function_calls: 44, config: ['189906', 62, 0.0920482287819, 0.1023487211836, 81, 0.8146179561925, 5, 0.0024775167488], cost: -88.0058822631836[0m
+[[36m2026-07-20 22:40:41,381[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 45, n_function_calls: 45, config: ['189906', 133, 0.0962441465108, 0.7501224275157, 179, 0.8629356117621, 5, 0.0022869094868], cost: -86.24116516113281[0m
+[[36m2026-07-20 22:40:42,393[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 46, n_function_calls: 46, config: ['189906', 242, 0.0749486260051, 0.004052197795, 246, 0.73690076084, 1, 0.047023415221], cost: -82.60042572021484[0m
+[[36m2026-07-20 22:40:43,322[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 47, n_function_calls: 47, config: ['189906', 127, 0.0941436533882, 0.4406657128837, 110, 0.7848316950106, 5, 0.0523008352501], cost: -29.921768188476562[0m
+[[36m2026-07-20 22:40:44,248[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 48, n_function_calls: 48, config: ['189906', 75, 0.0920041273705, 0.3590655140268, 226, 0.6722074373536, 4, 0.0042367528517], cost: -85.95935821533203[0m
+[[36m2026-07-20 22:40:45,358[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 49, n_function_calls: 49, config: ['189906', 40, 0.0856858382182, 0.6168384186168, 114, 0.8756850781267, 5, 0.0607866370223], cost: -20.624263763427734[0m
+[[36m2026-07-20 22:40:46,269[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 50, n_function_calls: 50, config: ['189906', 86, 0.0812067862989, 0.4097371997967, 314, 0.71730139029, 1, 0.0035508614318], cost: -88.89698791503906[0m
+Solution found: 
+(
+    TrialInfo(
+        config=Configuration(values={
+  'OpenML_task_id': '189906',
+  'batch_size': 86,
+  'learning_rate': 0.0812067862989,
+  'max_dropout': 0.4097371997967,
+  'max_units': 314,
+  'momentum': 0.71730139029,
+  'num_layers': 1,
+  'weight_decay': 0.0035508614318,
+}),
+        instance=None,
+        seed=None,
+        budget=None,
+        normalized_budget=None,
+        name=None,
+        checkpoint=None,
+        additional_info={}
+    ),
+    TrialValue(
+        cost=np.float32(-88.89699),
+        time=0.0005254745483398438,
+        virtual_time=np.float32(27.718033),
+        status=<StatusType.SUCCESS: 1>,
+        starttime=1784580046.2680337,
+        endtime=1784580046.2685592,
+        additional_info={}
+    )
+)
+==================================================
+BENCHMARK SWEEP STEP COMPLETED SUCCESSFULLY!
+==================================================
+==================================================
+Array Task Index 287 Finished
+==================================================
