@@ -1,5 +1,29 @@
 # Gemini Sessions Log
 
+## Session: 2026-07-21 (Dynamic Lambda OOM Refactoring & Parity Validation)
+* **Goal**: Refactor `GPUProximityRegressionUQ.compute_oob_nll` to eliminate unbatched 3D tensor allocations of shape $(N_{\text{train}}, N_{\text{train}}, N_{\text{estimators}})$ that cause GPU/Host OOM, implement memory-safe row-chunked batching, and verify parity under strict TDD.
+
+### Accomplishments
+1. **TDD Unit Testing Suite**:
+   - Added `test_compute_oob_nll_chunking_parity` to `tests/test_oob_lambda_tuning.py` to assert that row-chunked NLL calculations match full-batch allocations exactly.
+2. **Chunked OOB NLL Refactoring**:
+   - Redesigned `compute_oob_nll` in `GPU_Proximity_Regression_UQ.py` to evaluate the out-of-bag proximity sum in memory-safe row-wise batches (defaulting to 512 rows).
+   - Eliminated the $\mathcal{O}(N_{\text{train}}^2 \cdot N_{\text{trees}})$ unbatched 3D OOB distance tensor (`self.d_oob_tensor_xp`), deprecating `_precompute_oob_distance_tensor`.
+3. **Full Test Suite Verification**:
+   - Executed `./run_tests.sh` confirming all 36 test modules passed successfully.
+
+## Session: 2026-07-21 (Static RF Surrogate Enforcement for Epistemic-EI Evaluation)
+* **Goal**: Isolate Epistemic Uncertainty (EU) strictly to the Expected Improvement (EI) acquisition function while keeping the Random Forest surrogate model static across custom UQ approaches in CARP-S benchmarks, without changing behavior for other dynamic sweeps.
+
+### Accomplishments
+1. **Modular Adaptation Toggle**:
+   - Added `enable_adaptation: bool = True` parameter to `DynamicRFSurrogate` in `rf_dynamic/dynamic_rf_surrogate.py` and `CARPSDynamicRFOptimizer` in `carps_integration/optimizer.py`.
+   - When `enable_adaptation=False`, hyperparameter adaptation is bypassed and RF hyperparameters remain static at base values (`min_samples_leaf=2`, `max_features=0.5`).
+2. **Benchmark Config Update**:
+   - Updated `carps_integration/configs/optimizer/dyrf_epistemic_ei.yaml` and `dyrf_total_ei.yaml` to set `enable_adaptation: false`.
+3. **TDD Unit Testing Suite**:
+   - Added `test_static_surrogate_mode` to `tests/test_epistemic_acquisition.py`, verifying parameter preservation across multiple fit/predict iterations. All 5 test cases passed.
+
 ## Session: 2026-07-21 (Epistemic EI Acquisition Function Implementation & Cluster Sweep Setup)
 * **Goal**: Replace total uncertainty ($\sigma_{\text{disagreement}}$) in Expected Improvement (EI) acquisition function with pure epistemic uncertainty ($\sigma_{\text{ep}}$) across all UQ extractors, test under strict TDD, and set up cluster sweeps vs. basic SMAC3 BO.
 

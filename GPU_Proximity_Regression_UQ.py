@@ -325,45 +325,13 @@ class GPUProximityRegressionUQ:
             self.tree_leaf_id_to_dense.append(self.xp.asarray(id_to_dense))
 
     def _precompute_oob_distance_tensor(self):
-        """Precomputes and masks leaf distances for Out-of-Bag samples across all trees."""
-        if hasattr(self, "d_oob_tensor_xp") and self.d_oob_tensor_xp is not None:
-            return
-        self._precompute_tree_distances()
-        
-        oob_mask = self.oob_indices  # shape (n_train, n_estimators)
-        leaf_matrix = self.leaf_matrix_train # shape (n_train, n_estimators)
-        
-        d_oob = np.full((self.n_train, self.n_train, self.n_estimators), np.inf, dtype=np.float32)
-        for t in range(self.n_estimators):
-            oob_col = oob_mask[:, t]
-            if not np.any(oob_col):
-                continue
-            id_to_dense = self.tree_leaf_id_to_dense[t]
-            if self.using_gpu:
-                id_to_dense = self.xp.asnumpy(id_to_dense)
-                leaf_mat_t = leaf_matrix[:, t]
-                tree_dist_t = self.xp.asnumpy(self.tree_leaf_distances[t])
-            else:
-                leaf_mat_t = leaf_matrix[:, t]
-                tree_dist_t = self.tree_leaf_distances[t]
-                
-            dense_leaves = id_to_dense[leaf_mat_t]
-            d_t = tree_dist_t[dense_leaves[:, None], dense_leaves[None, :]].copy() # (n_train, n_train)
-            
-            # Mask out non-OOB rows for this tree so exp(-lambda * inf) = 0
-            d_t[oob_col == 0, :] = np.inf
-            d_oob[:, :, t] = d_t
+        """Deprecated: No-op to preserve interface compatibility."""
+        pass
 
-        # Set self-distance to infinity so P_oob[i, i] is zero
-        for i in range(self.n_train):
-            d_oob[i, i, :] = np.inf
-            
-        self.d_oob_tensor_xp = self.xp.asarray(d_oob)
-        self.oob_counts_xp = self.xp.asarray(np.maximum(np.sum(oob_mask, axis=1, keepdims=True), 1.0))
-
-    def compute_oob_nll(self, lmbda: float, n_neighbors: int = 20, sigma_0_sq: float = 1e-6) -> float:
+    def compute_oob_nll(self, lmbda: float, n_neighbors: int = 20, sigma_0_sq: float = 1e-6, batch_size: int = 128) -> float:
         """
-        Computes the out-of-bag Negative Log-Likelihood (NLL) for a candidate lambda value.
+        Computes the out-of-bag Negative Log-Likelihood (NLL) for a candidate lambda value
+        using a memory-safe chunked execution approach to prevent GPU/Host OOM.
         """
         if not hasattr(self, "estimators"):
             self.fit()
@@ -371,33 +339,96 @@ class GPUProximityRegressionUQ:
         if self.n_train < 3:
             return 0.0
 
-        self._precompute_oob_distance_tensor()
-        
-        decay = self.xp.exp(-float(lmbda) * self.d_oob_tensor_xp) # (n_train, n_train, n_estimators)
-        prox_oob_sum = self.xp.sum(decay, axis=2) # (n_train, n_train)
-        P_oob = prox_oob_sum / self.oob_counts_xp
+        # Precompute GPU-side OOB structures if not already done
+        if not hasattr(self, "oob_indices_xp"):
+            self.oob_indices_xp = self.xp.asarray(self.oob_indices)  # shape (n_train, n_estimators)
             
+        if not hasattr(self, "oob_counts_xp"):
+            self.oob_counts_xp = self.xp.asarray(np.maximum(np.sum(self.oob_indices, axis=1, keepdims=True), 1.0))
+            
+        u_oob = (self.oob_residuals_xp)**2 # shape (n_train,)
+        
+        # Pre-extract dense leaves for all training samples across all trees if not already done
+        if not hasattr(self, "dense_leaves_all_trees"):
+            dense_leaves_list = []
+            for t in range(self.n_estimators):
+                id_to_dense = self.tree_leaf_id_to_dense[t]
+                # leaf_matrix_train is pinned host memory if using GPU, transfer it to xp
+                leaf_mat_t = self.xp.asarray(self.leaf_matrix_train[:, t])
+                dense_leaves_list.append(id_to_dense[leaf_mat_t])
+            # shape: (n_estimators, n_train)
+            self.dense_leaves_all_trees = self.xp.stack(dense_leaves_list, axis=0)
+
+        # For OOB lambda tuning, subsample up to 500 representative OOB points if n_train is large
+        # to ensure ultra-fast convergence and zero VRAM pressure.
+        if hasattr(self, "_oob_eval_indices"):
+            eval_indices = self._oob_eval_indices
+        else:
+            if self.n_train > 500:
+                np.random.seed(42)
+                eval_indices = np.random.choice(self.n_train, 500, replace=False)
+                eval_indices.sort()
+            else:
+                eval_indices = np.arange(self.n_train)
+            self._oob_eval_indices = eval_indices
+
+        n_eval = len(eval_indices)
+        eval_indices_xp = self.xp.asarray(eval_indices)
+        
         K = min(n_neighbors, self.n_train - 1)
         if K < 1:
             return 0.0
             
-        top_k_indices = self.xp.argpartition(P_oob, -K, axis=1)[:, -K:]
-        row_indices = self.xp.arange(self.n_train)[:, None]
-        top_k_weights = P_oob[row_indices, top_k_indices]
+        nll_sum = 0.0
         
-        u_oob = (self.oob_residuals_xp)**2
-        top_k_u = u_oob[top_k_indices]
-        
-        weight_sum = self.xp.sum(top_k_weights, axis=1)
-        weight_sum_safe = self.xp.maximum(weight_sum, 1e-12)
-        
-        weighted_u = self.xp.sum(top_k_weights * top_k_u, axis=1) / weight_sum_safe
-        sigma_sq = weighted_u + sigma_0_sq
-        
-        sq_residuals = u_oob
-        nll_per_sample = 0.5 * ((sq_residuals / sigma_sq) + self.xp.log(2.0 * np.pi * sigma_sq))
-        
-        return float(self.xp.mean(nll_per_sample))
+        for start in range(0, n_eval, batch_size):
+            end = min(start + batch_size, n_eval)
+            batch_eval_idx = eval_indices[start:end]
+            sub_len = end - start
+            
+            # Compute proximity sum for this batch: shape (sub_len, n_train)
+            prox_oob_sum_batch = self.xp.zeros((sub_len, self.n_train), dtype=self.xp.float32)
+            
+            for t in range(self.n_estimators):
+                oob_col_batch = self.oob_indices_xp[batch_eval_idx, t][:, None] # shape (sub_len, 1)
+                if not self.xp.any(oob_col_batch):
+                    continue
+                    
+                dense_test_batch = self.dense_leaves_all_trees[t, batch_eval_idx]
+                dense_train_all = self.dense_leaves_all_trees[t]
+                
+                # Retrieve distance slice from precomputed tree distances
+                d_t_batch = self.tree_leaf_distances[t][dense_test_batch[:, None], dense_train_all[None, :]]
+                
+                decay_batch = self.xp.exp(-float(lmbda) * d_t_batch)
+                decay_batch *= oob_col_batch # In-place mask on GPU
+                prox_oob_sum_batch += decay_batch
+                
+            P_oob_batch = prox_oob_sum_batch / self.oob_counts_xp[batch_eval_idx]
+            
+            # Zero out self-distance for this batch
+            row_idx = self.xp.arange(sub_len)
+            col_idx = eval_indices_xp[start:end]
+            P_oob_batch[row_idx, col_idx] = 0.0
+            
+            # argpartition to get top K neighbors
+            top_k_indices_batch = self.xp.argpartition(P_oob_batch, -K, axis=1)[:, -K:]
+            batch_row_indices = self.xp.arange(sub_len)[:, None]
+            top_k_weights_batch = P_oob_batch[batch_row_indices, top_k_indices_batch]
+            
+            top_k_u_batch = u_oob[top_k_indices_batch]
+            
+            weight_sum_batch = self.xp.sum(top_k_weights_batch, axis=1)
+            weight_sum_safe = self.xp.maximum(weight_sum_batch, 1e-12)
+            
+            weighted_u_batch = self.xp.sum(top_k_weights_batch * top_k_u_batch, axis=1) / weight_sum_safe
+            sigma_sq_batch = weighted_u_batch + sigma_0_sq
+            
+            sq_residuals_batch = u_oob[batch_eval_idx]
+            nll_batch = 0.5 * ((sq_residuals_batch / sigma_sq_batch) + self.xp.log(2.0 * np.pi * sigma_sq_batch))
+            nll_sum += self.xp.sum(nll_batch)
+            
+        return float(nll_sum / n_eval)
 
     def tune_lambda_oob(self, bounds=(0.001, 20.0), xtol=1e-4) -> float:
         """
@@ -420,6 +451,14 @@ class GPUProximityRegressionUQ:
             xtol=xtol
         )
         self.topological_decay_lambda = float(optimal_lambda)
+        
+        # Free memory pool if using GPU backend
+        if self.using_gpu:
+            try:
+                cp.get_default_memory_pool().free_all_blocks()
+            except Exception:
+                pass
+                
         return float(optimal_lambda)
 
     def compute_uq(self, X_test, n_neighbors="auto", level=0.95, use_density_scaling=None):

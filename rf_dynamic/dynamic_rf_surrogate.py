@@ -22,11 +22,13 @@ class DynamicRFSurrogate:
         max_features_max: float = 0.8,
         eta: float = 0.5,
         extractor_kwargs: dict = None,
-        rf_kwargs: dict = None
+        rf_kwargs: dict = None,
+        enable_adaptation: bool = True
     ):
         self.extractor_name = extractor_name
         self.extractor_kwargs = extractor_kwargs or {}
         self.rf_kwargs = rf_kwargs or {}
+        self.enable_adaptation = enable_adaptation
         
         self.adaptor = SlidingWindowRFAdaptor(
             window_size=window_size,
@@ -52,7 +54,7 @@ class DynamicRFSurrogate:
         # Save training sample count for dynamic capping
         self.n_samples = X.shape[0]
         
-        # Get next adapted parameters
+        # Get next parameters (static base parameters if enable_adaptation=False)
         min_samples_leaf, max_features = self.adaptor.get_next_parameters()
         
         # Pre-enable oob_score for proximity extractors to prevent double fitting
@@ -80,18 +82,19 @@ class DynamicRFSurrogate:
         """
         Predicts mean and returns requested uncertainty metric ('epistemic' signal or 'total' standard disagreement).
         Also extracts the epistemic uncertainty signal of the selected approach 
-        to trigger parameter updates in the sliding window adaptor.
+        to trigger parameter updates in the sliding window adaptor if adaptation is enabled.
         """
         if self.model is None or self.extractor is None:
             raise RuntimeError("Surrogate must be fitted before prediction.")
             
         preds = self.model.predict(X)
         
-        # Extract raw epistemic uncertainty signal for hyperparameter adaptation
+        # Extract raw epistemic uncertainty signal
         raw_signals = self.extractor.extract_epistemic_signal(X)
         
-        # Update sliding window adaptor (updates RF hyperparameters internally)
-        _ = self.adaptor.update_and_normalize(raw_signals, n_samples=self.n_samples)
+        # Update sliding window adaptor only if adaptation is enabled
+        if self.enable_adaptation:
+            _ = self.adaptor.update_and_normalize(raw_signals, n_samples=self.n_samples)
         
         if uncertainty_type == "epistemic":
             return preds, raw_signals

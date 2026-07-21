@@ -35,7 +35,8 @@ class CARPSDynamicRFOptimizer(Optimizer):
         eta: float = 0.5,
         extractor_kwargs: dict | None = None,
         rf_kwargs: dict | None = None,
-        acq_uncertainty_type: str = "epistemic"
+        acq_uncertainty_type: str = "epistemic",
+        enable_adaptation: bool = True
     ) -> None:
         super().__init__(
             task=task,
@@ -50,6 +51,7 @@ class CARPSDynamicRFOptimizer(Optimizer):
         self.kappa = kappa
         self.telemetry_path = telemetry_path
         self.acq_uncertainty_type = acq_uncertainty_type
+        self.enable_adaptation = enable_adaptation
         
         # Dynamic RF hyperparameters
         self.window_size = window_size
@@ -84,7 +86,8 @@ class CARPSDynamicRFOptimizer(Optimizer):
             max_features_max=self.max_features_max,
             eta=self.eta,
             extractor_kwargs=self.extractor_kwargs,
-            rf_kwargs=self.rf_kwargs
+            rf_kwargs=self.rf_kwargs,
+            enable_adaptation=self.enable_adaptation
         )
         
         # Setup SobolInitialDesign matching SMAC3

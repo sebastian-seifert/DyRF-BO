@@ -47,6 +47,17 @@ class TestOOBLambdaTuning(unittest.TestCase):
             self.assertFalse(np.isnan(nll))
             self.assertFalse(np.isinf(nll))
 
+    def test_compute_oob_nll_chunking_parity(self):
+        """Verify that chunked OOB NLL calculation yields exactly the same values as larger batch sizes."""
+        uq_engine = GPUProximityRegressionUQ(
+            self.rf, self.X_train, self.y_train, device="cpu", topological_decay_lambda=1.0
+        )
+        # Force a tiny batch size to ensure multi-chunk loop executes
+        nll_chunked = uq_engine.compute_oob_nll(1.5, batch_size=5)
+        nll_full = uq_engine.compute_oob_nll(1.5, batch_size=1000)
+        self.assertAlmostEqual(nll_chunked, nll_full, places=6)
+
+
     def test_tune_lambda_oob_converges_within_bounds(self):
         """Verify that tune_lambda_oob finds a continuous lambda* within specified bounds."""
         uq_engine = GPUProximityRegressionUQ(

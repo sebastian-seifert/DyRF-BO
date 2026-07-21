@@ -118,5 +118,34 @@ class TestEpistemicAcquisition(unittest.TestCase):
         self.assertFalse(np.any(np.isnan(ei)))
         self.assertFalse(np.any(np.isinf(ei)))
 
+    def test_static_surrogate_mode(self):
+        """Verify that when enable_adaptation=False, RF hyperparameters remain static at base values."""
+        surrogate = DynamicRFSurrogate(
+            extractor_name="standard_disagreement",
+            enable_adaptation=False,
+            min_samples_leaf_base=2,
+            max_features_base=0.5
+        )
+        surrogate.fit(self.X_train, self.y_train)
+        
+        # Verify initial model parameters match base
+        self.assertEqual(surrogate.model.min_samples_leaf, 2)
+        self.assertEqual(surrogate.model.max_features, 0.5)
+
+        # Execute multiple predictions and refits
+        for _ in range(5):
+            preds, unc = surrogate.predict(self.X_test, uncertainty_type="epistemic")
+            self.assertEqual(len(preds), len(self.X_test))
+            self.assertGreaterEqual(len(unc), len(self.X_test))
+            
+            # Refit on expanded data
+            X_new = np.vstack([self.X_train, np.random.randn(2, 1)])
+            y_new = np.hstack([self.y_train, np.random.randn(2)])
+            surrogate.fit(X_new, y_new)
+
+            # Hyperparameters must remain unchanged at base values
+            self.assertEqual(surrogate.model.min_samples_leaf, 2)
+            self.assertEqual(surrogate.model.max_features, 0.5)
+
 if __name__ == "__main__":
     unittest.main()

@@ -54,6 +54,7 @@ def generate_array_tasks(output_path: str = "results/epistemic_ei_array_tasks.tx
                     f"+optimizer=dyrf_epistemic_hpobench "
                     f"optimizer.extractor_name={approach} "
                     f"optimizer.acq_uncertainty_type=epistemic "
+                    f"optimizer.enable_adaptation=false "
                     f"{task} task.optimization_resources.n_trials={trials} "
                     f"seed={seed} optimizer.telemetry_path={telemetry} "
                     f"optimizer_id=CARPSDynamicRF_epistemic optimizer_container_id=CARPSDynamicRF"
