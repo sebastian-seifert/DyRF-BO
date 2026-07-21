@@ -72,7 +72,7 @@ def compute_metrics_for_uncertainty(uncertainty, predictions, y_test, y_true_bin
         "naurc": naurc
     }
 
-def run_ood_evaluation(funcs=None, seeds=None, ood_types=None, gap_types=None):
+def run_ood_evaluation(funcs=None, seeds=None, ood_types=None, gap_types=None, device="auto"):
     if funcs is None:
         funcs = list(DEFAULT_FUNC_DICT.keys())
     if seeds is None:
@@ -117,7 +117,7 @@ def run_ood_evaluation(funcs=None, seeds=None, ood_types=None, gap_types=None):
                     for k, v in m_std.items():
                         results[ood_type][func_name]["standard_rf"][k].append(v)
                         
-                    # 2. Dynamic Lambda Proximity Approach
+                    # 2. Dynamic Lambda Proximity Approach (GPU/CUDA accelerated when available)
                     rf_prox = RandomForestRegressor(n_estimators=50, oob_score=True, random_state=seed)
                     rf_prox.fit(X_train, y_train)
                     
@@ -125,7 +125,7 @@ def run_ood_evaluation(funcs=None, seeds=None, ood_types=None, gap_types=None):
                         rf_prox,
                         X_train,
                         y_train,
-                        device="cpu",
+                        device=device,
                         use_density_scaling=True,
                         topological_decay_lambda=1.0
                     )
@@ -156,16 +156,18 @@ def run_ood_evaluation(funcs=None, seeds=None, ood_types=None, gap_types=None):
 def main():
     parser = argparse.ArgumentParser(description="Evaluate OOD performance of Dynamic Lambda Proximity vs Standard RF Baseline")
     parser.add_argument("--output_dir", type=str, default="results/ood_dynamic_lambda", help="Output directory for reports and tables")
+    parser.add_argument("--device", type=str, default="auto", help="Execution device: 'auto', 'cuda', 'gpu', or 'cpu'")
     args = parser.parse_args()
     
     os.makedirs(args.output_dir, exist_ok=True)
     
-    print("Running Pure OOD Performance Benchmark (Hypercube & Manifold OOD)...")
+    print(f"Running Pure OOD Performance Benchmark (Hypercube & Manifold OOD) on device='{args.device}'...")
     summary = run_ood_evaluation(
         funcs=list(DEFAULT_FUNC_DICT.keys()),
         seeds=[42, 43, 44, 45, 46],
         ood_types=["hypercube", "manifold"],
-        gap_types=["empty"]
+        gap_types=["empty"],
+        device=args.device
     )
     
     records = []
