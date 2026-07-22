@@ -1,0 +1,1675 @@
+==================================================
+Array Job ID: 7567347 | Task Index: 95
+Running arguments: +optimizer=dyrf_epistemic_hpobench optimizer.extractor_name=proximity_auto_lambda +task/YAHPO/SO=cfg_rbv2_super_1457 task.optimization_resources.n_trials=50 seed=5 optimizer.telemetry_path=results/telemetry_proximity_auto_lambda_cfg_rbv2_super_1457_seed5.json optimizer_id=CARPSDynamicRF optimizer_container_id=CARPSDynamicRF
+==================================================
+==================================================
+Running CARP-S HPOBench Dynamic BO Benchmark Sweep
+Using python: python3
+==================================================
+[[36m2026-07-21 20:36:46,581[0m][[34m/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/carps/run.py[0m][[32mINFO[0m] - Runcommand: `python -m carps.run +optimizer=dyrf_epistemic_hpobench optimizer.extractor_name=proximity_auto_lambda +task/YAHPO/SO=cfg_rbv2_super_1457 task.optimization_resources.n_trials=50 seed=5 optimizer.telemetry_path=results/telemetry_proximity_auto_lambda_cfg_rbv2_super_1457_seed5.json optimizer_id=CARPSDynamicRF optimizer_container_id=CARPSDynamicRF`[0m
+{
+    'seed': 5,
+    'task': {
+        '_target_': 'carps.utils.task.Task',
+        'name': 'yahpo/so/rbv2_super/1457/None',
+        'seed': 5,
+        'objective_function': {
+            '_target_': 
+'carps.objective_functions.yahpo.YahpoObjectiveFunction',
+            'bench': 'rbv2_super',
+            'instance': '1457',
+            'budget_type': None,
+            'metric': ['acc'],
+            'seed': 5
+        },
+        'input_space': {
+            '_target_': 'carps.utils.task.InputSpace',
+            'configuration_space': {
+                '_target_': 
+'ConfigSpace.configuration_space.ConfigurationSpace.from_serialized_dict',
+                '_convert_': 'object',
+                'd': {
+                    'name': None,
+                    'hyperparameters': [
+                        {
+                            'type': 'categorical',
+                            'name': 'learner_id',
+                            'choices': [
+                                'aknn',
+                                'glmnet',
+                                'ranger',
+                                'rpart',
+                                'svm',
+                                'xgboost'
+                            ],
+                            'weights': None,
+                            'default_value': 'aknn',
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'num.impute.selected.cpo',
+                            'choices': [
+                                'impute.mean',
+                                'impute.median',
+                                'impute.hist'
+                            ],
+                            'weights': None,
+                            'default_value': 'impute.mean',
+                            'meta': None
+                        },
+                        {
+                            'type': 'constant',
+                            'name': 'task_id',
+                            'value': '1457',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'aknn.M',
+                            'lower': 18,
+                            'upper': 50,
+                            'default_value': 34,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'aknn.distance',
+                            'choices': ['l2', 'cosine', 'ip'],
+                            'weights': None,
+                            'default_value': 'l2',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'aknn.ef',
+                            'lower': 8,
+                            'upper': 256,
+                            'default_value': 48,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'aknn.ef_construction',
+                            'lower': 8,
+                            'upper': 512,
+                            'default_value': 96,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'aknn.k',
+                            'lower': 1,
+                            'upper': 50,
+                            'default_value': 26,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'glmnet.alpha',
+                            'lower': 0.0,
+                            'upper': 1.0,
+                            'default_value': 1.0,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'glmnet.s',
+                            'lower': 0.0009118819656,
+                            'upper': 1096.6331584284585,
+                            'default_value': 1.0,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'ranger.min.node.size',
+                            'lower': 1,
+                            'upper': 100,
+                            'default_value': 50,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'ranger.mtry.power',
+                            'lower': 0.0,
+                            'upper': 1.0,
+                            'default_value': 0.0,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'ranger.num.trees',
+                            'lower': 1,
+                            'upper': 2000,
+                            'default_value': 1000,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'ranger.respect.unordered.factors',
+                            'choices': ['ignore', 'order', 'partition'],
+                            'weights': None,
+                            'default_value': 'ignore',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'ranger.sample.fraction',
+                            'lower': 0.1,
+                            'upper': 1.0,
+                            'default_value': 0.55,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'ranger.splitrule',
+                            'choices': ['gini', 'extratrees'],
+                            'weights': None,
+                            'default_value': 'gini',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'rpart.cp',
+                            'lower': 0.0009118819656,
+                            'upper': 1.0,
+                            'default_value': 0.01,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'rpart.maxdepth',
+                            'lower': 1,
+                            'upper': 30,
+                            'default_value': 30,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'rpart.minbucket',
+                            'lower': 1,
+                            'upper': 100,
+                            'default_value': 1,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'rpart.minsplit',
+                            'lower': 1,
+                            'upper': 100,
+                            'default_value': 20,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'svm.cost',
+                            'lower': 4.53999298e-05,
+                            'upper': 22026.465794806718,
+                            'default_value': 1.0,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'svm.kernel',
+                            'choices': ['linear', 'polynomial', 'radial'],
+                            'weights': None,
+                            'default_value': 'linear',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'svm.tolerance',
+                            'lower': 4.53999298e-05,
+                            'upper': 2.0,
+                            'default_value': 0.009528896,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'xgboost.alpha',
+                            'lower': 0.0009118819656,
+                            'upper': 1096.6331584284585,
+                            'default_value': 1.0,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'categorical',
+                            'name': 'xgboost.booster',
+                            'choices': ['gblinear', 'gbtree', 'dart'],
+                            'weights': None,
+                            'default_value': 'gblinear',
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'xgboost.lambda',
+                            'lower': 0.0009118819656,
+                            'upper': 1096.6331584284585,
+                            'default_value': 1.0,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'xgboost.nrounds',
+                            'lower': 7,
+                            'upper': 2981,
+                            'default_value': 144,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'xgboost.subsample',
+                            'lower': 0.1,
+                            'upper': 1.0,
+                            'default_value': 0.55,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'ranger.num.random.splits',
+                            'lower': 1,
+                            'upper': 100,
+                            'default_value': 1,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'svm.degree',
+                            'lower': 2,
+                            'upper': 5,
+                            'default_value': 4,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'svm.gamma',
+                            'lower': 4.53999298e-05,
+                            'upper': 22026.465794806718,
+                            'default_value': 1.0,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'xgboost.colsample_bylevel',
+                            'lower': 0.01,
+                            'upper': 1.0,
+                            'default_value': 0.505,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'xgboost.colsample_bytree',
+                            'lower': 0.01,
+                            'upper': 1.0,
+                            'default_value': 0.505,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'xgboost.eta',
+                            'lower': 0.0009118819656,
+                            'upper': 1.0,
+                            'default_value': 0.0301973834,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'xgboost.gamma',
+                            'lower': 4.53999298e-05,
+                            'upper': 7.3890560989306,
+                            'default_value': 0.0183156389,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_int',
+                            'name': 'xgboost.max_depth',
+                            'lower': 1,
+                            'upper': 15,
+                            'default_value': 8,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'xgboost.min_child_weight',
+                            'lower': 2.718281828459,
+                            'upper': 148.4131591025766,
+                            'default_value': 20.0855369232,
+                            'log': True,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'xgboost.rate_drop',
+                            'lower': 0.0,
+                            'upper': 1.0,
+                            'default_value': 0.5,
+                            'log': False,
+                            'meta': None
+                        },
+                        {
+                            'type': 'uniform_float',
+                            'name': 'xgboost.skip_drop',
+                            'lower': 0.0,
+                            'upper': 1.0,
+                            'default_value': 0.5,
+                            'log': False,
+                            'meta': None
+                        }
+                    ],
+                    'conditions': [
+                        {
+                            'type': 'EQ',
+                            'child': 'aknn.M',
+                            'parent': 'learner_id',
+                            'value': 'aknn'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'aknn.distance',
+                            'parent': 'learner_id',
+                            'value': 'aknn'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'aknn.ef',
+                            'parent': 'learner_id',
+                            'value': 'aknn'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'aknn.ef_construction',
+                            'parent': 'learner_id',
+                            'value': 'aknn'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'aknn.k',
+                            'parent': 'learner_id',
+                            'value': 'aknn'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'glmnet.alpha',
+                            'parent': 'learner_id',
+                            'value': 'glmnet'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'glmnet.s',
+                            'parent': 'learner_id',
+                            'value': 'glmnet'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'ranger.min.node.size',
+                            'parent': 'learner_id',
+                            'value': 'ranger'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'ranger.mtry.power',
+                            'parent': 'learner_id',
+                            'value': 'ranger'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'ranger.num.trees',
+                            'parent': 'learner_id',
+                            'value': 'ranger'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'ranger.respect.unordered.factors',
+                            'parent': 'learner_id',
+                            'value': 'ranger'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'ranger.sample.fraction',
+                            'parent': 'learner_id',
+                            'value': 'ranger'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'ranger.splitrule',
+                            'parent': 'learner_id',
+                            'value': 'ranger'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'rpart.cp',
+                            'parent': 'learner_id',
+                            'value': 'rpart'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'rpart.maxdepth',
+                            'parent': 'learner_id',
+                            'value': 'rpart'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'rpart.minbucket',
+                            'parent': 'learner_id',
+                            'value': 'rpart'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'rpart.minsplit',
+                            'parent': 'learner_id',
+                            'value': 'rpart'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'svm.cost',
+                            'parent': 'learner_id',
+                            'value': 'svm'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'svm.kernel',
+                            'parent': 'learner_id',
+                            'value': 'svm'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'svm.tolerance',
+                            'parent': 'learner_id',
+                            'value': 'svm'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'xgboost.alpha',
+                            'parent': 'learner_id',
+                            'value': 'xgboost'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'xgboost.booster',
+                            'parent': 'learner_id',
+                            'value': 'xgboost'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'xgboost.lambda',
+                            'parent': 'learner_id',
+                            'value': 'xgboost'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'xgboost.nrounds',
+                            'parent': 'learner_id',
+                            'value': 'xgboost'
+                        },
+                        {
+                            'type': 'EQ',
+                            'child': 'xgboost.subsample',
+                            'parent': 'learner_id',
+                            'value': 'xgboost'
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'ranger.num.random.splits',
+                            'conditions': [
+                                {
+                                    'type': 'EQ',
+                                    'child': 'ranger.num.random.splits',
+                                    'parent': 'ranger.splitrule',
+                                    'value': 'extratrees'
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'ranger.num.random.splits',
+                                    'parent': 'learner_id',
+                                    'value': 'ranger'
+                                }
+                            ]
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'svm.degree',
+                            'conditions': [
+                                {
+                                    'type': 'EQ',
+                                    'child': 'svm.degree',
+                                    'parent': 'svm.kernel',
+                                    'value': 'polynomial'
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'svm.degree',
+                                    'parent': 'learner_id',
+                                    'value': 'svm'
+                                }
+                            ]
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'svm.gamma',
+                            'conditions': [
+                                {
+                                    'type': 'EQ',
+                                    'child': 'svm.gamma',
+                                    'parent': 'svm.kernel',
+                                    'value': 'radial'
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'svm.gamma',
+                                    'parent': 'learner_id',
+                                    'value': 'svm'
+                                }
+                            ]
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'xgboost.colsample_bylevel',
+                            'conditions': [
+                                {
+                                    'type': 'IN',
+                                    'child': 'xgboost.colsample_bylevel',
+                                    'parent': 'xgboost.booster',
+                                    'values': ['dart', 'gbtree']
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'xgboost.colsample_bylevel',
+                                    'parent': 'learner_id',
+                                    'value': 'xgboost'
+                                }
+                            ]
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'xgboost.colsample_bytree',
+                            'conditions': [
+                                {
+                                    'type': 'IN',
+                                    'child': 'xgboost.colsample_bytree',
+                                    'parent': 'xgboost.booster',
+                                    'values': ['dart', 'gbtree']
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'xgboost.colsample_bytree',
+                                    'parent': 'learner_id',
+                                    'value': 'xgboost'
+                                }
+                            ]
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'xgboost.eta',
+                            'conditions': [
+                                {
+                                    'type': 'IN',
+                                    'child': 'xgboost.eta',
+                                    'parent': 'xgboost.booster',
+                                    'values': ['dart', 'gbtree']
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'xgboost.eta',
+                                    'parent': 'learner_id',
+                                    'value': 'xgboost'
+                                }
+                            ]
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'xgboost.gamma',
+                            'conditions': [
+                                {
+                                    'type': 'IN',
+                                    'child': 'xgboost.gamma',
+                                    'parent': 'xgboost.booster',
+                                    'values': ['dart', 'gbtree']
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'xgboost.gamma',
+                                    'parent': 'learner_id',
+                                    'value': 'xgboost'
+                                }
+                            ]
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'xgboost.max_depth',
+                            'conditions': [
+                                {
+                                    'type': 'IN',
+                                    'child': 'xgboost.max_depth',
+                                    'parent': 'xgboost.booster',
+                                    'values': ['dart', 'gbtree']
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'xgboost.max_depth',
+                                    'parent': 'learner_id',
+                                    'value': 'xgboost'
+                                }
+                            ]
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'xgboost.min_child_weight',
+                            'conditions': [
+                                {
+                                    'type': 'IN',
+                                    'child': 'xgboost.min_child_weight',
+                                    'parent': 'xgboost.booster',
+                                    'values': ['dart', 'gbtree']
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'xgboost.min_child_weight',
+                                    'parent': 'learner_id',
+                                    'value': 'xgboost'
+                                }
+                            ]
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'xgboost.rate_drop',
+                            'conditions': [
+                                {
+                                    'type': 'EQ',
+                                    'child': 'xgboost.rate_drop',
+                                    'parent': 'xgboost.booster',
+                                    'value': 'dart'
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'xgboost.rate_drop',
+                                    'parent': 'learner_id',
+                                    'value': 'xgboost'
+                                }
+                            ]
+                        },
+                        {
+                            'type': 'AND',
+                            'child': 'xgboost.skip_drop',
+                            'conditions': [
+                                {
+                                    'type': 'EQ',
+                                    'child': 'xgboost.skip_drop',
+                                    'parent': 'xgboost.booster',
+                                    'value': 'dart'
+                                },
+                                {
+                                    'type': 'EQ',
+                                    'child': 'xgboost.skip_drop',
+                                    'parent': 'learner_id',
+                                    'value': 'xgboost'
+                                }
+                            ]
+                        }
+                    ],
+                    'forbiddens': [],
+                    'python_module_version': '1.2.0',
+                    'format_version': 0.4
+                }
+            },
+            'fidelity_space': {
+                '_target_': 'carps.utils.task.FidelitySpace',
+                'is_multifidelity': False,
+                'fidelity_type': None,
+                'min_fidelity': None,
+                'max_fidelity': None
+            },
+            'instance_space': None
+        },
+        'output_space': {
+            '_target_': 'carps.utils.task.OutputSpace',
+            'n_objectives': 1,
+            'objectives': ['acc']
+        },
+        'optimization_resources': {
+            '_target_': 'carps.utils.task.OptimizationResources',
+            'n_trials': 50,
+            'time_budget': None,
+            'n_workers': 1
+        },
+        'metadata': {
+            '_target_': 'carps.utils.task.TaskMetadata',
+            'has_constraints': False,
+            'domain': 'ML',
+            'objective_function_approximation': 'surrogate',
+            'has_virtual_time': False,
+            'deterministic': False,
+            'dimensions': 38,
+            'search_space_n_categoricals': 7,
+            'search_space_n_ordinals': 0,
+            'search_space_n_integers': 13,
+            'search_space_n_floats': 18,
+            'search_space_has_conditionals': True,
+            'search_space_has_forbiddens': False,
+            'search_space_has_priors': False
+        }
+    },
+    'benchmark_id': 'YAHPO',
+    'task_id': 'yahpo/so/rbv2_super/1457/None',
+    'optimizer': {
+        '_target_': 'carps_integration.optimizer.CARPSDynamicRFOptimizer',
+        '_partial_': True,
+        'extractor_name': 'proximity_auto_lambda',
+        'n_init': 10,
+        'kappa': 1.96,
+        'telemetry_path': 
+'results/telemetry_proximity_auto_lambda_cfg_rbv2_super_1457_seed5.json',
+        'window_size': 5,
+        'min_samples_leaf_base': 2,
+        'min_samples_leaf_min': 1,
+        'min_samples_leaf_max': 15,
+        'alpha': 1.0,
+        'max_features_base': 0.5,
+        'max_features_min': 0.1,
+        'max_features_max': 0.8,
+        'eta': 0.5
+    },
+    'optimizer_id': 'CARPSDynamicRF',
+    'optimizer_container_id': 'CARPSDynamicRF',
+    'pyexperimenter_configuration_file_path': None,
+    'database_credential_file_path': None,
+    'use_special_conda_env': False,
+    'conda_env_name': 'carps_YAHPO_CARPSDynamicRF',
+    'timestamp': '2026-07-21/20-36-46',
+    'baserundir': 'runs',
+    'outdir': 'runs/CARPSDynamicRF/YAHPO/yahpo/so/rbv2_super/1457/None/5',
+    'loggers': [
+        {
+            '_target_': 'carps.loggers.file_logger.FileLogger',
+            '_partial_': True,
+            'overwrite': True
+        },
+        {
+            '_target_': 'carps.loggers.database_logger.DatabaseLogger',
+            '_partial_': True
+        }
+    ]
+}
+[[36m2026-07-21 20:36:46,660[0m][[34mFileLogger[0m][[32mINFO[0m] - Found previous run. Removing 'runs/CARPSDynamicRF/YAHPO/yahpo/so/rbv2_super/1457/None/5'.[0m
+[[36m2026-07-21 20:36:47,114[0m][[34mDatabaseLogger[0m][[32mINFO[0m] - Not logging to database (result processor is None).[0m
+Please make sure to also cite:
+Binder M., Pfisterer F. & Bischl B. (2020). Collecting Empirical Data About Hyperparameters for Data Driven AutoML. 7th ICML Workshop on Automated Machine Learning.
+╭────────────────────── <class 'carps.utils.task.Task'> ───────────────────────╮
+│ Task.                                                                        │
+│                                                                              │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ Task(                                                                    │ │
+│ │ │   name='yahpo/so/rbv2_super/1457/None',                                │ │
+│ │ │                                                                        │ │
+│ │ objective_function=<carps.objective_functions.yahpo.YahpoObjectiveFuncti │ │
+│ │ on object at 0x14b642d54d70>,                                            │ │
+│ │ │   input_space=InputSpace(                                              │ │
+│ │ │   │   configuration_space=Configuration space object:                  │ │
+│ │   Hyperparameters:                                                       │ │
+│ │ │   aknn.M, Type: UniformInteger, Range: [18, 50], Default: 34           │ │
+│ │ │   aknn.distance, Type: Categorical, Choices: {l2, cosine, ip},         │ │
+│ │ Default: l2                                                              │ │
+│ │ │   aknn.ef, Type: UniformInteger, Range: [8, 256], Default: 48, on      │ │
+│ │ log-scale                                                                │ │
+│ │ │   aknn.ef_construction, Type: UniformInteger, Range: [8, 512],         │ │
+│ │ Default: 96, on log-scale                                                │ │
+│ │ │   aknn.k, Type: UniformInteger, Range: [1, 50], Default: 26            │ │
+│ │ │   glmnet.alpha, Type: UniformFloat, Range: [0.0, 1.0], Default: 1.0    │ │
+│ │ │   glmnet.s, Type: UniformFloat, Range: [0.0009118819656,               │ │
+│ │ 1096.6331584284585], Default: 1.0, on log-scale                          │ │
+│ │ │   learner_id, Type: Categorical, Choices: {aknn, glmnet, ranger,       │ │
+│ │ rpart, svm, xgboost}, Default: aknn                                      │ │
+│ │ │   num.impute.selected.cpo, Type: Categorical, Choices: {impute.mean,   │ │
+│ │ impute.median, impute.hist}, Default: impute.mean                        │ │
+│ │ │   ranger.min.node.size, Type: UniformInteger, Range: [1, 100],         │ │
+│ │ Default: 50                                                              │ │
+│ │ │   ranger.mtry.power, Type: UniformFloat, Range: [0.0, 1.0], Default:   │ │
+│ │ 0.0                                                                      │ │
+│ │ │   ranger.num.random.splits, Type: UniformInteger, Range: [1, 100],     │ │
+│ │ Default: 1                                                               │ │
+│ │ │   ranger.num.trees, Type: UniformInteger, Range: [1, 2000], Default:   │ │
+│ │ 1000                                                                     │ │
+│ │ │   ranger.respect.unordered.factors, Type: Categorical, Choices:        │ │
+│ │ {ignore, order, partition}, Default: ignore                              │ │
+│ │ │   ranger.sample.fraction, Type: UniformFloat, Range: [0.1, 1.0],       │ │
+│ │ Default: 0.55                                                            │ │
+│ │ │   ranger.splitrule, Type: Categorical, Choices: {gini, extratrees},    │ │
+│ │ Default: gini                                                            │ │
+│ │ │   rpart.cp, Type: UniformFloat, Range: [0.0009118819656, 1.0],         │ │
+│ │ Default: 0.01, on log-scale                                              │ │
+│ │ │   rpart.maxdepth, Type: UniformInteger, Range: [1, 30], Default: 30    │ │
+│ │ │   rpart.minbucket, Type: UniformInteger, Range: [1, 100], Default: 1   │ │
+│ │ │   rpart.minsplit, Type: UniformInteger, Range: [1, 100], Default: 20   │ │
+│ │ │   svm.cost, Type: UniformFloat, Range: [4.53999298e-05,                │ │
+│ │ 22026.465794806718], Default: 1.0, on log-scale                          │ │
+│ │ │   svm.degree, Type: UniformInteger, Range: [2, 5], Default: 4          │ │
+│ │ │   svm.gamma, Type: UniformFloat, Range: [4.53999298e-05,               │ │
+│ │ 22026.465794806718], Default: 1.0, on log-scale                          │ │
+│ │ │   svm.kernel, Type: Categorical, Choices: {linear, polynomial,         │ │
+│ │ radial}, Default: linear                                                 │ │
+│ │ │   svm.tolerance, Type: UniformFloat, Range: [4.53999298e-05, 2.0],     │ │
+│ │ Default: 0.009528896, on log-scale                                       │ │
+│ │ │   task_id, Type: Constant, Value: 1457                                 │ │
+│ │ │   xgboost.alpha, Type: UniformFloat, Range: [0.0009118819656,          │ │
+│ │ 1096.6331584284585], Default: 1.0, on log-scale                          │ │
+│ │ │   xgboost.booster, Type: Categorical, Choices: {gblinear, gbtree,      │ │
+│ │ dart}, Default: gblinear                                                 │ │
+│ │ │   xgboost.colsample_bylevel, Type: UniformFloat, Range: [0.01, 1.0],   │ │
+│ │ Default: 0.505                                                           │ │
+│ │ │   xgboost.colsample_bytree, Type: UniformFloat, Range: [0.01, 1.0],    │ │
+│ │ Default: 0.505                                                           │ │
+│ │ │   xgboost.eta, Type: UniformFloat, Range: [0.0009118819656, 1.0],      │ │
+│ │ Default: 0.0301973834, on log-scale                                      │ │
+│ │ │   xgboost.gamma, Type: UniformFloat, Range: [4.53999298e-05,           │ │
+│ │ 7.3890560989306], Default: 0.0183156389, on log-scale                    │ │
+│ │ │   xgboost.lambda, Type: UniformFloat, Range: [0.0009118819656,         │ │
+│ │ 1096.6331584284585], Default: 1.0, on log-scale                          │ │
+│ │ │   xgboost.max_depth, Type: UniformInteger, Range: [1, 15], Default: 8  │ │
+│ │ │   xgboost.min_child_weight, Type: UniformFloat, Range:                 │ │
+│ │ [2.718281828459, 148.4131591025766], Default: 20.0855369232, on          │ │
+│ │ log-scale                                                                │ │
+│ │ │   xgboost.nrounds, Type: UniformInteger, Range: [7, 2981], Default:    │ │
+│ │ 144, on log-scale                                                        │ │
+│ │ │   xgboost.rate_drop, Type: UniformFloat, Range: [0.0, 1.0], Default:   │ │
+│ │ 0.5                                                                      │ │
+│ │ │   xgboost.skip_drop, Type: UniformFloat, Range: [0.0, 1.0], Default:   │ │
+│ │ 0.5                                                                      │ │
+│ │ │   xgboost.subsample, Type: UniformFloat, Range: [0.1, 1.0], Default:   │ │
+│ │ 0.55                                                                     │ │
+│ │   Conditions:                                                            │ │
+│ │ │   (ranger.num.random.splits | ranger.splitrule == 'extratrees' &&      │ │
+│ │ ranger.num.random.splits | learner_id == 'ranger')                       │ │
+│ │ │   (svm.degree | svm.kernel == 'polynomial' && svm.degree | learner_id  │ │
+│ │ == 'svm')                                                                │ │
+│ │ │   (svm.gamma | svm.kernel == 'radial' && svm.gamma | learner_id ==     │ │
+│ │ 'svm')                                                                   │ │
+│ │ │   (xgboost.colsample_bylevel | xgboost.booster in {'dart', 'gbtree'}   │ │
+│ │ && xgboost.colsample_bylevel | learner_id == 'xgboost')                  │ │
+│ │ │   (xgboost.colsample_bytree | xgboost.booster in {'dart', 'gbtree'} && │ │
+│ │ xgboost.colsample_bytree | learner_id == 'xgboost')                      │ │
+│ │ │   (xgboost.eta | xgboost.booster in {'dart', 'gbtree'} && xgboost.eta  │ │
+│ │ | learner_id == 'xgboost')                                               │ │
+│ │ │   (xgboost.gamma | xgboost.booster in {'dart', 'gbtree'} &&            │ │
+│ │ xgboost.gamma | learner_id == 'xgboost')                                 │ │
+│ │ │   (xgboost.max_depth | xgboost.booster in {'dart', 'gbtree'} &&        │ │
+│ │ xgboost.max_depth | learner_id == 'xgboost')                             │ │
+│ │ │   (xgboost.min_child_weight | xgboost.booster in {'dart', 'gbtree'} && │ │
+│ │ xgboost.min_child_weight | learner_id == 'xgboost')                      │ │
+│ │ │   (xgboost.rate_drop | xgboost.booster == 'dart' && xgboost.rate_drop  │ │
+│ │ | learner_id == 'xgboost')                                               │ │
+│ │ │   (xgboost.skip_drop | xgboost.booster == 'dart' && xgboost.skip_drop  │ │
+│ │ | learner_id == 'xgboost')                                               │ │
+│ │ │   aknn.M | learner_id == 'aknn'                                        │ │
+│ │ │   aknn.distance | learner_id == 'aknn'                                 │ │
+│ │ │   aknn.ef | learner_id == 'aknn'                                       │ │
+│ │ │   aknn.ef_construction | learner_id == 'aknn'                          │ │
+│ │ │   aknn.k | learner_id == 'aknn'                                        │ │
+│ │ │   glmnet.alpha | learner_id == 'glmnet'                                │ │
+│ │ │   glmnet.s | learner_id == 'glmnet'                                    │ │
+│ │ │   ranger.min.node.size | learner_id == 'ranger'                        │ │
+│ │ │   ranger.mtry.power | learner_id == 'ranger'                           │ │
+│ │ │   ranger.num.trees | learner_id == 'ranger'                            │ │
+│ │ │   ranger.respect.unordered.factors | learner_id == 'ranger'            │ │
+│ │ │   ranger.sample.fraction | learner_id == 'ranger'                      │ │
+│ │ │   ranger.splitrule | learner_id == 'ranger'                            │ │
+│ │ │   rpart.cp | learner_id == 'rpart'                                     │ │
+│ │ │   rpart.maxdepth | learner_id == 'rpart'                               │ │
+│ │ │   rpart.minbucket | learner_id == 'rpart'                              │ │
+│ │ │   rpart.minsplit | learner_id == 'rpart'                               │ │
+│ │ │   svm.cost | learner_id == 'svm'                                       │ │
+│ │ │   svm.kernel | learner_id == 'svm'                                     │ │
+│ │ │   svm.tolerance | learner_id == 'svm'                                  │ │
+│ │ │   xgboost.alpha | learner_id == 'xgboost'                              │ │
+│ │ │   xgboost.booster | learner_id == 'xgboost'                            │ │
+│ │ │   xgboost.lambda | learner_id == 'xgboost'                             │ │
+│ │ │   xgboost.nrounds | learner_id == 'xgboost'                            │ │
+│ │ │   xgboost.subsample | learner_id == 'xgboost'                          │ │
+│ │ ,                                                                        │ │
+│ │ │   │   fidelity_space=FidelitySpace(                                    │ │
+│ │ │   │   │   is_multifidelity=False,                                      │ │
+│ │ │   │   │   fidelity_type=None,                                          │ │
+│ │ │   │   │   min_fidelity=None,                                           │ │
+│ │ │   │   │   max_fidelity=None                                            │ │
+│ │ │   │   ),                                                               │ │
+│ │ │   │   instance_space=None                                              │ │
+│ │ │   ),                                                                   │ │
+│ │ │   output_space=OutputSpace(n_objectives=1, objectives=['acc']),        │ │
+│ │ │   optimization_resources=OptimizationResources(                        │ │
+│ │ │   │   n_trials=50,                                                     │ │
+│ │ │   │   time_budget=None,                                                │ │
+│ │ │   │   n_workers=1                                                      │ │
+│ │ │   ),                                                                   │ │
+│ │ │   metadata=TaskMetadata(                                               │ │
+│ │ │   │   has_constraints=False,                                           │ │
+│ │ │   │   domain='ML',                                                     │ │
+│ │ │   │   objective_function_approximation='surrogate',                    │ │
+│ │ │   │   has_virtual_time=False,                                          │ │
+│ │ │   │   deterministic=False,                                             │ │
+│ │ │   │   dimensions=38,                                                   │ │
+│ │ │   │   search_space_n_categoricals=7,                                   │ │
+│ │ │   │   search_space_n_ordinals=0,                                       │ │
+│ │ │   │   search_space_n_integers=13,                                      │ │
+│ │ │   │   search_space_n_floats=18,                                        │ │
+│ │ │   │   search_space_has_conditionals=True,                              │ │
+│ │ │   │   search_space_has_forbiddens=False,                               │ │
+│ │ │   │   search_space_has_priors=False                                    │ │
+│ │ │   ),                                                                   │ │
+│ │ │   seed=5                                                               │ │
+│ │ )                                                                        │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│            input_space = InputSpace(                                         │
+│                              configuration_space=Configuration space object: │
+│                            Hyperparameters:                                  │
+│                              aknn.M, Type: UniformInteger, Range: [18, 50],  │
+│                          Default: 34                                         │
+│                              aknn.distance, Type: Categorical, Choices: {l2, │
+│                          cosine, ip}, Default: l2                            │
+│                              aknn.ef, Type: UniformInteger, Range: [8, 256], │
+│                          Default: 48, on log-scale                           │
+│                              aknn.ef_construction, Type: UniformInteger,     │
+│                          Range: [8, 512], Default: 96, on log-scale          │
+│                              aknn.k, Type: UniformInteger, Range: [1, 50],   │
+│                          Default: 26                                         │
+│                              glmnet.alpha, Type: UniformFloat, Range: [0.0,  │
+│                          1.0], Default: 1.0                                  │
+│                              glmnet.s, Type: UniformFloat, Range:            │
+│                          [0.0009118819656, 1096.6331584284585], Default:     │
+│                          1.0, on log-scale                                   │
+│                              learner_id, Type: Categorical, Choices: {aknn,  │
+│                          glmnet, ranger, rpart, svm, xgboost}, Default: aknn │
+│                              num.impute.selected.cpo, Type: Categorical,     │
+│                          Choices: {impute.mean, impute.median, impute.hist}, │
+│                          Default: impute.mean                                │
+│                              ranger.min.node.size, Type: UniformInteger,     │
+│                          Range: [1, 100], Default: 50                        │
+│                              ranger.mtry.power, Type: UniformFloat, Range:   │
+│                          [0.0, 1.0], Default: 0.0                            │
+│                              ranger.num.random.splits, Type: UniformInteger, │
+│                          Range: [1, 100], Default: 1                         │
+│                              ranger.num.trees, Type: UniformInteger, Range:  │
+│                          [1, 2000], Default: 1000                            │
+│                              ranger.respect.unordered.factors, Type:         │
+│                          Categorical, Choices: {ignore, order, partition},   │
+│                          Default: ignore                                     │
+│                              ranger.sample.fraction, Type: UniformFloat,     │
+│                          Range: [0.1, 1.0], Default: 0.55                    │
+│                              ranger.splitrule, Type: Categorical, Choices:   │
+│                          {gini, extratrees}, Default: gini                   │
+│                              rpart.cp, Type: UniformFloat, Range:            │
+│                          [0.0009118819656, 1.0], Default: 0.01, on log-scale │
+│                              rpart.maxdepth, Type: UniformInteger, Range:    │
+│                          [1, 30], Default: 30                                │
+│                              rpart.minbucket, Type: UniformInteger, Range:   │
+│                          [1, 100], Default: 1                                │
+│                              rpart.minsplit, Type: UniformInteger, Range:    │
+│                          [1, 100], Default: 20                               │
+│                              svm.cost, Type: UniformFloat, Range:            │
+│                          [4.53999298e-05, 22026.465794806718], Default: 1.0, │
+│                          on log-scale                                        │
+│                              svm.degree, Type: UniformInteger, Range: [2,    │
+│                          5], Default: 4                                      │
+│                              svm.gamma, Type: UniformFloat, Range:           │
+│                          [4.53999298e-05, 22026.465794806718], Default: 1.0, │
+│                          on log-scale                                        │
+│                              svm.kernel, Type: Categorical, Choices:         │
+│                          {linear, polynomial, radial}, Default: linear       │
+│                              svm.tolerance, Type: UniformFloat, Range:       │
+│                          [4.53999298e-05, 2.0], Default: 0.009528896, on     │
+│                          log-scale                                           │
+│                              task_id, Type: Constant, Value: 1457            │
+│                              xgboost.alpha, Type: UniformFloat, Range:       │
+│                          [0.0009118819656, 1096.6331584284585], Default:     │
+│                          1.0, on log-scale                                   │
+│                              xgboost.booster, Type: Categorical, Choices:    │
+│                          {gblinear, gbtree, dart}, Default: gblinear         │
+│                              xgboost.colsample_bylevel, Type: UniformFloat,  │
+│                          Range: [0.01, 1.0], Default: 0.505                  │
+│                              xgboost.colsample_bytree, Type: UniformFloat,   │
+│                          Range: [0.01, 1.0], Default: 0.505                  │
+│                              xgboost.eta, Type: UniformFloat, Range:         │
+│                          [0.0009118819656, 1.0], Default: 0.0301973834, on   │
+│                          log-scale                                           │
+│                              xgboost.gamma, Type: UniformFloat, Range:       │
+│                          [4.53999298e-05, 7.3890560989306], Default:         │
+│                          0.0183156389, on log-scale                          │
+│                              xgboost.lambda, Type: UniformFloat, Range:      │
+│                          [0.0009118819656, 1096.6331584284585], Default:     │
+│                          1.0, on log-scale                                   │
+│                              xgboost.max_depth, Type: UniformInteger, Range: │
+│                          [1, 15], Default: 8                                 │
+│                              xgboost.min_child_weight, Type: UniformFloat,   │
+│                          Range: [2.718281828459, 148.4131591025766],         │
+│                          Default: 20.0855369232, on log-scale                │
+│                              xgboost.nrounds, Type: UniformInteger, Range:   │
+│                          [7, 2981], Default: 144, on log-scale               │
+│                              xgboost.rate_drop, Type: UniformFloat, Range:   │
+│                          [0.0, 1.0], Default: 0.5                            │
+│                              xgboost.skip_drop, Type: UniformFloat, Range:   │
+│                          [0.0, 1.0], Default: 0.5                            │
+│                              xgboost.subsample, Type: UniformFloat, Range:   │
+│                          [0.1, 1.0], Default: 0.55                           │
+│                            Conditions:                                       │
+│                              (ranger.num.random.splits | ranger.splitrule == │
+│                          'extratrees' && ranger.num.random.splits |          │
+│                          learner_id == 'ranger')                             │
+│                              (svm.degree | svm.kernel == 'polynomial' &&     │
+│                          svm.degree | learner_id == 'svm')                   │
+│                              (svm.gamma | svm.kernel == 'radial' &&          │
+│                          svm.gamma | learner_id == 'svm')                    │
+│                              (xgboost.colsample_bylevel | xgboost.booster in │
+│                          {'dart', 'gbtree'} && xgboost.colsample_bylevel |   │
+│                          learner_id == 'xgboost')                            │
+│                              (xgboost.colsample_bytree | xgboost.booster in  │
+│                          {'dart', 'gbtree'} && xgboost.colsample_bytree |    │
+│                          learner_id == 'xgboost')                            │
+│                              (xgboost.eta | xgboost.booster in {'dart',      │
+│                          'gbtree'} && xgboost.eta | learner_id == 'xgboost') │
+│                              (xgboost.gamma | xgboost.booster in {'dart',    │
+│                          'gbtree'} && xgboost.gamma | learner_id ==          │
+│                          'xgboost')                                          │
+│                              (xgboost.max_depth | xgboost.booster in         │
+│                          {'dart', 'gbtree'} && xgboost.max_depth |           │
+│                          learner_id == 'xgboost')                            │
+│                              (xgboost.min_child_weight | xgboost.booster in  │
+│                          {'dart', 'gbtree'} && xgboost.min_child_weight |    │
+│                          learner_id == 'xgboost')                            │
+│                              (xgboost.rate_drop | xgboost.booster == 'dart'  │
+│                          && xgboost.rate_drop | learner_id == 'xgboost')     │
+│                              (xgboost.skip_drop | xgboost.booster == 'dart'  │
+│                          && xgboost.skip_drop | learner_id == 'xgboost')     │
+│                              aknn.M | learner_id == 'aknn'                   │
+│                              aknn.distance | learner_id == 'aknn'            │
+│                              aknn.ef | learner_id == 'aknn'                  │
+│                              aknn.ef_construction | learner_id == 'aknn'     │
+│                              aknn.k | learner_id == 'aknn'                   │
+│                              glmnet.alpha | learner_id == 'glmnet'           │
+│                              glmnet.s | learner_id == 'glmnet'               │
+│                              ranger.min.node.size | learner_id == 'ranger'   │
+│                              ranger.mtry.power | learner_id == 'ranger'      │
+│                              ranger.num.trees | learner_id == 'ranger'       │
+│                              ranger.respect.unordered.factors | learner_id   │
+│                          == 'ranger'                                         │
+│                              ranger.sample.fraction | learner_id == 'ranger' │
+│                              ranger.splitrule | learner_id == 'ranger'       │
+│                              rpart.cp | learner_id == 'rpart'                │
+│                              rpart.maxdepth | learner_id == 'rpart'          │
+│                              rpart.minbucket | learner_id == 'rpart'         │
+│                              rpart.minsplit | learner_id == 'rpart'          │
+│                              svm.cost | learner_id == 'svm'                  │
+│                              svm.kernel | learner_id == 'svm'                │
+│                              svm.tolerance | learner_id == 'svm'             │
+│                              xgboost.alpha | learner_id == 'xgboost'         │
+│                              xgboost.booster | learner_id == 'xgboost'       │
+│                              xgboost.lambda | learner_id == 'xgboost'        │
+│                              xgboost.nrounds | learner_id == 'xgboost'       │
+│                              xgboost.subsample | learner_id == 'xgboost'     │
+│                          ,                                                   │
+│                              fidelity_space=FidelitySpace(                   │
+│                                  is_multifidelity=False,                     │
+│                                  fidelity_type=None,                         │
+│                                  min_fidelity=None,                          │
+│                                  max_fidelity=None                           │
+│                              ),                                              │
+│                              instance_space=None                             │
+│                          )                                                   │
+│               metadata = TaskMetadata(                                       │
+│                              has_constraints=False,                          │
+│                              domain='ML',                                    │
+│                              objective_function_approximation='surrogate',   │
+│                              has_virtual_time=False,                         │
+│                              deterministic=False,                            │
+│                              dimensions=38,                                  │
+│                              search_space_n_categoricals=7,                  │
+│                              search_space_n_ordinals=0,                      │
+│                              search_space_n_integers=13,                     │
+│                              search_space_n_floats=18,                       │
+│                              search_space_has_conditionals=True,             │
+│                              search_space_has_forbiddens=False,              │
+│                              search_space_has_priors=False                   │
+│                          )                                                   │
+│                   name = 'yahpo/so/rbv2_super/1457/None'                     │
+│     objective_function = <carps.objective_functions.yahpo.YahpoObjectiveFun… │
+│                          object at 0x14b642d54d70>                           │
+│ optimization_resources = OptimizationResources(                              │
+│                              n_trials=50,                                    │
+│                              time_budget=None,                               │
+│                              n_workers=1                                     │
+│                          )                                                   │
+│           output_space = OutputSpace(n_objectives=1, objectives=['acc'])     │
+│                   seed = 5                                                   │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─────── <class 'carps_integration.optimizer.CARPSDynamicRFOptimizer'> ────────╮
+│ CARP-S compatible Bayesian Optimization optimizer wrapper that uses          │
+│ Dynamic RF surrogate models with Extensible Epistemic UQ Extractors.         │
+│                                                                              │
+│ ╭──────────────────────────────────────────────────────────────────────────╮ │
+│ │ <carps_integration.optimizer.CARPSDynamicRFOptimizer object at           │ │
+│ │ 0x14b642abd550>                                                          │ │
+│ ╰──────────────────────────────────────────────────────────────────────────╯ │
+│                                                                              │
+│         acq_uncertainty_type = 'epistemic'                                   │
+│                        alpha = 1.0                                           │
+│                  configspace = Configuration space object:                   │
+│                                  Hyperparameters:                            │
+│                                    aknn.M, Type: UniformInteger, Range: [18, │
+│                                50], Default: 34                              │
+│                                    aknn.distance, Type: Categorical,         │
+│                                Choices: {l2, cosine, ip}, Default: l2        │
+│                                    aknn.ef, Type: UniformInteger, Range: [8, │
+│                                256], Default: 48, on log-scale               │
+│                                    aknn.ef_construction, Type:               │
+│                                UniformInteger, Range: [8, 512], Default: 96, │
+│                                on log-scale                                  │
+│                                    aknn.k, Type: UniformInteger, Range: [1,  │
+│                                50], Default: 26                              │
+│                                    glmnet.alpha, Type: UniformFloat, Range:  │
+│                                [0.0, 1.0], Default: 1.0                      │
+│                                    glmnet.s, Type: UniformFloat, Range:      │
+│                                [0.0009118819656, 1096.6331584284585],        │
+│                                Default: 1.0, on log-scale                    │
+│                                    learner_id, Type: Categorical, Choices:   │
+│                                {aknn, glmnet, ranger, rpart, svm, xgboost},  │
+│                                Default: aknn                                 │
+│                                    num.impute.selected.cpo, Type:            │
+│                                Categorical, Choices: {impute.mean,           │
+│                                impute.median, impute.hist}, Default:         │
+│                                impute.mean                                   │
+│                                    ranger.min.node.size, Type:               │
+│                                UniformInteger, Range: [1, 100], Default: 50  │
+│                                    ranger.mtry.power, Type: UniformFloat,    │
+│                                Range: [0.0, 1.0], Default: 0.0               │
+│                                    ranger.num.random.splits, Type:           │
+│                                UniformInteger, Range: [1, 100], Default: 1   │
+│                                    ranger.num.trees, Type: UniformInteger,   │
+│                                Range: [1, 2000], Default: 1000               │
+│                                    ranger.respect.unordered.factors, Type:   │
+│                                Categorical, Choices: {ignore, order,         │
+│                                partition}, Default: ignore                   │
+│                                    ranger.sample.fraction, Type:             │
+│                                UniformFloat, Range: [0.1, 1.0], Default:     │
+│                                0.55                                          │
+│                                    ranger.splitrule, Type: Categorical,      │
+│                                Choices: {gini, extratrees}, Default: gini    │
+│                                    rpart.cp, Type: UniformFloat, Range:      │
+│                                [0.0009118819656, 1.0], Default: 0.01, on     │
+│                                log-scale                                     │
+│                                    rpart.maxdepth, Type: UniformInteger,     │
+│                                Range: [1, 30], Default: 30                   │
+│                                    rpart.minbucket, Type: UniformInteger,    │
+│                                Range: [1, 100], Default: 1                   │
+│                                    rpart.minsplit, Type: UniformInteger,     │
+│                                Range: [1, 100], Default: 20                  │
+│                                    svm.cost, Type: UniformFloat, Range:      │
+│                                [4.53999298e-05, 22026.465794806718],         │
+│                                Default: 1.0, on log-scale                    │
+│                                    svm.degree, Type: UniformInteger, Range:  │
+│                                [2, 5], Default: 4                            │
+│                                    svm.gamma, Type: UniformFloat, Range:     │
+│                                [4.53999298e-05, 22026.465794806718],         │
+│                                Default: 1.0, on log-scale                    │
+│                                    svm.kernel, Type: Categorical, Choices:   │
+│                                {linear, polynomial, radial}, Default: linear │
+│                                    svm.tolerance, Type: UniformFloat, Range: │
+│                                [4.53999298e-05, 2.0], Default: 0.009528896,  │
+│                                on log-scale                                  │
+│                                    task_id, Type: Constant, Value: 1457      │
+│                                    xgboost.alpha, Type: UniformFloat, Range: │
+│                                [0.0009118819656, 1096.6331584284585],        │
+│                                Default: 1.0, on log-scale                    │
+│                                    xgboost.booster, Type: Categorical,       │
+│                                Choices: {gblinear, gbtree, dart}, Default:   │
+│                                gblinear                                      │
+│                                    xgboost.colsample_bylevel, Type:          │
+│                                UniformFloat, Range: [0.01, 1.0], Default:    │
+│                                0.505                                         │
+│                                    xgboost.colsample_bytree, Type:           │
+│                                UniformFloat, Range: [0.01, 1.0], Default:    │
+│                                0.505                                         │
+│                                    xgboost.eta, Type: UniformFloat, Range:   │
+│                                [0.0009118819656, 1.0], Default:              │
+│                                0.0301973834, on log-scale                    │
+│                                    xgboost.gamma, Type: UniformFloat, Range: │
+│                                [4.53999298e-05, 7.3890560989306], Default:   │
+│                                0.0183156389, on log-scale                    │
+│                                    xgboost.lambda, Type: UniformFloat,       │
+│                                Range: [0.0009118819656, 1096.6331584284585], │
+│                                Default: 1.0, on log-scale                    │
+│                                    xgboost.max_depth, Type: UniformInteger,  │
+│                                Range: [1, 15], Default: 8                    │
+│                                    xgboost.min_child_weight, Type:           │
+│                                UniformFloat, Range: [2.718281828459,         │
+│                                148.4131591025766], Default: 20.0855369232,   │
+│                                on log-scale                                  │
+│                                    xgboost.nrounds, Type: UniformInteger,    │
+│                                Range: [7, 2981], Default: 144, on log-scale  │
+│                                    xgboost.rate_drop, Type: UniformFloat,    │
+│                                Range: [0.0, 1.0], Default: 0.5               │
+│                                    xgboost.skip_drop, Type: UniformFloat,    │
+│                                Range: [0.0, 1.0], Default: 0.5               │
+│                                    xgboost.subsample, Type: UniformFloat,    │
+│                                Range: [0.1, 1.0], Default: 0.55              │
+│                                  Conditions:                                 │
+│                                    (ranger.num.random.splits |               │
+│                                ranger.splitrule == 'extratrees' &&           │
+│                                ranger.num.random.splits | learner_id ==      │
+│                                'ranger')                                     │
+│                                    (svm.degree | svm.kernel == 'polynomial'  │
+│                                && svm.degree | learner_id == 'svm')          │
+│                                    (svm.gamma | svm.kernel == 'radial' &&    │
+│                                svm.gamma | learner_id == 'svm')              │
+│                                    (xgboost.colsample_bylevel |              │
+│                                xgboost.booster in {'dart', 'gbtree'} &&      │
+│                                xgboost.colsample_bylevel | learner_id ==     │
+│                                'xgboost')                                    │
+│                                    (xgboost.colsample_bytree |               │
+│                                xgboost.booster in {'dart', 'gbtree'} &&      │
+│                                xgboost.colsample_bytree | learner_id ==      │
+│                                'xgboost')                                    │
+│                                    (xgboost.eta | xgboost.booster in         │
+│                                {'dart', 'gbtree'} && xgboost.eta |           │
+│                                learner_id == 'xgboost')                      │
+│                                    (xgboost.gamma | xgboost.booster in       │
+│                                {'dart', 'gbtree'} && xgboost.gamma |         │
+│                                learner_id == 'xgboost')                      │
+│                                    (xgboost.max_depth | xgboost.booster in   │
+│                                {'dart', 'gbtree'} && xgboost.max_depth |     │
+│                                learner_id == 'xgboost')                      │
+│                                    (xgboost.min_child_weight |               │
+│                                xgboost.booster in {'dart', 'gbtree'} &&      │
+│                                xgboost.min_child_weight | learner_id ==      │
+│                                'xgboost')                                    │
+│                                    (xgboost.rate_drop | xgboost.booster ==   │
+│                                'dart' && xgboost.rate_drop | learner_id ==   │
+│                                'xgboost')                                    │
+│                                    (xgboost.skip_drop | xgboost.booster ==   │
+│                                'dart' && xgboost.skip_drop | learner_id ==   │
+│                                'xgboost')                                    │
+│                                    aknn.M | learner_id == 'aknn'             │
+│                                    aknn.distance | learner_id == 'aknn'      │
+│                                    aknn.ef | learner_id == 'aknn'            │
+│                                    aknn.ef_construction | learner_id ==      │
+│                                'aknn'                                        │
+│                                    aknn.k | learner_id == 'aknn'             │
+│                                    glmnet.alpha | learner_id == 'glmnet'     │
+│                                    glmnet.s | learner_id == 'glmnet'         │
+│                                    ranger.min.node.size | learner_id ==      │
+│                                'ranger'                                      │
+│                                    ranger.mtry.power | learner_id ==         │
+│                                'ranger'                                      │
+│                                    ranger.num.trees | learner_id == 'ranger' │
+│                                    ranger.respect.unordered.factors |        │
+│                                learner_id == 'ranger'                        │
+│                                    ranger.sample.fraction | learner_id ==    │
+│                                'ranger'                                      │
+│                                    ranger.splitrule | learner_id == 'ranger' │
+│                                    rpart.cp | learner_id == 'rpart'          │
+│                                    rpart.maxdepth | learner_id == 'rpart'    │
+│                                    rpart.minbucket | learner_id == 'rpart'   │
+│                                    rpart.minsplit | learner_id == 'rpart'    │
+│                                    svm.cost | learner_id == 'svm'            │
+│                                    svm.kernel | learner_id == 'svm'          │
+│                                    svm.tolerance | learner_id == 'svm'       │
+│                                    xgboost.alpha | learner_id == 'xgboost'   │
+│                                    xgboost.booster | learner_id == 'xgboost' │
+│                                    xgboost.lambda | learner_id == 'xgboost'  │
+│                                    xgboost.nrounds | learner_id == 'xgboost' │
+│                                    xgboost.subsample | learner_id ==         │
+│                                'xgboost'                                     │
+│                                                                              │
+│            enable_adaptation = True                                          │
+│                          eta = 0.5                                           │
+│           expects_fidelities = False                                         │
+│  expects_multiple_objectives = False                                         │
+│             extractor_kwargs = {}                                            │
+│               extractor_name = 'proximity_auto_lambda'                       │
+│             fidelity_enabled = False                                         │
+│                      history = []                                            │
+│       initial_design_configs = []                                            │
+│                        kappa = 1.96                                          │
+│                      loggers = [<carps.loggers.file_logger.FileLogger object │
+│                                at 0x14b642d54980>,                           │
+│                                <carps.loggers.database_logger.DatabaseLogger │
+│                                object at 0x14b642d541a0>]                    │
+│            max_features_base = 0.5                                           │
+│             max_features_max = 0.8                                           │
+│             max_features_min = 0.1                                           │
+│        min_samples_leaf_base = 2                                             │
+│         min_samples_leaf_max = 15                                            │
+│         min_samples_leaf_min = 1                                             │
+│                       n_init = 10                                            │
+│                    rf_kwargs = {}                                            │
+│                       solver = None                                          │
+│                    surrogate = None                                          │
+│                         task = Task(                                         │
+│                                    name='yahpo/so/rbv2_super/1457/None',     │
+│                                    objective_function=<carps.objective_func… │
+│                                object at 0x14b642d54d70>,                    │
+│                                    input_space=InputSpace(                   │
+│                                        configuration_space=Configuration     │
+│                                space object:                                 │
+│                                  Hyperparameters:                            │
+│                                    aknn.M, Type: UniformInteger, Range: [18, │
+│                                50], Default: 34                              │
+│                                    aknn.distance, Type: Categorical,         │
+│                                Choices: {l2, cosine, ip}, Default: l2        │
+│                                    aknn.ef, Type: UniformInteger, Range: [8, │
+│                                256], Default: 48, on log-scale               │
+│                                    aknn.ef_construction, Type:               │
+│                                UniformInteger, Range: [8, 512], Default: 96, │
+│                                on log-scale                                  │
+│                                    aknn.k, Type: UniformInteger, Range: [1,  │
+│                                50], Default: 26                              │
+│                                    glmnet.alpha, Type: UniformFloat, Range:  │
+│                                [0.0, 1.0], Default: 1.0                      │
+│                                    glmnet.s, Type: UniformFloat, Range:      │
+│                                [0.0009118819656, 1096.6331584284585],        │
+│                                Default: 1.0, on log-scale                    │
+│                                    learner_id, Type: Categorical, Choices:   │
+│                                {aknn, glmnet, ranger, rpart, svm, xgboost},  │
+│                                Default: aknn                                 │
+│                                    num.impute.selected.cpo, Type:            │
+│                                Categorical, Choices: {impute.mean,           │
+│                                impute.median, impute.hist}, Default:         │
+│                                impute.mean                                   │
+│                                    ranger.min.node.size, Type:               │
+│                                UniformInteger, Range: [1, 100], Default: 50  │
+│                                    ranger.mtry.power, Type: UniformFloat,    │
+│                                Range: [0.0, 1.0], Default: 0.0               │
+│                                    ranger.num.random.splits, Type:           │
+│                                UniformInteger, Range: [1, 100], Default: 1   │
+│                                    ranger.num.trees, Type: UniformInteger,   │
+│                                Range: [1, 2000], Default: 1000               │
+│                                    ranger.respect.unordered.factors, Type:   │
+│                                Categorical, Choices: {ignore, order,         │
+│                                partition}, Default: ignore                   │
+│                                    ranger.sample.fraction, Type:             │
+│                                UniformFloat, Range: [0.1, 1.0], Default:     │
+│                                0.55                                          │
+│                                    ranger.splitrule, Type: Categorical,      │
+│                                Choices: {gini, extratrees}, Default: gini    │
+│                                    rpart.cp, Type: UniformFloat, Range:      │
+│                                [0.0009118819656, 1.0], Default: 0.01, on     │
+│                                log-scale                                     │
+│                                    rpart.maxdepth, Type: UniformInteger,     │
+│                                Range: [1, 30], Default: 30                   │
+│                                    rpart.minbucket, Type: UniformInteger,    │
+│                                Range: [1, 100], Default: 1                   │
+│                                    rpart.minsplit, Type: UniformInteger,     │
+│                                Range: [1, 100], Default: 20                  │
+│                                    svm.cost, Type: UniformFloat, Range:      │
+│                                [4.53999298e-05, 22026.465794806718],         │
+│                                Default: 1.0, on log-scale                    │
+│                                    svm.degree, Type: UniformInteger, Range:  │
+│                                [2, 5], Default: 4                            │
+│                                    svm.gamma, Type: UniformFloat, Range:     │
+│                                [4.53999298e-05, 22026.465794806718],         │
+│                                Default: 1.0, on log-scale                    │
+│                                    svm.kernel, Type: Categorical, Choices:   │
+│                                {linear, polynomial, radial}, Default: linear │
+│                                    svm.tolerance, Type: UniformFloat, Range: │
+│                                [4.53999298e-05, 2.0], Default: 0.009528896,  │
+│                                on log-scale                                  │
+│                                    task_id, Type: Constant, Value: 1457      │
+│                                    xgboost.alpha, Type: UniformFloat, Range: │
+│                                [0.0009118819656, 1096.6331584284585],        │
+│                                Default: 1.0, on log-scale                    │
+│                                    xgboost.booster, Type: Categorical,       │
+│                                Choices: {gblinear, gbtree, dart}, Default:   │
+│                                gblinear                                      │
+│                                    xgboost.colsample_bylevel, Type:          │
+│                                UniformFloat, Range: [0.01, 1.0], Default:    │
+│                                0.505                                         │
+│                                    xgboost.colsample_bytree, Type:           │
+│                                UniformFloat, Range: [0.01, 1.0], Default:    │
+│                                0.505                                         │
+│                                    xgboost.eta, Type: UniformFloat, Range:   │
+│                                [0.0009118819656, 1.0], Default:              │
+│                                0.0301973834, on log-scale                    │
+│                                    xgboost.gamma, Type: UniformFloat, Range: │
+│                                [4.53999298e-05, 7.3890560989306], Default:   │
+│                                0.0183156389, on log-scale                    │
+│                                    xgboost.lambda, Type: UniformFloat,       │
+│                                Range: [0.0009118819656, 1096.6331584284585], │
+│                                Default: 1.0, on log-scale                    │
+│                                    xgboost.max_depth, Type: UniformInteger,  │
+│                                Range: [1, 15], Default: 8                    │
+│                                    xgboost.min_child_weight, Type:           │
+│                                UniformFloat, Range: [2.718281828459,         │
+│                                148.4131591025766], Default: 20.0855369232,   │
+│                                on log-scale                                  │
+│                                    xgboost.nrounds, Type: UniformInteger,    │
+│                                Range: [7, 2981], Default: 144, on log-scale  │
+│                                    xgboost.rate_drop, Type: UniformFloat,    │
+│                                Range: [0.0, 1.0], Default: 0.5               │
+│                                    xgboost.skip_drop, Type: UniformFloat,    │
+│                                Range: [0.0, 1.0], Default: 0.5               │
+│                                    xgboost.subsample, Type: UniformFloat,    │
+│                                Range: [0.1, 1.0], Default: 0.55              │
+│                                  Conditions:                                 │
+│                                    (ranger.num.random.splits |               │
+│                                ranger.splitrule == 'extratrees' &&           │
+│                                ranger.num.random.splits | learner_id ==      │
+│                                'ranger')                                     │
+│                                    (svm.degree | svm.kernel == 'polynomial'  │
+│                                && svm.degree | learner_id == 'svm')          │
+│                                    (svm.gamma | svm.kernel == 'radial' &&    │
+│                                svm.gamma | learner_id == 'svm')              │
+│                                    (xgboost.colsample_bylevel |              │
+│                                xgboost.booster in {'dart', 'gbtree'} &&      │
+│                                xgboost.colsample_bylevel | learner_id ==     │
+│                                'xgboost')                                    │
+│                                    (xgboost.colsample_bytree |               │
+│                                xgboost.booster in {'dart', 'gbtree'} &&      │
+│                                xgboost.colsample_bytree | learner_id ==      │
+│                                'xgboost')                                    │
+│                                    (xgboost.eta | xgboost.booster in         │
+│                                {'dart', 'gbtree'} && xgboost.eta |           │
+│                                learner_id == 'xgboost')                      │
+│                                    (xgboost.gamma | xgboost.booster in       │
+│                                {'dart', 'gbtree'} && xgboost.gamma |         │
+│                                learner_id == 'xgboost')                      │
+│                                    (xgboost.max_depth | xgboost.booster in   │
+│                                {'dart', 'gbtree'} && xgboost.max_depth |     │
+│                                learner_id == 'xgboost')                      │
+│                                    (xgboost.min_child_weight |               │
+│                                xgboost.booster in {'dart', 'gbtree'} &&      │
+│                                xgboost.min_child_weight | learner_id ==      │
+│                                'xgboost')                                    │
+│                                    (xgboost.rate_drop | xgboost.booster ==   │
+│                                'dart' && xgboost.rate_drop | learner_id ==   │
+│                                'xgboost')                                    │
+│                                    (xgboost.skip_drop | xgboost.booster ==   │
+│                                'dart' && xgboost.skip_drop | learner_id ==   │
+│                                'xgboost')                                    │
+│                                    aknn.M | learner_id == 'aknn'             │
+│                                    aknn.distance | learner_id == 'aknn'      │
+│                                    aknn.ef | learner_id == 'aknn'            │
+│                                    aknn.ef_construction | learner_id ==      │
+│                                'aknn'                                        │
+│                                    aknn.k | learner_id == 'aknn'             │
+│                                    glmnet.alpha | learner_id == 'glmnet'     │
+│                                    glmnet.s | learner_id == 'glmnet'         │
+│                                    ranger.min.node.size | learner_id ==      │
+│                                'ranger'                                      │
+│                                    ranger.mtry.power | learner_id ==         │
+│                                'ranger'                                      │
+│                                    ranger.num.trees | learner_id == 'ranger' │
+│                                    ranger.respect.unordered.factors |        │
+│                                learner_id == 'ranger'                        │
+│                                    ranger.sample.fraction | learner_id ==    │
+│                                'ranger'                                      │
+│                                    ranger.splitrule | learner_id == 'ranger' │
+│                                    rpart.cp | learner_id == 'rpart'          │
+│                                    rpart.maxdepth | learner_id == 'rpart'    │
+│                                    rpart.minbucket | learner_id == 'rpart'   │
+│                                    rpart.minsplit | learner_id == 'rpart'    │
+│                                    svm.cost | learner_id == 'svm'            │
+│                                    svm.kernel | learner_id == 'svm'          │
+│                                    svm.tolerance | learner_id == 'svm'       │
+│                                    xgboost.alpha | learner_id == 'xgboost'   │
+│                                    xgboost.booster | learner_id == 'xgboost' │
+│                                    xgboost.lambda | learner_id == 'xgboost'  │
+│                                    xgboost.nrounds | learner_id == 'xgboost' │
+│                                    xgboost.subsample | learner_id ==         │
+│                                'xgboost'                                     │
+│                                ,                                             │
+│                                        fidelity_space=FidelitySpace(         │
+│                                            is_multifidelity=False,           │
+│                                            fidelity_type=None,               │
+│                                            min_fidelity=None,                │
+│                                            max_fidelity=None                 │
+│                                        ),                                    │
+│                                        instance_space=None                   │
+│                                    ),                                        │
+│                                    output_space=OutputSpace(                 │
+│                                        n_objectives=1,                       │
+│                                        objectives=['acc']                    │
+│                                    ),                                        │
+│                                    optimization_resources=OptimizationResou… │
+│                                        n_trials=50,                          │
+│                                        time_budget=None,                     │
+│                                        n_workers=1                           │
+│                                    ),                                        │
+│                                    metadata=TaskMetadata(                    │
+│                                        has_constraints=False,                │
+│                                        domain='ML',                          │
+│                                        objective_function_approximation='su… │
+│                                        has_virtual_time=False,               │
+│                                        deterministic=False,                  │
+│                                        dimensions=38,                        │
+│                                        search_space_n_categoricals=7,        │
+│                                        search_space_n_ordinals=0,            │
+│                                        search_space_n_integers=13,           │
+│                                        search_space_n_floats=18,             │
+│                                        search_space_has_conditionals=True,   │
+│                                        search_space_has_forbiddens=False,    │
+│                                        search_space_has_priors=False         │
+│                                    ),                                        │
+│                                    seed=5                                    │
+│                                )                                             │
+│               telemetry_path = 'results/telemetry_proximity_auto_lambda_cfg… │
+│            telemetry_records = []                                            │
+│                  time_budget = None                                          │
+│                trial_counter = 0                                             │
+│ virtual_time_elapsed_seconds = 0.0                                           │
+│                  window_size = 5                                             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+[[36m2026-07-21 20:36:48,405[0m][[34msmac.initial_design.abstract_initial_design[0m][[32mINFO[0m] - Using `n_configs` and ignoring `n_configs_per_hyperparameter`.[0m
+[[36m2026-07-21 20:36:48,526[0m][[34msmac.initial_design.abstract_initial_design[0m][[32mINFO[0m] - Using 10 initial design configurations and 0 additional configurations.[0m
+[[36m2026-07-21 20:36:48,538[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 1, n_function_calls: 1, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 14, 0.582777639851, 1952, np.str_('order'), 0.2954813853838, np.str_('gini')], cost: -0.7413672208786011[0m
+[[36m2026-07-21 20:36:48,588[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 2, n_function_calls: 2, config: [np.str_('svm'), np.str_('impute.mean'), '1457', 3573.3402247878184, np.str_('radial'), 0.2661327131255, 3234.9157761381457], cost: -0.012645995244383812[0m
+[[36m2026-07-21 20:36:48,607[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 3, n_function_calls: 3, config: [np.str_('xgboost'), np.str_('impute.median'), '1457', 0.0023974456446, np.str_('gbtree'), 3.1822936001439, 9, 0.6524933906272, 0.2956929427758, 0.4386391940154, 0.0010047419819, 0.000574103356, 13, 64.102473686425], cost: -0.012214397080242634[0m
+[[36m2026-07-21 20:36:48,626[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 4, n_function_calls: 4, config: [np.str_('aknn'), np.str_('impute.median'), '1457', 47, np.str_('cosine'), 237, 68, 13], cost: -0.4158725142478943[0m
+[[36m2026-07-21 20:36:48,648[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 5, n_function_calls: 5, config: [np.str_('glmnet'), np.str_('impute.median'), '1457', 0.8627720437944, 56.933062095063], cost: -0.06810890138149261[0m
+[[36m2026-07-21 20:36:48,667[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 6, n_function_calls: 6, config: [np.str_('svm'), np.str_('impute.mean'), '1457', 212.3406217208304, np.str_('radial'), 0.7274195704418, 204.4028522265603], cost: -0.08181490004062653[0m
+[[36m2026-07-21 20:36:48,687[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 7, n_function_calls: 7, config: [np.str_('rpart'), np.str_('impute.hist'), '1457', 0.0504297853977, 3, 27, 57], cost: -0.007356672547757626[0m
+[[36m2026-07-21 20:36:48,706[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 8, n_function_calls: 8, config: [np.str_('ranger'), np.str_('impute.mean'), '1457', 74, 0.4603227842599, 1630, np.str_('order'), 0.3682732498273, np.str_('gini')], cost: -0.7124887108802795[0m
+[[36m2026-07-21 20:36:48,726[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 9, n_function_calls: 9, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 36, 0.3859240598977, 1836, np.str_('ignore'), 0.8585859251209, np.str_('extratrees'), 69], cost: -0.7624056935310364[0m
+[[36m2026-07-21 20:36:48,757[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 10, n_function_calls: 10, config: [np.str_('rpart'), np.str_('impute.median'), '1457', 0.0239575826402, 23, 63, 91], cost: -0.03085482306778431[0m
+[[36m2026-07-21 20:36:51,597[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 11, n_function_calls: 11, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 62, 0.7404778490637, 1797, np.str_('order'), 0.8010573910181, np.str_('extratrees'), 73], cost: -0.7106524109840393[0m
+[[36m2026-07-21 20:36:54,441[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 12, n_function_calls: 12, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 48, 0.5880717597819, 1861, np.str_('partition'), 0.9417980524697, np.str_('extratrees'), 46], cost: -0.7937327027320862[0m
+[[36m2026-07-21 20:36:57,286[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 13, n_function_calls: 13, config: [np.str_('ranger'), np.str_('impute.mean'), '1457', 48, 0.816839187625, 1845, np.str_('ignore'), 0.9560465020907, np.str_('extratrees'), 37], cost: -0.736414909362793[0m
+[[36m2026-07-21 20:37:00,213[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 14, n_function_calls: 14, config: [np.str_('ranger'), np.str_('impute.mean'), '1457', 90, 0.1854689532732, 1951, np.str_('partition'), 0.8840491737087, np.str_('extratrees'), 60], cost: -0.7127578854560852[0m
+[[36m2026-07-21 20:37:03,057[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 15, n_function_calls: 15, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 16, 0.217296674436, 1452, np.str_('partition'), 0.1612168879637, np.str_('extratrees'), 73], cost: -0.692811906337738[0m
+[[36m2026-07-21 20:37:05,899[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 16, n_function_calls: 16, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 10, 0.1361065509427, 1631, np.str_('ignore'), 0.1937181549419, np.str_('extratrees'), 74], cost: -0.6585661768913269[0m
+[[36m2026-07-21 20:37:08,744[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 17, n_function_calls: 17, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 7, 0.0819135451089, 1691, np.str_('ignore'), 0.6229315817151, np.str_('gini')], cost: -0.7640185952186584[0m
+[[36m2026-07-21 20:37:11,614[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 18, n_function_calls: 18, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 4, 0.592525976426, 1147, np.str_('partition'), 0.8604379578386, np.str_('gini')], cost: -0.7939870953559875[0m
+[[36m2026-07-21 20:37:14,468[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 19, n_function_calls: 19, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 8, 0.6565024932305, 27, np.str_('ignore'), 0.1039266147535, np.str_('extratrees'), 67], cost: -0.5622302293777466[0m
+[[36m2026-07-21 20:37:17,311[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 20, n_function_calls: 20, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 10, 0.7370568368283, 721, np.str_('partition'), 0.9942507146259, np.str_('extratrees'), 32], cost: -0.7982174754142761[0m
+[[36m2026-07-21 20:37:20,167[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 21, n_function_calls: 21, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 10, 0.4423405753554, 950, np.str_('partition'), 0.174124539322, np.str_('gini')], cost: -0.6586063504219055[0m
+[[36m2026-07-21 20:37:23,020[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 22, n_function_calls: 22, config: [np.str_('ranger'), np.str_('impute.mean'), '1457', 8, 0.5899082091771, 81, np.str_('ignore'), 0.6501195377256, np.str_('gini')], cost: -0.7294600605964661[0m
+[[36m2026-07-21 20:37:25,904[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 23, n_function_calls: 23, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 27, 0.8277872074634, 1733, np.str_('partition'), 0.6673175104364, np.str_('extratrees'), 15], cost: -0.7686125040054321[0m
+[[36m2026-07-21 20:37:29,498[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 24, n_function_calls: 24, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 30, 0.7281653683318, 701, np.str_('partition'), 0.8458679253115, np.str_('gini')], cost: -0.7414336800575256[0m
+[[36m2026-07-21 20:37:32,355[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 25, n_function_calls: 25, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 7, 0.0703163204132, 1584, np.str_('order'), 0.8810783141024, np.str_('gini')], cost: -0.8044794797897339[0m
+[[36m2026-07-21 20:37:35,264[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 26, n_function_calls: 26, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 1, 0.4457115979691, 31, np.str_('ignore'), 0.8949318616296, np.str_('gini')], cost: -0.7348980903625488[0m
+[[36m2026-07-21 20:37:38,158[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 27, n_function_calls: 27, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 2, 0.2497154661502, 1167, np.str_('ignore'), 0.9530493512058, np.str_('gini')], cost: -0.7969198226928711[0m
+[[36m2026-07-21 20:37:41,056[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 28, n_function_calls: 28, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 37, 0.993311503514, 144, np.str_('partition'), 0.9813060510542, np.str_('extratrees'), 28], cost: -0.7295504808425903[0m
+[[36m2026-07-21 20:37:43,930[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 29, n_function_calls: 29, config: [np.str_('ranger'), np.str_('impute.mean'), '1457', 1, 0.6225611601288, 96, np.str_('order'), 0.8660117081475, np.str_('gini')], cost: -0.7595130205154419[0m
+[[36m2026-07-21 20:37:46,816[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 30, n_function_calls: 30, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 8, 0.085326774079, 995, np.str_('partition'), 0.9541253737403, np.str_('extratrees'), 21], cost: -0.7106618881225586[0m
+[[36m2026-07-21 20:37:49,703[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 31, n_function_calls: 31, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 1, 0.5577823907226, 1334, np.str_('partition'), 0.5912971804817, np.str_('extratrees'), 34], cost: -0.7750073075294495[0m
+[[36m2026-07-21 20:37:52,595[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 32, n_function_calls: 32, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 3, 0.0250474972127, 1807, np.str_('partition'), 0.9900672711876, np.str_('gini')], cost: -0.7934557199478149[0m
+[[36m2026-07-21 20:37:55,517[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 33, n_function_calls: 33, config: [np.str_('ranger'), np.str_('impute.mean'), '1457', 3, 0.0064453303441, 1842, np.str_('ignore'), 0.83452337011, np.str_('gini')], cost: -0.7621498107910156[0m
+[[36m2026-07-21 20:37:58,425[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 34, n_function_calls: 34, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 64, 0.012280376414, 1238, np.str_('ignore'), 0.9753282759863, np.str_('gini')], cost: -0.7673586010932922[0m
+[[36m2026-07-21 20:38:01,340[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 35, n_function_calls: 35, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 17, 0.9770689061764, 64, np.str_('partition'), 0.1223914742104, np.str_('extratrees'), 8], cost: -0.5464351773262024[0m
+[[36m2026-07-21 20:38:04,303[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 36, n_function_calls: 36, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 19, 0.7446858205302, 838, np.str_('partition'), 0.5424130821146, np.str_('extratrees'), 31], cost: -0.7306311130523682[0m
+[[36m2026-07-21 20:38:07,220[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 37, n_function_calls: 37, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 84, 0.8551779140862, 966, np.str_('partition'), 0.8517784387176, np.str_('extratrees'), 44], cost: -0.7201658487319946[0m
+[[36m2026-07-21 20:38:10,156[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 38, n_function_calls: 38, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 2, 0.9098920093063, 1940, np.str_('partition'), 0.7759842292335, np.str_('extratrees'), 46], cost: -0.8169471621513367[0m
+[[36m2026-07-21 20:38:13,102[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 39, n_function_calls: 39, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 2, 0.8866333746631, 1413, np.str_('partition'), 0.5598770284266, np.str_('extratrees'), 95], cost: -0.800658643245697[0m
+[[36m2026-07-21 20:38:16,064[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 40, n_function_calls: 40, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 6, 0.9218564663376, 1755, np.str_('order'), 0.9390142588066, np.str_('gini')], cost: -0.7749274969100952[0m
+[[36m2026-07-21 20:38:19,009[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 41, n_function_calls: 41, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 55, 0.7540490920487, 621, np.str_('ignore'), 0.9581223877085, np.str_('extratrees'), 44], cost: -0.6870821714401245[0m
+[[36m2026-07-21 20:38:21,965[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 42, n_function_calls: 42, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 12, 0.6206456454711, 472, np.str_('partition'), 0.8991902279858, np.str_('extratrees'), 20], cost: -0.7582537531852722[0m
+[[36m2026-07-21 20:38:24,958[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 43, n_function_calls: 43, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 10, 0.9007924669528, 546, np.str_('partition'), 0.57492492872, np.str_('extratrees'), 97], cost: -0.7592189908027649[0m
+[[36m2026-07-21 20:38:27,916[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 44, n_function_calls: 44, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 12, 0.4821482943957, 288, np.str_('order'), 0.966028323575, np.str_('extratrees'), 52], cost: -0.7540956139564514[0m
+[[36m2026-07-21 20:38:30,901[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 45, n_function_calls: 45, config: [np.str_('ranger'), np.str_('impute.mean'), '1457', 7, 0.5262404369916, 242, np.str_('partition'), 0.9767161684911, np.str_('extratrees'), 70], cost: -0.7667997479438782[0m
+[[36m2026-07-21 20:38:33,875[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 46, n_function_calls: 46, config: [np.str_('ranger'), np.str_('impute.mean'), '1457', 8, 0.9018996309586, 575, np.str_('partition'), 0.8937051504424, np.str_('extratrees'), 36], cost: -0.7584331035614014[0m
+[[36m2026-07-21 20:38:36,892[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 47, n_function_calls: 47, config: [np.str_('ranger'), np.str_('impute.hist'), '1457', 4, 0.51481079136, 1949, np.str_('partition'), 0.1164437956486, np.str_('gini')], cost: -0.7073878645896912[0m
+[[36m2026-07-21 20:38:39,882[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 48, n_function_calls: 48, config: [np.str_('ranger'), np.str_('impute.mean'), '1457', 20, 0.7698148834742, 226, np.str_('order'), 0.981508250108, np.str_('gini')], cost: -0.7272747755050659[0m
+[[36m2026-07-21 20:38:42,886[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 49, n_function_calls: 49, config: [np.str_('ranger'), np.str_('impute.mean'), '1457', 1, 0.3946479175723, 19, np.str_('partition'), 0.7055050612942, np.str_('extratrees'), 49], cost: -0.6960503458976746[0m
+[[36m2026-07-21 20:38:47,530[0m][[34mFileLogger[0m][[32mINFO[0m] - n_trials: 50, n_function_calls: 50, config: [np.str_('ranger'), np.str_('impute.median'), '1457', 12, 0.833158064789, 886, np.str_('partition'), 0.9749151623016, np.str_('gini')], cost: -0.7703399658203125[0m
+Solution found: 
+(
+    TrialInfo(
+        config=Configuration(values={
+  'learner_id': np.str_('ranger'),
+  'num.impute.selected.cpo': np.str_('impute.hist'),
+  'task_id': '1457',
+  'ranger.min.node.size': 2,
+  'ranger.mtry.power': 0.9098920093063,
+  'ranger.num.trees': 1940,
+  'ranger.respect.unordered.factors': np.str_('partition'),
+  'ranger.sample.fraction': 0.7759842292335,
+  'ranger.splitrule': np.str_('extratrees'),
+  'ranger.num.random.splits': 46,
+}),
+        instance=None,
+        seed=None,
+        budget=None,
+        normalized_budget=None,
+        name=None,
+        checkpoint=None,
+        additional_info={}
+    ),
+    TrialValue(
+        cost=np.float32(-0.81694716),
+        time=0.001783132553100586,
+        virtual_time=0.0,
+        status=<StatusType.SUCCESS: 1>,
+        starttime=1784659090.1512585,
+        endtime=1784659090.1530416,
+        additional_info={}
+    )
+)
+==================================================
+BENCHMARK SWEEP STEP COMPLETED SUCCESSFULLY!
+==================================================
+==================================================
+Array Task Index 95 Finished
+==================================================
