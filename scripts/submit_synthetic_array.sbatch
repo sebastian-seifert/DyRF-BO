@@ -5,7 +5,7 @@
 #SBATCH --error=results/%x_logs/array_%A_%a.err
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=12:00:00
+#SBATCH --time=48:00:00
 #SBATCH --array=1-300%15
 
 eval "$(conda shell.bash hook 2>/dev/null)" || true

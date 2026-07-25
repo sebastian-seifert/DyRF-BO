@@ -5,7 +5,7 @@
 #SBATCH --error=results/array_%A_%a.err
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
-#SBATCH --time=12:00:00
+#SBATCH --time=48:00:00
 #SBATCH --array=1-260%15
 
 
