@@ -516,7 +516,7 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             sys.stdout.flush()
 
     t6 = time.perf_counter()
-    for app in approaches:
+    for app in list(uncertainties.keys()):
         u_e = uncertainties[app]
         results[app] = {"auroc": None, "fpr95": None, "aupr": None, "spearman": None, "brier": None, "mi": None, "jsd": None, "naurc": None, "nlpd": None}
 
@@ -861,7 +861,12 @@ if __name__ == "__main__":
                 else:
                     dim_key = "15D"
 
-                for app in approaches:
+                for app in test_results.keys():
+                    if app not in results_all:
+                        results_all[app] = {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": [], "nlpd": []}
+                    if app not in results_by_dim[dim_key]:
+                        results_by_dim[dim_key][app] = {"auroc": [], "fpr95": [], "aupr": [], "spearman": [], "brier": [], "mi": [], "jsd": [], "naurc": [], "nlpd": []}
+
                     results_all[app]["auroc"].append(test_results[app]["auroc"])
                     results_all[app]["fpr95"].append(test_results[app]["fpr95"])
                     results_all[app]["aupr"].append(test_results[app]["aupr"])
@@ -871,7 +876,7 @@ if __name__ == "__main__":
                     results_all[app]["jsd"].append(test_results[app]["jsd"])
                     results_all[app]["naurc"].append(test_results[app]["naurc"])
                     results_all[app]["nlpd"].append(test_results[app]["nlpd"])
-
+                    
                     results_by_dim[dim_key][app]["auroc"].append(test_results[app]["auroc"])
                     results_by_dim[dim_key][app]["fpr95"].append(test_results[app]["fpr95"])
                     results_by_dim[dim_key][app]["aupr"].append(test_results[app]["aupr"])
@@ -988,8 +993,10 @@ if __name__ == "__main__":
     print(f"{'='*70}\n")
     sys.stdout.flush()
 
+    eval_approaches = list(results_all.keys())
+
     # Print comprehensive report summary to terminal
-    print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs, alpha=alpha)
+    print_comprehensive_summary(results_all, results_by_dim, eval_approaches, n_runs, alpha=alpha)
     
     # Executing file generator to dump everything into a clean timestamped report txt file
     suffix_str = f"rf{rf_config_arg}_k{k_neighbors_arg}_{gap_type_arg}_m{sparse_multiplier_arg}_{scaling_law_arg}"
@@ -1003,7 +1010,7 @@ if __name__ == "__main__":
         suffix_str += "_ds"
         
     save_results_to_file(
-        results_all, results_by_dim, approaches, n_runs, alpha=alpha,
+        results_all, results_by_dim, eval_approaches, n_runs, alpha=alpha,
         suffix=suffix_str, use_density_scaling=use_density_scaling_arg,
         output_dir=output_dir_arg
     )
