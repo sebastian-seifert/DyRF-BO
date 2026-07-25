@@ -213,13 +213,21 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
         for dim_name, results_dict in dimensions:
             print(f"> {dim_name}")
             
-            # FIXED: Reshape and average across seeds to eliminate Pseudo-Replication
-            total_items = len(results_dict[approaches[0]][metric])
+            # Find first available valid approach to determine item count
+            first_valid_app = next((app for app in approaches if app in results_dict and len(results_dict[app][metric]) > 0), None)
+            if first_valid_app is None:
+                print("  -> Not enough valid independent functions (blocks) to perform paired testing")
+                continue
+                
+            total_items = len(results_dict[first_valid_app][metric])
             n_functions = total_items // n_runs
+            if n_functions == 0:
+                print("  -> Not enough valid independent functions (blocks) to perform paired testing")
+                continue
             
             processed_data = []
             for app in approaches:
-                if app in results_dict and len(results_dict[app][metric]) > 0:
+                if app in results_dict and len(results_dict[app][metric]) == total_items:
                     flat_vals = np.array(results_dict[app][metric], dtype=float)
                     matrix = flat_vals.reshape(n_runs, n_functions)
                     processed_data.append(np.nanmean(matrix, axis=0))
