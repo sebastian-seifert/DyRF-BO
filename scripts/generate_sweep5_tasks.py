@@ -32,58 +32,25 @@ def main():
     seeds = list(range(1, 8))
     rf_configs = ["A", "B", "C"]
 
-    lambdas = [0.5, 1.0, 5.0]
-    ks = [10, 20, 50]
-    alphas = [1.0, 5.0]
-
     lines = []
 
     for func_name in sorted(funcs.keys()):
         for cfg in rf_configs:
             for seed in seeds:
-                # 1. Baselines
                 line_base = (
                     f"--function {func_name} --rf_config {cfg} --seed {seed} --gap_type empty "
                     f"--ood_type manifold --approaches {BASELINES} --output_dir {output_dir}/raw"
                 )
                 lines.append(line_base)
 
-                # 2. Proximity Baseline & Proximity Method B
-                for lmbda in lambdas:
-                    for k in ks:
-                        line_prox_base = (
-                            f"--function {func_name} --rf_config {cfg} --seed {seed} --gap_type empty "
-                            f"--ood_type manifold --topological_decay_lambda {lmbda} --k_neighbors {k} "
-                            f"--approaches Proximity_Baseline --output_dir {output_dir}/raw"
-                        )
-                        lines.append(line_prox_base)
-                    
-                    line_prox_b = (
-                        f"--function {func_name} --rf_config {cfg} --seed {seed} --gap_type empty "
-                        f"--ood_type manifold --topological_decay_lambda {lmbda} --k_neighbors auto "
-                        f"--approaches Proximity_Method_B --output_dir {output_dir}/raw"
-                    )
-                    lines.append(line_prox_b)
-
-                # 3. Proximity Method C & Proximity Method B_C
-                for lmbda in lambdas:
-                    for alpha in alphas:
-                        for k in ks:
-                            line_prox_c = (
-                                f"--function {func_name} --rf_config {cfg} --seed {seed} --gap_type empty "
-                                f"--ood_type manifold --topological_decay_lambda {lmbda} --k_neighbors {k} "
-                                f"--use_density_scaling --density_scaling_alpha {alpha} "
-                                f"--approaches Proximity_Method_C --output_dir {output_dir}/raw"
-                            )
-                            lines.append(line_prox_c)
-                        
-                        line_prox_bc = (
-                            f"--function {func_name} --rf_config {cfg} --seed {seed} --gap_type empty "
-                            f"--ood_type manifold --topological_decay_lambda {lmbda} --k_neighbors auto "
-                            f"--use_density_scaling --density_scaling_alpha {alpha} "
-                            f"--approaches Proximity_Method_B_C --output_dir {output_dir}/raw"
-                        )
-                        lines.append(line_prox_bc)
+                line_prox_combined = (
+                    f"--function {func_name} --rf_config {cfg} --seed {seed} --gap_type empty "
+                    f"--ood_type manifold --topological_decay_lambda 0.5,1.0,5.0 --k_neighbors 10,20,50,auto "
+                    f"--use_density_scaling --density_scaling_alpha 1.0,5.0 "
+                    f"--approaches Proximity_Baseline,Proximity_Method_B,Proximity_Method_C,Proximity_Method_B_C "
+                    f"--output_dir {output_dir}/raw"
+                )
+                lines.append(line_prox_combined)
 
     with open(tasks_file, "w") as f:
         for line in lines:
@@ -91,7 +58,7 @@ def main():
 
     metadata = {
         "sweep_name": "sweep_5_manifold",
-        "description": "Manifold OOD Data Generation UQ Evaluation across 44 functions, 7 seeds, 3 RF configs (A, B, C)",
+        "description": "Manifold OOD Data Generation UQ Evaluation (Combined Proximity) across 44 functions, 7 seeds, 3 RF configs",
         "functions_count": len(funcs),
         "seeds": seeds,
         "rf_configs": rf_configs,

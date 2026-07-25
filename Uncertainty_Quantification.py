@@ -432,27 +432,30 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             k_val = 20 if isinstance(k_neighbors, str) and k_neighbors == "auto" else k_neighbors
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
         elif app == "Proximity_Method_B":
+            l_val = 1.0 if topological_decay_lambda is None else topological_decay_lambda
             prox_q = GPUProximityRegressionUQ(
                 rf, X_train, y_train, device="auto", batch_size="auto",
                 use_density_scaling=False,
-                topological_decay_lambda=1.0
+                topological_decay_lambda=l_val
             )
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
         elif app == "Proximity_Method_C":
+            l_val = 5.0 if topological_decay_lambda is None else topological_decay_lambda
             prox_q = GPUProximityRegressionUQ(
                 rf, X_train, y_train, device="auto", batch_size="auto",
                 use_density_scaling=True,
                 density_scaling_alpha=density_scaling_alpha,
-                topological_decay_lambda=5.0
+                topological_decay_lambda=l_val
             )
             k_val = 20 if isinstance(k_neighbors, str) and k_neighbors == "auto" else k_neighbors
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
         elif app == "Proximity_Method_B_C":
+            l_val = 5.0 if topological_decay_lambda is None else topological_decay_lambda
             prox_q = GPUProximityRegressionUQ(
                 rf, X_train, y_train, device="auto", batch_size="auto",
                 use_density_scaling=True,
                 density_scaling_alpha=density_scaling_alpha,
-                topological_decay_lambda=5.0
+                topological_decay_lambda=l_val
             )
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
         elif app == "Proximity_Method_B_Norm":
