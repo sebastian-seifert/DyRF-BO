@@ -225,5 +225,8 @@ class CARPSDynamicRFOptimizer(Optimizer):
             "kappa": self.kappa,
             "trials": self.telemetry_records
         }
+        parent_dir = os.path.dirname(self.telemetry_path)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
         with open(self.telemetry_path, "w") as f:
             json.dump(data, f, indent=4)
