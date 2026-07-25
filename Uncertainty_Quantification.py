@@ -416,48 +416,44 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
             )
             prox_q.tune_lambda_oob()
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
-        elif app == "Proximity_Baseline":
-            prox_q = GPUProximityRegressionUQ(
-                rf, X_train, y_train, device="auto", batch_size="auto",
-                use_density_scaling=False,
-                topological_decay_lambda=None
-            )
-            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
-        elif app == "Proximity_Method_A":
-            prox_q = GPUProximityRegressionUQ(
-                rf, X_train, y_train, device="auto", batch_size="auto",
-                use_density_scaling=False,
-                topological_decay_lambda=1.0
-            )
-            k_val = 20 if isinstance(k_neighbors, str) and k_neighbors == "auto" else k_neighbors
-            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
-        elif app == "Proximity_Method_B":
-            l_val = 1.0 if topological_decay_lambda is None else topological_decay_lambda
-            prox_q = GPUProximityRegressionUQ(
-                rf, X_train, y_train, device="auto", batch_size="auto",
-                use_density_scaling=False,
-                topological_decay_lambda=l_val
-            )
-            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
-        elif app == "Proximity_Method_C":
-            l_val = 5.0 if topological_decay_lambda is None else topological_decay_lambda
-            prox_q = GPUProximityRegressionUQ(
-                rf, X_train, y_train, device="auto", batch_size="auto",
-                use_density_scaling=True,
-                density_scaling_alpha=density_scaling_alpha,
-                topological_decay_lambda=l_val
-            )
-            k_val = 20 if isinstance(k_neighbors, str) and k_neighbors == "auto" else k_neighbors
-            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
-        elif app == "Proximity_Method_B_C":
-            l_val = 5.0 if topological_decay_lambda is None else topological_decay_lambda
-            prox_q = GPUProximityRegressionUQ(
-                rf, X_train, y_train, device="auto", batch_size="auto",
-                use_density_scaling=True,
-                density_scaling_alpha=density_scaling_alpha,
-                topological_decay_lambda=l_val
-            )
-            uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
+        elif app in ["Proximity_Baseline", "Proximity_Method_B", "Proximity_Method_C", "Proximity_Method_B_C"]:
+            # Standardize list parameters if passed via CLI lists
+            l_list = topological_decay_lambda if isinstance(topological_decay_lambda, list) else [topological_decay_lambda]
+            k_list = [k_neighbors] if not isinstance(k_neighbors, str) or "," not in k_neighbors else [int(x.strip()) if x.strip().isdigit() else x.strip() for x in k_neighbors.split(",")]
+            a_list = density_scaling_alpha if isinstance(density_scaling_alpha, list) else [density_scaling_alpha]
+
+            if app == "Proximity_Baseline":
+                for l_val in l_list:
+                    for k_val in k_list:
+                        if k_val == "auto": continue
+                        p_key = f"Proximity_Baseline_L{l_val}_K{k_val}" if len(l_list) > 1 or len(k_list) > 1 else "Proximity_Baseline"
+                        prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, topological_decay_lambda=l_val)
+                        uncertainties[p_key] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
+
+            elif app == "Proximity_Method_B":
+                for l_val in l_list:
+                    l_eff = 1.0 if l_val is None else l_val
+                    p_key = f"Proximity_Method_B_L{l_eff}" if len(l_list) > 1 else "Proximity_Method_B"
+                    prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, topological_decay_lambda=l_eff)
+                    uncertainties[p_key] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
+
+            elif app == "Proximity_Method_C":
+                for l_val in l_list:
+                    l_eff = 5.0 if l_val is None else l_val
+                    for a_val in a_list:
+                        for k_val in k_list:
+                            if k_val == "auto": continue
+                            p_key = f"Proximity_Method_C_L{l_eff}_A{a_val}_K{k_val}" if len(l_list) > 1 or len(a_list) > 1 or len(k_list) > 1 else "Proximity_Method_C"
+                            prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=True, density_scaling_alpha=a_val, topological_decay_lambda=l_eff)
+                            uncertainties[p_key] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
+
+            elif app == "Proximity_Method_B_C":
+                for l_val in l_list:
+                    l_eff = 5.0 if l_val is None else l_val
+                    for a_val in a_list:
+                        p_key = f"Proximity_Method_B_C_L{l_eff}_A{a_val}" if len(l_list) > 1 or len(a_list) > 1 else "Proximity_Method_B_C"
+                        prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=True, density_scaling_alpha=a_val, topological_decay_lambda=l_eff)
+                        uncertainties[p_key] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
         elif app == "Proximity_Method_B_Norm":
             prox_q = GPUProximityRegressionUQ(
                 rf, X_train, y_train, device="auto", batch_size="auto",
@@ -676,8 +672,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed_offset", type=int, default=0, help="Offset to add to the random seed index")
     parser.add_argument("--debug_timing", action="store_true", help="Print detailed execution timings for each section during evaluation")
     parser.add_argument("--use_density_scaling", action="store_true", help="Use leaf density scaling to prevent the overconfidence trap in Proximity UQ")
-    parser.add_argument("--density_scaling_alpha", type=float, default=1.0, help="Exponent parameter alpha for leaf density scaling")
-    parser.add_argument("--topological_decay_lambda", type=float, default=None, help="Decay parameter lambda for topological UQ distance. If None, topological UQ is disabled.")
+    parser.add_argument("--density_scaling_alpha", type=str, default="1.0", help="Exponent parameter alpha (float or comma-separated list)")
+    parser.add_argument("--topological_decay_lambda", type=str, default=None, help="Decay parameter lambda (float or comma-separated list)")
     parser.add_argument("--n_jobs", type=int, default=-1, help="Number of CPU cores for RF training")
     parser.add_argument("--approaches", type=str, default="Standard,Proximity", help="Comma-separated list of approaches to run")
     parser.add_argument("--output_dir", type=str, default=None, help="Custom directory path to save results")
@@ -689,15 +685,27 @@ if __name__ == "__main__":
     try:
         k_neighbors_arg = int(args.k_neighbors)
     except ValueError:
-        k_neighbors_arg = args.k_neighbors  # 'auto' or 'all'
+        k_neighbors_arg = args.k_neighbors  # 'auto', 'all', or comma-separated string
+
     gap_type_arg = args.gap_type
     sparse_multiplier_arg = args.sparse_multiplier
     scaling_law_arg = args.scaling_law
     n_runs = args.n_runs
     debug_timing_arg = args.debug_timing
     use_density_scaling_arg = args.use_density_scaling
-    density_scaling_alpha_arg = args.density_scaling_alpha
-    topological_decay_lambda_arg = args.topological_decay_lambda
+
+    if args.density_scaling_alpha is not None and "," in args.density_scaling_alpha:
+        density_scaling_alpha_arg = [float(x.strip()) for x in args.density_scaling_alpha.split(",")]
+    else:
+        density_scaling_alpha_arg = float(args.density_scaling_alpha) if args.density_scaling_alpha is not None else 1.0
+
+    if args.topological_decay_lambda is not None:
+        if "," in args.topological_decay_lambda:
+            topological_decay_lambda_arg = [float(x.strip()) for x in args.topological_decay_lambda.split(",")]
+        else:
+            topological_decay_lambda_arg = float(args.topological_decay_lambda)
+    else:
+        topological_decay_lambda_arg = None
     n_jobs_arg = args.n_jobs
     output_dir_arg = args.output_dir
     ood_type_arg = args.ood_type
