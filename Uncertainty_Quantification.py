@@ -278,16 +278,22 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
 
 def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None, n_jobs=-1, ood_type='hypercube'):
     # Determine standard Random Forest hyperparameters based on config selection to pass min_leaf to generate_data
-    if rf_config == 1:
-        n_est, min_leaf = 100, 5
+    if rf_config in ['A', 'a']:
+        n_est, min_leaf, min_split, max_feat = 100, 5, 2, "sqrt"
+    elif rf_config in ['B', 'b']:
+        n_est, min_leaf, min_split, max_feat = 500, 10, 2, "sqrt"
+    elif rf_config in ['C', 'c']:
+        n_est, min_leaf, min_split, max_feat = 1000, 25, 2, "sqrt"
+    elif rf_config == 1:
+        n_est, min_leaf, min_split, max_feat = 100, 5, 2, "sqrt"
     elif rf_config == 2:
-        n_est, min_leaf = 100, 25
+        n_est, min_leaf, min_split, max_feat = 100, 25, 2, "sqrt"
     elif rf_config == 3:
-        n_est, min_leaf = 100, 50
+        n_est, min_leaf, min_split, max_feat = 100, 50, 2, "sqrt"
     elif rf_config == 4:
-        n_est, min_leaf = 300, 10
+        n_est, min_leaf, min_split, max_feat = 300, 10, 2, "sqrt"
     else: # Config 5
-        n_est, min_leaf = 300, 30
+        n_est, min_leaf, min_split, max_feat = 300, 30, 2, "sqrt"
 
     import time
     import sys
@@ -306,7 +312,15 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         print(f"    [TIMING] Data Generation: {t1 - t0:.4f} s")
         sys.stdout.flush()
 
-    rf = RandomForestRegressor(n_estimators=n_est, min_samples_leaf=min_leaf, oob_score=True, n_jobs=n_jobs, random_state=seed)
+    rf = RandomForestRegressor(
+        n_estimators=n_est,
+        min_samples_leaf=min_leaf,
+        min_samples_split=min_split,
+        max_features=max_feat,
+        oob_score=True,
+        n_jobs=n_jobs,
+        random_state=seed
+    )
     rf.fit(X_train, y_train)
     t2 = time.perf_counter()
     if debug_timing:

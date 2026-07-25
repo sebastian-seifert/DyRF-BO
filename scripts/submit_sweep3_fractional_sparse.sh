@@ -1,0 +1,42 @@
+#!/bin/bash
+# Submit Sweep 3 (Fractional Sparse Hypercube Gap) in dependent 300-task chunks
+set -e
+
+eval "$(conda shell.bash hook 2>/dev/null)" || true
+conda activate dyrf 2>/dev/null || true
+
+SWEEP_DIR="results/sweep_3_fractional_sparse"
+mkdir -p "${SWEEP_DIR}/logs"
+
+if [ ! -f "${SWEEP_DIR}/tasks.txt" ]; then
+    echo "Generating Sweep 3 array tasks..."
+    python3 scripts/generate_sweep3_tasks.py
+fi
+
+TOTAL_TASKS=$(wc -l < "${SWEEP_DIR}/tasks.txt")
+CHUNK_SIZE=300
+
+echo "Submitting ${TOTAL_TASKS} tasks for Sweep 3 in chunks of ${CHUNK_SIZE}..."
+
+PREV_JOB=""
+for (( start=1; start<=TOTAL_TASKS; start+=CHUNK_SIZE )); do
+    end=$(( start + CHUNK_SIZE - 1 ))
+    if [ $end -gt $TOTAL_TASKS ]; then
+        end=$TOTAL_TASKS
+    fi
+
+    if [ -z "$PREV_JOB" ]; then
+        JOB_ID=$(sbatch --parsable --job-name=sweep_3_fract --output="${SWEEP_DIR}/logs/array_%A_%a.log" --error="${SWEEP_DIR}/logs/array_%A_%a.err" --array=${start}-${end}%15 scripts/submit_synthetic_array.sbatch "$SWEEP_DIR")
+        echo "Submitted Chunk (${start}-${end}) -> Job ID: ${JOB_ID}"
+    else
+        JOB_ID=$(sbatch --parsable --dependency=afterany:${PREV_JOB} --job-name=sweep_3_fract --output="${SWEEP_DIR}/logs/array_%A_%a.log" --error="${SWEEP_DIR}/logs/array_%A_%a.err" --array=${start}-${end}%15 scripts/submit_synthetic_array.sbatch "$SWEEP_DIR")
+        echo "Submitted Chunk (${start}-${end}) -> Job ID: ${JOB_ID} (dependent on ${PREV_JOB})"
+    fi
+    PREV_JOB=$JOB_ID
+done
+
+echo "--------------------------------------------------------"
+echo "Sweep 3 successfully scheduled."
+echo "Admin progress logging command:"
+echo "python3 scripts/monitor_progress.py ${SWEEP_DIR}"
+echo "--------------------------------------------------------"

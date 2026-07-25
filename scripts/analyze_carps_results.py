@@ -220,14 +220,14 @@ def parse_bo_histories(results_dir="results"):
 
 def compute_anytime_stats(seed_histories):
     """
-    Computes the mean incumbent trajectory and standard error across seeds.
+    Computes the mean incumbent trajectory, standard error, and standard deviation across seeds.
     Args:
         seed_histories (dict): {seed: [cost_0, cost_1, ...]}
     Returns:
-        tuple: (trial_indices, mean_incumbents, standard_errors)
+        tuple: (trial_indices, mean_incumbents, standard_errors, standard_deviations)
     """
     if not seed_histories:
-        return np.array([]), np.array([]), np.array([])
+        return np.array([]), np.array([]), np.array([]), np.array([])
 
     # Compute incumbent trajectory per seed
     incumbent_trajectories = []
@@ -250,17 +250,54 @@ def compute_anytime_stats(seed_histories):
         std_traj = np.std(incumbent_matrix, axis=0, ddof=1)
         se_traj = std_traj / np.sqrt(n_seeds)
     else:
+        std_traj = np.zeros_like(mean_traj)
         se_traj = np.zeros_like(mean_traj)
 
     trial_indices = np.arange(1, max_len + 1)
-    return trial_indices, mean_traj, se_traj
+    return trial_indices, mean_traj, se_traj, std_traj
 
-def generate_benchmark_tables(final_costs, output_dir="results/carps_summary"):
+import csv
+
+def parse_baseline_smac3(baseline_tables_dir="results/carps_summary_21072026/tables"):
+    """
+    Parses smac3_bo baseline statistics from prior summary tables.
+    Returns:
+        dict: {task_name: {"smac3_bo": {"mean": float, "std": float, "se": float, "n_seeds": str, "best": float, "worst": float}}}
+    """
+    smac_data = {}
+    if not os.path.exists(baseline_tables_dir):
+        return smac_data
+
+    for filename in os.listdir(baseline_tables_dir):
+        if not filename.endswith("_comparison.csv"):
+            continue
+        task_name = filename.replace("_comparison.csv", "")
+        filepath = os.path.join(baseline_tables_dir, filename)
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row.get("Approach") in ["smac3_bo", "smac3", "smac20"]:
+                        smac_data.setdefault(task_name, {})["smac3_bo"] = {
+                            "mean": float(row["Mean_Final_Cost"]),
+                            "std": float(row["Std_Dev"]),
+                            "se": float(row["Std_Error"]),
+                            "n_seeds": row.get("Finished_Seeds", "5/5"),
+                            "best": float(row["Best_Cost"]),
+                            "worst": float(row["Worst_Cost"]),
+                        }
+        except Exception as e:
+            print(f"Error reading baseline csv {filename}: {e}")
+
+    return smac_data
+
+def generate_benchmark_tables(final_costs, output_dir="results/carps_summary", baseline_smac_data=None):
     """
     Generates comparison tables per benchmark and a summary markdown report.
     Args:
         final_costs (dict): {task: {approach: {seed: cost}}}
         output_dir (str): directory to save tables and report
+        baseline_smac_data (dict): optional pre-parsed smac3_bo baseline metrics per task
     Returns:
         str: full markdown report string
     """
@@ -269,7 +306,7 @@ def generate_benchmark_tables(final_costs, output_dir="results/carps_summary"):
 
     report_lines = []
     report_lines.append("# CARP-S Optimization Benchmark Summary Report\n")
-    report_lines.append("This report presents the final cost comparison across different BO approaches and Dynamic RF UQ extractors for CARP-S benchmarks.\n")
+    report_lines.append("This report presents the final cost comparison across different BO approaches, standard `smac3_bo` baseline, and Dynamic RF UQ extractors for CARP-S benchmarks.\n")
 
     for task_name in sorted(final_costs.keys()):
         approaches = final_costs[task_name]
@@ -291,16 +328,30 @@ def generate_benchmark_tables(final_costs, output_dir="results/carps_summary"):
             worst_c = float(np.max(costs))
             n_seeds = len(costs)
 
-            approaches_perf.append((app_name, mean_c, std_c, se_c, n_seeds, best_c, worst_c))
+            approaches_perf.append((app_name, mean_c, std_c, se_c, f"{n_seeds}/5", best_c, worst_c))
+
+        # Inject smac3_bo baseline if not already present in final_costs
+        if baseline_smac_data and task_name in baseline_smac_data and "smac3_bo" in baseline_smac_data[task_name]:
+            if not any("smac3_bo" in app[0] for app in approaches_perf):
+                s_info = baseline_smac_data[task_name]["smac3_bo"]
+                approaches_perf.append((
+                    "smac3_bo (Baseline)",
+                    s_info["mean"],
+                    s_info["std"],
+                    s_info["se"],
+                    s_info["n_seeds"],
+                    s_info["best"],
+                    s_info["worst"]
+                ))
 
         # Sort by mean cost ascending (lower cost = better performance)
         approaches_perf.sort(key=lambda x: x[1])
 
         for app_name, mean_c, std_c, se_c, n_seeds, best_c, worst_c in approaches_perf:
             report_lines.append(
-                f"| `{app_name}` | {mean_c:.6f} | {std_c:.6f} | {se_c:.6f} | {n_seeds}/5 | {best_c:.6f} | {worst_c:.6f} |"
+                f"| `{app_name}` | {mean_c:.6f} | {std_c:.6f} | {se_c:.6f} | {n_seeds} | {best_c:.6f} | {worst_c:.6f} |"
             )
-            csv_lines.append(f"{app_name},{mean_c:.6f},{std_c:.6f},{se_c:.6f},{n_seeds}/5,{best_c:.6f},{worst_c:.6f}")
+            csv_lines.append(f"{app_name},{mean_c:.6f},{std_c:.6f},{se_c:.6f},{n_seeds},{best_c:.6f},{worst_c:.6f}")
 
         report_lines.append("\n")
 
@@ -322,6 +373,7 @@ def generate_anytime_plots(bo_histories, output_dir="results/carps_summary"):
     Generates anytime performance plots for every benchmark task.
     Plots every approach into the same plot per benchmark.
     Uses right-continuous step functions (where='post' / step='post') for non-continuous progress.
+    The main line is the mean trajectory and the shaded band is the standard deviation across seeds.
     Args:
         bo_histories (dict): {task: {approach: {seed: [cost_0, cost_1, ...]}}}
         output_dir (str): directory to save plots
@@ -348,7 +400,7 @@ def generate_anytime_plots(bo_histories, output_dir="results/carps_summary"):
 
         for i, app_name in enumerate(sorted(approaches.keys())):
             seed_histories = approaches[app_name]
-            trial_indices, mean_traj, se_traj = compute_anytime_stats(seed_histories)
+            trial_indices, mean_traj, se_traj, std_traj = compute_anytime_stats(seed_histories)
             if len(trial_indices) == 0:
                 continue
 
@@ -364,11 +416,11 @@ def generate_anytime_plots(bo_histories, output_dir="results/carps_summary"):
                 linewidth=2.0,
             )
 
-            # Shaded standard error band (step='post')
+            # Shaded standard deviation band (step='post')
             ax.fill_between(
                 trial_indices,
-                mean_traj - se_traj,
-                mean_traj + se_traj,
+                mean_traj - std_traj,
+                mean_traj + std_traj,
                 step="post",
                 color=color,
                 alpha=0.18,
@@ -399,21 +451,35 @@ def main():
     parser = argparse.ArgumentParser(description="Analyze CARP-S benchmark results")
     parser.add_argument("--results_dir", type=str, default="results", help="Directory containing array log files and telemetry JSONs")
     parser.add_argument("--output_dir", type=str, default="results/carps_summary", help="Directory to save summary tables, plots, and report")
+    parser.add_argument("--baseline_dir", type=str, default="results/carps_summary_21072026/tables", help="Directory containing prior smac3_bo comparison tables")
     args = parser.parse_args()
 
     results_dir = args.results_dir
     output_dir = args.output_dir
+    baseline_dir = args.baseline_dir
 
     print(f"Extracting final costs from array logs in {results_dir}...")
     final_costs = parse_array_logs(results_dir)
-    print(f"Found final costs for {len(final_costs)} benchmark tasks.")
-
-    print(f"Generating benchmark comparison tables and summary report in {output_dir}...")
-    generate_benchmark_tables(final_costs, output_dir)
 
     print("Parsing BO run histories for anytime performance...")
     bo_histories = parse_bo_histories(results_dir)
     print(f"Parsed BO histories for {len(bo_histories)} benchmark tasks.")
+
+    # Supplement final_costs from telemetry BO histories if array logs are absent or incomplete
+    for task_name, app_dict in bo_histories.items():
+        for app_name, seed_dict in app_dict.items():
+            for seed_id, costs in seed_dict.items():
+                if costs and seed_id not in final_costs.get(task_name, {}).get(app_name, {}):
+                    final_costs.setdefault(task_name, {}).setdefault(app_name, {})[seed_id] = min(costs)
+
+    print(f"Found final costs for {len(final_costs)} benchmark tasks.")
+
+    print(f"Parsing baseline smac3_bo metrics from {baseline_dir}...")
+    baseline_smac_data = parse_baseline_smac3(baseline_dir)
+    print(f"Found baseline smac3_bo data for {len(baseline_smac_data)} benchmark tasks.")
+
+    print(f"Generating benchmark comparison tables and summary report in {output_dir}...")
+    generate_benchmark_tables(final_costs, output_dir, baseline_smac_data=baseline_smac_data)
 
     print("Creating anytime performance step plots...")
     generate_anytime_plots(bo_histories, output_dir)

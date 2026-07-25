@@ -24,4 +24,6 @@ class LikelihoodCredalExtractor(BaseEpistemicExtractor):
             n_grid=self.n_grid,
             integration_method=self.integration_method
         )
-        return epistemic_var
+        # Convert variance \sigma^2 to standard deviation \sigma (linear target units)
+        return np.sqrt(epistemic_var)
+

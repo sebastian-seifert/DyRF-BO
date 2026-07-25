@@ -15,6 +15,7 @@ from scripts.analyze_carps_results import (
     compute_anytime_stats,
     generate_benchmark_tables,
     generate_anytime_plots,
+    parse_baseline_smac3,
 )
 
 class TestAnalyzeCARPSResults(unittest.TestCase):
@@ -116,6 +117,21 @@ class TestAnalyzeCARPSResults(unittest.TestCase):
         self.assertEqual(sorted(results["mock_task"]["standard_disagreement"]), [0.4, 0.5])
         self.assertEqual(sorted(results["mock_task"]["chen_variance"]), [0.2, 0.3])
 
+    def test_parse_baseline_smac3(self):
+        baseline_dir = os.path.join(self.test_dir, "baseline_tables")
+        os.makedirs(baseline_dir, exist_ok=True)
+        csv_path = os.path.join(baseline_dir, "mock_task_comparison.csv")
+        csv_content = (
+            "Approach,Mean_Final_Cost,Std_Dev,Std_Error,Finished_Seeds,Best_Cost,Worst_Cost\n"
+            "smac3_bo,-84.470422,3.531822,1.579479,5/5,-87.798317,-79.116096\n"
+        )
+        with open(csv_path, "w") as f:
+            f.write(csv_content)
+        smac_data = parse_baseline_smac3(baseline_dir)
+        self.assertIn("mock_task", smac_data)
+        self.assertIn("smac3_bo", smac_data["mock_task"])
+        self.assertAlmostEqual(smac_data["mock_task"]["smac3_bo"]["mean"], -84.470422)
+
     def test_parse_array_logs(self):
         final_costs = parse_array_logs(self.test_dir)
         self.assertIn("mock_task", final_costs)
@@ -131,7 +147,7 @@ class TestAnalyzeCARPSResults(unittest.TestCase):
             1: [0.9, 0.5, 0.7],
             2: [0.8, 0.4, 0.6]
         }
-        indices, mean_traj, se_traj = compute_anytime_stats(histories)
+        indices, mean_traj, se_traj, std_traj = compute_anytime_stats(histories)
         self.assertEqual(list(indices), [1, 2, 3])
         # Mean incumbent at step 1: (0.9 + 0.8)/2 = 0.85
         # Step 2: (0.5 + 0.4)/2 = 0.45
@@ -140,6 +156,8 @@ class TestAnalyzeCARPSResults(unittest.TestCase):
         self.assertAlmostEqual(mean_traj[1], 0.45)
         self.assertAlmostEqual(mean_traj[2], 0.45)
         self.assertTrue(se_traj[0] > 0)
+        self.assertTrue(std_traj[0] > 0)
+        self.assertAlmostEqual(std_traj[0], 0.07071067811865477)
 
     def test_generate_benchmark_tables(self):
         final_costs = {
@@ -179,6 +197,7 @@ class TestAnalyzeCARPSResults(unittest.TestCase):
             sys.argv = test_args
             main()
             self.assertTrue(os.path.exists(os.path.join(custom_out, "summary_report.md")))
+            self.assertTrue(os.path.exists(os.path.join(custom_out, "tables", "mock_task_comparison.csv")))
         finally:
             sys.argv = orig_argv
 

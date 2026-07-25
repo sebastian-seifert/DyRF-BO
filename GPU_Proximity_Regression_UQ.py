@@ -689,6 +689,14 @@ class GPUProximityRegressionUQ:
             gamma = (self.N_baseline / avg_test_leaf_sizes) ** alpha
             uq = uq * gamma
             
+        # Convert raw prediction interval width to standard deviation (sigma).
+        # ASSUMPTION: We assume a strict normal distribution N(mu, sigma^2) for the divisor calculation.
+        # For a 95% interval (level=0.95), the theoretical width spans 2 * z_0.975 = 2 * 1.95996 = 3.919928 (~3.92) standard deviations.
+        # Dividing by this divisor rescales the proximity UQ output into true standard deviation units (sigma).
+        from scipy.stats import norm
+        normal_divisor = 2.0 * float(norm.ppf((1.0 + level) / 2.0))
+        uq = uq / normal_divisor
+            
         # If using GPU, convert result back to a standard NumPy array for Scikit-Learn compatibility
         if self.using_gpu:
             uq = uq.get()

@@ -1,28 +1,38 @@
 #!/bin/bash
+# Master Sweep Launcher Script
+# Triggers all 6 independent test sweeps sequentially onto the SLURM cluster.
 
-# Submit the 738-run unified UQ sweep to the LUIS cluster in 3 sequential chunks
-# to comply with the MaxArraySize limit of 300 tasks per array job,
-# while maintaining a strict resource allocation ceiling of 8 physical A100 GPUs (24 concurrent tasks).
+set -e
 
-# Create directory structure before sbatch submission to prevent SLURM path errors
-mkdir -p results/dyrf_uq_sweep/logs
+eval "$(conda shell.bash hook 2>/dev/null)" || true
+conda activate dyrf 2>/dev/null || true
 
-echo "Submitting unified sweep to cluster..."
+echo "=========================================================="
+echo "LAUNCHING MASTER UQ BENCHMARK SWEEP SUITE"
+echo "=========================================================="
 
-# Submit Chunk 1 (Tasks 1-250)
-JOB1=$(sbatch --parsable --array=1-250%24 run_unified_cluster_sweep.sh)
-echo "Submitted chunk 1 (Tasks 1-250) -> Job ID: $JOB1"
+echo -e "\n[1/6] Launching Sweep 1: Empty Hypercube Gap..."
+./scripts/submit_sweep1_empty.sh
 
-# Submit Chunk 2 (Tasks 251-500) - Starts only after Chunk 1 completes
-JOB2=$(sbatch --parsable --dependency=afterany:$JOB1 --array=251-500%24 run_unified_cluster_sweep.sh)
-echo "Submitted chunk 2 (Tasks 251-500) -> Job ID: $JOB2 (Dependent on $JOB1)"
+echo -e "\n[2/6] Launching Sweep 2: Linear Sparse Hypercube Gap..."
+./scripts/submit_sweep2_linear_sparse.sh
 
-# Submit Chunk 3 (Tasks 501-738) - Starts only after Chunk 2 completes
-JOB3=$(sbatch --parsable --dependency=afterany:$JOB2 --array=501-738%24 run_unified_cluster_sweep.sh)
-echo "Submitted chunk 3 (Tasks 501-738) -> Job ID: $JOB3 (Dependent on $JOB2)"
+echo -e "\n[3/6] Launching Sweep 3: Fractional Sparse Hypercube Gap..."
+./scripts/submit_sweep3_fractional_sparse.sh
 
-echo "--------------------------------------------------------"
-echo "All sweep chunks successfully staged in SLURM queue."
-echo "Total executions: 738 runs (Seeds=5, Linear scaling only)."
-echo "Max concurrent allocation: 8 physical A100 GPUs (24 tasks)."
-echo "--------------------------------------------------------"
+echo -e "\n[4/6] Launching Sweep 4: Leaf Sparse Hypercube Gap..."
+./scripts/submit_sweep4_leaf_sparse.sh
+
+echo -e "\n[5/6] Launching Sweep 5: Manifold OOD Generation..."
+./scripts/submit_sweep5_manifold.sh
+
+echo -e "\n[6/6] Launching Sweep 6: CARP-S Epistemic EI Re-run (Scaled Signals)..."
+./scripts/submit_sweep6_carps_epistemic_ei.sh
+
+echo -e "\n=========================================================="
+echo "ALL 6 SWEEPS SUCCESSFULLY SCHEDULED ON SLURM CLUSTER!"
+echo "=========================================================="
+echo "To monitor progress for any sweep, run:"
+echo "  python3 scripts/monitor_progress.py results/sweep_1_empty"
+echo "  python3 scripts/monitor_progress.py results/carps_epistemic_ei_scaled"
+echo "=========================================================="

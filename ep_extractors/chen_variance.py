@@ -15,4 +15,6 @@ class ChenVarianceExtractor(BaseEpistemicExtractor):
     def extract_epistemic_signal(self, X: np.ndarray) -> np.ndarray:
         if self.eq is None:
             raise RuntimeError("Extractor must be fitted before extracting signal.")
-        return self.eq.chen_get_epistemic_variance(X)
+        # Convert paired tree variance \sigma^2 to standard deviation \sigma (linear target units)
+        return np.sqrt(self.eq.chen_get_epistemic_variance(X))
+
