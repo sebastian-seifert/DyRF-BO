@@ -8,10 +8,8 @@ conda activate dyrf 2>/dev/null || true
 SWEEP_DIR="results/sweep_1_empty"
 mkdir -p "${SWEEP_DIR}/logs"
 
-if [ ! -f "${SWEEP_DIR}/tasks.txt" ]; then
-    echo "Generating Sweep 1 array tasks..."
-    python3 scripts/generate_sweep1_tasks.py
-fi
+echo "Generating Sweep 1 array tasks..."
+python3 scripts/generate_sweep1_tasks.py
 
 TOTAL_TASKS=$(wc -l < "${SWEEP_DIR}/tasks.txt")
 CHUNK_SIZE=300

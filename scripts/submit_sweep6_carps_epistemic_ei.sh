@@ -8,10 +8,8 @@ conda activate dyrf 2>/dev/null || true
 SWEEP_DIR="results/carps_epistemic_ei_scaled"
 mkdir -p "${SWEEP_DIR}/logs"
 
-if [ ! -f "${SWEEP_DIR}/tasks.txt" ]; then
-    echo "Generating Sweep 6 array tasks..."
-    python3 scripts/generate_sweep6_tasks.py
-fi
+echo "Generating Sweep 6 array tasks..."
+python3 scripts/generate_sweep6_tasks.py
 
 TOTAL_TASKS=$(wc -l < "${SWEEP_DIR}/tasks.txt")
 CHUNK_SIZE=300
