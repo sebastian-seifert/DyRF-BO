@@ -1,5 +1,5 @@
 #!/bin/bash
-# Submit Sweep 1 (Empty Hypercube Gap) in dependent 300-task chunks
+# Submit Sweep 1 (Empty Hypercube Gap) as 1 single SLURM Array Job
 set -e
 
 eval "$(conda shell.bash hook 2>/dev/null)" || true
@@ -12,39 +12,24 @@ echo "Generating Sweep 1 array tasks..."
 python3 scripts/generate_sweep1_tasks.py
 
 TOTAL_TASKS=$(wc -l < "${SWEEP_DIR}/tasks.txt")
-CHUNK_SIZE=300
-
 PARENT_DEP=$1
 
-echo "Submitting ${TOTAL_TASKS} tasks for Sweep 1 in chunks of ${CHUNK_SIZE}..."
+echo "Submitting Sweep 1 (${TOTAL_TASKS} tasks) as a single SLURM Job Array..."
 
-PREV_JOB=""
-for (( start=1; start<=TOTAL_TASKS; start+=CHUNK_SIZE )); do
-    end=$(( start + CHUNK_SIZE - 1 ))
-    if [ $end -gt $TOTAL_TASKS ]; then
-        end=$TOTAL_TASKS
-    fi
+DEP_FLAG=""
+if [ -n "$PARENT_DEP" ]; then
+    DEP_FLAG="--dependency=afterany:${PARENT_DEP}"
+fi
 
-    DEP_FLAG=""
-    if [ -n "$PREV_JOB" ]; then
-        DEP_FLAG="--dependency=afterany:${PREV_JOB}"
-    elif [ -n "$PARENT_DEP" ]; then
-        DEP_FLAG="--dependency=afterany:${PARENT_DEP}"
-    fi
-
-    if [ -n "$DEP_FLAG" ]; then
-        JOB_ID=$(sbatch --parsable ${DEP_FLAG} --job-name=sweep_1_empty --output="${SWEEP_DIR}/logs/array_%A_%a.log" --error="${SWEEP_DIR}/logs/array_%A_%a.err" --array=${start}-${end}%15 scripts/submit_synthetic_array.sbatch "$SWEEP_DIR")
-        echo "Submitted Chunk (${start}-${end}) -> Job ID: ${JOB_ID} (${DEP_FLAG})"
-    else
-        JOB_ID=$(sbatch --parsable --job-name=sweep_1_empty --output="${SWEEP_DIR}/logs/array_%A_%a.log" --error="${SWEEP_DIR}/logs/array_%A_%a.err" --array=${start}-${end}%15 scripts/submit_synthetic_array.sbatch "$SWEEP_DIR")
-        echo "Submitted Chunk (${start}-${end}) -> Job ID: ${JOB_ID}"
-    fi
-    PREV_JOB=$JOB_ID
-done
+JOB_ID=$(sbatch --parsable ${DEP_FLAG} --job-name=sweep_1_empty \
+    --output="${SWEEP_DIR}/logs/array_%A_%a.log" \
+    --error="${SWEEP_DIR}/logs/array_%A_%a.err" \
+    --array=1-${TOTAL_TASKS}%15 \
+    scripts/submit_synthetic_array.sbatch "$SWEEP_DIR")
 
 echo "--------------------------------------------------------"
-echo "Sweep 1 successfully scheduled."
+echo "Sweep 1 successfully scheduled -> SLURM Job ID: ${JOB_ID}"
 echo "Admin progress logging command:"
 echo "python3 scripts/monitor_progress.py ${SWEEP_DIR}"
-echo "LAST_JOB_ID:${PREV_JOB}"
+echo "LAST_JOB_ID:${JOB_ID}"
 echo "--------------------------------------------------------"

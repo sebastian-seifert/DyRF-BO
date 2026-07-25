@@ -6,7 +6,6 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=48:00:00
-#SBATCH --array=1-260%15
 
 
 # Polite Slurm Job Array runner.

@@ -6,7 +6,6 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=48:00:00
-#SBATCH --array=1-300%15
 
 eval "$(conda shell.bash hook 2>/dev/null)" || true
 conda activate dyrf 2>/dev/null || true
