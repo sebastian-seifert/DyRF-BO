@@ -198,7 +198,10 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
         for dim_name, results_dict in dimensions:
             print(f"{dim_name:<20}", end="")
             for app in approaches:
-                values = np.array([v for v in results_dict[app][metric] if not np.isnan(v)])
+                if app in results_dict and metric in results_dict[app]:
+                    values = np.array([v for v in results_dict[app][metric] if not np.isnan(v)])
+                else:
+                    values = np.array([])
                 if len(values) > 0:
                     print(f" {np.mean(values):.4f}+/-{np.std(values):.4f}  ", end="")
                 else:
@@ -216,9 +219,12 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
             
             processed_data = []
             for app in approaches:
-                flat_vals = np.array(results_dict[app][metric], dtype=float)
-                matrix = flat_vals.reshape(n_runs, n_functions)
-                processed_data.append(np.nanmean(matrix, axis=0))
+                if app in results_dict and len(results_dict[app][metric]) > 0:
+                    flat_vals = np.array(results_dict[app][metric], dtype=float)
+                    matrix = flat_vals.reshape(n_runs, n_functions)
+                    processed_data.append(np.nanmean(matrix, axis=0))
+                else:
+                    processed_data.append(np.array([np.nan] * n_functions))
                 
             valid_mask = ~np.isnan(processed_data).any(axis=0)
             data = [d[valid_mask] for d in processed_data]
