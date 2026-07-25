@@ -1,5 +1,11 @@
 import os
+import sys
 from pathlib import Path
+
+# Ensure project root is in sys.path so carps_integration can be imported reliably
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # Override data directories for CARPS/YAHPO and HPOBench if running on cluster
 if os.path.exists("/bigwork/nhwpseis/benchmarks"):
