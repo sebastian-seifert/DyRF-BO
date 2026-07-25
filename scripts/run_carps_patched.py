@@ -1,20 +1,21 @@
 import os
 from pathlib import Path
 
-# Override data directories for CARPS/YAHPO and HPOBench
-os.environ["CARPS_TASK_DATA_DIR"] = "/bigwork/nhwpseis/benchmarks"
+# Override data directories for CARPS/YAHPO and HPOBench if running on cluster
+if os.path.exists("/bigwork/nhwpseis/benchmarks"):
+    os.environ["CARPS_TASK_DATA_DIR"] = "/bigwork/nhwpseis/benchmarks"
 
-import hpobench
-hpobench.config_file.data_dir = Path("/bigwork/nhwpseis/benchmarks/hpobench")
+    import hpobench
+    hpobench.config_file.data_dir = Path("/bigwork/nhwpseis/benchmarks/hpobench")
 
-import carps.objective_functions.yahpo
-carps.objective_functions.yahpo.YAHPO_TASK_DATA_DIR = Path("/bigwork/nhwpseis/benchmarks/yahpo-data")
+    import carps.objective_functions.yahpo
+    carps.objective_functions.yahpo.YAHPO_TASK_DATA_DIR = Path("/bigwork/nhwpseis/benchmarks/yahpo-data")
 
-import yahpo_gym
-try:
-    yahpo_gym.local_config.init_config(data_path="/bigwork/nhwpseis/benchmarks/yahpo-data")
-except Exception:
-    pass
+    import yahpo_gym
+    try:
+        yahpo_gym.local_config.init_config(data_path="/bigwork/nhwpseis/benchmarks/yahpo-data")
+    except Exception:
+        pass
 
 import ConfigSpace
 if not hasattr(ConfigSpace.ConfigurationSpace, "_sort_hyperparameters"):

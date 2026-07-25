@@ -21,13 +21,19 @@ export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
-if [ ! -f "results/array_tasks.txt" ]; then
-    echo "ERROR: results/array_tasks.txt missing. Attempting auto-generation..." >&2
-    python3 scripts/generate_array_tasks.py || exit 1
+SWEEP_DIR=$1
+if [ -z "$SWEEP_DIR" ]; then
+    SWEEP_DIR="results/carps_epistemic_ei_scaled"
+fi
+
+TASK_FILE="${SWEEP_DIR}/tasks.txt"
+if [ ! -f "$TASK_FILE" ]; then
+    echo "ERROR: ${TASK_FILE} missing. Attempting auto-generation..." >&2
+    python3 scripts/generate_sweep6_tasks.py || exit 1
 fi
 
 # Retrieve the specific command arguments corresponding to this array task index
-TASK_ARGS=$(sed -n "${SLURM_ARRAY_TASK_ID}p" results/array_tasks.txt)
+TASK_ARGS=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$TASK_FILE")
 
 echo "=================================================="
 echo "Array Job ID: $SLURM_ARRAY_JOB_ID | Task Index: $SLURM_ARRAY_TASK_ID"
