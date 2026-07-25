@@ -670,6 +670,7 @@ if __name__ == "__main__":
     parser.add_argument("--scaling_law", type=str, default="linear", choices=["linear", "fractional", "leaf"], help="Scaling law for sparse gap points")
     parser.add_argument("--n_runs", type=int, default=10, help="Number of seeds/runs")
     parser.add_argument("--seed_offset", type=int, default=0, help="Offset to add to the random seed index")
+    parser.add_argument("--seed", type=int, default=None, help="Explicit single random seed to run (sets n_runs=1 and seed_offset=seed)")
     parser.add_argument("--debug_timing", action="store_true", help="Print detailed execution timings for each section during evaluation")
     parser.add_argument("--use_density_scaling", action="store_true", help="Use leaf density scaling to prevent the overconfidence trap in Proximity UQ")
     parser.add_argument("--density_scaling_alpha", type=str, default="1.0", help="Exponent parameter alpha (float or comma-separated list)")
@@ -690,7 +691,12 @@ if __name__ == "__main__":
     gap_type_arg = args.gap_type
     sparse_multiplier_arg = args.sparse_multiplier
     scaling_law_arg = args.scaling_law
-    n_runs = args.n_runs
+    if args.seed is not None:
+        n_runs = 1
+        seed_offset_arg = args.seed
+    else:
+        n_runs = args.n_runs
+        seed_offset_arg = args.seed_offset
     debug_timing_arg = args.debug_timing
     use_density_scaling_arg = args.use_density_scaling
 
@@ -797,7 +803,7 @@ if __name__ == "__main__":
 
     test_start = time.time()
     for run_idx in range(n_runs):
-        seed = run_idx + args.seed_offset
+        seed = run_idx + seed_offset_arg
         seed_start = time.time()
         print(f"[RUN {run_idx+1}/{n_runs}] ", end="", flush=True)
 
