@@ -667,7 +667,7 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Epistemic UQ Benchmarks")
-    parser.add_argument("--rf_config", type=int, default=1, choices=[1, 2, 3, 4, 5], help="Random Forest Config ID")
+    parser.add_argument("--rf_config", type=str, default="1", help="Random Forest Config ID (e.g. A, B, C, 1, 2, 3, 4, 5)")
     parser.add_argument("--k_neighbors", type=str, default="20", help="Neighborhood size for Proximity UQ (int or 'auto' or 'all')")
     parser.add_argument("--gap_type", type=str, default="empty", choices=["empty", "sparse"], help="OOD gap type")
     parser.add_argument("--sparse_multiplier", type=int, default=12, help="Multiplier for sparse gap points (n_keep = multiplier * ndim)")
