@@ -44,15 +44,6 @@ try:
 except Exception as e:
     print(f"✗ Error caching Surrogate bundle: {e}")
 
-# 3. NAS-Bench-201 Singularity containers
-try:
-    print("\nCaching NAS-Bench-201 Singularity container...")
-    from hpobench.container.benchmarks.nas.nasbench_201 import ImageNetNasBench201Benchmark
-    ImageNetNasBench201Benchmark()
-    print("✓ Successfully cached NAS-Bench-201 Singularity container!")
-except Exception as e:
-    print(f"✗ Error caching NAS-Bench-201 container: {e}")
-
 print("==================================================")
 print("DATASETS CACHING COMPLETED")
 print("==================================================")
