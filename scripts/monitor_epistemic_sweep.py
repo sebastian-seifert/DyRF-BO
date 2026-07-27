@@ -26,9 +26,17 @@ def monitor_sweep(tasks_file: str = "results/epistemic_acq_array_tasks.txt", res
 
     acquisitions = ["ei", "pi", "lcb"]
     extractors = UQExtractorRegistry.list_registered()
+
+    # Dimensionality categories
+    dim_categories = {
+        "Low-Dim (<=6D)": ["ml_svm", "ml_xgboost", "glmnet", "rpart"],
+        "Mid-Dim (7-20D)": ["lcbench", "ranger", "rbv2_xgboost"],
+        "High-Dim & NAS (>20D)": ["nb301", "NasBench201", "rbv2_super"]
+    }
     
     acq_stats: Dict[str, Dict[str, int]] = {acq: {"total": 0, "completed": 0} for acq in acquisitions}
     extractor_stats: Dict[str, Dict[str, int]] = {ext: {"total": 0, "completed": 0} for ext in extractors}
+    dim_stats: Dict[str, Dict[str, int]] = {cat: {"total": 0, "completed": 0} for cat in dim_categories}
 
     completed_total = 0
 
@@ -44,12 +52,17 @@ def monitor_sweep(tasks_file: str = "results/epistemic_acq_array_tasks.txt", res
 
         acq_stats[acq_found]["total"] += 1
 
+        # Determine dimensionality category
+        dim_found = "High-Dim & NAS (>20D)"
+        for cat, keywords in dim_categories.items():
+            if any(kw in line for kw in keywords):
+                dim_found = cat
+                break
+        dim_stats[dim_found]["total"] += 1
+
         if "+optimizer/smac20=hpo" in line:
-            # Check SMAC run completion via runs/ output directory if needed
-            # For telemetry tracking:
             pass
         else:
-            # Sort extractors by length descending to match longest substring first (e.g. proximity_bc before proximity_b)
             ext_found = None
             for ext in sorted(extractors, key=len, reverse=True):
                 if f"optimizer.extractor_name={ext} " in line:
@@ -69,6 +82,7 @@ def monitor_sweep(tasks_file: str = "results/epistemic_acq_array_tasks.txt", res
             if telemetry_path and os.path.exists(telemetry_path) and os.path.getsize(telemetry_path) > 0:
                 completed_total += 1
                 acq_stats[acq_found]["completed"] += 1
+                dim_stats[dim_found]["completed"] += 1
                 if ext_found:
                     extractor_stats[ext_found]["completed"] += 1
 
@@ -83,6 +97,11 @@ def monitor_sweep(tasks_file: str = "results/epistemic_acq_array_tasks.txt", res
     for acq, stats in acq_stats.items():
         pct = (stats["completed"] / stats["total"]) * 100.0 if stats["total"] > 0 else 0.0
         print(f"  Acq [{acq.upper():3s}]: [{pct:6.2f}%]  ({stats['completed']:4d} / {stats['total']:4d})")
+
+    print("\n--- Breakdown by Search Space Dimensionality ---")
+    for cat, stats in dim_stats.items():
+        pct = (stats["completed"] / stats["total"]) * 100.0 if stats["total"] > 0 else 0.0
+        print(f"  Category [{cat:22s}]: [{pct:6.2f}%]  ({stats['completed']:4d} / {stats['total']:4d})")
 
     print("\n--- Breakdown by UQ Extractor ---")
     for ext, stats in extractor_stats.items():

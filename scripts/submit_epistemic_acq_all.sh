@@ -1,5 +1,5 @@
 #!/bin/bash
-# Submit the 3,510 multi-acquisition sweep tasks in sequential dependent chunks
+# Submit the 5,000 multi-acquisition sweep tasks in sequential dependent chunks
 # of 300 tasks to comply with the LUIS cluster MaxArraySize=300 limit.
 
 mkdir -p results
@@ -14,7 +14,7 @@ if [ ! -f "results/epistemic_acq_array_tasks.txt" ]; then
     fi
 fi
 
-TOTAL_TASKS=3510
+TOTAL_TASKS=5000
 CHUNK_SIZE=300
 PREV_JOB=""
 
@@ -37,6 +37,7 @@ for (( start=1; start<=TOTAL_TASKS; start+=CHUNK_SIZE )); do
 done
 
 echo "--------------------------------------------------------"
-echo "All 3,510 multi-acquisition sweep runs successfully scheduled on LUIS cluster."
+echo "All 5,000 multi-acquisition sweep runs successfully scheduled on LUIS cluster."
 echo "Max concurrent allocation per array: 15 tasks."
 echo "--------------------------------------------------------"
+
