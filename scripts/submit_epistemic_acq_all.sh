@@ -14,7 +14,7 @@ if [ ! -f "results/epistemic_acq_array_tasks.txt" ]; then
     fi
 fi
 
-TOTAL_TASKS=3250
+TOTAL_TASKS=4625
 CHUNK_SIZE=300
 PREV_JOB=""
 
