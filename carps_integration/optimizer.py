@@ -11,6 +11,8 @@ from carps.utils.task import Task
 from carps.utils.types import Incumbent, SearchSpace
 from rf_dynamic.dynamic_rf_surrogate import DynamicRFSurrogate
 
+from carps_integration.acquisitions import AcquisitionRegistry
+
 class CARPSDynamicRFOptimizer(Optimizer):
     """
     CARP-S compatible Bayesian Optimization optimizer wrapper that uses
@@ -21,6 +23,8 @@ class CARPSDynamicRFOptimizer(Optimizer):
         task: Task,
         loggers: list[Any] | None = None,
         extractor_name: str = "standard_disagreement",
+        acq_func_name: str = "ei",
+        acq_func_kwargs: dict | None = None,
         n_init: int = 10,
         kappa: float = 1.96,
         telemetry_path: str = "dyrf_bo_telemetry.json",
@@ -47,6 +51,8 @@ class CARPSDynamicRFOptimizer(Optimizer):
         
         self.configspace: ConfigurationSpace = self.task.objective_function.configspace
         self.extractor_name = extractor_name
+        self.acq_func_name = acq_func_name
+        self.acq_func_kwargs = acq_func_kwargs or {}
         self.n_init = n_init
         self.kappa = kappa
         self.telemetry_path = telemetry_path
@@ -158,21 +164,13 @@ class CARPSDynamicRFOptimizer(Optimizer):
         # Predict using surrogate (triggers updates inside sliding window adaptor)
         preds, unc = self.surrogate.predict(X_cand, uncertainty_type=self.acq_uncertainty_type)
         
-        # Compute Expected Improvement (minimization: we want to improve below y_best)
-        from scipy.stats import norm
+        # Compute acquisition scores using configured acquisition function strategy
         y_best = min(valid_costs)
+        acq_func = AcquisitionRegistry.get(self.acq_func_name, **self.acq_func_kwargs)
+        acq_scores = acq_func.compute(preds, unc, y_best)
         
-        # Avoid division by zero
-        sigma = np.where(unc > 1e-9, unc, 1e-9)
-        z = (y_best - preds) / sigma
-        
-        ei = (y_best - preds) * norm.cdf(z) + sigma * norm.pdf(z)
-        
-        # Handle cases where uncertainty is close to zero
-        ei = np.where(unc > 1e-9, ei, np.maximum(0.0, y_best - preds))
-        
-        # Select candidate that maximizes Expected Improvement
-        best_idx = int(np.argmax(ei))
+        # Select candidate that maximizes acquisition score
+        best_idx = int(np.argmax(acq_scores))
         return self.convert_to_trial(candidates[best_idx])
 
     def tell(self, trial_info: TrialInfo, trial_value: TrialValue) -> None:

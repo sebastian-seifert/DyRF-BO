@@ -24,7 +24,7 @@ def generate_array_tasks(output_path: str = "results/epistemic_acq_array_tasks.t
             task_name = task.split("=")[-1]
             for approach in approaches:
                 for seed in seeds:
-                    telemetry = f"results/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
+                    telemetry = f"results/epistemic_acq/{acq}/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
                     line = (
                         f"+optimizer=dyrf_epistemic_{acq} "
                         f"++optimizer.acq_func_name={acq} "
@@ -39,13 +39,16 @@ def generate_array_tasks(output_path: str = "results/epistemic_acq_array_tasks.t
 
     # 2. Standard SMAC3 BO baseline runs across 1 baseline * 40 tasks * 5 seeds (200 tasks)
     for task in tasks:
+        task_name = task.split("=")[-1]
         for seed in seeds:
+            telemetry = f"results/epistemic_acq/baseline/telemetry_smac3_{task_name}_seed{seed}.json"
             line = (
                 f"+optimizer/smac20=hpo "
                 f"++optimizer.acq_func_name=ei "
                 f"{task} "
                 f"task.optimization_resources.n_trials={trials} "
-                f"seed={seed} optimizer_id=SMAC3-HPOFacade optimizer_container_id=SMAC3"
+                f"seed={seed} ++optimizer.telemetry_path={telemetry} "
+                f"optimizer_id=SMAC3-HPOFacade optimizer_container_id=SMAC3"
             )
             lines.append(line)
 

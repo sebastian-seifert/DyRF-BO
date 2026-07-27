@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -p ai
 #SBATCH --job-name=epistemic_ei_highdim
-#SBATCH --output=results/epistemic_ei_highdim_%A_%a.log
-#SBATCH --error=results/epistemic_ei_highdim_%A_%a.err
+#SBATCH --output=results/epistemic_ei_highdim/logs/highdim_%A_%a.log
+#SBATCH --error=results/epistemic_ei_highdim/logs/highdim_%A_%a.err
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=12:00:00

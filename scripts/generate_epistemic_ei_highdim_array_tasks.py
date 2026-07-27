@@ -25,7 +25,7 @@ def generate_highdim_array_tasks(output_path: str = "results/epistemic_ei_highdi
         task_name = task.split("=")[-1]
         for approach in approaches:
             for seed in seeds:
-                telemetry = f"results/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
+                telemetry = f"results/epistemic_ei_highdim/ei/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
                 line = (
                     f"+optimizer=dyrf_epistemic_{acq} "
                     f"++optimizer.acq_func_name={acq} "
@@ -40,13 +40,16 @@ def generate_highdim_array_tasks(output_path: str = "results/epistemic_ei_highdi
 
     # 2. Standard SMAC3 BO baseline runs across 1 baseline * 21 high-dim tasks * 5 seeds (105 tasks)
     for task in tasks:
+        task_name = task.split("=")[-1]
         for seed in seeds:
+            telemetry = f"results/epistemic_ei_highdim/baseline/telemetry_smac3_{task_name}_seed{seed}.json"
             line = (
                 f"+optimizer/smac20=hpo "
                 f"++optimizer.acq_func_name=ei "
                 f"{task} "
                 f"task.optimization_resources.n_trials={trials} "
-                f"seed={seed} optimizer_id=SMAC3-HPOFacade optimizer_container_id=SMAC3"
+                f"seed={seed} ++optimizer.telemetry_path={telemetry} "
+                f"optimizer_id=SMAC3-HPOFacade optimizer_container_id=SMAC3"
             )
             lines.append(line)
 

@@ -2,7 +2,7 @@
 # Submit the 5,000 multi-acquisition sweep tasks in sequential dependent chunks
 # of 300 tasks to comply with the LUIS cluster MaxArraySize=300 limit.
 
-mkdir -p results
+mkdir -p results/epistemic_acq/logs results/epistemic_acq/ei results/epistemic_acq/pi results/epistemic_acq/lcb results/epistemic_acq/baseline
 
 # Auto-generate results/epistemic_acq_array_tasks.txt if missing
 if [ ! -f "results/epistemic_acq_array_tasks.txt" ]; then

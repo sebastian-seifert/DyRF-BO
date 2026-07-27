@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -p ai
 #SBATCH --job-name=epistemic_acq_array
-#SBATCH --output=results/epistemic_acq_array_%A_%a.log
-#SBATCH --error=results/epistemic_acq_array_%A_%a.err
+#SBATCH --output=results/epistemic_acq/logs/epistemic_acq_array_%A_%a.log
+#SBATCH --error=results/epistemic_acq/logs/epistemic_acq_array_%A_%a.err
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=12:00:00

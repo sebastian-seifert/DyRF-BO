@@ -2,7 +2,7 @@
 # Submit the 945 EU-guided EI High-Dimensional array sweep tasks in sequential dependent chunks
 # of 300 tasks to comply with the LUIS cluster MaxArraySize=300 limit.
 
-mkdir -p results
+mkdir -p results/epistemic_ei_highdim/logs results/epistemic_ei_highdim/ei results/epistemic_ei_highdim/baseline
 
 # Auto-generate results/epistemic_ei_highdim_array_tasks.txt if missing
 if [ ! -f "results/epistemic_ei_highdim_array_tasks.txt" ]; then
