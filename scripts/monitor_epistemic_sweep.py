@@ -9,6 +9,7 @@ from typing import Dict, List
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ep_extractors import UQExtractorRegistry
+from scripts.benchmark_registry import BenchmarkRegistry
 
 def monitor_sweep(tasks_file: str = "results/epistemic_acq_array_tasks.txt", results_dir: str = "results"):
     if not os.path.exists(tasks_file):
@@ -26,14 +27,8 @@ def monitor_sweep(tasks_file: str = "results/epistemic_acq_array_tasks.txt", res
 
     acquisitions = ["ei", "pi", "lcb"]
     extractors = UQExtractorRegistry.list_registered()
+    dim_categories = BenchmarkRegistry.get_tasks_by_category()
 
-    # Dimensionality categories
-    dim_categories = {
-        "Low-Dim (<=6D)": ["ml_svm", "ml_xgboost", "glmnet", "rpart"],
-        "Mid-Dim (7-20D)": ["lcbench", "ranger", "rbv2_xgboost"],
-        "High-Dim & NAS (>20D)": ["nb301", "NasBench201", "rbv2_super"]
-    }
-    
     acq_stats: Dict[str, Dict[str, int]] = {acq: {"total": 0, "completed": 0} for acq in acquisitions}
     extractor_stats: Dict[str, Dict[str, int]] = {ext: {"total": 0, "completed": 0} for ext in extractors}
     dim_stats: Dict[str, Dict[str, int]] = {cat: {"total": 0, "completed": 0} for cat in dim_categories}
@@ -52,12 +47,8 @@ def monitor_sweep(tasks_file: str = "results/epistemic_acq_array_tasks.txt", res
 
         acq_stats[acq_found]["total"] += 1
 
-        # Determine dimensionality category
-        dim_found = "High-Dim & NAS (>20D)"
-        for cat, keywords in dim_categories.items():
-            if any(kw in line for kw in keywords):
-                dim_found = cat
-                break
+        # Determine dimensionality category using BenchmarkRegistry
+        dim_found = BenchmarkRegistry.get_task_category(line)
         dim_stats[dim_found]["total"] += 1
 
         if "+optimizer/smac20=hpo" in line:
