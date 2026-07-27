@@ -31,9 +31,6 @@ class BenchmarkRegistry:
 
     HIGH_DIM_NAS = [
         "+task/YAHPO/SO=cfg_nb301_CIFAR10",
-        "+task/HPOBench/blackbox/tabular/nas=cfg_Cifar10ValidNasBench201Benchmark",
-        "+task/HPOBench/blackbox/tabular/nas=cfg_Cifar100NasBench201Benchmark",
-        "+task/HPOBench/blackbox/tabular/nas=cfg_ImageNetNasBench201Benchmark",
         "+task/YAHPO/SO=cfg_rbv2_super_1040",
         "+task/YAHPO/SO=cfg_rbv2_super_1049",
         "+task/YAHPO/SO=cfg_rbv2_super_1050",

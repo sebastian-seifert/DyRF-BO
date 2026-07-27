@@ -14,7 +14,7 @@ if [ ! -f "results/epistemic_ei_highdim_array_tasks.txt" ]; then
     fi
 fi
 
-TOTAL_TASKS=945
+TOTAL_TASKS=810
 CHUNK_SIZE=300
 PREV_JOB=""
 
