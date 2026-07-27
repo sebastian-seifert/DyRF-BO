@@ -6,7 +6,6 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=12:00:00
-#SBATCH --array=1-3510%30
 
 # Initialize conda
 eval "$(conda shell.bash hook 2>/dev/null)" || true
