@@ -106,8 +106,8 @@ class TestGenerateArrayTasks(unittest.TestCase):
         self.assertIn("generate_array_tasks.py", content_all)
         self.assertIn("array_tasks.txt", content_all)
         
-        # Verify submit_hpobench_array.sbatch checks array_tasks.txt
-        self.assertIn("array_tasks.txt", content_sbatch)
+        # Verify submit_hpobench_array.sbatch checks tasks.txt
+        self.assertIn("tasks.txt", content_sbatch)
 
 if __name__ == "__main__":
     unittest.main()

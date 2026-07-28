@@ -271,10 +271,21 @@
    * Resolved a `NameError: name 'X_test' is not defined` in `data_generator.py`'s hypercube boundary OOD generation path by restoring the missing test set construction code block.
 
 ### Active Issues & Notes
-* **OpenBLAS/Memory Allocation Error (`run_1.log`)**:
-  * Encountered thread contention and memory allocation failure in `run_1.log` (OpenBLAS giving up after 10 retries).
-  * Determined that running 6 concurrent parallel scripts with the default `n_jobs=-1` (scikit-learn using all CPU cores) caused a process/thread overflow.
-  * Mitigated by updating `run_hybrid_sweep.sh` to restrict thread environments to 1 (`OPENBLAS_NUM_THREADS=1`) and passing `--n_jobs 4` to control CPU load. Needs observation upon restart.
+
+
+
+## Session: 2026-07-28 (Dedicated High-Dimensional SMAC3 BO Baseline Executable Setup)
+* **Goal**: Create an executable, standalone submission workflow to execute standard SMAC3 BO (`SMAC3-HPOFacade`) on the High-Dimensional (>20D) & NAS benchmarks using standard Expected Improvement (EI) acqf and static standard SMAC3 Random Forest surrogate without any epistemic uncertainty overrides.
+
+### Accomplishments
+1. **TDD Unit Testing Suite**:
+   - Created `tests/test_generate_smac3_highdim_array_tasks.py` verifying generation of exactly 90 baseline tasks (`+optimizer/smac20=hpo`) across 18 High-Dim benchmarks and 5 seeds (`1..5`), confirming absence of custom UQ overrides.
+   - Updated `tests/test_generate_epistemic_ei_highdim_array_tasks.py` to match 810 total high-dim tasks (720 DyRF + 90 SMAC). Verified both tests pass 100%.
+2. **Task Generator & SLURM Workflow**:
+   - Created `scripts/generate_smac3_highdim_array_tasks.py` (executable `chmod +x`) outputting `results/smac3_highdim_array_tasks.txt`.
+   - Created `scripts/submit_smac3_highdim_array.sbatch` configured for a 90-task array job (`#SBATCH --array=1-90%15`).
+   - Created `scripts/submit_smac3_highdim_all.sh` (executable `chmod +x`) to launch the 90-task array job on the LUIS cluster.
+
 
 
 

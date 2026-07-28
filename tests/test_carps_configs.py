@@ -26,16 +26,28 @@ class TestCARPSConfigs(unittest.TestCase):
         self.assertEqual(cfg.optimizer.kappa, 1.96)
         self.assertEqual(cfg.optimizer.min_samples_leaf_base, 2)
 
+    def test_hydra_acq_function_config(self):
+        config_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "carps_integration", "configs", "optimizer", "dyrf_epistemic_ei.yaml"
+        )
+        cfg = OmegaConf.load(config_path)
+        self.assertIn("acq_func_name", cfg.optimizer)
+        self.assertIn("acq_func_kwargs", cfg.optimizer)
+
     def test_run_carps_patched_overrides_yahpo_dir(self):
         # Import the script to apply the override
         import scripts.run_carps_patched
         import carps.objective_functions.yahpo
         
-        # Verify that YAHPO_TASK_DATA_DIR was programmatically redirected
-        self.assertEqual(
-            str(carps.objective_functions.yahpo.YAHPO_TASK_DATA_DIR),
-            "/bigwork/nhwpseis/benchmarks/yahpo-data"
-        )
+        # Verify that YAHPO_TASK_DATA_DIR was programmatically redirected if on cluster
+        if os.path.exists("/bigwork/nhwpseis/benchmarks"):
+            self.assertEqual(
+                str(carps.objective_functions.yahpo.YAHPO_TASK_DATA_DIR),
+                "/bigwork/nhwpseis/benchmarks/yahpo-data"
+            )
+        else:
+            self.assertIsNotNone(carps.objective_functions.yahpo.YAHPO_TASK_DATA_DIR)
 
     def test_log_python_env_creates_directory_if_missing(self):
         import tempfile

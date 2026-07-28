@@ -82,6 +82,20 @@ class TestCARPSDynamicRFOptimizer(unittest.TestCase):
         self.assertEqual(last_trial["trial_idx"], 11)
         self.assertIn("surrogate_min_samples_leaf", last_trial)
         self.assertIn("surrogate_max_features", last_trial)
+
+    def test_optimizer_acq_functions(self):
+        for acq_name, acq_kwargs in [("ei", {"xi": 0.01}), ("lcb", {"beta": 2.0}), ("pi", {"xi": 0.05})]:
+            optimizer = CARPSDynamicRFOptimizer(
+                task=self.task,
+                extractor_name="standard_disagreement",
+                acq_func_name=acq_name,
+                acq_func_kwargs=acq_kwargs,
+                n_init=3,
+                telemetry_path=self.telemetry_file
+            )
+            incumbent = optimizer.run()
+            self.assertIsNotNone(incumbent)
+            self.assertEqual(optimizer.acq_func_name, acq_name)
         
 if __name__ == "__main__":
     unittest.main()
