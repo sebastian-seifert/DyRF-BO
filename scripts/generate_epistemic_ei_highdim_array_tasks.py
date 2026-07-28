@@ -45,7 +45,6 @@ def generate_highdim_array_tasks(output_path: str = "results/epistemic_ei_highdi
             telemetry = f"results/epistemic_ei_highdim/baseline/telemetry_smac3_{task_name}_seed{seed}.json"
             line = (
                 f"+optimizer/smac20=hpo "
-                f"++optimizer.acq_func_name=ei "
                 f"{task} "
                 f"task.optimization_resources.n_trials={trials} "
                 f"seed={seed} ++optimizer.telemetry_path={telemetry} "
