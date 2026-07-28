@@ -233,10 +233,11 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         train_mask = ~gap_mask_train
         X_train = X[train_mask]
     
-    # Construct test set by explicitly sampling ID and OOD points (preserving hypercube structure)
+    # Construct test set by explicitly sampling ID and OOD points (capped at min(n_samples * 0.3, 1000))
     id_split = 0.7
-    n_id = int(n_samples * id_split)
-    n_ood = n_samples - n_id
+    n_test = min(int(n_samples * 0.3), 1000)
+    n_id = int(n_test * id_split)
+    n_ood = n_test - n_id
     
     X_ood = rng.uniform(gap[0], gap[1], size=(n_ood, ndim))
     

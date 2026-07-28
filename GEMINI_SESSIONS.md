@@ -287,9 +287,14 @@
    - Created `scripts/submit_smac3_highdim_all.sh` (executable `chmod +x`) to launch the 90-task array job on the LUIS cluster.
 
 
+## Session: 2026-07-28 (Hypercube Synthetic Test Set Capping Optimization & Submit Todays Sweeps Update)
+* **Goal**: Cap the hypercube synthetic test set size to $N_{\text{test}} = \min(\lfloor 0.3 \cdot N_{\text{samples}} \rfloor, 1000)$ in `data_generator.py` to accelerate evaluation runs by up to $10\times$ without losing statistical power or affecting training data density, and restrict `submit_todays_sweeps.sh` exclusively to Sweep 1 & Sweep 2.
 
-
-
-
-
-
+### Accomplishments
+1. **TDD Unit Testing Suite**:
+   - Created `tests/test_data_generator_test_cap.py` testing test set size capping and 70% ID / 30% OOD balance for 1D (360 test points) and 10D (1,000 test points).
+   - Created `tests/test_submit_todays_sweeps.py` verifying that `submit_todays_sweeps.sh` targets only Sweep 1 & Sweep 2. All tests pass 100%.
+2. **Data Generator Optimization**:
+   - Updated `data_generator.py` hypercube test set sampling: `n_test = min(int(n_samples * 0.3), 1000)`, `n_id = int(n_test * 0.7)`, `n_ood = n_test - n_id`.
+3. **Launcher Update**:
+   - Updated `submit_todays_sweeps.sh` to run `scripts/submit_sweep1_empty.sh` and `scripts/submit_sweep2_linear_sparse.sh` in parallel.
