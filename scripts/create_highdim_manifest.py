@@ -26,6 +26,9 @@ def generate_highdim_manifest(output_path: str = "results/epistemic_ei_highdim/E
 
     approaches = ["smac3_bo"] + extractors
 
+    from scripts.inspect_approach_hyperparameters import get_all_approach_hyperparameters
+    hp_specs = get_all_approach_hyperparameters()
+
     manifest = {
         "experiment_name": "highdim_ei_epistemic_sweep",
         "date_created": datetime.now().isoformat(),
@@ -43,6 +46,7 @@ def generate_highdim_manifest(output_path: str = "results/epistemic_ei_highdim/E
         "n_tasks": len(tasks),
         "approaches": approaches,
         "n_approaches": len(approaches),
+        "approach_hyperparameters": hp_specs,
         "total_planned_runs": len(tasks) * len(approaches) * 5,
         "paths": {
             "baseline_telemetry": "results/epistemic_ei_highdim/baseline/",

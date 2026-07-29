@@ -1,7 +1,7 @@
 {
   "experiment_name": "highdim_ei_epistemic_sweep",
-  "date_created": "2026-07-29T10:41:11.753974",
-  "git_commit": "aaf0432119c652267995d25664bb19e06b99a3d6",
+  "date_created": "2026-07-29T10:46:16.343116",
+  "git_commit": "cc0ff3b3d5c7621f74fc87c6fc7118d15de50e75",
   "git_branch": "feat/epistemic-ei-acq",
   "n_seeds": 5,
   "seeds": [
@@ -50,6 +50,105 @@
     "proximity_auto_lambda"
   ],
   "n_approaches": 9,
+  "approach_hyperparameters": {
+    "smac3_bo": {
+      "description": "Standard SMAC3 BO Facade using total variance for Expected Improvement",
+      "facade_class": "smac.facade.HyperparameterOptimizationFacade",
+      "surrogate_model": "RandomForestRegressor",
+      "n_trees": 100,
+      "acq_func": "EI",
+      "acq_xi": 0.0,
+      "uncertainty_type": "total_variance",
+      "n_init": 10,
+      "init_design": "Sobol / Default Random",
+      "enable_adaptation": false
+    },
+    "standard_disagreement": {
+      "description": "Variance of mean predictions across ensemble trees (pure epistemic uncertainty)",
+      "formula": "Var_tree(mean_t(x)) = (1/B) * sum_t (mu_t(x) - mu_bar(x))^2",
+      "n_trees": 100,
+      "acq_func": "EI",
+      "acq_xi": 0.0,
+      "uncertainty_type": "epistemic",
+      "n_init": 10,
+      "enable_adaptation": false
+    },
+    "standard_proximity": {
+      "description": "K-Nearest Neighbor (K-NN) density-decay epistemic uncertainty scaling",
+      "formula": "ep_std * (1.0 - exp(-lambda * d_k(x)))",
+      "n_neighbors": 20,
+      "topological_decay_lambda": 1.0,
+      "metric": "euclidean",
+      "acq_func": "EI",
+      "acq_xi": 0.0,
+      "uncertainty_type": "epistemic"
+    },
+    "proximity_b": {
+      "description": "Leaf centroid distance-weighted proximity epistemic uncertainty",
+      "formula": "d_centroid(x, L_t) weighted density decay across leaves",
+      "n_neighbors": 20,
+      "topological_decay_lambda": 1.0,
+      "centroid_weight": 1.0,
+      "boundary_weight": 0.0,
+      "acq_func": "EI",
+      "acq_xi": 0.0,
+      "uncertainty_type": "epistemic"
+    },
+    "proximity_bc": {
+      "description": "Joint leaf centroid and decision boundary distance proximity UQ",
+      "formula": "0.5 * d_centroid(x) + 0.5 * d_boundary(x)",
+      "n_neighbors": 20,
+      "topological_decay_lambda": 1.0,
+      "centroid_weight": 0.5,
+      "boundary_weight": 0.5,
+      "acq_func": "EI",
+      "acq_xi": 0.0,
+      "uncertainty_type": "epistemic"
+    },
+    "proximity_auto_lambda": {
+      "description": "Automatic spatial density-adaptive decay rate scaling",
+      "formula": "lambda_auto = min_lambda + (max_lambda - min_lambda) * (1.0 - local_density)",
+      "n_neighbors": 20,
+      "use_density_scaling": true,
+      "density_scaling_alpha": 1.0,
+      "topological_decay_lambda_grid": [
+        0.5,
+        1.0,
+        5.0
+      ],
+      "acq_func": "EI",
+      "acq_xi": 0.0,
+      "uncertainty_type": "epistemic"
+    },
+    "chen_variance": {
+      "description": "Chen et al. analytical Random Forest epistemic vs aleatoric variance decomposition",
+      "formula": "sigma_ep^2(x) = (1/B) sum_b (mu_b(x) - mu(x))^2 + (1/B) sum_b (1/n_b) s_b^2",
+      "min_samples_leaf": 2,
+      "acq_func": "EI",
+      "acq_xi": 0.0,
+      "uncertainty_type": "epistemic"
+    },
+    "shaker_entropy": {
+      "description": "Shaker & H\u00fcllermeier GMM feature space entropy epistemic uncertainty",
+      "formula": "H(x) = - sum_k P(c_k|x) log P(c_k|x)",
+      "n_components": 5,
+      "covariance_type": "full",
+      "entropy_scale": true,
+      "acq_func": "EI",
+      "acq_xi": 0.0,
+      "uncertainty_type": "epistemic"
+    },
+    "likelihood_credal": {
+      "description": "Credal likelihood ratio epistemic uncertainty under numerical root-finding",
+      "formula": "LR(x) = L(theta_0|x) / sup_theta L(theta|x)",
+      "root_solver": "bisect",
+      "integral_method": "trapz",
+      "confidence_level": 0.95,
+      "acq_func": "EI",
+      "acq_xi": 0.0,
+      "uncertainty_type": "epistemic"
+    }
+  },
   "total_planned_runs": 810,
   "paths": {
     "baseline_telemetry": "results/epistemic_ei_highdim/baseline/",
