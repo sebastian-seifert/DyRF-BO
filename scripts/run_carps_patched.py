@@ -143,7 +143,7 @@ def patched_smac3_setup_optimizer(self):
         if acq_cls is not None:
             if self.smac_cfg.get("smac_kwargs") is None:
                 self.smac_cfg["smac_kwargs"] = {}
-            self.smac_cfg["smac_kwargs"]["acquisition_function"] = acq_cls
+            self.smac_cfg["smac_kwargs"]["acquisition_function"] = acq_cls()
     return original_smac3_setup_optimizer(self)
 
 carps.optimizers.smac20.SMAC3Optimizer._setup_optimizer = patched_smac3_setup_optimizer
