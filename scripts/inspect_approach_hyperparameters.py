@@ -87,9 +87,11 @@ def get_all_approach_hyperparameters() -> dict:
 
     # 7. Chen Variance
     hp["chen_variance"] = {
-        "description": "Chen et al. analytical Random Forest epistemic vs aleatoric variance decomposition",
-        "formula": "sigma_ep^2(x) = (1/B) sum_b (mu_b(x) - mu(x))^2 + (1/B) sum_b (1/n_b) s_b^2",
-        "min_samples_leaf": 2,
+        "description": "Chen et al. (2025) Paired Tree Generalization Stability Variance",
+        "formula": "V_chen(x) = (1/M) * sum_{j=1}^{M/2} (h_{2j-1}(x) - h_{2j}(x))^2",
+        "n_trees": 100,
+        "n_tree_pairs": 50,
+        "pairing_scheme": "adjacent_tree_pairs",
         "acq_func": "EI",
         "acq_xi": 0.0,
         "uncertainty_type": "epistemic"
