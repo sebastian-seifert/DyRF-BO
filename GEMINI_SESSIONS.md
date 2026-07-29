@@ -1,5 +1,19 @@
 # Gemini Sessions Log
 
+## Session: 2026-07-29 (Full Acquisition Epistemic BO Sweep Array & SMAC3 Patching)
+* **Goal**: Implement multi-acquisition sweep (EI, PI, LCB) across 27 balanced CARP-S benchmarks, 8 UQ extractors, and SMAC3 baselines (3,645 tasks), perform smoke testing under strict TDD, patch SMAC3 acquisition function parameter handling, and push isolated `feat/epistemic-ei-acq` branch to remote.
+
+### Accomplishments
+1. **Full Acquisition Array Generator & Test Suite**:
+   - Implemented `scripts/generate_epistemic_full_acq_array_tasks.py` and `scripts/generate_smoke_epistemic_full_acq_tasks.py` generating task array definitions for DyRF epistemic UQ runs and SMAC3 baselines across `ei`, `pi`, and `lcb`.
+   - Created TDD unit tests `tests/test_generate_epistemic_full_acq_array_tasks.py` and `tests/test_smoke_epistemic_full_acq.py`.
+2. **SMAC3 Optimizer Acquisition Patching**:
+   - Patched `SMAC3Optimizer.__init__` and `_setup_optimizer` in `scripts/run_carps_patched.py` to absorb extra Hydra kwargs (`acq_func_name`) and dynamically bind `smac.acquisition.function.EI`, `PI`, or `LCB`.
+   - Added unit test `test_smac3_optimizer_acq_func_name_patch` in `tests/test_carps_monkeypatches.py`.
+3. **Local Runner & Cluster Preparation**:
+   - Created `scripts/run_local_carps_sweep.py` for multiprocessing local testing and verified 0 errors across smoke tests.
+   - Pushed feature branch `feat/epistemic-ei-acq` to remote `origin` for cluster execution via `./scripts/submit_epistemic_full_acq_all.sh`.
+
 ## Session: 2026-07-21 (Branin & Hartmann Synthetic Benchmark Functions Integration)
 * **Goal**: Implement dedicated `get_branin_hartmann_functions()` generator in `synthetic_functions.py` defining classic Branin (2D), Hartmann-3D, and Hartmann-6D benchmark functions for BO and UQ evaluation without modifying existing synthetic function getters or benchmark scripts.
 
@@ -310,3 +324,34 @@
    - Created `scripts/run_smac3_highdim_local.py` (`chmod +x`) to run 90 tasks using 4 parallel workers, stream logs to `results/array_smac3_<task>_seed<seed>.log`, and extract final trial telemetry.
 3. **Background Execution**:
    - Launched local background task executing all 90 tasks on laptop.
+
+## Session: 2026-07-29 (High-Dimensional Benchmark Table Seed Bug Fix & 5-Seed CSV Regeneration)
+* **Goal**: Investigate and fix missing seed parsing in `generate_highdim_benchmark_tables.py` where custom DyRF approaches were defaulting to `seed=1` and reporting `1/5` finished seeds, then regenerate all 18 benchmark CSV tables under TDD.
+
+### Accomplishments
+1. **Root Cause Analysis**:
+   - Identified that custom telemetry JSON payloads omit a top-level `"seed"` key, whereas baseline JSONs include it.
+   - Line 42 of `generate_highdim_benchmark_tables.py` defaulted missing `"seed"` keys to `1`, overwriting seeds 2–5.
+2. **TDD Unit Testing Suite**:
+   - Added `test_parse_seed_from_filename_when_missing_in_json` in `tests/test_generate_highdim_benchmark_tables.py`. Confirmed failure on old parser and clean 100% pass on updated parser.
+3. **Parser & Generator Fix**:
+   - Updated `parse_highdim_telemetry` in `scripts/generate_highdim_benchmark_tables.py` to extract seed from filename regex `_seed(\d+)\.json$` when absent from JSON body.
+4. **Regeneration & Verification**:
+   - Re-executed `generate_highdim_benchmark_tables.py`, producing clean 18 per-benchmark CSV tables in `results/epistemic_ei_highdim/tables/` and aggregated summary `results/epistemic_ei_highdim/highdim_benchmark_tables.md`.
+   - Verified that 100% of custom DyRF approaches across all 18 tasks now report `Finished_Seeds: 5/5` with accurate standard deviations and errors.
+
+## Session: 2026-07-29 (Multi-Acquisition EI/PI/LCB Balanced Sweep Architecture & Launchers)
+* **Goal**: Design a balanced benchmark sweep across Low-Dim ($\le 6D$), Mid-Dim ($7–20D$), and High-Dim ($>20D$) search space complexities (9 tasks per category, 27 benchmarks total), testing 8 DyRF Epistemic UQ approaches and SMAC3 BO baselines across 3 acquisition functions (`EI`, `PI`, `LCB`) and 5 random seeds (3,645 total runs).
+
+### Accomplishments
+1. **Benchmark Suite Balancing**:
+   - Added `get_balanced_tasks()` and `get_balanced_tasks_by_category()` in `scripts/benchmark_registry.py` returning exactly 9 Low-Dim, 9 Mid-Dim, and 9 High-Dim & NAS benchmarks (27 total).
+2. **TDD Unit Testing Suite**:
+   - Added `test_get_balanced_tasks` in `tests/test_benchmark_registry.py` verifying category counts.
+   - Created `tests/test_generate_epistemic_full_acq_array_tasks.py` verifying 3,645 task lines (1,215 EI, 1,215 PI, 1,215 LCB; 405 SMAC3 baseline tasks). All tests pass 100%.
+3. **Task Generator & SLURM Launcher Scripting**:
+   - Created `scripts/generate_epistemic_full_acq_array_tasks.py` generating `results/epistemic_full_acq_array_tasks.txt`.
+   - Created `scripts/submit_epistemic_full_acq_array.sbatch` for SLURM cluster array submission.
+   - Created `scripts/submit_epistemic_full_acq_all.sh` (`chmod +x`) to launch the 3,645-task cluster array job (`#SBATCH --array=1-3645%25`).
+
+
