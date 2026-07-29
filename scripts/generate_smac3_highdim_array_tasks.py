@@ -22,12 +22,11 @@ def generate_smac3_highdim_array_tasks(output_path: str = "results/smac3_highdim
     for task in tasks:
         task_name = task.split("=")[-1]
         for seed in seeds:
-            telemetry = f"results/epistemic_ei_highdim/baseline/telemetry_smac3_{task_name}_seed{seed}.json"
             line = (
                 f"+optimizer/smac20=hpo "
                 f"{task} "
                 f"task.optimization_resources.n_trials={trials} "
-                f"seed={seed} ++optimizer.telemetry_path={telemetry} "
+                f"seed={seed} "
                 f"optimizer_id=SMAC3-HPOFacade optimizer_container_id=SMAC3"
             )
             lines.append(line)

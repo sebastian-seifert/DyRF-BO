@@ -29,8 +29,7 @@ class TestGenerateSMAC3HighDimArrayTasks(unittest.TestCase):
             self.assertIn("optimizer_container_id=SMAC3", line)
             self.assertNotIn("acq_func_name", line)
             self.assertNotIn("acq_uncertainty_type", line)
-            self.assertNotIn("extractor_name", line)
-            self.assertIn("results/epistemic_ei_highdim/baseline/", line)
+            self.assertNotIn("telemetry_path", line)
 
 if __name__ == "__main__":
     unittest.main()
