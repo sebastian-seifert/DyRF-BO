@@ -46,5 +46,10 @@ class TestGenerateHighDimBenchmarkTables(unittest.TestCase):
         self.assertIn("| `Chen` |", table_md)
         self.assertIn("| `smac3_bo` |", table_md)
 
+        from scripts.generate_highdim_benchmark_tables import compute_average_ranks
+        avg_ranks = compute_average_ranks(results)
+        self.assertEqual(avg_ranks["Chen"], 1.0)
+        self.assertEqual(avg_ranks["smac3_bo"], 2.0)
+
 if __name__ == "__main__":
     unittest.main()

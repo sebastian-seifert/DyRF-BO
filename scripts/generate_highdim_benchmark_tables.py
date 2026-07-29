@@ -94,6 +94,47 @@ def format_benchmark_table(task_name: str, approaches_dict: dict) -> str:
     lines.append("\n")
     return "\n".join(lines)
 
+from scipy.stats import rankdata
+
+def compute_average_ranks(results: dict) -> dict:
+    """
+    Computes average rank per approach across all benchmark tasks.
+    Uses mean cost per task/approach, and computes fractional rank per task (1 = best/lowest cost).
+    """
+    task_ranks = {}
+
+    for task_name, app_dict in results.items():
+        app_names = []
+        mean_costs = []
+        for app_name, seed_map in app_dict.items():
+            costs = list(seed_map.values())
+            if costs:
+                app_names.append(app_name)
+                mean_costs.append(float(np.mean(costs)))
+
+        if not app_names:
+            continue
+
+        ranks = rankdata(mean_costs, method="average")
+        for app_name, r in zip(app_names, ranks):
+            task_ranks.setdefault(app_name, []).append(float(r))
+
+    avg_ranks = {app: float(np.mean(r_list)) for app, r_list in task_ranks.items()}
+    return avg_ranks
+
+def format_summary_rank_table(avg_ranks: dict, total_tasks: int) -> str:
+    lines = []
+    lines.append(f"## Overall Average Ranks across {total_tasks} High-Dimensional Benchmarks\n")
+    lines.append("| Rank | Approach | Average Rank (Lower is Better) | Tasks Evaluated |")
+    lines.append("| --- | --- | --- | --- |")
+
+    sorted_apps = sorted(avg_ranks.items(), key=lambda x: x[1])
+    for pos, (app_name, rank_val) in enumerate(sorted_apps, 1):
+        lines.append(f"| {pos} | `{app_name}` | **{rank_val:.2f}** | {total_tasks} |")
+
+    lines.append("\n")
+    return "\n".join(lines)
+
 def generate_all_highdim_reports(
     input_dirs=None,
     output_report="results/epistemic_ei_highdim/highdim_benchmark_tables.md",
@@ -113,6 +154,10 @@ def generate_all_highdim_reports(
     report_lines = []
     report_lines.append("# High-Dimensional Benchmark Optimization Summary\n")
     report_lines.append("Averaged across 5 seeds per benchmark task. Comparing standard `smac3bo` baseline against DyRF Epistemic UQ approaches.\n")
+
+    avg_ranks = compute_average_ranks(results)
+    rank_table_md = format_summary_rank_table(avg_ranks, len(results))
+    report_lines.append(rank_table_md)
 
     for task_name in sorted(results.keys()):
         app_dict = results[task_name]

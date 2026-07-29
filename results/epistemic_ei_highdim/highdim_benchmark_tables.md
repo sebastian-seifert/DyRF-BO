@@ -2,6 +2,21 @@
 
 Averaged across 5 seeds per benchmark task. Comparing standard `smac3bo` baseline against DyRF Epistemic UQ approaches.
 
+## Overall Average Ranks across 18 High-Dimensional Benchmarks
+
+| Rank | Approach | Average Rank (Lower is Better) | Tasks Evaluated |
+| --- | --- | --- | --- |
+| 1 | `standard_disagreement` | **3.78** | 18 |
+| 2 | `proximity_b` | **3.83** | 18 |
+| 3 | `proximity_auto_lambda` | **3.92** | 18 |
+| 4 | `proximity_bc` | **4.50** | 18 |
+| 5 | `chen_variance` | **5.06** | 18 |
+| 6 | `standard_proximity` | **5.11** | 18 |
+| 7 | `likelihood_credal` | **5.31** | 18 |
+| 8 | `shaker_entropy` | **6.50** | 18 |
+| 9 | `smac3_bo` | **7.00** | 18 |
+
+
 ## Benchmark Task: `cfg_nb301_CIFAR10`
 
 | Approach | Mean Final Cost | Std Dev | Std Error | Finished Seeds | Best Seed Cost | Worst Seed Cost |
