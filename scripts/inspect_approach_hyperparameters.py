@@ -51,12 +51,10 @@ def get_all_approach_hyperparameters() -> dict:
 
     # 4. Proximity Method B
     hp["proximity_b"] = {
-        "description": "Leaf centroid distance-weighted proximity epistemic uncertainty",
-        "formula": "d_centroid(x, L_t) weighted density decay across leaves",
-        "n_neighbors": 20,
+        "description": "Topological tree-path distance decay proximity (RF-GAP)",
+        "formula": "U_topo(x) = 1.0 - exp(-lambda * d_topo(x, D_train))",
         "topological_decay_lambda": 1.0,
-        "centroid_weight": 1.0,
-        "boundary_weight": 0.0,
+        "use_density_scaling": False,
         "acq_func": "EI",
         "acq_xi": 0.0,
         "uncertainty_type": "epistemic"
@@ -64,12 +62,11 @@ def get_all_approach_hyperparameters() -> dict:
 
     # 5. Proximity Method BC
     hp["proximity_bc"] = {
-        "description": "Joint leaf centroid and decision boundary distance proximity UQ",
-        "formula": "0.5 * d_centroid(x) + 0.5 * d_boundary(x)",
-        "n_neighbors": 20,
+        "description": "Joint topological tree-path distance + leaf sample density scaling",
+        "formula": "U_topo_density(x) = U_topo(x) * (N_leaf(x))^(-alpha)",
         "topological_decay_lambda": 1.0,
-        "centroid_weight": 0.5,
-        "boundary_weight": 0.5,
+        "use_density_scaling": True,
+        "density_scaling_alpha": 1.0,
         "acq_func": "EI",
         "acq_xi": 0.0,
         "uncertainty_type": "epistemic"
