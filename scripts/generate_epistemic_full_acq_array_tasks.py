@@ -26,7 +26,7 @@ def generate_full_acq_array_tasks(output_path: str = "results/epistemic_full_acq
             task_name = task.split("=")[-1]
             for approach in approaches:
                 for seed in seeds:
-                    telemetry = f"results/epistemic_acq/{acq}/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
+                    telemetry = f"results/epistemic_ei_pi_lcb_all_dim/{acq}/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
                     line = (
                         f"+optimizer=dyrf_epistemic_{acq} "
                         f"++optimizer.acq_func_name={acq} "
@@ -44,7 +44,7 @@ def generate_full_acq_array_tasks(output_path: str = "results/epistemic_full_acq
         for task in tasks:
             task_name = task.split("=")[-1]
             for seed in seeds:
-                telemetry = f"results/epistemic_acq/baseline/{acq}/telemetry_smac3_{acq}_{task_name}_seed{seed}.json"
+                telemetry = f"results/epistemic_ei_pi_lcb_all_dim/baseline/{acq}/telemetry_smac3_{acq}_{task_name}_seed{seed}.json"
                 line = (
                     f"+optimizer/smac20=hpo "
                     f"++optimizer.acq_func_name={acq} "

@@ -20,10 +20,11 @@ class TestGenerateEpistemicFullAcqArrayTasks(unittest.TestCase):
         self.assertEqual(len(lines), 3645)
         self.assertTrue(os.path.exists(self.output_file))
 
-        # Check acquisition breakdown
-        ei_count = sum(1 for line in lines if "acq_func_name=ei" in line or "smac3_ei" in line or "results/epistemic_acq/ei/" in line)
-        pi_count = sum(1 for line in lines if "acq_func_name=pi" in line or "smac3_pi" in line or "results/epistemic_acq/pi/" in line)
-        lcb_count = sum(1 for line in lines if "acq_func_name=lcb" in line or "smac3_lcb" in line or "results/epistemic_acq/lcb/" in line)
+        # Check acquisition breakdown and folder path
+        self.assertTrue(all("results/epistemic_ei_pi_lcb_all_dim/" in line for line in lines))
+        ei_count = sum(1 for line in lines if "acq_func_name=ei" in line or "smac3_ei" in line or "results/epistemic_ei_pi_lcb_all_dim/ei/" in line)
+        pi_count = sum(1 for line in lines if "acq_func_name=pi" in line or "smac3_pi" in line or "results/epistemic_ei_pi_lcb_all_dim/pi/" in line)
+        lcb_count = sum(1 for line in lines if "acq_func_name=lcb" in line or "smac3_lcb" in line or "results/epistemic_ei_pi_lcb_all_dim/lcb/" in line)
 
         self.assertEqual(ei_count, 1215)
         self.assertEqual(pi_count, 1215)

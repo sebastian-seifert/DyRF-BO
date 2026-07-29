@@ -2,13 +2,13 @@
 set -e
 
 # Ensure output directories exist
-mkdir -p results/epistemic_acq/ei
-mkdir -p results/epistemic_acq/pi
-mkdir -p results/epistemic_acq/lcb
-mkdir -p results/epistemic_acq/baseline/ei
-mkdir -p results/epistemic_acq/baseline/pi
-mkdir -p results/epistemic_acq/baseline/lcb
-mkdir -p results/epistemic_acq/logs
+mkdir -p results/epistemic_ei_pi_lcb_all_dim/ei
+mkdir -p results/epistemic_ei_pi_lcb_all_dim/pi
+mkdir -p results/epistemic_ei_pi_lcb_all_dim/lcb
+mkdir -p results/epistemic_ei_pi_lcb_all_dim/baseline/ei
+mkdir -p results/epistemic_ei_pi_lcb_all_dim/baseline/pi
+mkdir -p results/epistemic_ei_pi_lcb_all_dim/baseline/lcb
+mkdir -p results/epistemic_ei_pi_lcb_all_dim/logs
 
 # Ensure task list is generated
 if [ ! -f "results/epistemic_full_acq_array_tasks.txt" ]; then
