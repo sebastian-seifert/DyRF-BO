@@ -97,11 +97,11 @@ def get_all_approach_hyperparameters() -> dict:
 
     # 8. Shaker Entropy
     hp["shaker_entropy"] = {
-        "description": "Shaker & Hüllermeier GMM feature space entropy epistemic uncertainty",
-        "formula": "H(x) = - sum_k P(c_k|x) log P(c_k|x)",
-        "n_components": 5,
-        "covariance_type": "full",
-        "entropy_scale": True,
+        "description": "Shaker & Hüllermeier Mutual Information / GMM Target Entropy (100 tree components)",
+        "formula": "MI(x) = H_total(x) - H_aleatoric(x) over 100-tree target GMM density",
+        "n_components": 100,
+        "num_samples": 10000,
+        "n_grid": 128,
         "acq_func": "EI",
         "acq_xi": 0.0,
         "uncertainty_type": "epistemic"
