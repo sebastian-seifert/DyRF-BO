@@ -55,6 +55,19 @@ class BenchmarkRegistry:
         return cls.LOW_DIM + cls.MID_DIM + cls.HIGH_DIM_NAS
 
     @classmethod
+    def get_balanced_tasks_by_category(cls) -> Dict[str, List[str]]:
+        return {
+            "Low-Dim (<=6D)": cls.LOW_DIM[:9],
+            "Mid-Dim (7-20D)": cls.MID_DIM[:9],
+            "High-Dim & NAS (>20D)": cls.HIGH_DIM_NAS[:9],
+        }
+
+    @classmethod
+    def get_balanced_tasks(cls) -> List[str]:
+        cats = cls.get_balanced_tasks_by_category()
+        return cats["Low-Dim (<=6D)"] + cats["Mid-Dim (7-20D)"] + cats["High-Dim & NAS (>20D)"]
+
+    @classmethod
     def get_tasks_by_category(cls) -> Dict[str, List[str]]:
         return {
             "Low-Dim (<=6D)": cls.LOW_DIM,
@@ -71,3 +84,4 @@ class BenchmarkRegistry:
         elif any(t in task_str for t in cls.HIGH_DIM_NAS):
             return "High-Dim & NAS (>20D)"
         return "High-Dim & NAS (>20D)"
+

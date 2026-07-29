@@ -39,7 +39,14 @@ def parse_highdim_telemetry(dirs=None):
                 raw_task = content.get("task_name", "unknown")
                 task = normalize_task_name(raw_task)
                 extractor = content.get("extractor_name", "unknown")
-                seed = int(content.get("seed", 1))
+                
+                seed = content.get("seed")
+                if seed is None:
+                    match_seed = re.search(r"_seed(\d+)\.json$", filename)
+                    seed = int(match_seed.group(1)) if match_seed else 1
+                else:
+                    seed = int(seed)
+                
                 trials = content.get("trials", [])
 
                 if not trials:

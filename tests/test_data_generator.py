@@ -33,5 +33,17 @@ class TestDataGenerator(unittest.TestCase):
         self.assertTrue(0.8 < np.std(y_train_15) < 1.2)
         self.assertTrue(0.8 < np.std(y_train) < 1.2)
 
+    def test_explicit_noise_std_and_id_split(self):
+        funcs_1d = get_1d_functions()
+        # Test custom noise_std and id_split
+        X_train, y_train, X_test, y_test, y_true_binary = generate_data(
+            funcs_1d, "sin", seed=42, ood_type="hypercube", noise_std=0.0, id_split=0.5
+        )
+        self.assertFalse(np.isnan(y_train).any())
+        self.assertEqual(len(X_test), len(y_test))
+        # With 0.5 id_split, ratio of ID points (labeled 0 in y_true_binary) should be ~0.5
+        id_ratio = np.mean(y_true_binary == 0)
+        self.assertAlmostEqual(id_ratio, 0.5, delta=0.1)
+
 if __name__ == "__main__":
     unittest.main()

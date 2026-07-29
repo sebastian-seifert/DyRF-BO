@@ -111,6 +111,43 @@ def patched_select(cfg, key, *args, **kwargs):
 
 omegaconf.OmegaConf.select = patched_select
 
+# Monkey-patch SMAC3Optimizer to accept extra kwargs like acq_func_name and configure acquisition function
+import carps.optimizers.smac20
+original_smac3_init = carps.optimizers.smac20.SMAC3Optimizer.__init__
+
+def patched_smac3_init(self, task, smac_cfg, loggers=None, expects_multiple_objectives=False, expects_fidelities=False, **kwargs):
+    if "acq_func_name" in kwargs:
+        self.acq_func_name = kwargs.pop("acq_func_name")
+    original_smac3_init(
+        self,
+        task=task,
+        smac_cfg=smac_cfg,
+        loggers=loggers,
+        expects_multiple_objectives=expects_multiple_objectives,
+        expects_fidelities=expects_fidelities,
+    )
+
+carps.optimizers.smac20.SMAC3Optimizer.__init__ = patched_smac3_init
+
+original_smac3_setup_optimizer = carps.optimizers.smac20.SMAC3Optimizer._setup_optimizer
+
+def patched_smac3_setup_optimizer(self):
+    if hasattr(self, "acq_func_name") and self.acq_func_name:
+        import smac.acquisition.function as acq_module
+        acq_map = {
+            "ei": acq_module.EI,
+            "pi": acq_module.PI,
+            "lcb": acq_module.LCB,
+        }
+        acq_cls = acq_map.get(self.acq_func_name.lower())
+        if acq_cls is not None:
+            if self.smac_cfg.get("smac_kwargs") is None:
+                self.smac_cfg["smac_kwargs"] = {}
+            self.smac_cfg["smac_kwargs"]["acquisition_function"] = acq_cls
+    return original_smac3_setup_optimizer(self)
+
+carps.optimizers.smac20.SMAC3Optimizer._setup_optimizer = patched_smac3_setup_optimizer
+
 from carps.run import main
 
 if __name__ == "__main__":

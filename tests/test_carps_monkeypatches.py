@@ -48,6 +48,21 @@ class TestCARPSMonkeypatches(unittest.TestCase):
         hps = cs._sort_hyperparameters()
         self.assertEqual(len(hps), 1)
 
+    def test_smac3_optimizer_acq_func_name_patch(self):
+        import carps.optimizers.smac20
+        from carps.optimizers.smac20 import SMAC3Optimizer
+        from omegaconf import OmegaConf
+
+        mock_task = None
+        mock_smac_cfg = OmegaConf.create({"smac_class": "smac.facade.HyperparameterOptimizationFacade", "scenario": {}})
+        
+        # Initializing SMAC3Optimizer with extra kwargs (like acq_func_name) should not raise TypeError
+        try:
+            opt = SMAC3Optimizer(task=mock_task, smac_cfg=mock_smac_cfg, acq_func_name="lcb")
+            self.assertEqual(getattr(opt, "acq_func_name", None), "lcb")
+        except TypeError as e:
+            self.fail(f"SMAC3Optimizer raised TypeError with acq_func_name: {e}")
+
 if __name__ == "__main__":
     unittest.main()
 

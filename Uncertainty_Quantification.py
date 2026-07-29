@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 # Reconfigure stdout and stderr to UTF-8 to prevent encoding errors on cluster environments with non-UTF-8 locales
 if sys.stdout is not None:
     try:
@@ -102,7 +103,7 @@ from synthetic_functions import (
 
 
 
-def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05, suffix="", use_density_scaling=False, output_dir=None):
+def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05, suffix="", use_density_scaling=False, output_dir=None, config_snapshot=None):
     """Save comprehensive summary to a .txt file and structured JSON."""
     import io
     import json
@@ -150,6 +151,7 @@ def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=
         return obj
 
     serializable_data = {
+        "config_snapshot": convert_to_serializable(config_snapshot) if config_snapshot else None,
         "approaches": approaches,
         "n_runs": n_runs,
         "results_all": convert_to_serializable(results_all),
@@ -290,7 +292,7 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant")
     print(f"{'='*80}\n")
 
-def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None, n_jobs=-1, ood_type='hypercube'):
+def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None, n_jobs=-1, ood_type='hypercube', noise_std=0.1, id_split=0.7):
     # Determine standard Random Forest hyperparameters based on config selection to pass min_leaf to generate_data
     if rf_config in ['A', 'a']:
         n_est, min_leaf, min_split, max_feat = 100, 5, 2, "sqrt"
@@ -319,7 +321,8 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
     t0 = time.perf_counter()
     X_train, y_train, X_test, y_test, y_true_binary = generate_data(
         func_dict, func_name, seed, gap_type=gap_type, sparse_multiplier=sparse_multiplier,
-        scaling_law=scaling_law, min_samples_leaf=min_leaf, ood_type=ood_type
+        scaling_law=scaling_law, min_samples_leaf=min_leaf, ood_type=ood_type,
+        noise_std=noise_std, id_split=id_split
     )
     t1 = time.perf_counter()
     if debug_timing:
@@ -674,9 +677,12 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
                 print(f"  Result: NOT SIGNIFICANT (p >= {alpha})")
 
 
-if __name__ == "__main__":
+def parse_args_with_config(args_list=None):
     import argparse
+    from config_schema import BenchmarkMasterConfig, DataConfig, RFConfig, ExtractorConfig, ProximityConfig
+
     parser = argparse.ArgumentParser(description="Epistemic UQ Benchmarks")
+    parser.add_argument("--config_file", type=str, default=None, help="Path to BenchmarkMasterConfig JSON snapshot file")
     parser.add_argument("--rf_config", type=str, default="1", help="Random Forest Config ID (e.g. A, B, C, 1, 2, 3, 4, 5)")
     parser.add_argument("--k_neighbors", type=str, default="20", help="Neighborhood size for Proximity UQ (int or 'auto' or 'all')")
     parser.add_argument("--gap_type", type=str, default="empty", choices=["empty", "sparse"], help="OOD gap type")
@@ -694,13 +700,47 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, default=None, help="Custom directory path to save results")
     parser.add_argument("--ood_type", type=str, default="hypercube", choices=["hypercube", "manifold"], help="OOD generation type")
     parser.add_argument("--function", type=str, default=None, help="Evaluate only a specific function by name")
-    args = parser.parse_args()
+    parser.add_argument("--noise_std", type=float, default=0.1, help="Homoscedastic target noise standard deviation")
+    parser.add_argument("--id_split", type=float, default=0.7, help="Proportion of ID samples in test evaluation")
+
+    if args_list is not None:
+        args = parser.parse_args(args_list)
+    else:
+        args = parser.parse_args()
+
+    if args.config_file and os.path.exists(args.config_file):
+        with open(args.config_file, "r") as f:
+            cfg_dict = json.load(f)
+        master_cfg = BenchmarkMasterConfig.from_dict(cfg_dict)
+    else:
+        seed_val = args.seed if args.seed is not None else args.seed_offset
+        rf_cfg = RFConfig.from_preset(args.rf_config) if args.rf_config in ["A", "B", "C"] else RFConfig(name=str(args.rf_config))
+        master_cfg = BenchmarkMasterConfig(
+            data=DataConfig(
+                gap_type=args.gap_type,
+                scaling_law=args.scaling_law,
+                sparse_multiplier=args.sparse_multiplier,
+                ood_type=args.ood_type,
+                seed=seed_val,
+                noise_std=args.noise_std,
+                id_split=args.id_split
+            ),
+            rf=rf_cfg,
+            extractors=ExtractorConfig(approaches=[a.strip() for a in args.approaches.split(",")]),
+            proximity=ProximityConfig(use_density_scaling=args.use_density_scaling)
+        )
+
+    return args, master_cfg
+
+
+if __name__ == "__main__":
+    args, master_config = parse_args_with_config()
 
     rf_config_arg = args.rf_config
     try:
         k_neighbors_arg = int(args.k_neighbors)
     except ValueError:
-        k_neighbors_arg = args.k_neighbors  # 'auto', 'all', or comma-separated string
+        k_neighbors_arg = args.k_neighbors
 
     gap_type_arg = args.gap_type
     sparse_multiplier_arg = args.sparse_multiplier
@@ -831,7 +871,9 @@ if __name__ == "__main__":
                     use_density_scaling=use_density_scaling_arg,
                     density_scaling_alpha=density_scaling_alpha_arg,
                     topological_decay_lambda=topological_decay_lambda_arg,
-                    n_jobs=n_jobs_arg, ood_type=ood_type_arg
+                    n_jobs=n_jobs_arg, ood_type=ood_type_arg,
+                    noise_std=master_config.data.noise_std,
+                    id_split=master_config.data.id_split
                 )
                 
                 # Accumulate timings
@@ -1026,7 +1068,7 @@ if __name__ == "__main__":
     save_results_to_file(
         results_all, results_by_dim, eval_approaches, n_runs, alpha=alpha,
         suffix=suffix_str, use_density_scaling=use_density_scaling_arg,
-        output_dir=output_dir_arg
+        output_dir=output_dir_arg, config_snapshot=master_config.to_dict()
     )
     sys.stdout.flush()
 

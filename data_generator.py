@@ -1,8 +1,8 @@
 import numpy as np
 
-def generate_manifold_data(func_obj, x_range, gap, ndim, n_samples, gap_type, sparse_multiplier, scaling_law, min_samples_leaf, seed):
+def generate_manifold_data(func_obj, x_range, gap, ndim, n_samples, gap_type, sparse_multiplier, scaling_law, min_samples_leaf, seed, noise_std=0.1, id_split=0.7):
     rng = np.random.default_rng(seed)
-    noise = 0.1
+    noise = noise_std
     
     # 0D manifold in 1D space
     if ndim == 1:
@@ -13,7 +13,6 @@ def generate_manifold_data(func_obj, x_range, gap, ndim, n_samples, gap_type, sp
         X_train = rng.normal(c, 0.05, size=(n_samples, 1))
         
         # Test set: ID and OOD
-        id_split = 0.7
         n_id = int(n_samples * id_split)
         n_ood = n_samples - n_id
         
@@ -87,7 +86,6 @@ def generate_manifold_data(func_obj, x_range, gap, ndim, n_samples, gap_type, sp
         X_train = X_train_manifold + rng.normal(0, 0.05, size=X_train_manifold.shape)
         
         # Now construct test set: ID (labeled 0) and OOD (labeled 1)
-        id_split = 0.7
         n_id = int(n_samples * id_split)
         n_ood = n_samples - n_id
         
@@ -145,7 +143,7 @@ def generate_manifold_data(func_obj, x_range, gap, ndim, n_samples, gap_type, sp
     
     return X_train, y_train, X_test, y_test, y_true_binary
 
-def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='empty', sparse_multiplier=12, scaling_law='linear', min_samples_leaf=5, ood_type='hypercube'):
+def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='empty', sparse_multiplier=12, scaling_law='linear', min_samples_leaf=5, ood_type='hypercube', noise_std=0.1, id_split=0.7):
     """
     Generates training and test data. Uses grid-based meshes for 1D-2D and
     fallback random uniform sampling for >=3D to avoid exponential complexity.
@@ -199,7 +197,9 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
             sparse_multiplier=sparse_multiplier,
             scaling_law=scaling_law,
             min_samples_leaf=min_samples_leaf,
-            seed=seed
+            seed=seed,
+            noise_std=noise_std,
+            id_split=id_split
         )
 
     # Fallback to original hypercube behavior
@@ -234,7 +234,6 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         X_train = X[train_mask]
     
     # Construct test set by explicitly sampling ID and OOD points (capped at min(n_samples * 0.3, 1000))
-    id_split = 0.7
     n_test = min(int(n_samples * 0.3), 1000)
     n_id = int(n_test * id_split)
     n_ood = n_test - n_id
@@ -265,7 +264,7 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
         y_train_clean = y_train_raw
         y_test_clean = y_test_raw
         
-    noise = 0.1
+    noise = noise_std
     y_train = y_train_clean + rng.normal(0, noise, len(y_train_clean))
     
     y_true_binary = np.zeros(len(X_test), dtype=int)
@@ -273,3 +272,4 @@ def generate_data(func_dict, func_name, seed, points_per_dim=None, gap_type='emp
 
     y_test = y_test_clean + rng.normal(0, noise, len(y_test_clean))
     return X_train, y_train, X_test, y_test, y_true_binary
+

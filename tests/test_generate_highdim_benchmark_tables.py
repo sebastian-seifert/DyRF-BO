@@ -51,5 +51,26 @@ class TestGenerateHighDimBenchmarkTables(unittest.TestCase):
         self.assertEqual(avg_ranks["Chen"], 1.0)
         self.assertEqual(avg_ranks["smac3_bo"], 2.0)
 
+    def test_parse_seed_from_filename_when_missing_in_json(self):
+        # Create files without "seed" in JSON content (simulating custom telemetry files)
+        for s in range(1, 6):
+            c_data = {
+                "task_name": "yahpo/so/rbv2_super/1050/None",
+                "extractor_name": "standard_proximity",
+                "trials": [{"trial_idx": 1, "cost": -0.5 - (s * 0.01)}]
+            }
+            fname = f"telemetry_epistemic_ei_standard_proximity_cfg_rbv2_super_1050_seed{s}.json"
+            with open(os.path.join(self.ei_dir, fname), "w") as f:
+                json.dump(c_data, f)
+
+        results = parse_highdim_telemetry(dirs=[self.ei_dir])
+        self.assertIn("cfg_rbv2_super_1050", results)
+        self.assertIn("standard_proximity", results["cfg_rbv2_super_1050"])
+        # Should contain seeds 1 through 5
+        seed_map = results["cfg_rbv2_super_1050"]["standard_proximity"]
+        self.assertEqual(len(seed_map), 5)
+        self.assertEqual(set(seed_map.keys()), {1, 2, 3, 4, 5})
+
 if __name__ == "__main__":
     unittest.main()
+
