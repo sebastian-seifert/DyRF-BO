@@ -298,3 +298,15 @@
    - Updated `data_generator.py` hypercube test set sampling: `n_test = min(int(n_samples * 0.3), 1000)`, `n_id = int(n_test * 0.7)`, `n_ood = n_test - n_id`.
 3. **Launcher Update**:
    - Updated `submit_todays_sweeps.sh` to run `scripts/submit_sweep1_empty.sh` and `scripts/submit_sweep2_linear_sparse.sh` in parallel.
+
+
+## Session: 2026-07-29 (Local Parallel Execution of SMAC3 High-Dim Baseline)
+* **Goal**: Execute all 90 SMAC3 High-Dim baseline tasks locally in parallel, storing temporary logs in `results/` and JSON telemetry results in `results/epistemic_ei_highdim/baseline/`.
+
+### Accomplishments
+1. **TDD Unit Testing Suite**:
+   - Created `tests/test_run_smac3_highdim_local.py` verifying telemetry extraction into standard JSON format (`results/epistemic_ei_highdim/baseline/telemetry_smac3_*.json`). Verified test passes 100%.
+2. **Local Parallel Executor**:
+   - Created `scripts/run_smac3_highdim_local.py` (`chmod +x`) to run 90 tasks using 4 parallel workers, stream logs to `results/array_smac3_<task>_seed<seed>.log`, and extract final trial telemetry.
+3. **Background Execution**:
+   - Launched local background task executing all 90 tasks on laptop.
