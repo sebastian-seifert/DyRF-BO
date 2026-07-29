@@ -104,10 +104,14 @@ def patched_select(cfg, key, *args, **kwargs):
     try:
         return original_select(cfg, key, *args, **kwargs)
     except Exception as e:
-        # If it's a directory key in Hydra and failed to resolve due to missing mandatory values,
-        # return a fallback directory path to allow the real error to be printed.
+        # If it's a key in Hydra and failed to resolve due to missing mandatory values,
+        # return a fallback directory/string path to allow execution or logging to proceed.
         if key in ("hydra.run.dir", "hydra.sweep.dir", "hydra.sweep.subdir"):
             return "runs/unknown_optimizer/unknown_benchmark/unknown_task/1"
+        if key == "conda_env_name":
+            return "carps_env"
+        if key in ("benchmark_id", "task_id", "optimizer_id", "optimizer_container_id"):
+            return f"unknown_{key}"
         raise e
 
 omegaconf.OmegaConf.select = patched_select

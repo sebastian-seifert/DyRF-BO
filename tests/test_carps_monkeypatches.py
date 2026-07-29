@@ -65,6 +65,12 @@ class TestCARPSMonkeypatches(unittest.TestCase):
         except TypeError as e:
             self.fail(f"SMAC3Optimizer raised TypeError with acq_func_name: {e}")
 
+    def test_omegaconf_missing_mandatory_value_fallback(self):
+        from omegaconf import OmegaConf
+        cfg = OmegaConf.create({"benchmark_id": "???", "conda_env_name": "carps_${benchmark_id}_container"})
+        res = OmegaConf.select(cfg, "conda_env_name")
+        self.assertIsNotNone(res)
+
 if __name__ == "__main__":
     unittest.main()
 
