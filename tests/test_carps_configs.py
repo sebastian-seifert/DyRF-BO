@@ -89,5 +89,44 @@ class TestCARPSConfigs(unittest.TestCase):
         # Verify that the normal config missing value error is raised at runtime
         self.assertIn("Missing mandatory value", combined_output)
 
+    def test_smac3_acquisition_function_override_ei_pi_lcb(self):
+        """Verify that SMAC3Optimizer instantiates PI/LCB/EI acquisition functions cleanly when acq_func_name is passed."""
+        import scripts.run_carps_patched
+        from carps.optimizers.smac20 import SMAC3Optimizer
+        import smac.acquisition.function as acq_module
+        from omegaconf import OmegaConf
+
+        acq_classes = {
+            "ei": acq_module.EI,
+            "pi": acq_module.PI,
+            "lcb": acq_module.LCB,
+        }
+
+        for acq_name, expected_cls in acq_classes.items():
+            with self.subTest(acq_func=acq_name):
+                smac_cfg = OmegaConf.create({
+                    "smac_class": "smac.facade.hyperparameter_optimization_facade.HyperparameterOptimizationFacade",
+                    "scenario": {
+                        "n_trials": 5,
+                        "seed": 1,
+                    },
+                    "smac_kwargs": {}
+                })
+                
+                from ConfigSpace import ConfigurationSpace, Float
+                cs = ConfigurationSpace()
+                cs.add(Float("x", (0.0, 1.0)))
+
+                optimizer_inst = SMAC3Optimizer.__new__(SMAC3Optimizer)
+                optimizer_inst.configspace = cs
+                optimizer_inst.target_function = lambda config, seed=0: 0.0
+                optimizer_inst.acq_func_name = acq_name
+                optimizer_inst.smac_cfg = smac_cfg
+                
+                # Execute patched _setup_optimizer logic
+                solver = scripts.run_carps_patched.patched_smac3_setup_optimizer(optimizer_inst)
+                acq_fn = solver._acquisition_function
+                self.assertIsInstance(acq_fn, expected_cls, f"acq_func_name='{acq_name}' should instantiate {expected_cls}")
+
 if __name__ == "__main__":
     unittest.main()

@@ -161,9 +161,20 @@ def patched_smac3_init(self, task, smac_cfg, loggers=None, expects_multiple_obje
 
 carps.optimizers.smac20.SMAC3Optimizer.__init__ = patched_smac3_init
 
-original_smac3_setup_optimizer = carps.optimizers.smac20.SMAC3Optimizer._setup_optimizer
-
 def patched_smac3_setup_optimizer(self):
+    from hydra.utils import get_class
+    from omegaconf import OmegaConf
+    from smac.scenario import Scenario
+    from carps.optimizers.smac20 import maybe_inst_add_scenario
+
+    smac_class = get_class(self.smac_cfg.smac_class)
+    if smac_class == get_class("smac.facade.multi_fidelity_facade.MultiFidelityFacade"):
+        self.fidelity_enabled = True
+
+    smac_kwargs = {}
+    if self.smac_cfg.smac_kwargs is not None:
+        smac_kwargs = OmegaConf.to_container(self.smac_cfg.smac_kwargs, resolve=True, enum_to_str=True)
+
     if hasattr(self, "acq_func_name") and self.acq_func_name:
         import smac.acquisition.function as acq_module
         acq_map = {
@@ -171,12 +182,47 @@ def patched_smac3_setup_optimizer(self):
             "pi": acq_module.PI,
             "lcb": acq_module.LCB,
         }
-        acq_cls = acq_map.get(self.acq_func_name.lower())
+        acq_cls = acq_map.get(str(self.acq_func_name).lower())
         if acq_cls is not None:
-            if self.smac_cfg.get("smac_kwargs") is None:
-                self.smac_cfg["smac_kwargs"] = {}
-            self.smac_cfg["smac_kwargs"]["acquisition_function"] = acq_cls()
-    return original_smac3_setup_optimizer(self)
+            smac_kwargs["acquisition_function"] = acq_cls()
+
+    scenario_kwargs = {
+        "configspace": self.configspace,
+    }
+    _scenario_kwargs = OmegaConf.to_container(self.smac_cfg.scenario, resolve=True)
+    scenario_kwargs.update(_scenario_kwargs)
+
+    scenario = Scenario(**scenario_kwargs)
+    smac_kwargs["scenario"] = scenario
+
+    if "callbacks" not in smac_kwargs:
+        smac_kwargs["callbacks"] = []
+    elif "callbacks" in smac_kwargs and isinstance(smac_kwargs["callbacks"], dict):
+        smac_kwargs["callbacks"] = list(smac_kwargs["callbacks"].values())
+
+    smac_kwargs = maybe_inst_add_scenario(smac_kwargs, "intensifier", scenario)
+
+    if (
+        "acquisition_function" in smac_kwargs
+        and "acquisition_maximizer" in smac_kwargs
+    ):
+        smac_kwargs["acquisition_maximizer"] = smac_kwargs["acquisition_maximizer"](
+            configspace=self.configspace, acquisition_function=smac_kwargs["acquisition_function"]
+        )
+        if hasattr(smac_kwargs["acquisition_maximizer"], "selector") and hasattr(
+            smac_kwargs["acquisition_maximizer"].selector, "expl2callback"
+        ):
+            smac_kwargs["callbacks"].append(smac_kwargs["acquisition_maximizer"].selector.expl2callback)
+
+    smac_kwargs = maybe_inst_add_scenario(smac_kwargs, "config_selector", scenario)
+    smac_kwargs = maybe_inst_add_scenario(smac_kwargs, "initial_design", scenario)
+    smac_kwargs = maybe_inst_add_scenario(smac_kwargs, "multi_objective_algorithm", scenario)
+
+    smac = smac_class(
+        target_function=self.target_function,
+        **smac_kwargs,
+    )
+    return smac
 
 carps.optimizers.smac20.SMAC3Optimizer._setup_optimizer = patched_smac3_setup_optimizer
 
