@@ -29,6 +29,11 @@ fi
 # Retrieve the specific command arguments corresponding to this array task index
 TASK_ARGS=$(sed -n "${SLURM_ARRAY_TASK_ID}p" results/epistemic_full_acq_array_tasks.txt)
 
+if [ -z "$TASK_ARGS" ]; then
+    echo "ERROR: SLURM_ARRAY_TASK_ID $SLURM_ARRAY_TASK_ID returned empty task args from results/epistemic_full_acq_array_tasks.txt!" >&2
+    exit 1
+fi
+
 echo "=================================================="
 echo "Array Job ID: $SLURM_ARRAY_JOB_ID | Task Index: $SLURM_ARRAY_TASK_ID"
 echo "Running arguments: $TASK_ARGS"

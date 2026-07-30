@@ -71,6 +71,21 @@ class TestCARPSMonkeypatches(unittest.TestCase):
         res = OmegaConf.select(cfg, "conda_env_name")
         self.assertIsNotNone(res)
 
+    def test_omegaconf_to_container_missing_mandatory_value_fallback(self):
+        from omegaconf import OmegaConf
+        cfg = OmegaConf.create({
+            "baserundir": "runs",
+            "optimizer_id": "???",
+            "benchmark_id": "???",
+            "task_id": "???",
+            "seed": 1,
+            "outdir": "${baserundir}/${optimizer_id}/${benchmark_id}/${task_id}/${seed}"
+        })
+        res = OmegaConf.to_container(cfg, resolve=True)
+        self.assertIsNotNone(res)
+        self.assertIn("unknown_optimizer_id", res["outdir"])
+
 if __name__ == "__main__":
     unittest.main()
+
 

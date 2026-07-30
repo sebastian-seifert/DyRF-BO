@@ -25,6 +25,11 @@ export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
+# Ensure task arguments were provided
+if [ $# -eq 0 ] || [ -z "$1" ]; then
+    echo "ERROR: No task arguments provided to run_hpobench_carps_sweep.sh!" >&2
+    exit 1
+fi
 
 # Run CARP-S with our custom patched launcher
 $PYTHON_EXEC scripts/run_carps_patched.py \
