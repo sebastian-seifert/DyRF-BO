@@ -20,8 +20,18 @@ if [ ! -f "results/epistemic_full_acq_array_tasks.txt" ]; then
     fi
 fi
 
-TOTAL_TASKS=$(wc -l < results/epistemic_full_acq_array_tasks.txt)
-echo "Submitting Slurm array job for $TOTAL_TASKS tasks..."
+CHUNK_SIZE=250
+echo "Submitting ${TOTAL_TASKS} tasks for Full Acquisition Sweep in chunks of ${CHUNK_SIZE} (MaxArraySize compliant)..."
 
-# Submit array job with max 25 concurrent tasks
-sbatch --array=1-${TOTAL_TASKS}%25 scripts/submit_epistemic_full_acq_array.sbatch
+for (( start=1; start<=TOTAL_TASKS; start+=CHUNK_SIZE )); do
+    end=$(( start + CHUNK_SIZE - 1 ))
+    if [ $end -gt $TOTAL_TASKS ]; then
+        end=$TOTAL_TASKS
+    fi
+    JOB_ID=$(sbatch --parsable --array=${start}-${end}%25 scripts/submit_epistemic_full_acq_array.sbatch)
+    echo "Submitted Chunk (${start}-${end}) -> Job ID: ${JOB_ID}"
+done
+
+echo "--------------------------------------------------------"
+echo "Full Acquisition Sweep successfully scheduled on SLURM!"
+echo "--------------------------------------------------------"
