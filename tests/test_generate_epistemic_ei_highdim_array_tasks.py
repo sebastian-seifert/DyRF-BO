@@ -23,6 +23,7 @@ class TestGenerateEpistemicEIHighDimArrayTasks(unittest.TestCase):
         # 1 baseline * 18 high-dim tasks * 5 seeds = 90 SMAC3 tasks
         # Total = 720 + 90 = 810 tasks
         self.assertEqual(len(lines), 810)
+        self.assertTrue(all("results/epistemic_ei_highdim_fix/" in line for line in lines))
 
         custom_lines = [l for l in lines if "+optimizer=smac20_custom_uncertainty" in l and "++optimizer.smac_cfg.model_kwargs.uncertainty_func=" in l]
         smac_lines = [l for l in lines if "+optimizer/smac20=hpo" in l]

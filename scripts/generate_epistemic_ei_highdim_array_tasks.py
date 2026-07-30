@@ -25,7 +25,7 @@ def generate_highdim_array_tasks(output_path: str = "results/epistemic_ei_highdi
         task_name = task.split("=")[-1]
         for approach in approaches:
             for seed in seeds:
-                telemetry = f"results/epistemic_ei_highdim/ei/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
+                telemetry = f"results/epistemic_ei_highdim_fix/ei/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
                 line = (
                     f"+optimizer=smac20_custom_uncertainty "
                     f"++optimizer.smac_cfg.model_kwargs.uncertainty_func={approach} "
@@ -39,7 +39,7 @@ def generate_highdim_array_tasks(output_path: str = "results/epistemic_ei_highdi
     for task in tasks:
         task_name = task.split("=")[-1]
         for seed in seeds:
-            telemetry = f"results/epistemic_ei_highdim/baseline/telemetry_smac3_{task_name}_seed{seed}.json"
+            telemetry = f"results/epistemic_ei_highdim_fix/baseline/telemetry_smac3_{task_name}_seed{seed}.json"
             line = (
                 f"+optimizer/smac20=hpo "
                 f"{task} "
