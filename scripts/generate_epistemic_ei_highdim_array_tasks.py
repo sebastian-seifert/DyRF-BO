@@ -27,14 +27,11 @@ def generate_highdim_array_tasks(output_path: str = "results/epistemic_ei_highdi
             for seed in seeds:
                 telemetry = f"results/epistemic_ei_highdim/ei/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
                 line = (
-                    f"+optimizer=dyrf_epistemic_{acq} "
-                    f"++optimizer.acq_func_name={acq} "
-                    f"++optimizer.extractor_name={approach} "
-                    f"++optimizer.acq_uncertainty_type=epistemic "
-                    f"++optimizer.enable_adaptation=false "
+                    f"+optimizer=smac20_custom_uncertainty "
+                    f"++optimizer.smac_cfg.model_kwargs.uncertainty_func={approach} "
                     f"{task} task.optimization_resources.n_trials={trials} "
                     f"seed={seed} ++optimizer.telemetry_path={telemetry} "
-                    f"optimizer_id=CARPSDynamicRF_epistemic_{acq} optimizer_container_id=CARPSDynamicRF"
+                    f"optimizer_id=SMAC20_CustomUncertainty_{approach} optimizer_container_id=SMAC20_CustomUncertainty"
                 )
                 lines.append(line)
 

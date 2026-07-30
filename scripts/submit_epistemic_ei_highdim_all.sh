@@ -1,5 +1,5 @@
 #!/bin/bash
-# Submit the 945 EU-guided EI High-Dimensional array sweep tasks in sequential dependent chunks
+# Submit the 810 EU-guided EI High-Dimensional array sweep tasks in sequential dependent chunks
 # of 300 tasks to comply with the LUIS cluster MaxArraySize=300 limit.
 
 mkdir -p results/epistemic_ei_highdim/logs results/epistemic_ei_highdim/ei results/epistemic_ei_highdim/baseline
@@ -37,6 +37,6 @@ for (( start=1; start<=TOTAL_TASKS; start+=CHUNK_SIZE )); do
 done
 
 echo "--------------------------------------------------------"
-echo "All 945 High-Dimensional EU-guided EI sweep runs successfully scheduled on LUIS cluster."
+echo "All 810 High-Dimensional EU-guided EI sweep runs successfully scheduled on LUIS cluster."
 echo "Max concurrent allocation per array: 15 tasks."
 echo "--------------------------------------------------------"

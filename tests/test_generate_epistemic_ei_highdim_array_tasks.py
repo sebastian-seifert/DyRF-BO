@@ -24,15 +24,15 @@ class TestGenerateEpistemicEIHighDimArrayTasks(unittest.TestCase):
         # Total = 720 + 90 = 810 tasks
         self.assertEqual(len(lines), 810)
 
-        dyrf_lines = [l for l in lines if "optimizer.acq_uncertainty_type=epistemic" in l and "optimizer.acq_func_name=ei" in l]
+        custom_lines = [l for l in lines if "+optimizer=smac20_custom_uncertainty" in l and "++optimizer.smac_cfg.model_kwargs.uncertainty_func=" in l]
         smac_lines = [l for l in lines if "+optimizer/smac20=hpo" in l]
 
-        self.assertEqual(len(dyrf_lines), 720)
+        self.assertEqual(len(custom_lines), 720)
         self.assertEqual(len(smac_lines), 90)
 
         from ep_extractors import UQExtractorRegistry
         for extractor in UQExtractorRegistry.list_registered():
-            extractor_lines = [l for l in dyrf_lines if f"optimizer.extractor_name={extractor} " in l]
+            extractor_lines = [l for l in custom_lines if f"++optimizer.smac_cfg.model_kwargs.uncertainty_func={extractor} " in l]
             self.assertEqual(len(extractor_lines), 18 * 5, f"Extractor {extractor} should have 90 task lines in High-Dim EI sweep")
 
 if __name__ == "__main__":
