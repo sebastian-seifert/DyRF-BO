@@ -31,8 +31,12 @@ class TestGenerateEpistemicFullAcqArrayTasks(unittest.TestCase):
         self.assertEqual(lcb_count, 1215)
 
         # Check SMAC3 baseline tasks count (405 total, 135 per acq)
-        smac_lines = [line for line in lines if "smac20" in line or "SMAC3" in line]
+        smac_lines = [line for line in lines if "+optimizer/smac20=hpo" in line]
         self.assertEqual(len(smac_lines), 405)
+
+        # Check Custom Uncertainty tasks count (3240 total, 1080 per acq)
+        custom_lines = [line for line in lines if "+optimizer=smac20_custom_uncertainty" in line and "++optimizer.smac_cfg.model_kwargs.uncertainty_func=" in line]
+        self.assertEqual(len(custom_lines), 3240)
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,14 +23,12 @@ def generate_smoke_epistemic_full_acq_tasks(output_path: str = "results/smoke_ep
     for acq in acquisitions:
         telemetry = f"results/epistemic_acq/smoke/{acq}/telemetry_epistemic_{acq}_{smoke_approach}_branin_seed{seed}.json"
         line = (
-            f"+optimizer=dyrf_epistemic_{acq} "
+            f"+optimizer=smac20_custom_uncertainty "
             f"++optimizer.acq_func_name={acq} "
-            f"++optimizer.extractor_name={smoke_approach} "
-            f"++optimizer.acq_uncertainty_type=epistemic "
-            f"++optimizer.enable_adaptation=false "
+            f"++optimizer.smac_cfg.model_kwargs.uncertainty_func={smoke_approach} "
             f"{smoke_task} task.optimization_resources.n_trials={trials} "
             f"seed={seed} ++optimizer.telemetry_path={telemetry} "
-            f"optimizer_id=CARPSDynamicRF_epistemic_{acq} optimizer_container_id=CARPSDynamicRF"
+            f"optimizer_id=SMAC20_CustomUncertainty_{acq}_{smoke_approach} optimizer_container_id=SMAC20_CustomUncertainty"
         )
         lines.append(line)
 

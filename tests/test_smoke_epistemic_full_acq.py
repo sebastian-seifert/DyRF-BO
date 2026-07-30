@@ -30,9 +30,9 @@ class TestSmokeEpistemicFullAcq(unittest.TestCase):
         self.assertTrue(lcb_found, "LCB acquisition missing from smoke tasks")
 
         # Check for DyRF epistemic and SMAC3 baseline presence
-        dyrf_found = any("dyrf_epistemic" in line for line in lines)
-        smac_found = any("smac20" in line for line in lines)
-        self.assertTrue(dyrf_found, "DyRF epistemic optimizer missing from smoke tasks")
+        custom_found = any("+optimizer=smac20_custom_uncertainty" in line for line in lines)
+        smac_found = any("+optimizer/smac20=hpo" in line for line in lines)
+        self.assertTrue(custom_found, "Custom uncertainty optimizer missing from smoke tasks")
         self.assertTrue(smac_found, "SMAC3 baseline optimizer missing from smoke tasks")
 
 if __name__ == "__main__":
