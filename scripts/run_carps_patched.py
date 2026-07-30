@@ -122,13 +122,24 @@ original_to_container = omegaconf.OmegaConf.to_container
 def safe_to_container(cfg, resolve=True, **kwargs):
     try:
         return original_to_container(cfg, resolve=resolve, **kwargs)
-    except omegaconf.errors.InterpolationToMissingValueError:
+    except Exception:
         for key in ["benchmark_id", "task_id", "optimizer_id", "optimizer_container_id"]:
-            if omegaconf.OmegaConf.select(cfg, key) is None or omegaconf.OmegaConf.select(cfg, key) == "???":
+            try:
+                val = omegaconf.OmegaConf.select(cfg, key)
+                if val is None or val == "???":
+                    setattr(cfg, key, f"unknown_{key}")
+            except Exception:
                 setattr(cfg, key, f"unknown_{key}")
-        if omegaconf.OmegaConf.select(cfg, "conda_env_name") is None or omegaconf.OmegaConf.select(cfg, "conda_env_name") == "???":
+        try:
+            val = omegaconf.OmegaConf.select(cfg, "conda_env_name")
+            if val is None or val == "???":
+                cfg.conda_env_name = "carps_env"
+        except Exception:
             cfg.conda_env_name = "carps_env"
-        return original_to_container(cfg, resolve=resolve, **kwargs)
+        try:
+            return original_to_container(cfg, resolve=resolve, **kwargs)
+        except Exception:
+            return original_to_container(cfg, resolve=False, **kwargs)
 
 omegaconf.OmegaConf.to_container = safe_to_container
 
