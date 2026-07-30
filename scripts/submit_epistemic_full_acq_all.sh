@@ -20,6 +20,7 @@ if [ ! -f "results/epistemic_full_acq_array_tasks.txt" ]; then
     fi
 fi
 
+TOTAL_TASKS=$(wc -l < results/epistemic_full_acq_array_tasks.txt)
 CHUNK_SIZE=250
 echo "Submitting ${TOTAL_TASKS} tasks for Full Acquisition Sweep in chunks of ${CHUNK_SIZE} (MaxArraySize compliant)..."
 
