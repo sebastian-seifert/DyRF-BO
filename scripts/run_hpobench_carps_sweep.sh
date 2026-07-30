@@ -29,6 +29,7 @@ export NUMEXPR_NUM_THREADS=1
 # Run CARP-S with our custom patched launcher
 $PYTHON_EXEC scripts/run_carps_patched.py \
     --config-dir carps_integration/configs \
+    ++conda_env_name=carps_env \
     "$@"
 
 echo "=================================================="
