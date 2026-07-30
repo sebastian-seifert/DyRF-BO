@@ -17,8 +17,8 @@ export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
-if [ ! -f "results/epistemic_full_acq_array_tasks.txt" ]; then
-    echo "ERROR: results/epistemic_full_acq_array_tasks.txt missing. Attempting auto-generation..." >&2
+if [ ! -f "results/epistemic_full_acq_array_tasks.txt" ] || [ ! -s "results/epistemic_full_acq_array_tasks.txt" ]; then
+    echo "ERROR: results/epistemic_full_acq_array_tasks.txt missing or empty. Attempting auto-generation..." >&2
     if [ -f ".venv/bin/python" ]; then
         .venv/bin/python scripts/generate_epistemic_full_acq_array_tasks.py || exit 1
     else
