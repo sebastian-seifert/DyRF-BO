@@ -128,5 +128,29 @@ class TestCARPSConfigs(unittest.TestCase):
                 acq_fn = solver._acquisition_function
                 self.assertIsInstance(acq_fn, expected_cls, f"acq_func_name='{acq_name}' should instantiate {expected_cls}")
 
+    def test_all_registry_tasks_exist_in_carps_integration_configs(self):
+        """Ensure all tasks in BenchmarkRegistry have corresponding config files in carps_integration/configs."""
+        from scripts.benchmark_registry import BenchmarkRegistry
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        integration_configs_dir = os.path.join(project_root, "carps_integration", "configs")
+
+        all_tasks = BenchmarkRegistry.get_all_tasks()
+        missing = []
+        for task_str in all_tasks:
+            # task_str format: '+task/YAHPO/SO=cfg_rbv2_super_1049' or '+task/HPOBench/blackbox/tabular/ml=cfg_ml_svm_3'
+            clean_str = task_str.lstrip("+")
+            parts = clean_str.split("=")
+            if len(parts) == 2:
+                rel_path = parts[0] + "/" + parts[1] + ".yaml"
+            else:
+                rel_path = clean_str + ".yaml"
+            
+            full_path = os.path.join(integration_configs_dir, rel_path)
+            if not os.path.exists(full_path):
+                missing.append(rel_path)
+
+        self.assertEqual(missing, [], f"Missing task configs in carps_integration/configs: {missing}")
+
 if __name__ == "__main__":
     unittest.main()
+
