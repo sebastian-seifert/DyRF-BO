@@ -1,0 +1,120 @@
+Module for Miniforge3, version 25.3.0-3 unloaded
+Module for Miniforge3, version 25.3.0-3 loaded
+/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/sklearn/experimental/enable_hist_gradient_boosting.py:18: UserWarning: Since version 1.0, it is not needed to import enable_hist_gradient_boosting anymore. HistGradientBoostingClassifier and HistGradientBoostingRegressor are now stable and can be normally imported from sklearn.ensemble.
+  warnings.warn(
+FATAL:   While pulling image from oci registry: error fetching image to cache: failed to get checksum for oras://gitlab.tf.uni-freiburg.de:5050/muelleph/hpobench-registry/tabular_benchmarks/0.0.5:latest: Get "https://gitlab.tf.uni-freiburg.de:5050/v2/": dial tcp 132.230.153.102:5050: connect: no route to host
+Error executing job with overrides: ['+optimizer=smac20_custom_uncertainty', '++optimizer.acq_func_name=lcb', '++optimizer.smac_cfg.model_kwargs.uncertainty_func=chen_variance', '+task=subselection/blackbox/dev/subset_hpobench_blackbox_tabular_nas_SliceLocalizationBenchmark', 'task.optimization_resources.n_trials=50', 'seed=4', '++optimizer.telemetry_path=results/bbsubset_dev/lcb/telemetry_epistemic_lcb_chen_variance_subset_hpobench_blackbox_tabular_nas_SliceLocalizationBenchmark_seed4.json', 'optimizer_id=SMAC20_CustomUncertainty_lcb_chen_variance', 'optimizer_container_id=SMAC20_CustomUncertainty']
+Traceback (most recent call last):
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/instantiate/_instantiate2.py", line 182, in _call_target
+    return _target_(*args, **kwargs)
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hpobench/container/benchmarks/nas/tabular_benchmarks.py", line 15, in __init__
+    super(SliceLocalizationBenchmark, self).__init__(**kwargs)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hpobench/container/client_abstract_benchmark.py", line 130, in __init__
+    self.load_benchmark(benchmark_name=benchmark_name, container_name=container_name,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        container_source=container_source, container_tag=container_tag, **kwargs)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hpobench/container/client_abstract_benchmark.py", line 239, in load_benchmark
+    download_container(self.container_dir, container_name, self.container_source, container_tag)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/oslo_concurrency/lockutils.py", line 541, in inner
+    return f(*args, **kwargs)
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hpobench/container/client_abstract_benchmark.py", line 234, in download_container
+    subprocess.run(cmd, shell=True, check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command 'singularity pull --dir /home/nhwpseis/.cache/hpobench/hpobench-48224 --name tabular_benchmarks_0.0.5 oras://gitlab.tf.uni-freiburg.de:5050/muelleph/hpobench-registry/tabular_benchmarks/0.0.5:latest' returned non-zero exit status 255.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/bigwork/nhwpseis/scripts/run_carps_patched.py", line 232, in <module>
+    main()
+    ~~~~^^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/main.py", line 94, in decorated_main
+    _run_hydra(
+    ~~~~~~~~~~^
+        args=args,
+        ^^^^^^^^^^
+    ...<3 lines>...
+        config_name=config_name,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/utils.py", line 394, in _run_hydra
+    _run_app(
+    ~~~~~~~~^
+        run=args.run,
+        ^^^^^^^^^^^^^
+    ...<5 lines>...
+        overrides=overrides,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/utils.py", line 457, in _run_app
+    run_and_report(
+    ~~~~~~~~~~~~~~^
+        lambda: hydra.run(
+        ^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        )
+        ^
+    )
+    ^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/utils.py", line 223, in run_and_report
+    raise ex
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/utils.py", line 220, in run_and_report
+    return func()
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/utils.py", line 458, in <lambda>
+    lambda: hydra.run(
+            ~~~~~~~~~^
+        config_name=config_name,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+        task_function=task_function,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        overrides=overrides,
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/hydra.py", line 132, in run
+    _ = ret.return_value
+        ^^^^^^^^^^^^^^^^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/core/utils.py", line 260, in return_value
+    raise self._return_value
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/core/utils.py", line 186, in run_job
+    ret.return_value = task_function(task_cfg)
+                       ~~~~~~~~~~~~~^^^^^^^^^^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/carps/run.py", line 36, in main
+    optimize(cfg=cfg)
+    ~~~~~~~~^^^^^^^^^
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/carps/utils/running.py", line 102, in optimize
+    task = make_task(cfg=cfg, result_processor=result_processor)
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/carps/utils/running.py", line 53, in make_task
+    return instantiate(task_cfg, objective_function={"loggers": loggers})
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/instantiate/_instantiate2.py", line 331, in instantiate
+    return instantiate_node(
+        config, *args, recursive=_recursive_, convert=_convert_, partial=_partial_
+    )
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/instantiate/_instantiate2.py", line 447, in instantiate_node
+    value = instantiate_node(
+        value, convert=convert, recursive=recursive
+    )
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/instantiate/_instantiate2.py", line 447, in instantiate_node
+    value = instantiate_node(
+        value, convert=convert, recursive=recursive
+    )
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/instantiate/_instantiate2.py", line 452, in instantiate_node
+    return _call_target(_target_, partial, args, kwargs, full_key)
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hydra/_internal/instantiate/_instantiate2.py", line 187, in _call_target
+    raise InstantiationException(msg) from e
+hydra.errors.InstantiationException: Error in call to target 'hpobench.container.benchmarks.nas.tabular_benchmarks.SliceLocalizationBenchmark':
+CalledProcessError(255, 'singularity pull --dir /home/nhwpseis/.cache/hpobench/hpobench-48224 --name tabular_benchmarks_0.0.5 oras://gitlab.tf.uni-freiburg.de:5050/muelleph/hpobench-registry/tabular_benchmarks/0.0.5:latest')
+full_key: task.objective_function.benchmark_client
+Exception ignored in: <function AbstractBenchmarkClient.__del__ at 0x14c840a328e0>
+Traceback (most recent call last):
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hpobench/container/client_abstract_benchmark.py", line 507, in __del__
+  File "/bigwork/nhwpseis/.conda/envs/dyrf/lib/python3.13/site-packages/hpobench/container/client_abstract_benchmark.py", line 484, in _shutdown
+AttributeError: 'SliceLocalizationBenchmark' object has no attribute 'benchmark'
