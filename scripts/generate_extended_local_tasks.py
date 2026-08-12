@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Task generator for Epistemic BO Sweep across EI, PI, and LCB acquisitions, balanced 27 benchmarks, 8 extractors, and SMAC3 baselines."""
+"""Task generator for extended local testing across 6 representative benchmark families (HPOBench, YAHPO, NAS301)."""
 
 import os
 import sys
@@ -8,26 +8,34 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ep_extractors import UQExtractorRegistry
-from scripts.benchmark_registry import BenchmarkRegistry
 
-def generate_full_acq_array_tasks(output_path: str = "results/epistemic_full_acq_array_tasks.txt") -> list:
-    seeds = [1, 2, 3, 4, 5]
-    trials = 50
+EXTENDED_BENCHMARKS = [
+    "+task/HPOBench/blackbox/tabular/ml=cfg_ml_svm_3",
+    "+task/HPOBench/blackbox/tabular/ml=cfg_ml_xgboost_12",
+    "+task/YAHPO/SO=cfg_lcbench_167168",
+    "+task/YAHPO/SO=cfg_rbv2_ranger_16",
+    "+task/YAHPO/SO=cfg_nb301_CIFAR10",
+    "+task/YAHPO/SO=cfg_rbv2_super_1111",
+]
+
+def generate_extended_local_tasks(output_path: str = "results/extended_local_smoke_tasks.txt") -> list:
+    seeds = [2]
+    trials = 10
     acquisitions = ["ei", "pi", "lcb"]
-    tasks = BenchmarkRegistry.get_balanced_tasks()
+    tasks = EXTENDED_BENCHMARKS
     approaches = UQExtractorRegistry.list_registered()
 
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
     lines = []
 
-    # 1. DyRF-BO Epistemic runs across 3 acqs * 8 approaches * 27 tasks * 5 seeds (3,240 tasks)
+    # 1. DyRF-BO Epistemic runs across 3 acqs * 8 approaches * 6 tasks * 1 seed (144 tasks)
     for acq in acquisitions:
         for task in tasks:
             task_name = task.split("=")[-1]
             task_arg = f"+{task}" if not task.startswith("+") else task
             for approach in approaches:
                 for seed in seeds:
-                    telemetry = f"results/epistemic_ei_pi_lcb_all_dim/{acq}/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
+                    telemetry = f"local_results/extended_smoke/{acq}/telemetry_epistemic_{acq}_{approach}_{task_name}_seed{seed}.json"
                     line = (
                         f"--config-dir carps_integration/configs "
                         f"+optimizer=smac20_custom_uncertainty "
@@ -39,13 +47,13 @@ def generate_full_acq_array_tasks(output_path: str = "results/epistemic_full_acq
                     )
                     lines.append(line)
 
-    # 2. Standard SMAC3 BO baseline runs across 3 acqs * 1 baseline * 27 tasks * 5 seeds (405 tasks)
+    # 2. Standard SMAC3 BO baseline runs across 3 acqs * 1 baseline * 6 tasks * 1 seed (18 tasks)
     for acq in acquisitions:
         for task in tasks:
             task_name = task.split("=")[-1]
             task_arg = f"+{task}" if not task.startswith("+") else task
             for seed in seeds:
-                telemetry = f"results/epistemic_ei_pi_lcb_all_dim/baseline/{acq}/telemetry_smac3_{acq}_{task_name}_seed{seed}.json"
+                telemetry = f"local_results/extended_smoke/baseline/{acq}/telemetry_smac3_{acq}_{task_name}_seed{seed}.json"
                 line = (
                     f"--config-dir carps_integration/configs "
                     f"+optimizer/smac20=hpo "
@@ -61,8 +69,8 @@ def generate_full_acq_array_tasks(output_path: str = "results/epistemic_full_acq
         for line in lines:
             f.write(f"{line}\n")
 
-    print(f"Generated {len(lines)} Full Acq array tasks in {output_path}")
+    print(f"Generated {len(lines)} extended local tasks in {output_path}")
     return lines
 
 if __name__ == "__main__":
-    generate_full_acq_array_tasks()
+    generate_extended_local_tasks()
