@@ -98,12 +98,15 @@ def run_ood_detection_experiment(
         spearman_corr = 0.0
 
     # D. AURC & Oracle AURC
-    aurc, _, _ = calculate_aurc(abs_error, unc_signal)
-    oracle_aurc, _, _ = calculate_oracle_rejection_curve(abs_error)
+    from metrics import calculate_aurc_exact
+    aurc = calculate_aurc_exact(unc_signal, y_pred, y_test, loss_type="MAE")
+    oracle_aurc = calculate_aurc_exact(abs_error, y_pred, y_test, loss_type="MAE")
+
 
     # E. Information-Theoretic Metrics (JSD & MI)
-    jsd = calculate_jensen_shannon_divergence(unc_signal)
-    mi = calculate_mutual_information(unc_signal)
+    jsd = calculate_jensen_shannon_divergence(unc_signal, y_true_binary)
+    mi = calculate_mutual_information(unc_signal, y_true_binary)
+
 
     # F. Brier Score & NLPD
     nlpd = calculate_nlpd(y_test, y_pred, unc_signal)
