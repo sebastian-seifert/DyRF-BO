@@ -70,18 +70,19 @@ def main():
                 failed += 1
                 print(f"\n[FAIL] Task {idx}/{total_tasks} failed (code {code}):\n  Cmd: {cmd}\n  Err: {err[:300]}")
 
-            if idx % 50 == 0 or idx == total_tasks:
+            if idx % 10 == 0 or idx == total_tasks:
                 pct = idx / total_tasks * 100
                 elapsed_total = time.time() - start_all
                 rate = idx / elapsed_total
                 eta = (total_tasks - idx) / rate if rate > 0 else 0
-                print(f"Progress: {idx}/{total_tasks} ({pct:.1f}%) | Pass: {succeeded} | Fail: {failed} | ETA: {eta:.1f}s")
+                print(f"Progress: {idx}/{total_tasks} ({pct:.1f}%) | Pass: {succeeded} | Fail: {failed} | ETA: {eta:.1f}s", flush=True)
 
     total_elapsed = time.time() - start_all
-    print(f"\n==================================================")
-    print(f"OOD Benchmark Local Sweep Complete!")
-    print(f"Total Time: {total_elapsed:.1f}s | Pass: {succeeded}/{total_tasks} | Fail: {failed}")
-    print(f"==================================================")
+    print(f"\n==================================================", flush=True)
+    print(f"OOD Benchmark Local Sweep Complete!", flush=True)
+    print(f"Total Time: {total_elapsed:.1f}s | Pass: {succeeded}/{total_tasks} | Fail: {failed}", flush=True)
+    print(f"==================================================", flush=True)
+
 
 if __name__ == "__main__":
     main()
