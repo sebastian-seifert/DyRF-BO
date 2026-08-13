@@ -11,10 +11,12 @@ eval "$(conda shell.bash hook 2>/dev/null)" || true
 conda activate dyrf 2>/dev/null || true
 
 export PYTHONPATH=.
+export PYTHONUNBUFFERED=1
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
+
 
 TASK_FILE="results/ood_sweep_tasks.txt"
 if [ ! -f "$TASK_FILE" ]; then
