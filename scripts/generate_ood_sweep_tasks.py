@@ -6,6 +6,9 @@ Generates task lines for the 5 new custom functions across 2 gap types (empty, s
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 
 def generate_ood_sweep_tasks():
     functions = ["ackley_2d", "rosenbrock_2d", "ackley_4d", "rosenbrock_4d", "hartmann_6d"]

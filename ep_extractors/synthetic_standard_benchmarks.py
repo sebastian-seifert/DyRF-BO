@@ -6,6 +6,9 @@ standard synthetic benchmark functions across empty and sparse OOD gaps.
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import json
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
@@ -14,6 +17,7 @@ from scipy.stats import spearmanr
 from data_generator import generate_data
 import synthetic_functions as sf
 from ep_extractors import UQExtractorRegistry
+
 from metrics import (
     calculate_roc_metrics,
     calculate_aupr,

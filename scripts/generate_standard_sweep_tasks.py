@@ -7,7 +7,11 @@ and 7 seeds (1..7).
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from ep_extractors.synthetic_standard_benchmarks import get_all_standard_functions
+
 
 
 def generate_standard_sweep_tasks():

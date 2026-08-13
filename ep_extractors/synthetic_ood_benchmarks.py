@@ -7,6 +7,9 @@ empty and sparse OOD gaps.
 """
 
 import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import json
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
@@ -19,6 +22,7 @@ from synthetic_functions import (
     get_6d_functions
 )
 from ep_extractors import UQExtractorRegistry
+
 from metrics import (
     calculate_roc_metrics,
     calculate_aupr,

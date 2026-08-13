@@ -10,8 +10,9 @@
 eval "$(conda shell.bash hook 2>/dev/null)" || true
 conda activate dyrf 2>/dev/null || true
 
-export PYTHONPATH=.
+export PYTHONPATH="$PWD:$PYTHONPATH"
 export PYTHONUNBUFFERED=1
+
 export OPENBLAS_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
