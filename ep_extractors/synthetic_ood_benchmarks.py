@@ -86,7 +86,8 @@ def run_ood_detection_experiment(
 
     # 4. Compute All 8 Evaluation Metrics
     # A. AUROC & FPR@95
-    auroc, fpr95, _, _ = calculate_roc_metrics(y_true_binary, unc_signal)
+    auroc, fpr95 = calculate_roc_metrics(y_true_binary, unc_signal)
+
     
     # B. AUPR
     aupr = calculate_aupr(y_true_binary, unc_signal)
