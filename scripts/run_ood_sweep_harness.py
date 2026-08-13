@@ -17,6 +17,10 @@ def run_single_ood_task(cmd_str: str) -> tuple[str, int, float, str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = "."
 
+    # Replace 'python ' with current sys.executable
+    if cmd_str.startswith("python "):
+        cmd_str = f"{sys.executable} " + cmd_str[7:]
+
     try:
         res = subprocess.run(
             cmd_str,
@@ -26,6 +30,7 @@ def run_single_ood_task(cmd_str: str) -> tuple[str, int, float, str]:
             env=env,
             timeout=300
         )
+
         elapsed = time.time() - start_time
         err_msg = res.stderr if res.returncode != 0 else ""
         return cmd_str, res.returncode, elapsed, err_msg
