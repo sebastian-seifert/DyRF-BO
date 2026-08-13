@@ -24,14 +24,38 @@ from metrics import (
 )
 
 def get_all_standard_functions():
-    """Combines all 1D through 15D synthetic benchmark functions into a single dictionary."""
+    """Returns exactly 3 primary synthetic benchmark functions for every dimension 1D through 15D (45 functions total)."""
     funcs = {}
-    funcs.update(sf.get_1d_functions())
-    funcs.update(sf.get_2d_functions())
-    funcs.update(sf.get_3d_functions())
-    funcs.update(sf.get_4d_functions())
+    
+    # 1D (3)
+    f1 = sf.get_1d_functions()
+    for k in ["sin", "poly", "damped_osc"]:
+        funcs[k] = f1[k]
+        
+    # 2D (3)
+    f2 = sf.get_2d_functions()
+    for k in ["sin_cos", "quadratic", "gaussian"]:
+        funcs[k] = f2[k]
+        
+    # 3D (3)
+    f3 = sf.get_3d_functions()
+    for k in ["sin_cos_sin", "quadratic_3d", "gaussian_3d"]:
+        funcs[k] = f3[k]
+        
+    # 4D (3)
+    f4 = sf.get_4d_functions()
+    for k in ["sin_cos_4d", "quadratic_4d", "sin_sum_4d"]:
+        funcs[k] = f4[k]
+        
+    # 5D (3)
     funcs.update(sf.get_5d_functions())
-    funcs.update(sf.get_6d_functions())
+    
+    # 6D (3)
+    f6 = sf.get_6d_functions()
+    for k in ["sin_cos_6d", "quadratic_6d", "friedman_6d"]:
+        funcs[k] = f6[k]
+        
+    # 7D through 15D (3 functions each)
     funcs.update(sf.get_7d_functions())
     funcs.update(sf.get_8d_functions())
     funcs.update(sf.get_9d_functions())
@@ -42,6 +66,7 @@ def get_all_standard_functions():
     funcs.update(sf.get_14d_functions())
     funcs.update(sf.get_15d_functions())
     return funcs
+
 
 def run_standard_benchmark_experiment(
     func_name: str,

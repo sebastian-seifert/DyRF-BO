@@ -7,26 +7,13 @@ and 7 seeds (1..7).
 """
 
 import os
-import synthetic_functions as sf
+from ep_extractors.synthetic_standard_benchmarks import get_all_standard_functions
+
 
 def generate_standard_sweep_tasks():
-    # Gather all 55 standard functions
-    funcs = {}
-    funcs.update(sf.get_1d_functions())
-    funcs.update(sf.get_2d_functions())
-    funcs.update(sf.get_3d_functions())
-    funcs.update(sf.get_4d_functions())
-    funcs.update(sf.get_5d_functions())
-    funcs.update(sf.get_6d_functions())
-    funcs.update(sf.get_7d_functions())
-    funcs.update(sf.get_8d_functions())
-    funcs.update(sf.get_9d_functions())
-    funcs.update(sf.get_10d_functions())
-    funcs.update(sf.get_11d_functions())
-    funcs.update(sf.get_12d_functions())
-    funcs.update(sf.get_13d_functions())
-    funcs.update(sf.get_14d_functions())
-    funcs.update(sf.get_15d_functions())
+    # Gather exactly 3 functions per dimension across 1D to 15D (45 functions)
+    funcs = get_all_standard_functions()
+
 
     function_names = list(funcs.keys())
     gap_types = ["empty", "sparse"]
