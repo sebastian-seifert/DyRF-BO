@@ -31,8 +31,43 @@ def get_1d_functions():
     }
     return functions
 
+def ackley_func(*args, a=20.0, b=0.2, c=2*np.pi):
+    """Vectorized Ackley function for arbitrary dimension d = len(args)."""
+    x = np.stack(args, axis=-1)
+    d = x.shape[-1]
+    sum_sq = np.sum(x**2, axis=-1)
+    sum_cos = np.sum(np.cos(c * x), axis=-1)
+    return -a * np.exp(-b * np.sqrt(sum_sq / d)) - np.exp(sum_cos / d) + a + np.e
+
+def rosenbrock_func(*args, a=1.0, b=100.0):
+    """Vectorized Rosenbrock function for arbitrary dimension d = len(args)."""
+    x = np.stack(args, axis=-1)
+    return np.sum(b * (x[..., 1:] - x[..., :-1]**2)**2 + (a - x[..., :-1])**2, axis=-1)
+
+def hartmann_6d_func(x1, x2, x3, x4, x5, x6):
+    """Vectorized Hartmann 6D benchmark function."""
+    x = np.stack([x1, x2, x3, x4, x5, x6], axis=-1)
+    alpha = np.array([1.0, 1.2, 3.0, 3.2])
+    A = np.array([
+        [10, 3, 17, 3.5, 1.7, 8],
+        [0.05, 10, 17, 0.1, 8, 14],
+        [3, 3.5, 1.7, 10, 17, 8],
+        [17, 8, 0.05, 10, 0.1, 14]
+    ])
+    P = 1e-4 * np.array([
+        [1312, 1696, 5569, 124, 8283, 5886],
+        [2329, 4135, 8307, 3736, 1004, 9991],
+        [2348, 1451, 3522, 2883, 3047, 6650],
+        [4047, 8828, 8732, 5743, 1091, 381]
+    ])
+    y = np.zeros(x.shape[:-1])
+    for i in range(4):
+        diff = x - P[i]
+        y -= alpha[i] * np.exp(-np.sum(A[i] * (diff**2), axis=-1))
+    return y
+
 def get_2d_functions():
-    """Returns 5 diverse 2D functions with training gaps."""
+    """Returns 7 diverse 2D functions with training gaps."""
     functions = {
         "sin_cos": {
             "func": lambda x1, x2: np.sin(x1) * np.cos(x2),
@@ -58,6 +93,16 @@ def get_2d_functions():
             "func": lambda x1, x2: np.abs(x1 - x2) + np.sin(x1 * x2),
             "gap": (4, 6),
             "range": (0, 10),
+        },
+        "ackley_2d": {
+            "func": lambda x1, x2: ackley_func(x1, x2),
+            "gap": (3.5, 6.5),
+            "range": (-5, 5),
+        },
+        "rosenbrock_2d": {
+            "func": lambda x1, x2: rosenbrock_func(x1, x2),
+            "gap": (0.5, 1.5),
+            "range": (-2.0, 2.0),
         },
     }
     return functions
@@ -94,7 +139,7 @@ def get_3d_functions():
     return functions
 
 def get_4d_functions():
-    """Returns 3 diverse 4D functions with training gaps."""
+    """Returns 5 diverse 4D functions with training gaps."""
     functions = {
         "sin_cos_4d": {
             "func": lambda x1, x2, x3, x4: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4),
@@ -110,6 +155,16 @@ def get_4d_functions():
             "func": lambda x1, x2, x3, x4: np.sin(x1 + x2 + x3 + x4) + 0.05 * x1 * x2 * x3 * x4,
             "gap": (4, 6),
             "range": (0, 10),
+        },
+        "ackley_4d": {
+            "func": lambda x1, x2, x3, x4: ackley_func(x1, x2, x3, x4),
+            "gap": (3.5, 6.5),
+            "range": (-5, 5),
+        },
+        "rosenbrock_4d": {
+            "func": lambda x1, x2, x3, x4: rosenbrock_func(x1, x2, x3, x4),
+            "gap": (0.5, 1.5),
+            "range": (-2.0, 2.0),
         },
     }
     return functions
@@ -136,7 +191,7 @@ def get_5d_functions():
     return functions
 
 def get_6d_functions():
-    """Returns 3 diverse 6D functions with training gaps."""
+    """Returns 4 diverse 6D functions with training gaps."""
     functions = {
         "sin_cos_6d": {
             "func": lambda x1, x2, x3, x4, x5, x6: np.sin(x1) * np.cos(x2) * np.sin(x3) * np.cos(x4) * np.sin(x5) * np.cos(x6),
@@ -153,8 +208,14 @@ def get_6d_functions():
             "gap": (4, 6),
             "range": (0, 10),
         },
+        "hartmann_6d": {
+            "func": lambda x1, x2, x3, x4, x5, x6: hartmann_6d_func(x1, x2, x3, x4, x5, x6),
+            "gap": (0.45, 0.75),
+            "range": (0.0, 1.0),
+        },
     }
     return functions
+
 
 def get_7d_functions():
     """Returns 3 diverse 7D functions with training gaps."""
