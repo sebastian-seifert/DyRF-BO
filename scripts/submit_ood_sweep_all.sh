@@ -6,7 +6,11 @@ echo "Preparing Synthetic OOD Benchmark CPU Array Job"
 echo "=================================================="
 
 # 1. Generate Task File (630 tasks)
-python3 scripts/generate_ood_sweep_tasks.py
+if [ -f ".venv/bin/python" ]; then
+    .venv/bin/python scripts/generate_ood_sweep_tasks.py
+else
+    python3 scripts/generate_ood_sweep_tasks.py
+fi
 
 TASK_FILE="results/ood_sweep_tasks.txt"
 TOTAL_TASKS=$(wc -l < "$TASK_FILE" | tr -d ' ')
@@ -18,13 +22,19 @@ fi
 
 mkdir -p results/ood_sweep/logs
 
-echo "Generated $TOTAL_TASKS tasks in $TASK_FILE."
-echo "Submitting SLURM array job with max 50 concurrent tasks..."
+CHUNK_SIZE=200
+echo "Submitting ${TOTAL_TASKS} tasks for Synthetic OOD Sweep in chunks of ${CHUNK_SIZE} (LUIS MaxArraySize compliant)..."
 
-JOB_ID=$(sbatch --parsable --array=1-${TOTAL_TASKS}%50 scripts/submit_ood_sweep_array.sbatch)
+for (( start=1; start<=TOTAL_TASKS; start+=CHUNK_SIZE )); do
+    end=$(( start + CHUNK_SIZE - 1 ))
+    if [ $end -gt $TOTAL_TASKS ]; then
+        end=$TOTAL_TASKS
+    fi
+    JOB_ID=$(sbatch --parsable --array=${start}-${end}%25 scripts/submit_ood_sweep_array.sbatch)
+    echo "Submitted Chunk (${start}-${end}) -> Job ID: ${JOB_ID}"
+done
 
 echo "=================================================="
-echo "Submitted SLURM Array Job ID: $JOB_ID"
-echo "Monitor with: squeue -j $JOB_ID"
+echo "Synthetic OOD Sweep successfully scheduled on LUIS cluster!"
 echo "Parse results when finished: python scripts/parse_ood_sweep_results.py"
 echo "=================================================="
