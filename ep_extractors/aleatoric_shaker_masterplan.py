@@ -276,8 +276,8 @@ def run_single_aleatoric_experiment(
     noise_name: str,
     rf_config_name: str,
     seed: int = 1,
-    n_train: int = 1000,
-    n_test: int = 300
+    n_train: int = 1024,
+    n_test: int = 256
 ) -> dict:
     """Executes a single benchmark run comparing all 5 aleatoric approaches across all metrics."""
     funcs = get_benchmark_functions()
@@ -291,9 +291,10 @@ def run_single_aleatoric_experiment(
     dim = f_info["dim"]
     domain = f_info["domain"]
 
-    # Dynamic scaling per dimension: 1,000 * d train points, 300 * d test points
+    # Dynamic scaling per dimension: 1,024 * d train points, 256 * d test points (Sobol power of 2)
     n_train_dim = n_train * dim
     n_test_dim = n_test * dim
+
 
     # 1. Generate Uniformly Spread Training and Test Datasets
     np.random.seed(seed)
