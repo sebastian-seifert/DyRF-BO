@@ -20,41 +20,91 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 # 1. Benchmark Target Functions f(x)
 # =====================================================================
 def get_benchmark_functions():
-    """Returns 5 diverse continuous functions in 1D and 2D."""
-    return {
+    """Returns exactly 1 benchmark target function for every dimension 1D through 15D (15 functions total)."""
+    funcs = {
         "sin_1d": {
             "dim": 1,
             "domain": (0.0, 10.0),
             "func": lambda x: np.sin(x[:, 0])
-        },
-        "poly_1d": {
-            "dim": 1,
-            "domain": (0.0, 10.0),
-            "func": lambda x: (x[:, 0]**2) / 50.0 - (x[:, 0]) / 10.0
-        },
-        "damped_osc_1d": {
-            "dim": 1,
-            "domain": (0.0, 10.0),
-            "func": lambda x: np.exp(-x[:, 0] / 5.0) * np.sin(2.0 * x[:, 0])
         },
         "sin_cos_2d": {
             "dim": 2,
             "domain": (0.0, 10.0),
             "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1])
         },
-        "quadratic_2d": {
-            "dim": 2,
+        "sin_cos_sin_3d": {
+            "dim": 3,
             "domain": (0.0, 10.0),
-            "func": lambda x: (x[:, 0]**2 + x[:, 1]**2) / 100.0
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2])
+        },
+        "sin_cos_4d": {
+            "dim": 4,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3])
+        },
+        "sin_cos_5d": {
+            "dim": 5,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4])
+        },
+        "sin_cos_6d": {
+            "dim": 6,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4]) * np.cos(x[:, 5])
+        },
+        "sin_cos_7d": {
+            "dim": 7,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4]) * np.cos(x[:, 5]) * np.sin(x[:, 6])
+        },
+        "sin_cos_8d": {
+            "dim": 8,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4]) * np.cos(x[:, 5]) * np.sin(x[:, 6]) * np.cos(x[:, 7])
+        },
+        "sin_cos_9d": {
+            "dim": 9,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4]) * np.cos(x[:, 5]) * np.sin(x[:, 6]) * np.cos(x[:, 7]) * np.sin(x[:, 8])
+        },
+        "sin_cos_10d": {
+            "dim": 10,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4]) * np.cos(x[:, 5]) * np.sin(x[:, 6]) * np.cos(x[:, 7]) * np.sin(x[:, 8]) * np.cos(x[:, 9])
+        },
+        "sin_cos_11d": {
+            "dim": 11,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4]) * np.cos(x[:, 5]) * np.sin(x[:, 6]) * np.cos(x[:, 7]) * np.sin(x[:, 8]) * np.cos(x[:, 9]) * np.sin(x[:, 10])
+        },
+        "sin_cos_12d": {
+            "dim": 12,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4]) * np.cos(x[:, 5]) * np.sin(x[:, 6]) * np.cos(x[:, 7]) * np.sin(x[:, 8]) * np.cos(x[:, 9]) * np.sin(x[:, 10]) * np.cos(x[:, 11])
+        },
+        "sin_cos_13d": {
+            "dim": 13,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4]) * np.cos(x[:, 5]) * np.sin(x[:, 6]) * np.cos(x[:, 7]) * np.sin(x[:, 8]) * np.cos(x[:, 9]) * np.sin(x[:, 10]) * np.cos(x[:, 11]) * np.sin(x[:, 12])
+        },
+        "sin_cos_14d": {
+            "dim": 14,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4]) * np.cos(x[:, 5]) * np.sin(x[:, 6]) * np.cos(x[:, 7]) * np.sin(x[:, 8]) * np.cos(x[:, 9]) * np.sin(x[:, 10]) * np.cos(x[:, 11]) * np.sin(x[:, 12]) * np.cos(x[:, 13])
+        },
+        "sin_cos_15d": {
+            "dim": 15,
+            "domain": (0.0, 10.0),
+            "func": lambda x: np.sin(x[:, 0]) * np.cos(x[:, 1]) * np.sin(x[:, 2]) * np.cos(x[:, 3]) * np.sin(x[:, 4]) * np.cos(x[:, 5]) * np.sin(x[:, 6]) * np.cos(x[:, 7]) * np.sin(x[:, 8]) * np.cos(x[:, 9]) * np.sin(x[:, 10]) * np.cos(x[:, 11]) * np.sin(x[:, 12]) * np.cos(x[:, 13]) * np.sin(x[:, 14])
         }
     }
+    return funcs
 
 # =====================================================================
 # 2. Noise Regimes \sigma_{true}(x) (Homoscedastic & Heteroscedastic)
 # =====================================================================
 def get_noise_regimes():
     r"""Returns 6 state-of-the-art noise functions \sigma_{true}(x)."""
-
     return {
         "homoscedastic_low": {
             "type": "constant",
@@ -81,6 +131,7 @@ def get_noise_regimes():
             "func": lambda x: 0.05 + 0.4 * (((x[:, 0] - 5.0) / 5.0)**2)
         }
     }
+
 
 # =====================================================================
 # 3. Random Forest Hyperparameter Configurations (5 Configurations)
@@ -218,13 +269,15 @@ def evaluate_aleatoric_metrics(
 # =====================================================================
 # 6. Single Experiment Runner
 # =====================================================================
+from scipy.stats.qmc import Sobol
+
 def run_single_aleatoric_experiment(
     func_name: str,
     noise_name: str,
     rf_config_name: str,
     seed: int = 1,
     n_train: int = 1000,
-    n_test: int = 1000
+    n_test: int = 300
 ) -> dict:
     """Executes a single benchmark run comparing all 5 aleatoric approaches across all metrics."""
     funcs = get_benchmark_functions()
@@ -238,25 +291,20 @@ def run_single_aleatoric_experiment(
     dim = f_info["dim"]
     domain = f_info["domain"]
 
-    # 1. Generate Uniform Training and Test Datasets
+    # 1. Generate Uniformly Spread Training (1,000) and Test (300) Datasets
     np.random.seed(seed)
 
     if dim == 1:
         X_train = np.linspace(domain[0], domain[1], n_train).reshape(-1, 1)
         X_test = np.linspace(domain[0], domain[1], n_test).reshape(-1, 1)
     else:
-        # 2D Grid / Uniform Random Sampling
-        side_train = int(np.sqrt(n_train))
-        side_test = int(np.sqrt(n_test))
-        gx1 = np.linspace(domain[0], domain[1], side_train)
-        gx2 = np.linspace(domain[0], domain[1], side_train)
-        X1, X2 = np.meshgrid(gx1, gx2)
-        X_train = np.column_stack([X1.ravel(), X2.ravel()])
+        # Quasi-Monte Carlo Sobol sequence sampling for even multi-dimensional coverage
+        sampler_train = Sobol(d=dim, scramble=True, seed=seed)
+        X_train = domain[0] + (domain[1] - domain[0]) * sampler_train.random(n=n_train)
 
-        tx1 = np.linspace(domain[0], domain[1], side_test)
-        tx2 = np.linspace(domain[0], domain[1], side_test)
-        TX1, TX2 = np.meshgrid(tx1, tx2)
-        X_test = np.column_stack([TX1.ravel(), TX2.ravel()])
+        sampler_test = Sobol(d=dim, scramble=True, seed=seed + 10000)
+        X_test = domain[0] + (domain[1] - domain[0]) * sampler_test.random(n=n_test)
+
 
     # Ground-truth noiseless y_clean and true noise scale \sigma_{true}(x)
     y_clean_train = f_info["func"](X_train)
