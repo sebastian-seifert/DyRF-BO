@@ -5,14 +5,19 @@ echo "=================================================="
 echo "Preparing Standard 1D-15D Synthetic Benchmark CPU Array Job"
 echo "=================================================="
 
-# 1. Generate Task File (6,930 tasks)
-if [ -f ".venv/bin/python" ]; then
-    .venv/bin/python scripts/generate_standard_sweep_tasks.py
+TASK_FILE="results/standard_sweep_tasks.txt"
+
+if [ ! -f "$TASK_FILE" ]; then
+    echo "Generating task file..."
+    if [ -f ".venv/bin/python" ]; then
+        .venv/bin/python scripts/generate_standard_sweep_tasks.py
+    else
+        python3 scripts/generate_standard_sweep_tasks.py
+    fi
 else
-    python3 scripts/generate_standard_sweep_tasks.py
+    echo "Using existing task file: ${TASK_FILE}"
 fi
 
-TASK_FILE="results/standard_sweep_tasks.txt"
 TOTAL_TASKS=$(wc -l < "$TASK_FILE" | tr -d ' ')
 
 if [ "$TOTAL_TASKS" -eq 0 ]; then

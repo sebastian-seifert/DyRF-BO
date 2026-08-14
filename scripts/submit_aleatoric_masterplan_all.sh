@@ -5,13 +5,19 @@ echo "=================================================="
 echo "Preparing Aleatoric UQ Masterplan Array Job"
 echo "=================================================="
 
-if [ -f ".venv/bin/python" ]; then
-    .venv/bin/python scripts/generate_aleatoric_masterplan_tasks.py
+TASK_FILE="results/aleatoric_masterplan_tasks.txt"
+
+if [ ! -f "$TASK_FILE" ]; then
+    echo "Generating task file..."
+    if [ -f ".venv/bin/python" ]; then
+        .venv/bin/python scripts/generate_aleatoric_masterplan_tasks.py
+    else
+        python3 scripts/generate_aleatoric_masterplan_tasks.py
+    fi
 else
-    python3 scripts/generate_aleatoric_masterplan_tasks.py
+    echo "Using existing task file: ${TASK_FILE}"
 fi
 
-TASK_FILE="results/aleatoric_masterplan_tasks.txt"
 TOTAL_TASKS=$(wc -l < "$TASK_FILE" | tr -d ' ')
 
 if [ "$TOTAL_TASKS" -eq 0 ]; then
