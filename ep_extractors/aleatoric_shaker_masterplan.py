@@ -291,19 +291,24 @@ def run_single_aleatoric_experiment(
     dim = f_info["dim"]
     domain = f_info["domain"]
 
-    # 1. Generate Uniformly Spread Training (1,000) and Test (300) Datasets
+    # Dynamic scaling per dimension: 1,000 * d train points, 300 * d test points
+    n_train_dim = n_train * dim
+    n_test_dim = n_test * dim
+
+    # 1. Generate Uniformly Spread Training and Test Datasets
     np.random.seed(seed)
 
     if dim == 1:
-        X_train = np.linspace(domain[0], domain[1], n_train).reshape(-1, 1)
-        X_test = np.linspace(domain[0], domain[1], n_test).reshape(-1, 1)
+        X_train = np.linspace(domain[0], domain[1], n_train_dim).reshape(-1, 1)
+        X_test = np.linspace(domain[0], domain[1], n_test_dim).reshape(-1, 1)
     else:
         # Quasi-Monte Carlo Sobol sequence sampling for even multi-dimensional coverage
         sampler_train = Sobol(d=dim, scramble=True, seed=seed)
-        X_train = domain[0] + (domain[1] - domain[0]) * sampler_train.random(n=n_train)
+        X_train = domain[0] + (domain[1] - domain[0]) * sampler_train.random(n=n_train_dim)
 
         sampler_test = Sobol(d=dim, scramble=True, seed=seed + 10000)
-        X_test = domain[0] + (domain[1] - domain[0]) * sampler_test.random(n=n_test)
+        X_test = domain[0] + (domain[1] - domain[0]) * sampler_test.random(n=n_test_dim)
+
 
 
     # Ground-truth noiseless y_clean and true noise scale \sigma_{true}(x)
