@@ -248,29 +248,33 @@ def evaluate_aleatoric_metrics(
             pass
 
         # 1. Spearman Rank Correlation vs. Ground-Truth Noise Variance
-        if std_unc < 1e-12 or std_sigma_true < 1e-12:
+        if std_sigma_true < 1e-12:
+            sp_true = np.nan
+        elif std_unc < 1e-12:
             sp_true = 0.0
         else:
             sp_true, _ = spearmanr(unc_signal, sigma_true_var)
-            if np.isnan(sp_true): sp_true = 0.0
 
         # 2. Spearman Rank Correlation vs. Empirical Squared Residuals
-        if std_unc < 1e-12 or std_residual < 1e-12:
+        if std_sigma_true < 1e-12:
+            sp_resid = np.nan
+        elif std_unc < 1e-12 or std_residual < 1e-12:
             sp_resid = 0.0
         else:
             sp_resid, _ = spearmanr(unc_signal, squared_residual)
-            if np.isnan(sp_resid): sp_resid = 0.0
 
         # 3. Log-Pearson Correlation vs. Ground-Truth Noise Variance
-        if std_unc < 1e-12 or std_sigma_true < 1e-12:
+        if std_sigma_true < 1e-12:
+            lp_true = np.nan
+        elif std_unc < 1e-12:
             lp_true = 0.0
         else:
             valid_mask = (unc_signal > 1e-12) & (sigma_true_var > 1e-12)
             if np.sum(valid_mask) > 10 and np.std(np.log(unc_signal[valid_mask])) > 1e-12 and np.std(np.log(sigma_true_var[valid_mask])) > 1e-12:
                 lp_true, _ = pearsonr(np.log(unc_signal[valid_mask]), np.log(sigma_true_var[valid_mask]))
-                if np.isnan(lp_true): lp_true = 0.0
             else:
                 lp_true = 0.0
+
 
     # 4. Variance Calibration Errors (MSE and RMSE)
     mse_var = float(np.mean((unc_signal - sigma_true_var)**2))

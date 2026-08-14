@@ -80,19 +80,28 @@ def parse_aleatoric_masterplan_results(
         mf.write("# Aleatoric Noise Masterplan Sweep Report: Shaker vs. Arithmetic Leaf Variance\n\n")
         mf.write(f"**Total Records Evaluated**: {len(df)} runs across 15 dimensionalities (1D..15D).\n\n")
 
-        mf.write("## 1. Overall Grand Mean Performance Across All Regimes\n\n")
-        grand = df.groupby("approach")[present_metrics].mean().round(4)
-        mf.write(grand.to_markdown() + "\n\n")
+        # Heteroscedastic vs Homoscedastic Splits
+        hetero_mask = df["noise_name"].str.startswith("hetero_")
+        homo_mask = df["noise_name"].str.startswith("homoscedastic_")
 
-        mf.write("## 2. Spearman Correlation vs. True Noise Variance by Approach and Noise Regime\n\n")
-        piv_noise = noise_summary.pivot(index="approach", columns="noise_name", values="spearman_true")
+        mf.write("## 1. Heteroscedastic Noise Regimes (All Metrics: Spearman, Log-Pearson, MSE, NLPD)\n\n")
+        grand_hetero = df[hetero_mask].groupby("approach")[present_metrics].mean().round(4)
+        mf.write(grand_hetero.to_markdown() + "\n\n")
+
+        mf.write("## 2. Homoscedastic Noise Regimes (Calibration Metrics: MSE & NLPD)\n\n")
+        homo_metrics = ["mse_var", "rmse_var", "nlpd_aleatoric"]
+        grand_homo = df[homo_mask].groupby("approach")[homo_metrics].mean().round(4)
+        mf.write(grand_homo.to_markdown() + "\n\n")
+
+        mf.write("## 3. Spearman Rank Correlation vs. True Noise (Heteroscedastic Regimes by Noise Type)\n\n")
+        piv_noise = noise_summary[noise_summary["noise_name"].str.startswith("hetero_")].pivot(index="approach", columns="noise_name", values="spearman_true")
         mf.write(piv_noise.round(4).to_markdown() + "\n\n")
 
-        mf.write("## 3. Spearman Correlation vs. True Noise Variance by Approach and Dimensionality (1D-15D)\n\n")
-        dim_summary = df.groupby(["approach", "dim"])["spearman_true"].mean().unstack(level=-1)
+        mf.write("## 4. Spearman Rank Correlation vs. True Noise by Approach and Dimensionality (1D-15D)\n\n")
+        dim_summary = df[hetero_mask].groupby(["approach", "dim"])["spearman_true"].mean().unstack(level=-1)
         mf.write(dim_summary.round(4).to_markdown() + "\n\n")
 
-        mf.write("## 4. Heteroscedastic NLPD by Approach and Dimensionality (1D-15D)\n\n")
+        mf.write("## 5. NLPD by Approach and Dimensionality (1D-15D)\n\n")
         dim_nlpd = df.groupby(["approach", "dim"])["nlpd_aleatoric"].mean().unstack(level=-1)
         mf.write(dim_nlpd.round(4).to_markdown() + "\n\n")
 
@@ -100,9 +109,10 @@ def parse_aleatoric_masterplan_results(
 
     # Print summary to console
     print("\n==================================================")
-    print("Mean Spearman Correlation vs. Ground-Truth Noise Variance")
+    print("Heteroscedastic Mean Spearman Correlation vs. Ground-Truth Noise")
     print("==================================================")
-    print(df.groupby("approach")["spearman_true"].mean().round(4).to_string())
+    print(df[hetero_mask].groupby("approach")["spearman_true"].mean().round(4).to_string())
+
 
     return df, noise_summary
 
