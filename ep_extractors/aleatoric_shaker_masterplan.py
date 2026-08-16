@@ -319,10 +319,11 @@ def run_single_aleatoric_experiment(
     dim = f_info["dim"]
     domain = f_info["domain"]
 
-    # Dynamic scaling per dimension: 1,024 * d train points, 256 * d test points (Sobol power of 2)
-    n_train_dim = n_train * dim
-    n_test_dim = n_test * dim
+    import math
 
+    # Dynamic scaling per dimension: rounded up to nearest power of 2 for Sobol sequence balance
+    n_train_dim = 2 ** math.ceil(math.log2(n_train * dim))
+    n_test_dim = 2 ** math.ceil(math.log2(n_test * dim))
 
     # 1. Generate Uniformly Spread Training and Test Datasets
     np.random.seed(seed)

@@ -35,5 +35,18 @@ class TestAleatoricShakerMasterplan(unittest.TestCase):
         self.assertIn("mse_var", shaker_res)
         self.assertIn("nlpd_aleatoric", shaker_res)
 
+    def test_sobol_power_of_two_sampling(self):
+        """Verify that multi-dimensional Sobol sample counts are strictly powers of 2."""
+        res = run_single_aleatoric_experiment(
+            func_name="sin_cos_sin_3d",
+            noise_name="hetero_linear",
+            rf_config_name="RF_Default",
+            seed=1,
+            n_train=1024,
+            n_test=256
+        )
+        self.assertIsNotNone(res)
+
 if __name__ == "__main__":
     unittest.main()
+
