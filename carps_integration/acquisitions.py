@@ -36,6 +36,78 @@ class ProbabilityOfImprovement(BaseAcquisitionFunction):
         z = ((y_best - self.xi) - preds) / sigma
         return norm.cdf(z)
 
+def normalize_max_relative(arr: np.ndarray, eps: float = 1e-9) -> np.ndarray:
+    """Normalizes an array by its maximum value: arr / (max(arr) + eps)."""
+    arr_clean = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
+    max_val = np.max(arr_clean) if len(arr_clean) > 0 else 0.0
+    if max_val <= 0.0:
+        return np.zeros_like(arr_clean)
+    return arr_clean / (max_val + eps)
+
+class WarmupCosineScheduler:
+    """
+    Schedules exploration weight beta_t over budget T using warmup + cosine annealing decay.
+    """
+    def __init__(
+        self,
+        total_trials: int = 50,
+        warmup_ratio: float = 0.20,
+        beta_max: float = 1.0,
+        beta_min: float = 0.0
+    ) -> None:
+        self.total_trials = max(1, int(total_trials))
+        self.warmup_ratio = float(warmup_ratio)
+        self.beta_max = float(beta_max)
+        self.beta_min = float(beta_min)
+        self.t_warmup = int(np.floor(self.warmup_ratio * self.total_trials))
+
+    def get_beta(self, t: int) -> float:
+        if t <= self.t_warmup:
+            return self.beta_max
+        if t >= self.total_trials:
+            return self.beta_min
+        
+        remaining_budget = self.total_trials - self.t_warmup
+        if remaining_budget <= 0:
+            return self.beta_min
+            
+        progress = (t - self.t_warmup) / remaining_budget
+        cosine_factor = 0.5 * (1.0 + np.cos(np.pi * progress))
+        return float(self.beta_min + (self.beta_max - self.beta_min) * cosine_factor)
+
+class AdditiveEpistemicAcquisition(BaseAcquisitionFunction):
+    """
+    Decoupled Additive Epistemic Acquisition Function.
+    Combines normalized base acquisition score (computed from surrogate total uncertainty)
+    with normalized epistemic uncertainty bonus scaled by beta_t.
+    """
+    def __init__(self, base_acq: BaseAcquisitionFunction, eps: float = 1e-9):
+        self.base_acq = base_acq
+        self.eps = eps
+
+    def compute(self, preds: np.ndarray, unc: np.ndarray, y_best: float) -> np.ndarray:
+        return self.base_acq.compute(preds, unc, y_best)
+
+    def compute_additive(
+        self,
+        preds: np.ndarray,
+        unc_tot: np.ndarray,
+        u_epistemic: np.ndarray,
+        y_best: float,
+        beta_t: float = 1.0
+    ) -> np.ndarray:
+        raw_base = self.base_acq.compute(preds, unc_tot, y_best)
+        # Shift LCB if negative so max_relative normalization functions cleanly for argmax
+        if isinstance(self.base_acq, LowerConfidenceBound):
+            min_base = np.min(raw_base) if len(raw_base) > 0 else 0.0
+            if min_base < 0:
+                raw_base = raw_base - min_base
+                
+        norm_base = normalize_max_relative(raw_base, eps=self.eps)
+        norm_ep = normalize_max_relative(u_epistemic, eps=self.eps)
+        
+        return norm_base + float(beta_t) * norm_ep
+
 class AcquisitionRegistry:
     _REGISTRY = {
         "ei": ExpectedImprovement,
@@ -51,3 +123,4 @@ class AcquisitionRegistry:
                 f"Unknown acquisition function '{name}'. Supported choices: {list(cls._REGISTRY.keys())}"
             )
         return cls._REGISTRY[name_clean](**kwargs)
+

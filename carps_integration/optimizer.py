@@ -11,7 +11,11 @@ from carps.utils.task import Task
 from carps.utils.types import Incumbent, SearchSpace
 from rf_dynamic.dynamic_rf_surrogate import DynamicRFSurrogate
 
-from carps_integration.acquisitions import AcquisitionRegistry
+from carps_integration.acquisitions import (
+    AcquisitionRegistry,
+    WarmupCosineScheduler,
+    AdditiveEpistemicAcquisition
+)
 
 class CARPSDynamicRFOptimizer(Optimizer):
     """
@@ -40,7 +44,12 @@ class CARPSDynamicRFOptimizer(Optimizer):
         extractor_kwargs: dict | None = None,
         rf_kwargs: dict | None = None,
         acq_uncertainty_type: str = "epistemic",
-        enable_adaptation: bool = True
+        enable_adaptation: bool = True,
+        acq_mode: str = "direct",
+        beta_max: float = 1.0,
+        beta_min: float = 0.0,
+        warmup_ratio: float = 0.20,
+        total_trials: int | None = None
     ) -> None:
         super().__init__(
             task=task,
@@ -58,6 +67,11 @@ class CARPSDynamicRFOptimizer(Optimizer):
         self.telemetry_path = telemetry_path
         self.acq_uncertainty_type = acq_uncertainty_type
         self.enable_adaptation = enable_adaptation
+        self.acq_mode = acq_mode
+        self.beta_max = beta_max
+        self.beta_min = beta_min
+        self.warmup_ratio = warmup_ratio
+        self.total_trials = total_trials
         
         # Dynamic RF hyperparameters
         self.window_size = window_size
@@ -74,6 +88,7 @@ class CARPSDynamicRFOptimizer(Optimizer):
         
         self.history: List[Tuple[TrialInfo, TrialValue]] = []
         self.telemetry_records: List[dict] = []
+        self._last_beta_t = 0.0
         
         self.surrogate = None
         self.initial_design_configs: List[Configuration] = []
@@ -161,13 +176,37 @@ class CARPSDynamicRFOptimizer(Optimizer):
             best_idx = np.random.randint(len(candidates))
             return self.convert_to_trial(candidates[best_idx])
 
-        # Predict using surrogate (triggers updates inside sliding window adaptor)
-        preds, unc = self.surrogate.predict(X_cand, uncertainty_type=self.acq_uncertainty_type)
-        
-        # Compute acquisition scores using configured acquisition function strategy
-        y_best = min(valid_costs)
-        acq_func = AcquisitionRegistry.get(self.acq_func_name, **self.acq_func_kwargs)
-        acq_scores = acq_func.compute(preds, unc, y_best)
+        if self.acq_mode == "additive_epistemic":
+            # 1. Base prediction using surrogate total predictive uncertainty (mean, sigma_tot)
+            preds, total_std = self.surrogate.predict(X_cand, uncertainty_type="total")
+            
+            # 2. Epistemic uncertainty signal extraction
+            u_ep = self.surrogate.extractor.extract_epistemic_signal(X_cand)
+            
+            # 3. Dynamic exploration beta_t scheduling with Warmup + Cosine Annealing
+            n_trials = self.total_trials or getattr(getattr(self.task, "optimization_resources", None), "n_trials", 50) or 50
+            scheduler = WarmupCosineScheduler(
+                total_trials=n_trials,
+                warmup_ratio=self.warmup_ratio,
+                beta_max=self.beta_max,
+                beta_min=self.beta_min
+            )
+            trial_idx = len(self.history)
+            beta_t = scheduler.get_beta(trial_idx)
+            self._last_beta_t = beta_t
+            
+            # 4. Decoupled additive acquisition with max-relative batch normalization
+            y_best = min(valid_costs)
+            base_acq = AcquisitionRegistry.get(self.acq_func_name, **self.acq_func_kwargs)
+            additive_acq = AdditiveEpistemicAcquisition(base_acq=base_acq)
+            acq_scores = additive_acq.compute_additive(preds, total_std, u_ep, y_best, beta_t=beta_t)
+        else:
+            # Direct variance replacement mode (legacy/direct)
+            self._last_beta_t = 0.0
+            preds, unc = self.surrogate.predict(X_cand, uncertainty_type=self.acq_uncertainty_type)
+            y_best = min(valid_costs)
+            acq_func = AcquisitionRegistry.get(self.acq_func_name, **self.acq_func_kwargs)
+            acq_scores = acq_func.compute(preds, unc, y_best)
         
         # Select candidate that maximizes acquisition score
         best_idx = int(np.argmax(acq_scores))
@@ -207,7 +246,8 @@ class CARPSDynamicRFOptimizer(Optimizer):
             "cost": float(trial_value.cost),
             "surrogate_min_samples_leaf": min_samples_leaf,
             "surrogate_max_features": max_features,
-            "virtual_time": float(trial_value.virtual_time)
+            "virtual_time": float(trial_value.virtual_time),
+            "beta_t": float(getattr(self, "_last_beta_t", 0.0))
         }
         self.telemetry_records.append(record)
         
