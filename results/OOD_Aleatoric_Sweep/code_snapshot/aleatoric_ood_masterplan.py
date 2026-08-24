@@ -228,41 +228,14 @@ def generate_ood_aleatoric_dataset(
         X_train = np.vstack([X_train_left, X_train_right])
 
     # -------------------------------------------------------------
-    # 2. Test Set: 70% In-Distribution / 30% Out-of-Distribution
+    # 2. Test Set: Full Domain (ID + OOD) via Power-of-2 Sobol Sampling
     # -------------------------------------------------------------
-    n_ood = int(round(0.30 * n_test_dim))
-    n_id = n_test_dim - n_ood
-    n_id_left = n_id // 2
-    n_id_right = n_id - n_id_left
-
     if dim == 1:
-        X_test_id_l = np.linspace(domain[0], 4.0, n_id_left, endpoint=False).reshape(-1, 1)
-        X_test_id_r = np.linspace(6.0, domain[1], n_id_right, endpoint=True).reshape(-1, 1)
-        X_test_ood = np.linspace(4.0, 6.0, n_ood, endpoint=False).reshape(-1, 1)
-        X_test = np.vstack([X_test_id_l, X_test_id_r, X_test_ood])
+        X_test = np.linspace(domain[0], domain[1], n_test_dim).reshape(-1, 1)
     else:
-        sampler_test_l = Sobol(d=dim, scramble=True, seed=seed + 10000)
-        u_tl = sampler_test_l.random(n=n_id_left)
-        X_test_id_l = np.empty_like(u_tl)
-        X_test_id_l[:, 0] = domain[0] + (4.0 - domain[0]) * u_tl[:, 0]
-        for d in range(1, dim):
-            X_test_id_l[:, d] = domain[0] + (domain[1] - domain[0]) * u_tl[:, d]
-
-        sampler_test_r = Sobol(d=dim, scramble=True, seed=seed + 15000)
-        u_tr = sampler_test_r.random(n=n_id_right)
-        X_test_id_r = np.empty_like(u_tr)
-        X_test_id_r[:, 0] = 6.0 + (domain[1] - 6.0) * u_tr[:, 0]
-        for d in range(1, dim):
-            X_test_id_r[:, d] = domain[0] + (domain[1] - domain[0]) * u_tr[:, d]
-
-        sampler_test_ood = Sobol(d=dim, scramble=True, seed=seed + 20000)
-        u_tood = sampler_test_ood.random(n=n_ood)
-        X_test_ood = np.empty_like(u_tood)
-        X_test_ood[:, 0] = 4.0 + (6.0 - 4.0) * u_tood[:, 0]
-        for d in range(1, dim):
-            X_test_ood[:, d] = domain[0] + (domain[1] - domain[0]) * u_tood[:, d]
-
-        X_test = np.vstack([X_test_id_l, X_test_id_r, X_test_ood])
+        sampler_test = Sobol(d=dim, scramble=True, seed=seed + 10000)
+        u_test = sampler_test.random(n=n_test_dim)
+        X_test = domain[0] + (domain[1] - domain[0]) * u_test
 
     is_ood_test = (X_test[:, 0] >= 4.0) & (X_test[:, 0] <= 6.0)
 
