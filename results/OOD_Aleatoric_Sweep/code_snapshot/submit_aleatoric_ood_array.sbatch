@@ -7,6 +7,16 @@
 #SBATCH --mem=8G
 #SBATCH --partition=ai
 
+eval "$(conda shell.bash hook 2>/dev/null)" || true
+conda activate dyrf 2>/dev/null || true
+
+export PYTHONPATH="$PWD:$PYTHONPATH"
+export PYTHONUNBUFFERED=1
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
 mkdir -p results/OOD_Aleatoric_Sweep/logs results/OOD_Aleatoric_Sweep/json
 
 TASK_FILE="results/OOD_Aleatoric_Sweep/aleatoric_ood_tasks.txt"
