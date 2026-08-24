@@ -5,7 +5,7 @@
 #SBATCH --time=02:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
-#SBATCH --partition=cpu
+#SBATCH --partition=ai
 
 mkdir -p results/OOD_Aleatoric_Sweep/logs results/OOD_Aleatoric_Sweep/json
 
