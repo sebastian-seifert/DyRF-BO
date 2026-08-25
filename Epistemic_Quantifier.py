@@ -245,8 +245,8 @@ class EpistemicQuantifier:
         )
         aleatoric_var = self.base_get_aleatoric_variance(X_test, all_test_leaf_ids=all_test_leaf_ids)
 
-        # Safe exponent clipping to prevent IEEE 754 float64 overflow (log2(max_float64) ~ 1024)
-        safe_exponent = np.clip(2.0 * mi_bits, 0.0, 1000.0)
+        # Safe exponent clipping to prevent IEEE 754 float64 overflow even with large aleatoric variance
+        safe_exponent = np.clip(2.0 * mi_bits, 0.0, 50.0)
         return aleatoric_var * np.maximum(2.0 ** safe_exponent - 1.0, 0.0)
 
     def shaker_get_total_variance(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto"):
@@ -275,8 +275,8 @@ class EpistemicQuantifier:
 
     def _shaker_convert_entropy_to_var(self, entropy_bits):
         """Converts differential entropy in bits to the variance of a Gaussian."""
-        # Safe exponent clipping to prevent IEEE 754 float64 overflow (log2(max_float64) ~ 1024)
-        safe_exponent = np.clip(2.0 * entropy_bits, -1000.0, 1000.0)
+        # Safe exponent clipping to prevent IEEE 754 float64 overflow
+        safe_exponent = np.clip(2.0 * entropy_bits, -50.0, 50.0)
         return (2.0 ** safe_exponent) / (2.0 * np.pi * np.e)
 
     def _shaker_convert_var_to_entropy(self, var):
