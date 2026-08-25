@@ -245,7 +245,9 @@ class EpistemicQuantifier:
         )
         aleatoric_var = self.base_get_aleatoric_variance(X_test, all_test_leaf_ids=all_test_leaf_ids)
 
-        return aleatoric_var * np.maximum(2.0 ** (2.0 * mi_bits) - 1.0, 0.0)
+        # Safe exponent clipping to prevent IEEE 754 float64 overflow (log2(max_float64) ~ 1024)
+        safe_exponent = np.clip(2.0 * mi_bits, 0.0, 1000.0)
+        return aleatoric_var * np.maximum(2.0 ** safe_exponent - 1.0, 0.0)
 
     def shaker_get_total_variance(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto"):
         """Converts Shaker's total GMM entropy into entropy-power variance units."""
@@ -264,13 +266,18 @@ class EpistemicQuantifier:
         Calculates the closed-form aleatoric uncertainty (mean differential entropy).
         Formula from Slide 4: (1/M) * sum( 0.5 * log2(2 * pi * e * sigma_hat^2) )
         """
+        if all_test_leaf_ids is None:
+            all_test_leaf_ids = self.model.apply(X_test)
+            
         vars2 = self._base_calc_per_tree_variance(X_test, all_test_leaf_ids=all_test_leaf_ids) 
         individual_entropies = 0.5 * np.log2(2 * np.pi * np.e * vars2)
         return np.mean(individual_entropies, axis=0)
 
     def _shaker_convert_entropy_to_var(self, entropy_bits):
         """Converts differential entropy in bits to the variance of a Gaussian."""
-        return (2.0 ** (2.0 * entropy_bits)) / (2.0 * np.pi * np.e)
+        # Safe exponent clipping to prevent IEEE 754 float64 overflow (log2(max_float64) ~ 1024)
+        safe_exponent = np.clip(2.0 * entropy_bits, -1000.0, 1000.0)
+        return (2.0 ** safe_exponent) / (2.0 * np.pi * np.e)
 
     def _shaker_convert_var_to_entropy(self, var):
         """Converts variance of a Gaussian to differential entropy in bits."""
