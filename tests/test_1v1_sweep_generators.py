@@ -49,7 +49,8 @@ def test_generate_single_1v1_sweep_task_count(tmp_path):
     
     # Verify exact contents
     for line in lines:
-        assert f"log_dir={runs_dir}" in line
+        assert "log_dir=" not in line
+        assert "telemetry_path=" in line
         assert ("optimizer_id=SMAC20_CustomUncertainty_ei_standard_disagreement" in line or
                 "optimizer_id=SMAC3_HPOFacade_ei" in line)
 

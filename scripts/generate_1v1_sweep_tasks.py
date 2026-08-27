@@ -78,8 +78,7 @@ def generate_single_1v1_sweep(
                     f"++optimizer.smac_cfg.model_kwargs.uncertainty_func={cfg['approach']} "
                     f"{task_arg} task.optimization_resources.n_trials={trials} "
                     f"seed={seed} ++optimizer.telemetry_path={telemetry} "
-                    f"optimizer_id={cfg['optimizer_id']} optimizer_container_id=SMAC20_CustomUncertainty "
-                    f"log_dir={runs_dir}"
+                    f"optimizer_id={cfg['optimizer_id']} optimizer_container_id=SMAC20_CustomUncertainty"
                 )
             else: # additive
                 line = (
@@ -90,8 +89,7 @@ def generate_single_1v1_sweep(
                     f"++optimizer.warmup_ratio={warmup_ratio} "
                     f"{task_arg} task.optimization_resources.n_trials={trials} "
                     f"seed={seed} ++optimizer.telemetry_path={telemetry} "
-                    f"optimizer_id={cfg['optimizer_id']} optimizer_container_id=CARPSDynamicRF "
-                    f"log_dir={runs_dir}"
+                    f"optimizer_id={cfg['optimizer_id']} optimizer_container_id=CARPSDynamicRF"
                 )
             lines.append(line)
             
@@ -107,8 +105,7 @@ def generate_single_1v1_sweep(
                 f"++optimizer.acq_func_name=ei "
                 f"{task_arg} task.optimization_resources.n_trials={trials} "
                 f"seed={seed} ++optimizer.telemetry_path={telemetry} "
-                f"optimizer_id=SMAC3_HPOFacade_ei optimizer_container_id=SMAC3_HPOFacade "
-                f"log_dir={runs_dir}"
+                f"optimizer_id=SMAC3_HPOFacade_ei optimizer_container_id=SMAC3_HPOFacade"
             )
             lines.append(line)
             

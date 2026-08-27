@@ -201,11 +201,22 @@ def generate_all_highdim_reports(
 
 def main():
     parser = argparse.ArgumentParser(description="Generate High-Dim Benchmark Comparison Tables")
-    parser.add_argument("--output_report", type=str, default="results/epistemic_ei_highdim/highdim_benchmark_tables.md")
-    parser.add_argument("--output_tables_dir", type=str, default="results/epistemic_ei_highdim/tables")
+    parser.add_argument("--base_dir", type=str, default="results/epistemic_ei_highdim_fix")
+    parser.add_argument("--output_report", type=str, default=None)
+    parser.add_argument("--output_tables_dir", type=str, default=None)
     args = parser.parse_args()
 
-    generate_all_highdim_reports(output_report=args.output_report, output_tables_dir=args.output_tables_dir)
+    base_dir = args.base_dir
+    input_dirs = [
+        os.path.join(base_dir, "baseline"),
+        os.path.join(base_dir, "ei"),
+        base_dir
+    ]
+    output_report = args.output_report or os.path.join(base_dir, "highdim_benchmark_tables.md")
+    output_tables_dir = args.output_tables_dir or os.path.join(base_dir, "tables")
+
+    generate_all_highdim_reports(input_dirs=input_dirs, output_report=output_report, output_tables_dir=output_tables_dir)
 
 if __name__ == "__main__":
     main()
+
