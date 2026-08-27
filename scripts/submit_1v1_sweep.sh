@@ -4,11 +4,10 @@ set -e
 SWEEP_TYPE="${1:-all}"
 CHUNK_SIZE=200
 
-mkdir -p results/slurm_logs
-
 submit_single_sweep() {
     local name="$1"
     local task_file="results/sweep_1v1_${name}/tasks.txt"
+    local sbatch_file="scripts/submit_1v1_${name}_array.sbatch"
     
     if [ ! -f "$task_file" ] || [ ! -s "$task_file" ]; then
         echo "Auto-generating task file for '${name}'..."
@@ -22,7 +21,8 @@ submit_single_sweep() {
     local total_tasks=$(wc -l < "$task_file" | tr -d ' ')
     echo "=================================================="
     echo "Submitting 1v1 Sweep: '${name}' (${total_tasks} tasks) in chunks of ${CHUNK_SIZE}..."
-    echo "Task File: ${task_file}"
+    echo "Task File:   ${task_file}"
+    echo "SBatch File: ${sbatch_file}"
     echo "=================================================="
     
     for (( start=1; start<=total_tasks; start+=CHUNK_SIZE )); do
@@ -30,11 +30,7 @@ submit_single_sweep() {
         if [ $end -gt $total_tasks ]; then
             end=$total_tasks
         fi
-        JOB_ID=$(sbatch --parsable \
-            --job-name="1v1_${name}" \
-            --export=ALL,SWEEP_TASK_FILE="${task_file}" \
-            --array=${start}-${end}%25 \
-            scripts/submit_1v1_sweep_array.sbatch)
+        JOB_ID=$(sbatch --parsable --array=${start}-${end}%25 "${sbatch_file}")
         echo "  -> Submitted Chunk (${start}-${end}) [${name}] | Job ID: ${JOB_ID}"
     done
     echo "[✓] Sweep '${name}' scheduled successfully!"
