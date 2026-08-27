@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH -p ai
 #SBATCH --job-name=1v1_disagree
+#SBATCH --array=1-1200%30
 #SBATCH --output=results/sweep_1v1_disagreement/logs/disagree_%A_%a.log
 #SBATCH --error=results/sweep_1v1_disagreement/logs/disagree_%A_%a.err
 #SBATCH --cpus-per-task=8
