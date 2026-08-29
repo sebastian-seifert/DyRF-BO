@@ -1,20 +1,20 @@
 # Gemini Sessions Log
 
 ## Session: 2026-08-29 (Noisy Benchmark EI Head-to-Head Sweep Preparation & Task Generation)
-* **Goal**: Recreate and prepare the full-scale Expected Improvement (EI) Head-to-Head benchmark sweep across the 16 newly integrated BBOB-Noisy and hetGP benchmark tasks (30 seeds, 50 trials/run, 3,840 task executions) evaluating 8 optimizers against standard SMAC3 baseline.
+* **Goal**: Recreate and prepare the full-scale Expected Improvement (EI) Head-to-Head benchmark sweep across the 16 newly integrated BBOB-Noisy and hetGP benchmark tasks (10 seeds, 50 trials/run, 1,280 task executions) evaluating 8 optimizers against standard SMAC3 baseline on the SLURM `ai` partition with 12h walltime.
 
 ### Accomplishments
 1. **Multi-Agent Planning & Review**:
-   - Spawned Sweep Planning Agent and Senior Review Agent to design and audit the balanced factorial sweep matrix (1 Baseline + 4 Direct Drop-in Surrogates + 3 Decoupled Additive Hybrids across 16 tasks $\times$ 30 seeds = 3,840 runs).
+   - Spawned Sweep Planning Agent and Senior Review Agent to design and audit the balanced factorial sweep matrix (1 Baseline + 4 Direct Drop-in Surrogates + 3 Decoupled Additive Hybrids across 16 tasks $\times$ 10 seeds = 1,280 runs).
 2. **Automated Task Generator & SLURM Infrastructure**:
-   - Created `scripts/generate_noisy_sweep_tasks.py` generating exact, collision-free Hydra command lines for all 3,840 tasks.
-   - Built `scripts/submit_noisy_ei_sweep_array.sbatch` configured for `#SBATCH -p medium`, `--mem=8G`, `-t 01:00:00`, and `--cpus-per-task=2`.
-   - Built `scripts/submit_noisy_ei_sweep.sh` chunking the 3,840 tasks into 20 array jobs of 200 tasks each with `%25` concurrency.
+   - Created `scripts/generate_noisy_sweep_tasks.py` generating exact, collision-free Hydra command lines for all 1,280 tasks.
+   - Built `scripts/submit_noisy_ei_sweep_array.sbatch` configured for `#SBATCH -p ai`, `#SBATCH --cpus-per-task=8`, `#SBATCH --mem=16G`, and `#SBATCH --time=12:00:00`.
+   - Built `scripts/submit_noisy_ei_sweep.sh` chunking tasks into array jobs of 200 tasks each with `%25` concurrency.
 3. **TDD Unit Testing Suite**:
-   - Created `tests/test_generate_noisy_sweep_tasks.py` with 8 test cases validating task counts (3,840 total), optimizer breakdown (480 baseline, 1,920 direct, 1,440 additive), benchmark coverage (1,200 hetGP, 2,640 BBOB), seed uniformity (128 runs/seed), strict EI acquisition, 0 Chen variance occurrences, and 100% collision-free telemetry paths.
-   - Executed `.venv/bin/pytest tests/test_generate_noisy_sweep_tasks.py -v`: **8/8 tests passed 100% GREEN**.
+   - Created `tests/test_generate_noisy_sweep_tasks.py` with 9 test cases validating task counts (1,280 default, 3,840 custom), optimizer breakdown (160 baseline, 640 direct, 480 additive for 10 seeds), benchmark coverage (400 hetGP, 880 BBOB), seed uniformity (128 runs/seed), strict EI acquisition, 0 Chen variance occurrences, and 100% collision-free telemetry paths.
+   - Executed full test suite (`test_noisy_benchmarks.py`, `test_carps_noisy_integration.py`, `test_generate_noisy_sweep_tasks.py`): **32/32 tests passed 100% GREEN**.
 4. **Execution & Artifact Generation**:
-   - Generated `results/sweep_noisy_ei_head_to_head/tasks.txt` (3,840 lines) ready for cluster submission.
+   - Generated `results/sweep_noisy_ei_head_to_head/tasks.txt` (1,280 lines) ready for cluster submission.
 
 ## Session: 2026-08-29 (Standalone & CARP-S Integrated BBOB-Noisy and hetGP Heteroscedastic Benchmark Suites)
 * **Goal**: Design and implement both a standalone noisy benchmark harness (`noisy_benchmarks/`) and a full CARP-S integration adapter (`CARPSNoisyObjectiveFunction`) connecting BBOB-Noisy and the hetGP Heteroscedastic Suite to SMAC3, `CustomUncertaintyRandomForest`, and Decoupled Additive Epistemic BO.

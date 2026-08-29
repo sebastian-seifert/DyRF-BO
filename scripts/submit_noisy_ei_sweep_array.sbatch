@@ -5,7 +5,7 @@
 #SBATCH --error=results/sweep_noisy_ei_head_to_head/logs/%x_%A_%a.err
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
-#SBATCH --time=04:00:00
+#SBATCH --time=12:00:00
 
 # Defensive directory creation
 mkdir -p results/sweep_noisy_ei_head_to_head/logs

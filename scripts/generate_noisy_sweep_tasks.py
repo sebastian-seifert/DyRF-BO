@@ -124,7 +124,7 @@ def get_approach_configs() -> List[Dict[str, Any]]:
 def generate_noisy_sweep_tasks(
     output_file: str = "results/sweep_noisy_ei_head_to_head/tasks.txt",
     runs_dir: str = "results/sweep_noisy_ei_head_to_head/runs",
-    n_seeds: int = 30,
+    n_seeds: int = 10,
     trials: int = 50,
     suite: str = "all",
     paradigm: str = "all",
@@ -210,7 +210,7 @@ def main():
                         help="Path to output tasks.txt")
     parser.add_argument("-r", "--runs-dir", type=str, default="results/sweep_noisy_ei_head_to_head/runs",
                         help="Directory for telemetry JSON files")
-    parser.add_argument("-s", "--seeds", type=int, default=30, help="Number of random seeds (default: 30)")
+    parser.add_argument("-s", "--seeds", type=int, default=10, help="Number of random seeds (default: 10)")
     parser.add_argument("-t", "--trials", type=int, default=50, help="Number of trials per run (default: 50)")
     parser.add_argument("--suite", type=str, default="all", choices=["all", "hetgp", "bbob"],
                         help="Filter benchmark suite")

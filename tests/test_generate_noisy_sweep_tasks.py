@@ -52,9 +52,25 @@ def test_approach_matrix_completeness():
             assert "chen" not in app["extractor_name"].lower()
 
 
-def test_full_sweep_generation_task_count(tmp_path):
-    """Verify full matrix produces exactly 3,840 tasks (16 tasks * 8 approaches * 30 seeds)."""
-    out_file = str(tmp_path / "tasks.txt")
+def test_default_10_seeds_generation_task_count(tmp_path):
+    """Verify default 10-seed matrix produces exactly 1,280 tasks (16 tasks * 8 approaches * 10 seeds)."""
+    out_file = str(tmp_path / "tasks_10seeds.txt")
+    runs_dir = str(tmp_path / "runs")
+    tasks = generate_noisy_sweep_tasks(
+        output_file=out_file,
+        runs_dir=runs_dir,
+        n_seeds=10,
+        trials=50
+    )
+    assert len(tasks) == 1280
+    with open(out_file, "r") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    assert len(lines) == 1280
+
+
+def test_custom_30_seeds_generation_task_count(tmp_path):
+    """Verify 30-seed matrix produces exactly 3,840 tasks."""
+    out_file = str(tmp_path / "tasks_30seeds.txt")
     runs_dir = str(tmp_path / "runs")
     tasks = generate_noisy_sweep_tasks(
         output_file=out_file,
@@ -63,47 +79,44 @@ def test_full_sweep_generation_task_count(tmp_path):
         trials=50
     )
     assert len(tasks) == 3840
-    with open(out_file, "r") as f:
-        lines = [line.strip() for line in f if line.strip()]
-    assert len(lines) == 3840
 
 
-def test_optimizer_breakdown(tmp_path):
-    """Verify distribution across baseline, direct, and additive paradigms."""
+def test_optimizer_breakdown_10_seeds(tmp_path):
+    """Verify distribution across baseline, direct, and additive paradigms for 10 seeds."""
     out_file = str(tmp_path / "tasks.txt")
     runs_dir = str(tmp_path / "runs")
-    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=30)
+    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=10)
     
     baseline_count = sum(1 for line in tasks if "optimizer_id=SMAC3_HPOFacade_ei" in line)
     direct_count = sum(1 for line in tasks if "optimizer_container_id=SMAC20_CustomUncertainty" in line)
     additive_count = sum(1 for line in tasks if "optimizer_container_id=CARPSDynamicRF" in line)
     
-    assert baseline_count == 16 * 30 * 1  # 480
-    assert direct_count == 16 * 30 * 4    # 1920
-    assert additive_count == 16 * 30 * 3  # 1440
-    assert baseline_count + direct_count + additive_count == 3840
+    assert baseline_count == 16 * 10 * 1  # 160
+    assert direct_count == 16 * 10 * 4    # 640
+    assert additive_count == 16 * 10 * 3  # 480
+    assert baseline_count + direct_count + additive_count == 1280
 
 
-def test_benchmark_coverage(tmp_path):
-    """Verify benchmark distribution across BBOB (11 tasks) and hetGP (5 tasks)."""
+def test_benchmark_coverage_10_seeds(tmp_path):
+    """Verify benchmark distribution across BBOB (11 tasks) and hetGP (5 tasks) for 10 seeds."""
     out_file = str(tmp_path / "tasks.txt")
     runs_dir = str(tmp_path / "runs")
-    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=30)
+    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=10)
     
     hetgp_count = sum(1 for line in tasks if "+task/Noisy/hetgp" in line)
     bbob_count = sum(1 for line in tasks if "+task/Noisy/bbob" in line)
     
-    assert hetgp_count == 5 * 8 * 30   # 1200
-    assert bbob_count == 11 * 8 * 30  # 2640
+    assert hetgp_count == 5 * 8 * 10   # 400
+    assert bbob_count == 11 * 8 * 10  # 880
 
 
-def test_seed_distribution(tmp_path):
-    """Verify seeds 1..30 each have exactly 128 task executions."""
+def test_seed_distribution_10_seeds(tmp_path):
+    """Verify seeds 1..10 each have exactly 128 task executions."""
     out_file = str(tmp_path / "tasks.txt")
     runs_dir = str(tmp_path / "runs")
-    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=30)
+    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=10)
     
-    for seed in range(1, 31):
+    for seed in range(1, 11):
         seed_count = sum(1 for line in tasks if f"seed={seed} " in line or line.endswith(f"seed={seed}"))
         assert seed_count == 16 * 8  # 128 runs per seed
 
@@ -112,7 +125,7 @@ def test_strictly_ei_acquisition(tmp_path):
     """Verify that all commands evaluate solely Expected Improvement (EI)."""
     out_file = str(tmp_path / "tasks.txt")
     runs_dir = str(tmp_path / "runs")
-    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=30)
+    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=10)
     
     for line in tasks:
         assert "acq_func_name=pi" not in line
@@ -121,11 +134,11 @@ def test_strictly_ei_acquisition(tmp_path):
         assert "_ei" in line
 
 
-def test_telemetry_uniqueness(tmp_path):
-    """Verify 3,840 distinct telemetry paths with zero collisions."""
+def test_telemetry_uniqueness_10_seeds(tmp_path):
+    """Verify 1,280 distinct telemetry paths with zero collisions."""
     out_file = str(tmp_path / "tasks.txt")
     runs_dir = str(tmp_path / "runs")
-    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=30)
+    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=10)
     
     telemetry_paths = []
     for line in tasks:
@@ -133,5 +146,5 @@ def test_telemetry_uniqueness(tmp_path):
         parts = line.split("++optimizer.telemetry_path=")[1].split()[0]
         telemetry_paths.append(parts)
         
-    assert len(telemetry_paths) == 3840
-    assert len(set(telemetry_paths)) == 3840
+    assert len(telemetry_paths) == 1280
+    assert len(set(telemetry_paths)) == 1280
