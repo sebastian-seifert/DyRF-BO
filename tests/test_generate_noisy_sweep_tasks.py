@@ -1,0 +1,137 @@
+"""TDD Test Suite for Noisy Benchmark EI Head-to-Head Sweep Task Generator."""
+
+import os
+import sys
+import pytest
+
+# Ensure DyRF-BO root is in path
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(PROJECT_ROOT)
+
+from scripts.generate_noisy_sweep_tasks import (
+    generate_noisy_sweep_tasks,
+    get_noisy_tasks,
+    get_approach_configs,
+    NOISY_TASKS_HETGP,
+    NOISY_TASKS_BBOB,
+)
+
+
+def test_noisy_tasks_registry():
+    """Ensure all 16 noisy tasks are present and their YAML files exist on disk."""
+    tasks = get_noisy_tasks(suite="all")
+    assert len(tasks) == 16
+    assert len(get_noisy_tasks("hetgp")) == 5
+    assert len(get_noisy_tasks("bbob")) == 11
+    
+    for task_arg in tasks:
+        # task_arg is like +task/Noisy/hetgp=cfg_branin_2d
+        rel_path = os.path.join(
+            PROJECT_ROOT,
+            "carps_integration",
+            "configs",
+            "task",
+            task_arg.replace("+task/", "").replace("=", "/") + ".yaml"
+        )
+        assert os.path.isfile(rel_path), f"Missing task YAML: {rel_path}"
+
+
+def test_approach_matrix_completeness():
+    """Verify exact 8 approaches (1 baseline, 4 direct, 3 additive) and 0 Chen variance."""
+    approaches = get_approach_configs()
+    assert len(approaches) == 8
+    
+    optimizer_ids = [app["optimizer_id"] for app in approaches]
+    assert len(optimizer_ids) == 8
+    assert len(set(optimizer_ids)) == 8  # 100% distinct
+    
+    # Assert zero chen occurrences
+    for app in approaches:
+        assert "chen" not in app["optimizer_id"].lower()
+        if "extractor_name" in app:
+            assert "chen" not in app["extractor_name"].lower()
+
+
+def test_full_sweep_generation_task_count(tmp_path):
+    """Verify full matrix produces exactly 3,840 tasks (16 tasks * 8 approaches * 30 seeds)."""
+    out_file = str(tmp_path / "tasks.txt")
+    runs_dir = str(tmp_path / "runs")
+    tasks = generate_noisy_sweep_tasks(
+        output_file=out_file,
+        runs_dir=runs_dir,
+        n_seeds=30,
+        trials=50
+    )
+    assert len(tasks) == 3840
+    with open(out_file, "r") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    assert len(lines) == 3840
+
+
+def test_optimizer_breakdown(tmp_path):
+    """Verify distribution across baseline, direct, and additive paradigms."""
+    out_file = str(tmp_path / "tasks.txt")
+    runs_dir = str(tmp_path / "runs")
+    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=30)
+    
+    baseline_count = sum(1 for line in tasks if "optimizer_id=SMAC3_HPOFacade_ei" in line)
+    direct_count = sum(1 for line in tasks if "optimizer_container_id=SMAC20_CustomUncertainty" in line)
+    additive_count = sum(1 for line in tasks if "optimizer_container_id=CARPSDynamicRF" in line)
+    
+    assert baseline_count == 16 * 30 * 1  # 480
+    assert direct_count == 16 * 30 * 4    # 1920
+    assert additive_count == 16 * 30 * 3  # 1440
+    assert baseline_count + direct_count + additive_count == 3840
+
+
+def test_benchmark_coverage(tmp_path):
+    """Verify benchmark distribution across BBOB (11 tasks) and hetGP (5 tasks)."""
+    out_file = str(tmp_path / "tasks.txt")
+    runs_dir = str(tmp_path / "runs")
+    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=30)
+    
+    hetgp_count = sum(1 for line in tasks if "+task/Noisy/hetgp" in line)
+    bbob_count = sum(1 for line in tasks if "+task/Noisy/bbob" in line)
+    
+    assert hetgp_count == 5 * 8 * 30   # 1200
+    assert bbob_count == 11 * 8 * 30  # 2640
+
+
+def test_seed_distribution(tmp_path):
+    """Verify seeds 1..30 each have exactly 128 task executions."""
+    out_file = str(tmp_path / "tasks.txt")
+    runs_dir = str(tmp_path / "runs")
+    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=30)
+    
+    for seed in range(1, 31):
+        seed_count = sum(1 for line in tasks if f"seed={seed} " in line or line.endswith(f"seed={seed}"))
+        assert seed_count == 16 * 8  # 128 runs per seed
+
+
+def test_strictly_ei_acquisition(tmp_path):
+    """Verify that all commands evaluate solely Expected Improvement (EI)."""
+    out_file = str(tmp_path / "tasks.txt")
+    runs_dir = str(tmp_path / "runs")
+    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=30)
+    
+    for line in tasks:
+        assert "acq_func_name=pi" not in line
+        assert "acq_func_name=lcb" not in line
+        assert "optimizer_id=" in line
+        assert "_ei" in line
+
+
+def test_telemetry_uniqueness(tmp_path):
+    """Verify 3,840 distinct telemetry paths with zero collisions."""
+    out_file = str(tmp_path / "tasks.txt")
+    runs_dir = str(tmp_path / "runs")
+    tasks = generate_noisy_sweep_tasks(output_file=out_file, runs_dir=runs_dir, n_seeds=30)
+    
+    telemetry_paths = []
+    for line in tasks:
+        assert "++optimizer.telemetry_path=" in line
+        parts = line.split("++optimizer.telemetry_path=")[1].split()[0]
+        telemetry_paths.append(parts)
+        
+    assert len(telemetry_paths) == 3840
+    assert len(set(telemetry_paths)) == 3840

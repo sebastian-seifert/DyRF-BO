@@ -1,7 +1,57 @@
 # Gemini Sessions Log
 
-## Session: 2026-07-29 (Full Acquisition Epistemic BO Sweep Array & SMAC3 Patching)
-* **Goal**: Implement multi-acquisition sweep (EI, PI, LCB) across 27 balanced CARP-S benchmarks, 8 UQ extractors, and SMAC3 baselines (3,645 tasks), perform smoke testing under strict TDD, patch SMAC3 acquisition function parameter handling, and push isolated `feat/epistemic-ei-acq` branch to remote.
+## Session: 2026-08-29 (Noisy Benchmark EI Head-to-Head Sweep Preparation & Task Generation)
+* **Goal**: Recreate and prepare the full-scale Expected Improvement (EI) Head-to-Head benchmark sweep across the 16 newly integrated BBOB-Noisy and hetGP benchmark tasks (30 seeds, 50 trials/run, 3,840 task executions) evaluating 8 optimizers against standard SMAC3 baseline.
+
+### Accomplishments
+1. **Multi-Agent Planning & Review**:
+   - Spawned Sweep Planning Agent and Senior Review Agent to design and audit the balanced factorial sweep matrix (1 Baseline + 4 Direct Drop-in Surrogates + 3 Decoupled Additive Hybrids across 16 tasks $\times$ 30 seeds = 3,840 runs).
+2. **Automated Task Generator & SLURM Infrastructure**:
+   - Created `scripts/generate_noisy_sweep_tasks.py` generating exact, collision-free Hydra command lines for all 3,840 tasks.
+   - Built `scripts/submit_noisy_ei_sweep_array.sbatch` configured for `#SBATCH -p medium`, `--mem=8G`, `-t 01:00:00`, and `--cpus-per-task=2`.
+   - Built `scripts/submit_noisy_ei_sweep.sh` chunking the 3,840 tasks into 20 array jobs of 200 tasks each with `%25` concurrency.
+3. **TDD Unit Testing Suite**:
+   - Created `tests/test_generate_noisy_sweep_tasks.py` with 8 test cases validating task counts (3,840 total), optimizer breakdown (480 baseline, 1,920 direct, 1,440 additive), benchmark coverage (1,200 hetGP, 2,640 BBOB), seed uniformity (128 runs/seed), strict EI acquisition, 0 Chen variance occurrences, and 100% collision-free telemetry paths.
+   - Executed `.venv/bin/pytest tests/test_generate_noisy_sweep_tasks.py -v`: **8/8 tests passed 100% GREEN**.
+4. **Execution & Artifact Generation**:
+   - Generated `results/sweep_noisy_ei_head_to_head/tasks.txt` (3,840 lines) ready for cluster submission.
+
+## Session: 2026-08-29 (Standalone & CARP-S Integrated BBOB-Noisy and hetGP Heteroscedastic Benchmark Suites)
+* **Goal**: Design and implement both a standalone noisy benchmark harness (`noisy_benchmarks/`) and a full CARP-S integration adapter (`CARPSNoisyObjectiveFunction`) connecting BBOB-Noisy and the hetGP Heteroscedastic Suite to SMAC3, `CustomUncertaintyRandomForest`, and Decoupled Additive Epistemic BO.
+
+### Accomplishments
+1. **Multi-Agent Architectural Planning**:
+   - Designed universal problem interfaces separating ground truth $f_{\text{true}}(\mathbf{x})$, noise function $\sigma_{\text{true}}(\mathbf{x})$, and sampled noise $\epsilon$.
+   - Designed dual-path execution for standard SMAC3 `HPOFacade` and Decoupled Additive Epistemic BO ($\text{Acq} = \text{EI} + \beta(t) \cdot U_{\text{ep}}$).
+2. **Benchmark Implementations**:
+   - **BBOB-Noisy (`noisy_benchmarks/bbob.py`)**: Vectorized pure-NumPy implementations of Sphere, Rosenbrock, Rastrigin, Bent Cigar, Attractive Sector, and Schwefel with 3 BBOB noise models (Additive/Multiplicative Gaussian, Uniform, and Cauchy heavy-tailed outliers).
+   - **hetGP Suite (`noisy_benchmarks/hetgp.py`)**: Exact implementations of Yuan-Wahba 1D, Heteroscedastic Branin 2D (varying noise across 3 global minima), Heteroscedastic Goldstein-Price 2D (noise peak at optimum), and Scalable 1D–15D Sinusoid.
+3. **CARP-S Integration & Task YAML Generator**:
+   - Built `carps_integration/noisy_objective.py` implementing `CARPSNoisyObjectiveFunction` which feeds $y_{\text{noisy}}$ to optimizers while recording exact ground truth $y_{\text{true}}$, $\sigma_{\text{true}}$, and instantaneous regret in `TrialValue.additional_info`.
+   - Created `scripts/generate_carps_noisy_configs.py` generating 16 Hydra YAML task configurations in `carps_integration/configs/task/Noisy/hetgp/` and `carps_integration/configs/task/Noisy/bbob/`.
+4. **Telemetry & Universal Execution Harness**:
+   - Implemented `noisy_benchmarks/telemetry.py` recording $y_{\text{noisy}}$, $y_{\text{true}}$, $\sigma_{\text{true}}$, true instantaneous regret, and true incumbent regret, with JSON, Parquet, and CSV export.
+   - Built `noisy_benchmarks/runner.py` (`NoisyBOHarness`) providing drop-in execution for standard SMAC3, any `UQExtractorRegistry` extractor (`proximity_bc`, `shaker_entropy`, `standard_proximity`, `standard_disagreement`, `likelihood_credal`, `chen_variance`), and Decoupled Additive Epistemic BO.
+5. **Strict TDD Verification**:
+   - Authored `tests/test_noisy_benchmarks.py` (17 unit tests) and `tests/test_carps_noisy_integration.py` (6 end-to-end CARP-S CLI subprocess integration tests).
+   - Executed `.venv/bin/pytest tests/test_noisy_benchmarks.py tests/test_carps_noisy_integration.py -v`: **23/23 tests passed 100% GREEN**.
+
+## Session: 2026-08-29 (1v1 Wilcoxon Statistical Analysis Suite Implementation & Local Execution)
+* **Goal**: Implement paired 1v1 Wilcoxon signed-rank testing suite for CARP-S `logs.parquet` across 18 benchmark tasks $\times$ 30 seeds, providing per-task significance ($\alpha=0.05$), matched-pairs rank-biserial correlation ($r_{\text{rb}}$), multiple comparison corrections (Holm-Bonferroni, Benjamini-Hochberg), and macro cross-task aggregate summaries.
+
+### Accomplishments
+1. **Multi-Agent Planning & Review**:
+   - Spawned Statistical Methodologist and Software Architect planning subagents, followed by a Senior Reviewer Agent unifying the mathematical and architectural blueprint.
+2. **TDD Unit Testing Suite**:
+   - Authored `tests/test_1v1_wilcoxon_analysis.py` asserting separation bounds, zero-difference safe handling ($p=1.0, W=0.0$), seed alignment, corrections, and multi-format exporters (9/9 tests GREEN, 100% pass).
+3. **Engine Implementation & Local Sweep Execution**:
+   - Built `scripts/run_1v1_wilcoxon_analysis.py` and executed on `results/sweep_1v1_analysis/logs.parquet` (108,000 evaluations).
+   - Generated terminal ANSI reports, Markdown summary (`results/sweep_1v1_analysis/report_1v1_sweeps/1v1_wilcoxon_report.md`), LaTeX tables (`1v1_wilcoxon_table.tex`), and CSV summaries (`1v1_wilcoxon_summary.csv`).
+4. **Empirical Results (vs. SMAC3_HPOFacade_ei, 30 Seeds, $\alpha=0.05$)**:
+   - `CARPSDynamicRF_AdditiveEpistemic_ei_likelihood_credal`: **4 Wins** (`lcbench_168335`, `rbv2_aknn_40498`, `rbv2_xgboost_23512`, `rbv2_xgboost_42`), **8 Ties**, **6 Losses** (Win Rate: 22.2%, Macro $p = 0.8617$).
+   - `SMAC20_CustomUncertainty_ei_standard_proximity`: **1 Win** (`rbv2_xgboost_42`), **17 Ties**, **0 Losses** (Win Rate: 5.6%, Macro $p = 0.9653$).
+   - `SMAC20_CustomUncertainty_ei_standard_disagreement`: **0 Wins**, **18 Ties**, **0 Losses** (Win Rate: 0.0%, Macro $p = 0.6008$).
+
 
 ### Accomplishments
 1. **Full Acquisition Array Generator & Test Suite**:
