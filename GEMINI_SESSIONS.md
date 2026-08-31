@@ -1,6 +1,33 @@
 # Gemini Sessions Log
 
-## Session: 2026-08-29 (Noisy Benchmark EI Head-to-Head Sweep Preparation & Task Generation)
+## Session: 2026-08-31 (Noisy Sweep Ingestion, Multi-Budget Statistical Analysis & CARP-S BBsubset Dual-Schedule LCB Architecture)
+* **Goal**: Debug CARP-S remote data gathering issues, pull cluster sweep results (1,280 runs), analyze anytime performance trajectories, implement multi-budget statistical rank testing (Friedman + Holm-Bonferroni Wilcoxon), and execute complete multi-agent design & implementation for the CARP-S BBsubset Dual-Schedule (Constant vs. Annealed) Lower Confidence Bound (LCB) benchmark sweep (3,000 runs).
+
+### Accomplishments
+1. **Cluster Data Gathering Resolution**:
+   - Diagnosed `ValueError: Can't find config_fn for Noisy/bbob/rosenbrock_2d_cauchy` on cluster `ai-n002`: `carps.utils.index_configs` skips directory symlinks in Python's `Path.glob()`. Resolved by copying custom `carps_integration/configs/task/` into the conda environment.
+   - Pulled gathered datasets (`logs.parquet`, `logs_normalized.parquet`) and full CARP-S report figures to `results/noisy_sweep_analysis/`.
+2. **Trajectory & Rank Dynamics Investigation**:
+   - Verified that all 8 optimizers evaluate identical $x$-coordinates from the Sobol initial design ($n_{\text{init}}=10$) during trials 1–10 ($t \le 0.20$), diverging at trial 11 ($t=0.20$).
+   - Explained the rank surge of additive epistemic models at $t=11$ and subsequent late-stage decay.
+3. **Multi-Budget Horizon Evaluation & Statistical Rank Testing Suite**:
+   - Implemented `scripts/evaluate_multi_budget_horizons.py` with strict TDD test suite `tests/test_multi_budget_analysis.py` (5/5 tests GREEN).
+   - Executed omnibus Friedman/Iman-Davenport tests and Holm-Bonferroni corrected paired Wilcoxon tests across $T \in [11, 15, 20, 25, 35, 50]$:
+     * $T=11$: `CARPSDynamicRF_AdditiveEpistemic_ei_likelihood_credal` achieves **Rank 2.84**, `proximity_bc` achieves **Rank 2.88** (vs. Baseline SMAC3 at **Rank 5.31**, omnibus $p = 5.06 \times 10^{-6}$).
+     * Confirmed 0 individual approaches clear the 7-way Holm-Bonferroni correction cutoff ($p_{\text{Holm}} < 0.05$) due to multiple-comparison penalties.
+4. **CARP-S BBsubset Dual-Schedule LCB Benchmark Sweep Architecture & Implementation**:
+   - Multi-agent deployment: 3 Planning Agents + 1 Senior Review Agent + 1 Coding Agent.
+   - Built Hydra config `carps_integration/configs/optimizer/dyrf_additive_epistemic_lcb.yaml` with $\kappa=1.96$ and warmup cosine $\beta(t)$ annealing.
+   - Created TDD test suite `tests/test_generate_bbsubset_lcb_sweep_tasks.py` (12/12 tests GREEN).
+   - Implemented `scripts/generate_bbsubset_lcb_sweep_tasks.py` supporting `--schedules` (`both`, `constant`, `annealed`).
+   - Generated `results/sweep_bbsubset_lcb/tasks.txt` (**3,000 tasks**: 2 schedules $\times$ 20 dev tasks $\times$ 15 competitors $\times$ 5 seeds).
+   - Enforced strict subfolder isolation:
+     * `runs/bbsubset_runs/constant/` and `results/bbsubset_lcb/constant/` (1,500 tasks, fixed $\beta \equiv 1.0$)
+     * `runs/bbsubset_runs/annealed/` and `results/bbsubset_lcb/annealed/` (1,500 tasks, cosine decay $\beta(t): 1.0 \to 0.0$)
+   - Built SLURM array infrastructure: `scripts/submit_bbsubset_lcb_array.sbatch` and `scripts/submit_bbsubset_lcb_all.sh` (chunked into 12 batches of 250 tasks with `%25` concurrency on the `ai` partition).
+5. **Thesis Diary Update**:
+   - Recorded empirical findings, theoretical conclusions, and $\beta(t)$ annealing recommendation in `[[University/Bachelorthesis_Diary.md]]`.
+
 * **Goal**: Recreate and prepare the full-scale Expected Improvement (EI) Head-to-Head benchmark sweep across the 16 newly integrated BBOB-Noisy and hetGP benchmark tasks (10 seeds, 50 trials/run, 1,280 task executions) evaluating 8 optimizers against standard SMAC3 baseline on the SLURM `ai` partition with 12h walltime.
 
 ### Accomplishments
