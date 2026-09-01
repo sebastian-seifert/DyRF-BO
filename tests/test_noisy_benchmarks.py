@@ -55,14 +55,35 @@ def test_cauchy_outlier_mixture():
 # 2. BBOB-Noisy Benchmark Problem Tests
 # =====================================================================
 
-@pytest.mark.parametrize("fn", ["sphere", "rosenbrock", "rastrigin", "bent_cigar", "attractive_sector"])
+@pytest.mark.parametrize("fn", BBOB_FUNCTION_NAMES)
 def test_bbob_noisy_known_optimum(fn):
-    """Test that analytical functions evaluate to 0.0 at their known global optimum."""
+    """Test that analytical functions evaluate to 0.0 at their known global optimum and x_opt is inside bounds."""
     problem = BBOBNoisyProblem(func_name=fn, dimension=2, noise_model="gaussian", seed=42)
     assert problem.metadata.x_optimum is not None
     x_opt = problem.metadata.x_optimum
+    assert np.all(x_opt >= problem.metadata.lower_bounds)
+    assert np.all(x_opt <= problem.metadata.upper_bounds)
     val_true = problem.evaluate_true(x_opt)
     assert np.isclose(val_true, 0.0, atol=1e-5)
+
+
+def test_bbob_schwefel_exact_scaling():
+    """Verify BBOB Schwefel function scaling, bounds [-5, 5]^d, and exact analytical optimum."""
+    for d in [2, 3, 5]:
+        problem = BBOBNoisyProblem(func_name="schwefel", dimension=d, noise_model="gaussian", seed=42)
+        assert np.all(problem.metadata.lower_bounds == -5.0)
+        assert np.all(problem.metadata.upper_bounds == 5.0)
+        x_opt = problem.metadata.x_optimum
+        assert x_opt is not None
+        assert np.allclose(x_opt, np.full(d, 4.20968746))
+        assert np.all(x_opt >= -5.0) and np.all(x_opt <= 5.0)
+        val_opt = problem.evaluate_true(x_opt)
+        assert np.isclose(val_opt, 0.0, atol=1e-5)
+
+        # Point away from optimum (e.g. zeros) should evaluate > 0.0
+        val_zero = problem.evaluate_true(np.zeros(d))
+        assert val_zero > 100.0 * d
+
 
 
 def test_bbob_noisy_evaluation_structure():

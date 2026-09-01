@@ -452,5 +452,25 @@ class TestScientificVerification(unittest.TestCase):
         if not np.isnan(nmi):
             self.assertTrue(0.0 <= nmi <= 1.0, f"NMI out of bounds: {nmi}")
 
+    def test_tier1_repository_hygiene_and_sanitization(self):
+        """Verify repository hygiene and sanitization invariants for Tier 1."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        # 1. Verify scratch/deleteTS.py is deleted
+        delete_ts_path = os.path.join(repo_root, "scratch", "deleteTS.py")
+        self.assertFalse(
+            os.path.exists(delete_ts_path),
+            f"Hygiene violation: {delete_ts_path} should be deleted."
+        )
+        
+        # 2. Verify proofs/chen_variance_equivalence_proof.md author sanitization
+        proof_path = os.path.join(repo_root, "proofs", "chen_variance_equivalence_proof.md")
+        self.assertTrue(os.path.exists(proof_path), f"Proof file missing: {proof_path}")
+        with open(proof_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            
+        self.assertIn("**Author**: Sebastian Seifert", content)
+        self.assertNotIn("James", content)
+
 if __name__ == "__main__":
     unittest.main()

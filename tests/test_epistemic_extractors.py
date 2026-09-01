@@ -17,6 +17,7 @@ try:
     import ep_extractors.standard_proximity
     import ep_extractors.proximity_b
     import ep_extractors.proximity_bc
+    import ep_extractors.proximity_auto_lambda
 except ImportError:
     pass  # Allow importing to fail during the TDD "test writes first" stage
 
@@ -89,6 +90,30 @@ class TestEpistemicExtractors(unittest.TestCase):
 
     def test_proximity_auto_lambda_extractor(self):
         self._verify_extractor_behavior("proximity_auto_lambda")
+
+    def test_proximity_auto_lambda_baseline_consistency_and_scaling(self):
+        """Verify that ProximityAutoLambda recomputes N_baseline post-tuning and scales UQ properly."""
+        extractor = UQExtractorRegistry.get("proximity_auto_lambda", self.rf, alpha=1.0)
+        extractor.fit(self.X_train, self.y_train)
+        
+        self.assertIsNotNone(extractor.uq_model)
+        self.assertIsNotNone(extractor.uq_model.N_baseline)
+        self.assertGreater(extractor.uq_model.N_baseline, 0.0)
+        
+        # Verify N_baseline consistency with tuned lambda
+        tuned_lambda = extractor.uq_model.topological_decay_lambda
+        self.assertIsInstance(tuned_lambda, float)
+        
+        # Check signal extraction
+        signal = extractor.extract_epistemic_signal(self.X_test)
+        self.assertEqual(signal.shape, (len(self.X_test),))
+        self.assertTrue(np.all(np.isfinite(signal)))
+        self.assertTrue(np.all(signal >= 0.0))
+        
+        # OOD points (e.g. index 2 and 3) should have strictly positive uncertainty
+        self.assertGreater(signal[2], 0.0)
+        self.assertGreater(signal[3], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

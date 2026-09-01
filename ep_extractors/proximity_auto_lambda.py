@@ -27,8 +27,9 @@ class ProximityAutoLambdaExtractor(BaseEpistemicExtractor):
         )
         self.uq_model.fit()
         best_lambda = self.uq_model.tune_lambda_oob(bounds=self.bounds)
-        # Refit N_baseline with the tuned lambda
+        # Ensure N_baseline is explicitly consistent with the tuned lambda
         self.uq_model.topological_decay_lambda = best_lambda
+        self.uq_model._compute_baseline_density()
 
     def extract_epistemic_signal(self, X: np.ndarray) -> np.ndarray:
         if self.uq_model is None:

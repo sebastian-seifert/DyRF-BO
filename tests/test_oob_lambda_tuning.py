@@ -71,6 +71,30 @@ class TestOOBLambdaTuning(unittest.TestCase):
         self.assertTrue(bounds[0] <= best_lambda <= bounds[1])
         self.assertAlmostEqual(uq_engine.topological_decay_lambda, best_lambda, places=5)
 
+    def test_tune_lambda_oob_recomputes_baseline_density(self):
+        """Verify that tune_lambda_oob recomputes N_baseline so it is consistent with the optimized lambda."""
+        uq_engine = GPUProximityRegressionUQ(
+            self.rf, self.X_train, self.y_train, device="cpu", topological_decay_lambda=0.01
+        )
+        uq_engine.fit()
+        initial_baseline = uq_engine.N_baseline
+        initial_lambda = uq_engine.topological_decay_lambda
+
+        # Tune lambda to a distinct value
+        best_lambda = uq_engine.tune_lambda_oob(bounds=(0.5, 5.0), xtol=1e-4)
+        self.assertNotEqual(best_lambda, initial_lambda)
+        self.assertEqual(uq_engine.topological_decay_lambda, best_lambda)
+
+        # Baseline density must have been updated to reflect the new decay rate
+        self.assertNotEqual(uq_engine.N_baseline, initial_baseline)
+        
+        # Verify that _compute_baseline_density helper exists and is idempotent
+        self.assertTrue(hasattr(uq_engine, "_compute_baseline_density"))
+        current_baseline = uq_engine.N_baseline
+        uq_engine._compute_baseline_density()
+        self.assertAlmostEqual(uq_engine.N_baseline, current_baseline, places=6)
+
+
     def test_small_sample_fallback(self):
         """Verify fallback to lambda=1.0 for small sample sizes N < 3."""
         X_small = self.X_train[:2]

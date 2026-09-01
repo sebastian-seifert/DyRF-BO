@@ -78,7 +78,7 @@ class BBOBNoisyProblem(NoisyBenchmarkProblem):
         elif self.func_name == "attractive_sector":
             return 0.0, np.zeros(dimension)
         elif self.func_name == "schwefel":
-            return 0.0, np.full(dimension, 420.968746)
+            return 0.0, np.full(dimension, 4.20968746)
         elif self.func_name in ["ellipsoid", "discus"]:
             return 0.0, np.zeros(dimension)
         return 0.0, None
@@ -105,8 +105,10 @@ class BBOBNoisyProblem(NoisyBenchmarkProblem):
             return float(np.sum((s * x)**2))
 
         elif self.func_name == "schwefel":
-            # Standard Schwefel shifted so min = 0
-            return float(418.9829 * d - np.sum(x * np.sin(np.sqrt(np.abs(x) + 1e-12))))
+            # Standard BBOB Schwefel scaled from [-5, 5]^d so min = 0
+            z = 100.0 * x
+            return float(418.9828872724338 * d - np.sum(z * np.sin(np.sqrt(np.abs(z) + 1e-12))))
+
 
         elif self.func_name == "ellipsoid":
             scales = 10.0 ** (6.0 * np.arange(d) / max(1, d - 1))

@@ -1,6 +1,6 @@
 # Proof of Expectation Equivalence: Normalized Chen Paired Stability vs. Standard Ensemble Variance in Correlated Random Forests
 
-**Author**: James & Sebastian  
+**Author**: Sebastian Seifert  
 **Context**: Bachelor Thesis - Active Learning & Epistemic Uncertainty Quantification in Random Forests (DyRF-BO)  
 **Date**: August 12, 2026  
 
