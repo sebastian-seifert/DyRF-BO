@@ -280,3 +280,74 @@ def test_paradigm_filtering_and_invalid_schedule(tmp_path):
     # Invalid schedule error check
     with pytest.raises(ValueError, match="Unknown schedule"):
         generate_bbsubset_lcb_sweep_tasks(schedules="invalid_schedule")
+
+
+def test_cli_argument_validators_and_error_handling(tmp_path):
+    """Test 13: Verify CLI parser rejects invalid argument types/values and succeeds on valid inputs."""
+    from scripts.generate_bbsubset_lcb_sweep_tasks import build_parser, positive_int, non_empty_path
+    import argparse
+
+    # Test validator helper functions directly
+    assert positive_int("5") == 5
+    with pytest.raises(argparse.ArgumentTypeError, match="positive integer"):
+        positive_int("0")
+    with pytest.raises(argparse.ArgumentTypeError, match="positive integer"):
+        positive_int("-3")
+    with pytest.raises(argparse.ArgumentTypeError, match="Invalid integer"):
+        positive_int("abc")
+
+    assert non_empty_path("results/tasks.txt") == "results/tasks.txt"
+    with pytest.raises(argparse.ArgumentTypeError, match="cannot be empty"):
+        non_empty_path("")
+    with pytest.raises(argparse.ArgumentTypeError, match="cannot be empty"):
+        non_empty_path("   ")
+
+    parser = build_parser()
+
+    # Invalid seed <= 0
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--seeds", "0"])
+
+    # Invalid trials <= 0
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--trials", "-10"])
+
+    # Empty output path
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--output-file", ""])
+
+    # Invalid schedule choice
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--schedules", "nonexistent"])
+
+    # Invalid paradigm choice
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--paradigm", "unknown_paradigm"])
+
+    # Valid CLI invocation parsing
+    out_file = str(tmp_path / "cli_tasks.txt")
+    runs_dir = str(tmp_path / "cli_runs")
+    baserundir = str(tmp_path / "cli_base")
+    args = parser.parse_args([
+        "-o", out_file,
+        "-r", runs_dir,
+        "-b", baserundir,
+        "-s", "2",
+        "-t", "20",
+        "-p", "baseline",
+        "--schedules", "constant"
+    ])
+    assert args.output_file == out_file
+    assert args.runs_dir == runs_dir
+    assert args.baserundir == baserundir
+    assert args.seeds == 2
+    assert args.trials == 20
+    assert args.paradigm == "baseline"
+    assert args.schedules == "constant"
+
+    # Verify parser help includes examples and description
+    help_text = parser.format_help()
+    assert "Examples:" in help_text or "usage" in help_text.lower()
+    assert "--schedules" in help_text
+    assert "--seeds" in help_text
+

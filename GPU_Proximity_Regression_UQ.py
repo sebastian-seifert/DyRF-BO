@@ -333,10 +333,11 @@ class GPUProximityRegressionUQ:
         """Deprecated: No-op to preserve interface compatibility."""
         pass
 
-    def compute_oob_nll(self, lmbda: float, n_neighbors: int = 20, sigma_0_sq: float = 1e-6, batch_size: int = 128) -> float:
+    def compute_oob_nll(self, lmbda: float, n_neighbors: int = 20, sigma_0_sq: float = 1e-6, batch_size: int = 256) -> float:
         """
         Computes the out-of-bag Negative Log-Likelihood (NLL) for a candidate lambda value
-        using a memory-safe chunked execution approach to prevent GPU/Host OOM.
+        using a memory-safe chunked execution approach (batch_size=256) to strictly limit
+        peak memory consumption O(B * N) and prevent GPU/Host OOM.
         """
         if not hasattr(self, "estimators"):
             self.fit()
@@ -435,7 +436,10 @@ class GPUProximityRegressionUQ:
             
         return float(nll_sum / n_eval)
 
-    def tune_lambda_oob(self, bounds=(0.001, 20.0), xtol=1e-4) -> float:
+    # Memory-bounded OOB NLL calculation alias
+    _compute_oob_nll = compute_oob_nll
+
+    def tune_lambda_oob(self, bounds=(0.001, 20.0), xtol=1e-4, batch_size: int = 256) -> float:
         """
         Dynamically finds the optimal continuous lambda* at step t 
         by minimizing the OOB Negative Log-Likelihood via Brent's method.
@@ -451,7 +455,7 @@ class GPUProximityRegressionUQ:
             return 1.0
 
         optimal_lambda = fminbound(
-            func=lambda lmbda: self.compute_oob_nll(lmbda),
+            func=lambda lmbda: self.compute_oob_nll(lmbda, batch_size=batch_size),
             x1=bounds[0],
             x2=bounds[1],
             xtol=xtol

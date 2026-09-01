@@ -320,13 +320,82 @@ def format_multi_budget_markdown(
     return "\n".join(lines)
 
 
+import argparse
+
+
+def positive_int(value: str) -> int:
+    """Type validator ensuring integer value is strictly positive (> 0)."""
+    try:
+        ivalue = int(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError(f"Invalid integer value: {value!r}")
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError(f"Value must be a positive integer (> 0), got {ivalue}")
+    return ivalue
+
+
+def non_empty_path(value: str) -> str:
+    """Type validator ensuring path argument is non-empty."""
+    if not value or not str(value).strip():
+        raise argparse.ArgumentTypeError("Path argument cannot be empty.")
+    return str(value).strip()
+
+
+def non_empty_str(value: str) -> str:
+    """Type validator ensuring string argument is non-empty."""
+    if not value or not str(value).strip():
+        raise argparse.ArgumentTypeError("String argument cannot be empty.")
+    return str(value).strip()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Builds and returns the configured argument parser with type validation and usage examples."""
+    parser = argparse.ArgumentParser(
+        description="Multi-budget horizon evaluator & statistical rank testing tool for CARP-S benchmarks.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Evaluate default parquet logs across standard horizons:
+  python scripts/evaluate_multi_budget_horizons.py results/noisy_sweep_analysis/logs.parquet
+
+  # Custom budget horizons and baseline:
+  python scripts/evaluate_multi_budget_horizons.py logs.csv --budgets 10 20 30 50 --baseline SMAC3_HPOFacade_ei
+
+  # Custom output report directory:
+  python scripts/evaluate_multi_budget_horizons.py logs.parquet --outdir results/my_budget_eval
+        """
+    )
+    parser.add_argument(
+        "logs_path",
+        nargs="?",
+        type=non_empty_path,
+        default="results/noisy_sweep_analysis/logs.parquet",
+        help="Path to logs.parquet or logs.csv (default: results/noisy_sweep_analysis/logs.parquet)"
+    )
+    parser.add_argument(
+        "--budgets",
+        nargs="+",
+        type=positive_int,
+        default=[11, 15, 20, 25, 35, 50],
+        help="List of positive budget trial cutoffs (> 0, default: 11 15 20 25 35 50)"
+    )
+    parser.add_argument(
+        "--baseline",
+        type=non_empty_str,
+        default="SMAC3_HPOFacade_ei",
+        help="Baseline optimizer ID for pairwise tests (default: SMAC3_HPOFacade_ei)"
+    )
+    parser.add_argument(
+        "--outdir",
+        type=non_empty_path,
+        default="results/multi_budget_analysis",
+        help="Output directory for reports (default: results/multi_budget_analysis)"
+    )
+    return parser
+
+
 def main():
-    import argparse
-    parser = argparse.ArgumentParser(description="Multi-budget horizon evaluator with statistical tests.")
-    parser.add_argument("logs_path", nargs="?", default="results/noisy_sweep_analysis/logs.parquet", help="Path to logs.parquet or logs.csv")
-    parser.add_argument("--budgets", nargs="+", type=int, default=[11, 15, 20, 25, 35, 50], help="List of budget trial cutoffs")
-    parser.add_argument("--baseline", default="SMAC3_HPOFacade_ei", help="Baseline optimizer ID for pairwise tests")
-    parser.add_argument("--outdir", default="results/multi_budget_analysis", help="Output directory for reports")
+    parser = build_parser()
     args = parser.parse_args()
     
     logs_file = Path(args.logs_path)

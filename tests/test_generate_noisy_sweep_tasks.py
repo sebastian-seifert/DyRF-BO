@@ -148,3 +148,103 @@ def test_telemetry_uniqueness_10_seeds(tmp_path):
         
     assert len(telemetry_paths) == 1280
     assert len(set(telemetry_paths)) == 1280
+
+
+def test_cli_argument_validators_and_error_handling(tmp_path):
+    """Verify CLI parser for noisy sweep tasks validates input constraints and fails on invalid inputs."""
+    from scripts.generate_noisy_sweep_tasks import (
+        build_parser,
+        positive_int,
+        positive_float,
+        bounded_float_0_1,
+        non_empty_path
+    )
+    import argparse
+
+    # Test validator helper functions directly
+    assert positive_int("10") == 10
+    with pytest.raises(argparse.ArgumentTypeError, match="positive integer"):
+        positive_int("0")
+    with pytest.raises(argparse.ArgumentTypeError, match="positive integer"):
+        positive_int("-1")
+    with pytest.raises(argparse.ArgumentTypeError, match="Invalid integer"):
+        positive_int("not_an_int")
+
+    assert positive_float("1.5") == 1.5
+    with pytest.raises(argparse.ArgumentTypeError, match="positive float"):
+        positive_float("0.0")
+    with pytest.raises(argparse.ArgumentTypeError, match="positive float"):
+        positive_float("-0.5")
+
+    assert bounded_float_0_1("0.2") == 0.2
+    assert bounded_float_0_1("0.0") == 0.0
+    assert bounded_float_0_1("1.0") == 1.0
+    with pytest.raises(argparse.ArgumentTypeError, match=r"\[0\.0, 1\.0\]"):
+        bounded_float_0_1("-0.1")
+    with pytest.raises(argparse.ArgumentTypeError, match=r"\[0\.0, 1\.0\]"):
+        bounded_float_0_1("1.1")
+
+    assert non_empty_path("results/tasks.txt") == "results/tasks.txt"
+    with pytest.raises(argparse.ArgumentTypeError, match="cannot be empty"):
+        non_empty_path("")
+    with pytest.raises(argparse.ArgumentTypeError, match="cannot be empty"):
+        non_empty_path("   ")
+
+    parser = build_parser()
+
+    # Invalid seed <= 0
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--seeds", "0"])
+
+    # Invalid trials <= 0
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--trials", "-5"])
+
+    # Invalid beta_max <= 0
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--beta-max", "0.0"])
+
+    # Invalid warmup_ratio > 1
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--warmup-ratio", "1.5"])
+
+    # Empty output path
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--output-file", ""])
+
+    # Invalid suite choice
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--suite", "invalid_suite"])
+
+    # Invalid paradigm choice
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--paradigm", "invalid_paradigm"])
+
+    # Valid CLI parsing
+    out_file = str(tmp_path / "cli_noisy_tasks.txt")
+    runs_dir = str(tmp_path / "cli_noisy_runs")
+    args = parser.parse_args([
+        "-o", out_file,
+        "-r", runs_dir,
+        "-s", "3",
+        "-t", "30",
+        "--suite", "hetgp",
+        "--paradigm", "additive",
+        "--beta-max", "2.0",
+        "--warmup-ratio", "0.25",
+    ])
+    assert args.output_file == out_file
+    assert args.runs_dir == runs_dir
+    assert args.seeds == 3
+    assert args.trials == 30
+    assert args.suite == "hetgp"
+    assert args.paradigm == "additive"
+    assert args.beta_max == 2.0
+    assert args.warmup_ratio == 0.25
+
+    # Help text verification
+    help_text = parser.format_help()
+    assert "Examples:" in help_text or "usage" in help_text.lower()
+    assert "--suite" in help_text
+    assert "--beta-max" in help_text
+

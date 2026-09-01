@@ -203,25 +203,90 @@ def generate_bbsubset_lcb_sweep_tasks(
     return lines
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate CARP-S tasks for BBsubset Dual-Schedule LCB Benchmark Sweep")
-    parser.add_argument("-o", "--output-file", type=str, default="results/sweep_bbsubset_lcb/tasks.txt",
-                        help="Path to output tasks.txt (default: results/sweep_bbsubset_lcb/tasks.txt)")
-    parser.add_argument("-r", "--runs-dir", type=str, default="results/bbsubset_lcb",
-                        help="Directory for telemetry JSON files (default: results/bbsubset_lcb)")
-    parser.add_argument("-b", "--baserundir", type=str, default="runs/bbsubset_runs",
-                        help="Root directory for CARP-S run outputs (default: runs/bbsubset_runs)")
-    parser.add_argument("-s", "--seeds", type=int, default=5,
-                        help="Number of random seeds (default: 5)")
-    parser.add_argument("-t", "--trials", type=int, default=50,
-                        help="Number of trials per run (default: 50)")
-    parser.add_argument("-p", "--paradigm", type=str, default="all",
-                        choices=["all", "baseline", "direct", "additive"],
-                        help="Filter optimizer paradigm (default: all)")
-    parser.add_argument("--schedules", type=str, default="both",
-                        choices=["both", "constant", "annealed"],
-                        help="Beta exploration schedules to generate (default: both)")
+def positive_int(value: str) -> int:
+    """Type validator ensuring integer value is strictly positive (> 0)."""
+    try:
+        ivalue = int(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError(f"Invalid integer value: {value!r}")
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError(f"Value must be a positive integer (> 0), got {ivalue}")
+    return ivalue
 
+
+def non_empty_path(value: str) -> str:
+    """Type validator ensuring path argument is non-empty."""
+    if not value or not str(value).strip():
+        raise argparse.ArgumentTypeError("Path argument cannot be empty.")
+    return str(value).strip()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Builds and returns the configured argument parser with type validation and usage examples."""
+    parser = argparse.ArgumentParser(
+        description="Generate CARP-S tasks for BBsubset Dual-Schedule LCB Benchmark Sweep.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Generate full dual-schedule benchmark (3,000 tasks):
+  python scripts/generate_bbsubset_lcb_sweep_tasks.py
+
+  # Generate constant schedule only with 10 seeds:
+  python scripts/generate_bbsubset_lcb_sweep_tasks.py --schedules constant --seeds 10
+
+  # Generate additive epistemic approaches only with custom output:
+  python scripts/generate_bbsubset_lcb_sweep_tasks.py --paradigm additive -o results/sweep_additive/tasks.txt
+        """
+    )
+    parser.add_argument(
+        "-o", "--output-file",
+        type=non_empty_path,
+        default="results/sweep_bbsubset_lcb/tasks.txt",
+        help="Path to output tasks.txt (default: results/sweep_bbsubset_lcb/tasks.txt)"
+    )
+    parser.add_argument(
+        "-r", "--runs-dir",
+        type=non_empty_path,
+        default="results/bbsubset_lcb",
+        help="Directory for telemetry JSON files (default: results/bbsubset_lcb)"
+    )
+    parser.add_argument(
+        "-b", "--baserundir",
+        type=non_empty_path,
+        default="runs/bbsubset_runs",
+        help="Root directory for CARP-S run outputs (default: runs/bbsubset_runs)"
+    )
+    parser.add_argument(
+        "-s", "--seeds",
+        type=positive_int,
+        default=5,
+        help="Number of random seeds (> 0, default: 5)"
+    )
+    parser.add_argument(
+        "-t", "--trials",
+        type=positive_int,
+        default=50,
+        help="Number of trials per run (> 0, default: 50)"
+    )
+    parser.add_argument(
+        "-p", "--paradigm",
+        type=str,
+        default="all",
+        choices=["all", "baseline", "direct", "additive"],
+        help="Filter optimizer paradigm (choices: %(choices)s; default: %(default)s)"
+    )
+    parser.add_argument(
+        "--schedules",
+        type=str,
+        default="both",
+        choices=["both", "constant", "annealed"],
+        help="Beta exploration schedules to generate (choices: %(choices)s; default: %(default)s)"
+    )
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
     tasks = generate_bbsubset_lcb_sweep_tasks(
         output_file=args.output_file,

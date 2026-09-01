@@ -47,15 +47,47 @@ class TestOOBLambdaTuning(unittest.TestCase):
             self.assertFalse(np.isnan(nll))
             self.assertFalse(np.isinf(nll))
 
-    def test_compute_oob_nll_chunking_parity(self):
-        """Verify that chunked OOB NLL calculation yields exactly the same values as larger batch sizes."""
+    def test_compute_oob_nll_alias_and_default_batch_size(self):
+        """Verify that _compute_oob_nll exists as an alias and matches compute_oob_nll with B=256 default."""
         uq_engine = GPUProximityRegressionUQ(
             self.rf, self.X_train, self.y_train, device="cpu", topological_decay_lambda=1.0
         )
-        # Force a tiny batch size to ensure multi-chunk loop executes
-        nll_chunked = uq_engine.compute_oob_nll(1.5, batch_size=5)
-        nll_full = uq_engine.compute_oob_nll(1.5, batch_size=1000)
-        self.assertAlmostEqual(nll_chunked, nll_full, places=6)
+        self.assertTrue(hasattr(uq_engine, "_compute_oob_nll"))
+        nll_public = uq_engine.compute_oob_nll(1.2)
+        nll_private = uq_engine._compute_oob_nll(1.2)
+        nll_b256 = uq_engine.compute_oob_nll(1.2, batch_size=256)
+        self.assertEqual(nll_public, nll_private)
+        self.assertEqual(nll_public, nll_b256)
+
+    def test_compute_oob_nll_chunking_parity(self):
+        """Verify that chunked OOB NLL calculation yields exactly the same values across multiple batch sizes."""
+        uq_engine = GPUProximityRegressionUQ(
+            self.rf, self.X_train, self.y_train, device="cpu", topological_decay_lambda=1.0
+        )
+        # Check parity across varied chunk batch sizes: 1, 5, 16, 64, 256, 1000
+        nll_ref = uq_engine.compute_oob_nll(1.5, batch_size=1000)
+        for b_size in [1, 5, 16, 64, 256]:
+            nll_chunked = uq_engine.compute_oob_nll(1.5, batch_size=b_size)
+            self.assertAlmostEqual(nll_chunked, nll_ref, places=6)
+
+    def test_oob_chunking_memory_stability_large_sample(self):
+        """Verify that OOB NLL calculation with B=256 runs stably without OOM on larger sample size (N=600)."""
+        np.random.seed(42)
+        X_large = np.random.uniform(0.0, 10.0, size=(600, 3))
+        y_large = np.sin(X_large[:, 0]) + 0.5 * np.cos(X_large[:, 1]) + np.random.normal(0, 0.1, size=600)
+        rf_large = RandomForestRegressor(n_estimators=15, min_samples_leaf=3, oob_score=True, random_state=42)
+        rf_large.fit(X_large, y_large)
+
+        uq_large = GPUProximityRegressionUQ(
+            rf_large, X_large, y_large, device="cpu", topological_decay_lambda=1.0
+        )
+        # Compute with default B=256 and small B=64 chunking
+        nll_256 = uq_large._compute_oob_nll(1.0, batch_size=256)
+        nll_64 = uq_large._compute_oob_nll(1.0, batch_size=64)
+        self.assertIsInstance(nll_256, float)
+        self.assertFalse(np.isnan(nll_256))
+        self.assertFalse(np.isinf(nll_256))
+        self.assertAlmostEqual(nll_256, nll_64, places=6)
 
 
     def test_tune_lambda_oob_converges_within_bounds(self):

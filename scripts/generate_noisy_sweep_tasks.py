@@ -204,21 +204,118 @@ def generate_noisy_sweep_tasks(
     return lines
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Generate CARP-S tasks for Noisy Benchmark EI Head-to-Head Sweep")
-    parser.add_argument("-o", "--output-file", type=str, default="results/sweep_noisy_ei_head_to_head/tasks.txt",
-                        help="Path to output tasks.txt")
-    parser.add_argument("-r", "--runs-dir", type=str, default="results/sweep_noisy_ei_head_to_head/runs",
-                        help="Directory for telemetry JSON files")
-    parser.add_argument("-s", "--seeds", type=int, default=10, help="Number of random seeds (default: 10)")
-    parser.add_argument("-t", "--trials", type=int, default=50, help="Number of trials per run (default: 50)")
-    parser.add_argument("--suite", type=str, default="all", choices=["all", "hetgp", "bbob"],
-                        help="Filter benchmark suite")
-    parser.add_argument("--paradigm", type=str, default="all", choices=["all", "baseline", "direct", "additive"],
-                        help="Filter optimizer paradigm")
-    parser.add_argument("--beta-max", type=float, default=1.0, help="Max additive beta parameter")
-    parser.add_argument("--warmup-ratio", type=float, default=0.20, help="Warmup ratio for beta schedule")
+def positive_int(value: str) -> int:
+    """Type validator ensuring integer value is strictly positive (> 0)."""
+    try:
+        ivalue = int(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError(f"Invalid integer value: {value!r}")
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError(f"Value must be a positive integer (> 0), got {ivalue}")
+    return ivalue
 
+
+def positive_float(value: str) -> float:
+    """Type validator ensuring float value is strictly positive (> 0.0)."""
+    try:
+        fvalue = float(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError(f"Invalid float value: {value!r}")
+    if fvalue <= 0.0:
+        raise argparse.ArgumentTypeError(f"Value must be a positive float (> 0.0), got {fvalue}")
+    return fvalue
+
+
+def bounded_float_0_1(value: str) -> float:
+    """Type validator ensuring float value is within [0.0, 1.0]."""
+    try:
+        fvalue = float(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError(f"Invalid float value: {value!r}")
+    if not (0.0 <= fvalue <= 1.0):
+        raise argparse.ArgumentTypeError(f"Value must be in range [0.0, 1.0], got {fvalue}")
+    return fvalue
+
+
+def non_empty_path(value: str) -> str:
+    """Type validator ensuring path argument is non-empty."""
+    if not value or not str(value).strip():
+        raise argparse.ArgumentTypeError("Path argument cannot be empty.")
+    return str(value).strip()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Builds and returns the configured argument parser with type validation and usage examples."""
+    parser = argparse.ArgumentParser(
+        description="Generate CARP-S tasks for Noisy Benchmark EI Head-to-Head Sweep (BBOB-Noisy & hetGP).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Generate full noisy benchmark suite (1,280 tasks with 10 seeds):
+  python scripts/generate_noisy_sweep_tasks.py
+
+  # Generate hetGP benchmarks only with 30 seeds:
+  python scripts/generate_noisy_sweep_tasks.py --suite hetgp --seeds 30
+
+  # Generate decoupled additive epistemic approaches only with custom beta:
+  python scripts/generate_noisy_sweep_tasks.py --paradigm additive --beta-max 2.0 --warmup-ratio 0.25
+        """
+    )
+    parser.add_argument(
+        "-o", "--output-file",
+        type=non_empty_path,
+        default="results/sweep_noisy_ei_head_to_head/tasks.txt",
+        help="Path to output tasks.txt (default: results/sweep_noisy_ei_head_to_head/tasks.txt)"
+    )
+    parser.add_argument(
+        "-r", "--runs-dir",
+        type=non_empty_path,
+        default="results/sweep_noisy_ei_head_to_head/runs",
+        help="Directory for telemetry JSON files (default: results/sweep_noisy_ei_head_to_head/runs)"
+    )
+    parser.add_argument(
+        "-s", "--seeds",
+        type=positive_int,
+        default=10,
+        help="Number of random seeds (> 0, default: 10)"
+    )
+    parser.add_argument(
+        "-t", "--trials",
+        type=positive_int,
+        default=50,
+        help="Number of trials per run (> 0, default: 50)"
+    )
+    parser.add_argument(
+        "--suite",
+        type=str,
+        default="all",
+        choices=["all", "hetgp", "bbob"],
+        help="Filter benchmark suite (choices: %(choices)s; default: %(default)s)"
+    )
+    parser.add_argument(
+        "--paradigm",
+        type=str,
+        default="all",
+        choices=["all", "baseline", "direct", "additive"],
+        help="Filter optimizer paradigm (choices: %(choices)s; default: %(default)s)"
+    )
+    parser.add_argument(
+        "--beta-max",
+        type=positive_float,
+        default=1.0,
+        help="Max additive beta parameter (> 0.0, default: 1.0)"
+    )
+    parser.add_argument(
+        "--warmup-ratio",
+        type=bounded_float_0_1,
+        default=0.20,
+        help="Warmup ratio for beta schedule in [0.0, 1.0] (default: 0.20)"
+    )
+    return parser
+
+
+def main():
+    parser = build_parser()
     args = parser.parse_args()
     tasks = generate_noisy_sweep_tasks(
         output_file=args.output_file,

@@ -162,3 +162,68 @@ def test_evaluate_multi_budget_statistical_matrix(synthetic_multibudget_logs):
     assert 50 in matrix_report
     assert matrix_report[15]["friedman_p"] < 0.05
     assert matrix_report[50]["friedman_p"] < 0.05
+
+
+def test_cli_argument_validators_and_error_handling(tmp_path):
+    """Verify CLI parser for multi-budget evaluation validates input constraints and fails on invalid inputs."""
+    from scripts.evaluate_multi_budget_horizons import (
+        build_parser,
+        positive_int,
+        non_empty_path,
+        non_empty_str
+    )
+    import argparse
+
+    # Test validators directly
+    assert positive_int("25") == 25
+    with pytest.raises(argparse.ArgumentTypeError, match="positive integer"):
+        positive_int("0")
+    with pytest.raises(argparse.ArgumentTypeError, match="positive integer"):
+        positive_int("-10")
+    with pytest.raises(argparse.ArgumentTypeError, match="Invalid integer"):
+        positive_int("abc")
+
+    assert non_empty_path("results/logs.parquet") == "results/logs.parquet"
+    with pytest.raises(argparse.ArgumentTypeError, match="cannot be empty"):
+        non_empty_path("")
+    with pytest.raises(argparse.ArgumentTypeError, match="cannot be empty"):
+        non_empty_path("   ")
+
+    assert non_empty_str("SMAC3_HPOFacade_ei") == "SMAC3_HPOFacade_ei"
+    with pytest.raises(argparse.ArgumentTypeError, match="cannot be empty"):
+        non_empty_str("")
+    with pytest.raises(argparse.ArgumentTypeError, match="cannot be empty"):
+        non_empty_str("   ")
+
+    parser = build_parser()
+
+    # Invalid budget <= 0
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--budgets", "10", "0", "50"])
+
+    # Empty outdir
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--outdir", ""])
+
+    # Empty baseline
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--baseline", ""])
+
+    # Valid CLI arguments parsing
+    args = parser.parse_args([
+        "my_logs.parquet",
+        "--budgets", "15", "30", "50",
+        "--baseline", "MyBaseline",
+        "--outdir", str(tmp_path / "reports")
+    ])
+    assert args.logs_path == "my_logs.parquet"
+    assert args.budgets == [15, 30, 50]
+    assert args.baseline == "MyBaseline"
+    assert args.outdir == str(tmp_path / "reports")
+
+    # Help text verification
+    help_text = parser.format_help()
+    assert "Examples:" in help_text or "usage" in help_text.lower()
+    assert "--budgets" in help_text
+    assert "--baseline" in help_text
+
