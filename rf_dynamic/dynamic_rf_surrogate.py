@@ -57,6 +57,11 @@ class DynamicRFSurrogate:
         # Get next parameters (static base parameters if enable_adaptation=False)
         min_samples_leaf, max_features = self.adaptor.get_next_parameters()
         
+        # Enforce strict parameter bounds for small dataset sizes (e.g. initial Sobol warmup)
+        max_allowed_leaf = max(1, self.n_samples // 2)
+        safe_min_samples_leaf = max(1, min(int(min_samples_leaf), max_allowed_leaf))
+        safe_max_features = min(1.0, max(0.1, float(max_features)))
+
         # Pre-enable oob_score for proximity extractors to prevent double fitting
         rf_kwargs = dict(self.rf_kwargs)
         if "proximity" in self.extractor_name:
@@ -64,8 +69,8 @@ class DynamicRFSurrogate:
 
         # Instantiate and fit the RF model
         self.model = RandomForestRegressor(
-            min_samples_leaf=min_samples_leaf,
-            max_features=max_features,
+            min_samples_leaf=safe_min_samples_leaf,
+            max_features=safe_max_features,
             **rf_kwargs
         )
         self.model.fit(X, y)

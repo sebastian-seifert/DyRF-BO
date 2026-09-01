@@ -104,7 +104,8 @@ class EpistemicQuantifier:
             
             # Compute unbiased variance: s^2 = impurity * (N / (N - 1))
             # If N <= 1, variance is 0.0
-            scale = np.where(n_node_samples > 1, n_node_samples / (n_node_samples - 1), 0.0)
+            denom = np.maximum(n_node_samples - 1.0, 1.0)
+            scale = np.where(n_node_samples > 1, n_node_samples / denom, 0.0)
             variances[t, :] = impurity * scale + min_var
             
         return variances

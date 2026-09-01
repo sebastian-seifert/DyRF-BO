@@ -73,7 +73,8 @@ class CredalRegressionUQ:
             means[i, :] = node_means[test_leaf_ids]
             
             n_samples_node = node_samples[test_leaf_ids]
-            scale = np.where(n_samples_node > 1, n_samples_node / (n_samples_node - 1), 0.0)
+            denom = np.maximum(n_samples_node - 1.0, 1.0)
+            scale = np.where(n_samples_node > 1, n_samples_node / denom, 0.0)
             variances[i, :] = node_impurities[test_leaf_ids] * scale + min_var
             
             counts[i, :] = n_samples_node
