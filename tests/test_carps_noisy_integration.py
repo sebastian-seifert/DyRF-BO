@@ -48,6 +48,24 @@ def test_carps_noisy_objective_evaluation():
     assert "noise_residual" in trial_val.additional_info
 
 
+def test_noisy_objective_rng_stream_progression():
+    """Verify consecutive evaluations with identical TrialInfo seed advance the internal RNG stream."""
+    obj_fn = CARPSNoisyObjectiveFunction(problem_name="hetgp_yuan_wahba_1d", seed=42)
+    cs = obj_fn.configspace
+    cfg = cs.sample_configuration()
+
+    residuals = []
+    for _ in range(5):
+        trial_info = TrialInfo(config=cfg, seed=42)
+        trial_val = obj_fn.evaluate(trial_info)
+        residuals.append(trial_val.additional_info["noise_residual"])
+
+    # Consecutive draws at identical config and trial_info.seed should NOT produce identical noise
+    residuals = np.array(residuals)
+    assert len(np.unique(residuals)) > 1, f"Expected independent stochastic noise draws, but got identical values: {residuals}"
+    assert np.var(residuals) > 1e-5
+
+
 # =====================================================================
 # 2. End-to-End CARP-S Hydra CLI Execution Tests
 # =====================================================================

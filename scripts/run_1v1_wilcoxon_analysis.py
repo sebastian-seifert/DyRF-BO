@@ -328,13 +328,12 @@ class StatisticalAnalysisEngine:
         wins, ties, losses = 0, 0, 0
         cand_means, base_means = [], []
         cand_ranks, base_ranks = [], []
-
         for i, entry in enumerate(task_entries):
             p_raw = entry["p_raw"]
             p_holm = p_holm_list[i]
             p_bh = p_bh_list[i]
             r_rb = entry["r_rb"]
-            is_sig = bool(p_raw < self.alpha)
+            is_sig = bool(p_holm < self.alpha)
 
             if is_sig and r_rb < 0:
                 decision = "WIN"

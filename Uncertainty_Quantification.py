@@ -538,7 +538,9 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
         results[app] = {"auroc": None, "fpr95": None, "aupr": None, "spearman": None, "brier": None, "mi": None, "jsd": None, "naurc": None, "nlpd": None}
 
         # Calculate NLPD: total_var = epistemic + aleatoric
-        if app in u_a_credal_dict and u_a_credal_dict[app] is not None:
+        if app.startswith("Proximity"):
+            total_var = (u_e ** 2) + u_a
+        elif app in u_a_credal_dict and u_a_credal_dict[app] is not None:
             total_var = u_e + u_a_credal_dict[app]
         else:
             total_var = u_e + u_a

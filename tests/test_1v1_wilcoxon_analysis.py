@@ -223,3 +223,41 @@ def test_exporters(synthetic_task_data, tmp_path):
     assert isinstance(rich_output, str)
     assert "Cand_Good" in rich_output
     assert "Base_Ref" in rich_output
+
+
+def test_decision_uses_holm_bonferroni_adjusted_p():
+    """Verify that WIN/LOSS decisions strictly use Holm-Bonferroni adjusted p-values (p_holm < alpha)."""
+    # Create 3 tasks:
+    # Task 1: highly significant win (p_raw very small -> p_holm < 0.05 -> WIN)
+    # Task 2: marginal difference with 0.03 < p_raw < 0.05. With 3 tasks, p_holm = 0.03 * 2 = 0.06 > 0.05 -> TIE
+    # Task 3: exact tie (p_raw = 1.0)
+    paired_data = {
+        "task_highly_sig": (
+            np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]),
+            np.array([0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9])
+        ),
+        "task_marginal": (
+            np.array([0.48, 0.49, 0.47, 0.46, 0.45, 0.44, 0.50, 0.43]),
+            np.array([0.52, 0.51, 0.53, 0.54, 0.55, 0.56, 0.50, 0.57])
+        ),
+        "task_tied": (
+            np.array([0.5, 0.5, 0.5, 0.5]),
+            np.array([0.5, 0.5, 0.5, 0.5])
+        )
+    }
+    
+    engine = StatisticalAnalysisEngine(alpha=0.05)
+    task_results, aggregate = engine.analyze_1v1(paired_data, "Cand", "Base")
+    
+    res_dict = {r.task_id: r for r in task_results}
+    
+    # Check task_highly_sig
+    assert res_dict["task_highly_sig"].p_holm < 0.05
+    assert res_dict["task_highly_sig"].decision == "WIN"
+    
+    # Check that any task where p_raw < 0.05 but p_holm >= 0.05 is classified as TIE
+    for r in task_results:
+        if r.p_holm >= 0.05:
+            assert r.decision == "TIE", f"Task {r.task_id} with p_holm={r.p_holm:.4f} >= 0.05 must be TIE, got {r.decision}"
+        else:
+            assert r.decision in ["WIN", "LOSS"], f"Task {r.task_id} with p_holm={r.p_holm:.4f} < 0.05 must be WIN or LOSS, got {r.decision}"

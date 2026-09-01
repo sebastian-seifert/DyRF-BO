@@ -1,6 +1,11 @@
+import os
+import sys
 import unittest
 import numpy as np
 from scipy.stats import norm
+
+# Ensure project root is in sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 class TestAcquisitionFunctions(unittest.TestCase):
     def setUp(self):
@@ -68,6 +73,36 @@ class TestAcquisitionFunctions(unittest.TestCase):
         from carps_integration.acquisitions import AcquisitionRegistry
         with self.assertRaises(ValueError):
             AcquisitionRegistry.get("invalid_acq_name")
+
+    def test_additive_lcb_translation_invariance(self):
+        """Verify Additive LCB acquisition is invariant under arbitrary objective translation (shifts)."""
+        from carps_integration.acquisitions import LowerConfidenceBound, AdditiveEpistemicAcquisition
+
+        base_lcb = LowerConfidenceBound(beta=2.0)
+        additive_lcb = AdditiveEpistemicAcquisition(base_acq=base_lcb)
+
+        preds = np.array([1.0, 2.0, 0.5, 3.0])
+        unc_tot = np.array([0.5, 1.0, 0.1, 0.2])
+        u_ep = np.array([0.2, 0.8, 0.1, 0.5])
+        y_best = 1.0
+        beta_t = 1.5
+
+        scores_orig = additive_lcb.compute_additive(preds, unc_tot, u_ep, y_best=y_best, beta_t=beta_t)
+
+        # Shift by large positive and large negative offsets
+        for offset in [+10000.0, -10000.0, +1e6, -1e6]:
+            preds_shifted = preds + offset
+            y_best_shifted = y_best + offset
+            scores_shifted = additive_lcb.compute_additive(
+                preds_shifted, unc_tot, u_ep, y_best=y_best_shifted, beta_t=beta_t
+            )
+            np.testing.assert_allclose(
+                scores_shifted,
+                scores_orig,
+                rtol=1e-6,
+                atol=1e-6,
+                err_msg=f"Additive LCB scores failed translation invariance for offset={offset}"
+            )
 
 if __name__ == "__main__":
     unittest.main()

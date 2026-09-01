@@ -97,11 +97,10 @@ class AdditiveEpistemicAcquisition(BaseAcquisitionFunction):
         beta_t: float = 1.0
     ) -> np.ndarray:
         raw_base = self.base_acq.compute(preds, unc_tot, y_best)
-        # Shift LCB if negative so max_relative normalization functions cleanly for argmax
+        # Shift LCB unconditionally so min is 0.0, preserving translation invariance under max_relative normalization
         if isinstance(self.base_acq, LowerConfidenceBound):
             min_base = np.min(raw_base) if len(raw_base) > 0 else 0.0
-            if min_base < 0:
-                raw_base = raw_base - min_base
+            raw_base = raw_base - min_base
                 
         norm_base = normalize_max_relative(raw_base, eps=self.eps)
         norm_ep = normalize_max_relative(u_epistemic, eps=self.eps)

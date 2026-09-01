@@ -107,9 +107,17 @@ def test_bbob_noisy_evaluation_structure():
 # =====================================================================
 
 def test_hetgp_yuan_wahba():
-    """Test Yuan-Wahba 1D mathematical formula and input-dependent noise."""
+    """Test Yuan-Wahba 1D mathematical formula, analytical optimum, and input-dependent noise."""
     problem = HetGPProblem(func_name="yuan_wahba", seed=42)
     assert problem.metadata.dimension == 1
+    assert problem.metadata.x_optimum is not None
+    assert np.allclose(problem.metadata.x_optimum, np.array([1.0]))
+    assert np.isclose(problem.metadata.f_optimum, 2.0 * np.sin(4.0))
+    
+    # Verify evaluate_true at x_opt matches metadata f_optimum
+    f_opt_eval = problem.evaluate_true(problem.metadata.x_optimum)
+    assert np.isclose(f_opt_eval, problem.metadata.f_optimum)
+    assert np.isclose(f_opt_eval, 2.0 * np.sin(4.0))
     
     # f(0) = 0, sigma(0) = 0.5 + 1.0 * 0.5 * (1 + 1) = 1.5
     f_0 = problem.evaluate_true(np.array([0.0]))
@@ -146,8 +154,16 @@ def test_hetgp_branin_varying_noise():
 
 
 def test_hetgp_goldstein_price_noise_peak():
-    """Test that Goldstein-Price has a noise peak directly at the global optimum."""
+    """Test that Goldstein-Price has exact log10(3.0) optimum and noise peak at optimum."""
     problem = HetGPProblem(func_name="goldstein_price", seed=42)
+    assert problem.metadata.x_optimum is not None
+    assert np.allclose(problem.metadata.x_optimum, np.array([0.0, -1.0]))
+    assert np.isclose(problem.metadata.f_optimum, np.log10(3.0))
+
+    f_opt_eval = problem.evaluate_true(problem.metadata.x_optimum)
+    assert np.isclose(f_opt_eval, problem.metadata.f_optimum)
+    assert np.isclose(f_opt_eval, np.log10(3.0))
+
     opt = np.array([0.0, -1.0])
     off_opt = np.array([1.5, 1.5])
     

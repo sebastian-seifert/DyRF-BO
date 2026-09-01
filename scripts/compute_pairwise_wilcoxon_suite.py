@@ -148,9 +148,8 @@ def compute_wilcoxon_suite(
         raw_p_subset = df_vs_base.loc[mask, "p_raw"].values
         adj_subset = apply_holm_bonferroni(raw_p_subset)
         df_vs_base.loc[mask, "Holm-Bonferroni adj p"] = adj_subset
-        
-    df_vs_base["Significance (p < 0.05)"] = df_vs_base["p_raw"].apply(lambda p: "Significant (*)" if p < 0.05 else ("Borderline" if p < 0.10 else "Non-significant"))
-    df_vs_base = df_vs_base.sort_values(["Paradigm", "p_raw"]).reset_index(drop=True)
+    df_vs_base["Significance (adj p < 0.05)"] = df_vs_base["Holm-Bonferroni adj p"].apply(lambda p: "Significant (*)" if p < 0.05 else ("Borderline" if p < 0.10 else "Non-significant"))
+    df_vs_base = df_vs_base.sort_values(["Paradigm", "Holm-Bonferroni adj p", "p_raw"]).reset_index(drop=True)
     
     # Save Pairwise vs Baseline Tables
     formatted_vs_base = df_vs_base.copy()

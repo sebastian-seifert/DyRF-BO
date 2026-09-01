@@ -44,8 +44,7 @@ class CARPSNoisyObjectiveFunction(ObjectiveFunction):
         """Evaluates noisy objective function and populates trial values and ground truth telemetry."""
         starttime = time.time()
         x = self.problem.config_to_vector(trial_info.config)
-        eval_rng = np.random.default_rng(trial_info.seed) if trial_info.seed is not None else self.problem.rng
-        res = self.problem.evaluate(x, trial_idx=int(self.n_trials), rng=eval_rng)
+        res = self.problem.evaluate(x, trial_idx=int(self.n_trials), rng=self.problem.rng)
         endtime = time.time()
 
         return TrialValue(

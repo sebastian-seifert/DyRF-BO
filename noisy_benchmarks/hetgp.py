@@ -32,8 +32,8 @@ class HetGPProblem(NoisyBenchmarkProblem):
             dimension = 1
             lower_bounds = np.array([0.0], dtype=float)
             upper_bounds = np.array([1.0], dtype=float)
-            f_opt = -1.97906
-            x_opt = np.array([0.81395])
+            f_opt = float(2.0 * np.sin(4.0))
+            x_opt = np.array([1.0], dtype=float)
             desc = "Yuan-Wahba 1D with cos(4x) heteroscedastic noise"
 
         elif self.func_name == "branin":
@@ -49,8 +49,8 @@ class HetGPProblem(NoisyBenchmarkProblem):
             dimension = 2
             lower_bounds = np.array([-2.0, -2.0], dtype=float)
             upper_bounds = np.array([2.0, 2.0], dtype=float)
-            f_opt = 3.0  # In log10 space, log10(3) = 0.47712
-            x_opt = np.array([0.0, -1.0])
+            f_opt = float(np.log10(3.0))
+            x_opt = np.array([0.0, -1.0], dtype=float)
             desc = "Heteroscedastic Goldstein-Price 2D with noise peak at optimum"
 
         elif self.func_name == "sinusoid":

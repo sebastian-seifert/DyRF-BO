@@ -26,14 +26,15 @@ class CustomUncertaintyRandomForest(RandomForest):
     def train(self, X: np.ndarray, y: np.ndarray) -> "CustomUncertaintyRandomForest":
         """Fits standard SMAC3 Random Forest and the custom uncertainty extractor/function."""
         super().train(X, y)
-        self.last_X = X
+        X_clean = self._impute_inactive(X)
+        self.last_X = X_clean
         self.last_y = y.flatten() if y is not None else None
         
         # SMAC3's self._rf is an EPMRandomForest (subclass of sklearn RandomForestRegressor).
         # We pass self._rf directly into UQExtractorRegistry with zero secondary model retraining overhead!
         if isinstance(self.uncertainty_func, str) and self._rf is not None:
             self.uq_extractor = UQExtractorRegistry.get(self.uncertainty_func, self._rf)
-            self.uq_extractor.fit(X, self.last_y)
+            self.uq_extractor.fit(X_clean, self.last_y)
         return self
 
     def _predict(self, X: np.ndarray, covariance_type: str | None = "diagonal") -> tuple[np.ndarray, np.ndarray]:
