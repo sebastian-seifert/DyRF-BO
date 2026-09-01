@@ -1,7 +1,28 @@
 # Gemini Sessions Log
 
-## Session: 2026-08-31 (Noisy Sweep Ingestion, Multi-Budget Statistical Analysis & CARP-S BBsubset Dual-Schedule LCB Architecture)
-* **Goal**: Debug CARP-S remote data gathering issues, pull cluster sweep results (1,280 runs), analyze anytime performance trajectories, implement multi-budget statistical rank testing (Friedman + Holm-Bonferroni Wilcoxon), and execute complete multi-agent design & implementation for the CARP-S BBsubset Dual-Schedule (Constant vs. Annealed) Lower Confidence Bound (LCB) benchmark sweep (3,000 runs).
+## Session: 2026-09-01 (Comprehensive Codebase Audit, Tier 1 & Tier 2 Academic Defense Fixes)
+* **Goal**: Perform comprehensive 4-area codebase audit (Epistemic UQ, BO/SMAC3 Integration, Benchmarks & Infrastructure, Repository Presentation), categorize findings into 4 tiers, and execute complete TDD-driven implementations for all Tier 1 (Critical) and Tier 2 (High Importance) fixes.
+
+### Accomplishments
+1. **Multi-Agent Codebase Audit (4 Specialized Reviewers)**:
+   - Evaluated mathematical rigor (98/100), BO architecture (92/100), and repository cleanliness (68/100).
+   - Identified 4 Tier 1 (Critical) and 9 Tier 2 (High Importance) items for academic defense readiness.
+2. **Tier 1 Critical Fixes Executed & Verified (Branch `feat/tier1-critical-fixes` -> Merged `ae4f274`)**:
+   - Fixed Schwefel BBOB search domain scaling $z = 100 \cdot x$ inside `evaluate_true` and aligned optimum $x^* = (4.20968746, \dots) \in [-5, 5]^d$ with $f^* = 0.0$ ([`noisy_benchmarks/bbob.py`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/noisy_benchmarks/bbob.py)).
+   - Implemented `_compute_baseline_density(self)` in [`GPU_Proximity_Regression_UQ.py`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/GPU_Proximity_Regression_UQ.py) & [`ep_extractors/proximity_auto_lambda.py`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/ep_extractors/proximity_auto_lambda.py), eliminating the frozen baseline density bug post-tuning.
+   - Sanitized author metadata in [`proofs/chen_variance_equivalence_proof.md`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/proofs/chen_variance_equivalence_proof.md) (`Sebastian Seifert`).
+   - Deleted unrelated exam script `scratch/deleteTS.py`.
+   - Verified with 44/44 unit tests GREEN (100% pass).
+3. **Tier 2 High Importance Fixes Executed & Verified (Branch `feat/tier2-fixes` -> Merged `11d4ca9`)**:
+   - Environment & Git Hygiene: Updated [`requirements.txt`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/requirements.txt) with `ConfigSpace`, `pyarrow`, `fastparquet`, `hydra-core`, `omegaconf`, `scikit-posthocs`, `seaborn`, `tabulate`. Added `smac3_output/`, `*.parquet`, `*.tar.gz`, `*.log`, `results/**/logs/` to [`.gitignore`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/.gitignore).
+   - SMAC3 Hierarchical Space Imputation: Passed `_impute_inactive(X)` to `uq_extractor.fit()` in [`CustomUncertaintyRandomForest`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/carps_integration/custom_uncertainty_model.py).
+   - LCB Translation Invariance: Applied unconditional min-max floor shifting for LCB in [`AdditiveEpistemicAcquisition`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/carps_integration/acquisitions.py).
+   - Noisy RNG Stream Progression: Maintained persistent PRNG state across iterations via `self.problem.rng` in [`carps_integration/noisy_objective.py`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/carps_integration/noisy_objective.py).
+   - UQ NLPD Consistency: Squared proximity epistemic uncertainty in `total_var = (u_e ** 2) + u_a` in [`Uncertainty_Quantification.py`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/Uncertainty_Quantification.py).
+   - hetGP Benchmark Ground-Truth: Corrected Goldstein-Price $f_{\text{opt}} = \log_{10}(3.0)$ and Yuan-Wahba 1D $x_{\text{opt}}=1.0, f_{\text{opt}}=2\sin(4.0)$ in [`noisy_benchmarks/hetgp.py`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/noisy_benchmarks/hetgp.py).
+   - Statistical Multiplicity: Enforced `p_holm < alpha` decision rule for WIN/LOSS/TIE classifications in [`scripts/run_1v1_wilcoxon_analysis.py`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/scripts/run_1v1_wilcoxon_analysis.py) and [`scripts/compute_pairwise_wilcoxon_suite.py`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/scripts/compute_pairwise_wilcoxon_suite.py).
+   - Documentation: Enriched [`README.md`](file:///home/sebastians/Projects/university/bachelorthesis/DyRF-BO/README.md) with comprehensive installation instructions, architecture overview, and figure reproduction commands.
+   - Verified with 50/50 unit tests GREEN (100% pass).
 
 ### Accomplishments
 1. **Cluster Data Gathering Resolution**:
