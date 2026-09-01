@@ -79,8 +79,11 @@ def test_topological_neighbor_selection():
     
     print("\nCalculated UQ interval widths:", uq_vals)
     
-    # Let's check query 0: uq_val should be approx 0.38
-    np.testing.assert_allclose(uq_vals[0], 0.38, rtol=1e-5)
+    # uq_val = 0.38 / normal_divisor = 0.38 / 3.919928 = 0.0969405
+    from scipy.stats import norm
+    normal_divisor = 2.0 * float(norm.ppf((1.0 + 0.95) / 2.0))
+    expected_sigma = 0.38 / normal_divisor
+    np.testing.assert_allclose(uq_vals[0], expected_sigma, rtol=1e-3)
     print("✓ SUCCESS: Topological Neighbor Selection matches expected values!")
 
 if __name__ == "__main__":

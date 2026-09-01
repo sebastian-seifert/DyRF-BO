@@ -11,7 +11,16 @@ import glob
 from pathlib import Path
 from carps.analysis.gather_data import filelogs_to_df
 
-def gather_additive_carps_data(runs_base: str = "runs", outdir: str = "results/bbsubset_additive_analysis"):
+def gather_additive_carps_data(
+    runs_base: str = "runs",
+    outdir: str = "results/bbsubset_additive_analysis",
+) -> None:
+    """Collects and normalizes CARP-S additive epistemic hybrid run logs into structured dataframes.
+
+    Args:
+        runs_base: Base directory where CARP-S execution logs are stored.
+        outdir: Destination directory for the generated CSV/parquet tables.
+    """
     runs_path = Path(runs_base)
     if not runs_path.exists():
         print(f"Error: Base runs directory '{runs_base}' does not exist.")

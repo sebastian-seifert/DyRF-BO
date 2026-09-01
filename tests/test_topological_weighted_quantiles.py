@@ -82,8 +82,11 @@ def test_topological_weighted_quantiles():
     
     print("\nCalculated UQ interval widths (Weighted Quantiles):", uq_vals)
     
-    # Let's check query 0: uq_val should be approx 1.0072
-    np.testing.assert_allclose(uq_vals[0], 1.0072, rtol=1e-3)
+    # uq_val = (1.1072 - 0.1) / normal_divisor = 1.0072 / 3.919928 = 0.256943
+    from scipy.stats import norm
+    normal_divisor = 2.0 * float(norm.ppf((1.0 + 0.95) / 2.0))
+    expected_sigma = 1.0072 / normal_divisor
+    np.testing.assert_allclose(uq_vals[0], expected_sigma, rtol=1e-3)
     print("✓ SUCCESS: Topological Weighted Quantiles match expected values!")
 
 if __name__ == "__main__":

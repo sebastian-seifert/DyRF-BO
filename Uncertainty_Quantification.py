@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from typing import Any, Dict, List, Optional, Tuple, Union
 # Reconfigure stdout and stderr to UTF-8 to prevent encoding errors on cluster environments with non-UTF-8 locales
 if sys.stdout is not None:
     try:
@@ -49,10 +50,27 @@ Evaluation Metric: Correlation with Error in Out-of-Distribution (OOD) regions.
 
 
 
-def plot_uncertainty(name, X_test, y_test, y_pred, var_pred, X_train, y_train):
-    """
-    Visualizes the prediction mean and the uncertainty bands.
+def plot_uncertainty(
+    name: str,
+    X_test: np.ndarray,
+    y_test: np.ndarray,
+    y_pred: np.ndarray,
+    var_pred: np.ndarray,
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+) -> None:
+    """Visualizes the surrogate prediction mean and uncertainty bands.
+
     Shaded area represents 2 standard deviations (approx 95% confidence).
+
+    Args:
+        name: Benchmark identifier for plot titles and saved artifacts.
+        X_test: Test input query points of shape (n_test, d).
+        y_test: Ground truth function values of shape (n_test,).
+        y_pred: Predicted mean values from the surrogate model.
+        var_pred: Predicted uncertainty / variance from the surrogate.
+        X_train: Training input points of shape (n_train, d).
+        y_train: Training target values of shape (n_train,).
     """
     plt.figure(figsize=(10, 5))
     plt.scatter(X_train, y_train, color='black', s=10, alpha=0.3, label='Training Data')
@@ -103,8 +121,33 @@ from synthetic_functions import (
 
 
 
-def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=0.05, suffix="", use_density_scaling=False, output_dir=None, config_snapshot=None):
-    """Save comprehensive summary to a .txt file and structured JSON."""
+def save_results_to_file(
+    results_all: Dict[str, Dict[str, List[float]]],
+    results_by_dim: Dict[str, Dict[str, Dict[str, List[float]]]],
+    approaches: List[str],
+    n_runs: int,
+    alpha: float = 0.05,
+    suffix: str = "",
+    use_density_scaling: bool = False,
+    output_dir: Optional[str] = None,
+    config_snapshot: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Save comprehensive benchmark evaluation summary to a text file and structured JSON.
+
+    Args:
+        results_all: Dictionary of aggregated metric values for each approach across all dimensions.
+        results_by_dim: Metric values grouped per dimension ('1D', '2D', etc.) and approach.
+        approaches: List of uncertainty quantification approach identifiers.
+        n_runs: Number of random evaluation seeds/runs per function.
+        alpha: Statistical significance threshold for pairwise hypothesis tests.
+        suffix: Optional filename suffix identifying the configuration hyperparameters.
+        use_density_scaling: Whether density scaling was enabled for proximity quantification.
+        output_dir: Optional custom destination directory for saved reports and JSON logs.
+        config_snapshot: Optional serialized dictionary representing the benchmark master config.
+
+    Returns:
+        str: Filepath of the generated summary text report.
+    """
     import io
     import json
     from contextlib import redirect_stdout
@@ -164,7 +207,22 @@ def save_results_to_file(results_all, results_by_dim, approaches, n_runs, alpha=
     print(f"\n[Report] Results saved to: {filename} and {json_filename}")
     return filename
 
-def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs, alpha=0.05):
+def print_comprehensive_summary(
+    results_all: Dict[str, Dict[str, List[float]]],
+    results_by_dim: Dict[str, Dict[str, Dict[str, List[float]]]],
+    approaches: List[str],
+    n_runs: int,
+    alpha: float = 0.05,
+) -> None:
+    """Prints descriptive statistics and Friedman / Bonferroni-Wilcoxon statistical comparisons.
+
+    Args:
+        results_all: Dictionary of metric values across all test functions per approach.
+        results_by_dim: Dictionary of metric values segmented by dimensionality.
+        approaches: List of uncertainty quantification approach identifiers.
+        n_runs: Number of random runs per benchmark function.
+        alpha: Statistical significance level for hypothesis testing (default 0.05).
+    """
     print(f"\n\n{'='*80}")
     print(f"COMPREHENSIVE STATISTICAL SUMMARY")
     print(f"{'='*80}\n")
@@ -292,7 +350,51 @@ def print_comprehensive_summary(results_all, results_by_dim, approaches, n_runs,
     print(f"Legend: *** p<0.001, ** p<0.01, * p<0.05, ns = not significant")
     print(f"{'='*80}\n")
 
-def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neighbors='auto', gap_type='empty', sparse_multiplier=12, scaling_law='linear', debug_timing=False, use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None, n_jobs=-1, ood_type='hypercube', noise_std=0.1, id_split=0.7):
+def run_single_test(
+    func_dict: Dict[str, Any],
+    func_name: str,
+    seed: int,
+    approaches: List[str],
+    rf_config: Union[int, str] = 1,
+    k_neighbors: Union[int, str] = "auto",
+    gap_type: str = "empty",
+    sparse_multiplier: int = 12,
+    scaling_law: str = "linear",
+    debug_timing: bool = False,
+    use_density_scaling: bool = False,
+    density_scaling_alpha: Union[float, List[float]] = 1.0,
+    topological_decay_lambda: Optional[Union[float, List[float]]] = None,
+    n_jobs: int = -1,
+    ood_type: str = "hypercube",
+    noise_std: float = 0.1,
+    id_split: float = 0.7,
+) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Any]]:
+    """Executes evaluation for a single synthetic test function and random seed.
+
+    Args:
+        func_dict: Mapping containing test function metadata and callable.
+        func_name: Name key for the specific test function to evaluate.
+        seed: Random seed for data generation, noise sampling, and model fitting.
+        approaches: List of UQ approach names to evaluate.
+        rf_config: Random forest hyperparameter preset configuration ('A', 'B', 'C', or 1-5).
+        k_neighbors: Number of nearest leaf neighbors or 'auto'/'all' selection mode.
+        gap_type: Out-of-distribution gap specification ('empty' or 'sparse').
+        sparse_multiplier: Multiplier parameter determining sparse point density in OOD regions.
+        scaling_law: Scaling function for sparse gap points ('linear', 'fractional', 'leaf').
+        debug_timing: If True, tracks and prints granular step-by-step execution times.
+        use_density_scaling: If True, applies leaf-density scaling to proximity metric.
+        density_scaling_alpha: Alpha exponent controlling density penalty strength.
+        topological_decay_lambda: Optional exponential distance decay rate for neighbor weights.
+        n_jobs: Number of parallel CPU threads for scikit-learn random forest fitting.
+        ood_type: Geometry for out-of-distribution evaluation ('hypercube' or 'manifold').
+        noise_std: Standard deviation of homoscedastic Gaussian target noise.
+        id_split: In-distribution fraction for train/test split.
+
+    Returns:
+        Tuple[Dict[str, Dict[str, float]], Dict[str, Any]]:
+            - Dictionary mapping approach name to metric name -> metric score float.
+            - Dictionary containing execution runtime profiling statistics.
+    """
     # Determine standard Random Forest hyperparameters based on config selection to pass min_leaf to generate_data
     if rf_config in ['A', 'a']:
         n_est, min_leaf, min_split, max_feat = 100, 5, 2, "sqrt"
@@ -610,7 +712,16 @@ def run_single_test(func_dict, func_name, seed, approaches, rf_config=1, k_neigh
 
     return results, timings
 
-def print_results(results_dict, test_name):
+def print_results(
+    results_dict: Dict[str, Dict[str, List[float]]],
+    test_name: str,
+) -> None:
+    """Prints mean and standard deviation summary for standard evaluation metrics.
+
+    Args:
+        results_dict: Dictionary mapping approach name to metric name -> list of scores.
+        test_name: Title banner for the current benchmark section.
+    """
     print(f"\n{'='*70}")
     print(f"{test_name}")
     print(f"{'='*70}")
@@ -622,7 +733,20 @@ def print_results(results_dict, test_name):
             if len(values) > 0:
                 print(f"{app:12s}: Mean = {np.mean(values):.4f}, Std = {np.std(values):.4f}")
 
-def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
+def run_statistical_tests(
+    results_dict: Dict[str, Dict[str, List[float]]],
+    approaches: List[str],
+    n_runs: int,
+    alpha: float = 0.05,
+) -> None:
+    """Conducts omnibus Friedman test and post-hoc Wilcoxon signed-rank tests with Bonferroni correction.
+
+    Args:
+        results_dict: Dictionary mapping approach name to metric name -> list of scores.
+        approaches: List of approach names participating in the comparison.
+        n_runs: Number of random evaluation seeds/runs per function.
+        alpha: Statistical significance threshold.
+    """
     print(f"\n--- Statistical Validation (alpha = {alpha}) ---")
 
     for metric in ["auroc", "fpr95", "spearman", "brier", "mi", "jsd", "naurc"]:
@@ -679,7 +803,19 @@ def run_statistical_tests(results_dict, approaches, n_runs, alpha=0.05):
                 print(f"  Result: NOT SIGNIFICANT (p >= {alpha})")
 
 
-def parse_args_with_config(args_list=None):
+def parse_args_with_config(
+    args_list: Optional[List[str]] = None,
+) -> Tuple[Any, Any]:
+    """Parses command line arguments or programmatic arg list into benchmark configuration objects.
+
+    Args:
+        args_list: Optional explicit list of string command line flags.
+
+    Returns:
+        Tuple[argparse.Namespace, BenchmarkMasterConfig]:
+            - Parsed command line namespace.
+            - Structured master configuration object.
+    """
     import argparse
     from config_schema import BenchmarkMasterConfig, DataConfig, RFConfig, ExtractorConfig, ProximityConfig
 
