@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""Wrapper script to execute CARP-S native data gathering for the DA-EHRF Additive Sweep.
+
+Processes run directories in `runs/` matching CARPSDynamicRF_DAEHRF_AdditiveEI*
+and reference SMAC3_HPOFacade* baselines.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+import glob
+from pathlib import Path
+from carps.analysis.gather_data import filelogs_to_df
+
+
+def gather_da_ehrf_additive_carps_data(
+    runs_base: str = "runs",
+    outdir: str = "results/bbsubset_da_ehrf_additive_analysis",
+) -> None:
+    """Collects and normalizes CARP-S DA-EHRF additive run logs into structured dataframes.
+
+    Args:
+        runs_base: Base directory where CARP-S execution logs are stored.
+        outdir: Destination directory for the generated CSV/parquet tables.
+    """
+    runs_path = Path(runs_base)
+    if not runs_path.exists():
+        print(f"Error: Base runs directory '{runs_base}' does not exist.")
+        sys.exit(1)
+
+    # Filter directories matching our sweep optimizers
+    valid_prefix_patterns = [
+        "CARPSDynamicRF_DAEHRF_AdditiveEI*",
+        "SMAC3_HPOFacade*"
+    ]
+
+    target_rundirs = []
+    for pattern in valid_prefix_patterns:
+        matched = sorted(glob.glob(str(runs_path / pattern)))
+        target_rundirs.extend([m for m in matched if os.path.isdir(m)])
+
+    print(f"Found {len(target_rundirs)} target optimizer directories for DA-EHRF Additive Sweep:")
+    for d in target_rundirs:
+        print(f"  - {d}")
+
+    if not target_rundirs:
+        print("No matching optimizer directories found in 'runs/'.")
+        print("Note: If runs were written to a custom output directory, specify it as an argument: python3 scripts/gather_bbsubset_da_ehrf_additive_carps.py <runs_dir> <out_dir>")
+        sys.exit(1)
+
+    print(f"\nGathering and normalizing data into '{outdir}'...")
+    df, df_cfg = filelogs_to_df(rundir=target_rundirs, outdir=outdir)
+    print(f"Success! Processed {len(df)} total evaluation rows across {len(df_cfg)} configurations.")
+    print(f"Dataframes saved to: {outdir}")
+
+
+if __name__ == "__main__":
+    runs_dir = sys.argv[1] if len(sys.argv) > 1 else "runs"
+    out_dir = sys.argv[2] if len(sys.argv) > 2 else "results/bbsubset_da_ehrf_additive_analysis"
+    gather_da_ehrf_additive_carps_data(runs_dir, out_dir)
