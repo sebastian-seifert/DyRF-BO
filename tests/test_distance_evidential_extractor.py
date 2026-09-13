@@ -34,7 +34,7 @@ class TestDistanceAwareEvidentialExtractorInvariants(unittest.TestCase):
         self.rf = RandomForestRegressor(n_estimators=10, random_state=42)
         self.rf.fit(self.X_train, self.y_train)
         
-        self.extractor = DistanceAwareEvidentialExtractor(self.rf)
+        self.extractor = DistanceAwareEvidentialExtractor(self.rf, spatial_metric="euclidean")
         self.extractor.fit(self.X_train, self.y_train)
 
     def test_non_negativity(self):
@@ -61,7 +61,7 @@ class TestDistanceAwareEvidentialExtractorInvariants(unittest.TestCase):
         rf_scaled = RandomForestRegressor(n_estimators=10, random_state=42)
         rf_scaled.fit(self.X_train, y_scaled)
         
-        ext_scaled = DistanceAwareEvidentialExtractor(rf_scaled)
+        ext_scaled = DistanceAwareEvidentialExtractor(rf_scaled, spatial_metric="euclidean")
         ext_scaled.fit(self.X_train, y_scaled)
         
         X_test = np.array([
@@ -199,7 +199,7 @@ class TestDistanceAwareEvidentialExtractorEdgeCases(unittest.TestCase):
         rf = RandomForestRegressor(n_estimators=5, random_state=42)
         rf.fit(X_train, y_train)
         
-        ext = DistanceAwareEvidentialExtractor(rf)
+        ext = DistanceAwareEvidentialExtractor(rf, spatial_metric="euclidean")
         ext.fit(X_train, y_train)
         
         X_test = np.array([[0.3, 0.3], [5.0, 5.0]])
@@ -301,7 +301,7 @@ class TestDistanceAwareEvidentialExtractorEdgeCases(unittest.TestCase):
         rf = RandomForestRegressor(n_estimators=10, random_state=42)
         rf.fit(X_train, y_train)
         
-        ext = DistanceAwareEvidentialExtractor(rf)
+        ext = DistanceAwareEvidentialExtractor(rf, spatial_metric="euclidean")
         ext.fit(X_train, y_train)
         
         pts = np.array([[1.0], [1.05], [1.5], [3.0]])
@@ -381,18 +381,24 @@ class TestDistanceAwareEvidentialExtractorInterface(unittest.TestCase):
         X_far = np.array([[5.0, 5.0]])
         
         # 1. Base extractor
-        ext_base = DistanceAwareEvidentialExtractor(self.rf, kappa_leaf=1.0, c_spatial=1.0, lengthscale=1.0)
+        ext_base = DistanceAwareEvidentialExtractor(
+            self.rf, kappa_leaf=1.0, c_spatial=1.0, lengthscale=1.0, spatial_metric="euclidean"
+        )
         ext_base.fit(self.X_train, self.y_train)
         u_base = ext_base.extract_epistemic_signal(X_far)[0]
         
         # 2. Doubled spatial scaling
-        ext_high_spatial = DistanceAwareEvidentialExtractor(self.rf, kappa_leaf=1.0, c_spatial=4.0, lengthscale=1.0)
+        ext_high_spatial = DistanceAwareEvidentialExtractor(
+            self.rf, kappa_leaf=1.0, c_spatial=4.0, lengthscale=1.0, spatial_metric="euclidean"
+        )
         ext_high_spatial.fit(self.X_train, self.y_train)
         u_high_spatial = ext_high_spatial.extract_epistemic_signal(X_far)[0]
         self.assertGreater(u_high_spatial, u_base)
         
         # 3. Doubled leaf ignorance scaling
-        ext_high_leaf = DistanceAwareEvidentialExtractor(self.rf, kappa_leaf=4.0, c_spatial=1.0, lengthscale=1.0)
+        ext_high_leaf = DistanceAwareEvidentialExtractor(
+            self.rf, kappa_leaf=4.0, c_spatial=1.0, lengthscale=1.0, spatial_metric="euclidean"
+        )
         ext_high_leaf.fit(self.X_train, self.y_train)
         u_high_leaf = ext_high_leaf.extract_epistemic_signal(X_far)[0]
         self.assertGreater(u_high_leaf, u_base)

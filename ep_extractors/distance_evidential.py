@@ -3,9 +3,13 @@ Distance-Aware Evidential Hybrid Random Forest (DA-EHRF) Epistemic Uncertainty E
 Decomposes total surrogate uncertainty and isolates pure epistemic ignorance:
     U_E(x) = sqrt( V_ens(x) + V_leaf(x) + V_spatial(x) )
 in linear standard deviation units [y].
+
+Supports two spatial extrapolation ignorance metrics:
+1. "tree_path" (default): Depth-normalized topological graph path step distance along decision trees.
+2. "euclidean": Feature-importance (MDI) weighted Euclidean distance with adaptive RBF kernel bandwidth.
 """
 from __future__ import annotations
-from typing import Optional
+from typing import List, Optional
 import numpy as np
 from scipy.spatial.distance import cdist
 
@@ -24,16 +28,23 @@ class DistanceAwareEvidentialExtractor(BaseEpistemicExtractor):
     model : RandomForestRegressor or EPMRandomForest
         Fitted random forest surrogate.
     lengthscale : float | str | None, default="adaptive"
-        RBF bandwidth ell_0 for spatial kernel distance. If "adaptive",
-        precomputed in fit() from normalized median nearest-neighbor distance.
+        RBF bandwidth ell_0 for spatial kernel distance (used when spatial_metric="euclidean").
+        If "adaptive", precomputed in fit() from normalized median nearest-neighbor distance.
     kappa_leaf : float, default=1.0
         Scaling factor for finite-sample leaf ignorance V_leaf.
     c_spatial : float, default=1.0
         Scaling factor for spatial extrapolation ignorance V_spatial.
     use_feature_importances : bool, default=True
-        Whether to scale distance dimensions by MDI feature importances.
+        Whether to scale distance dimensions by MDI feature importances (for Euclidean metric).
     length_scale : Optional[float | str], default=None
         Alias for lengthscale.
+    sigma_0_fallback : float, default=1.0
+        Fallback scale prior if target standard deviation is near zero.
+    spatial_metric : str, default="tree_path"
+        Metric used for spatial extrapolation ignorance V_spatial(x).
+        Options: "tree_path", "euclidean".
+    tree_decay_lambda : float, default=3.0
+        Depth-normalized exponential decay factor lambda for tree-path metric.
     """
     def __init__(
         self,
@@ -44,9 +55,18 @@ class DistanceAwareEvidentialExtractor(BaseEpistemicExtractor):
         use_feature_importances: bool = True,
         length_scale: Optional[float | str] = None,
         sigma_0_fallback: float = 1.0,
+        spatial_metric: str = "tree_path",
+        tree_decay_lambda: float = 3.0,
         **kwargs
     ):
         super().__init__(model)
+        if spatial_metric not in ("tree_path", "euclidean"):
+            raise ValueError(
+                f"Invalid spatial_metric '{spatial_metric}'. Available options: 'tree_path', 'euclidean'"
+            )
+        self.spatial_metric = spatial_metric
+        self.tree_decay_lambda = float(tree_decay_lambda)
+
         if length_scale is not None:
             lengthscale = length_scale
         self.lengthscale_param = lengthscale
@@ -66,10 +86,17 @@ class DistanceAwareEvidentialExtractor(BaseEpistemicExtractor):
         self.X_train_w: Optional[np.ndarray] = None
         self._is_fitted: bool = False
 
+        # Tree-path topological caching structures
+        self.leaf_matrix_train: Optional[np.ndarray] = None
+        self.tree_node_depths: List[np.ndarray] = []
+        self.tree_node_ancestors: List[List[List[int]]] = []
+        self.tree_train_leaf_dists: List[np.ndarray] = []
+        self.mean_max_depth: float = 1.0
+
     def fit(self, X_train: np.ndarray, y_train: np.ndarray) -> None:
         """
         Precomputes training dataset statistics, feature weights, target prior scale,
-        and pre-scaled training coordinates.
+        pre-scaled coordinates (Euclidean), and tree-path ancestor topologies (tree_path).
         """
         self.X_train = np.atleast_2d(np.asarray(X_train, dtype=np.float64))
         self.y_train = np.asarray(y_train, dtype=np.float64).flatten()
@@ -107,8 +134,10 @@ class DistanceAwareEvidentialExtractor(BaseEpistemicExtractor):
         self.weights = w
         self.X_train_w = self.X_train * self.weights
 
-        # Precompute adaptive spatial bandwidth ell_0 (PROJECT.md line 50)
-        if self.lengthscale_param in ("adaptive", "auto", None) or (isinstance(self.lengthscale_param, str) and self.lengthscale_param.lower() in ("adaptive", "auto")):
+        # Precompute adaptive spatial bandwidth ell_0 for Euclidean metric
+        if self.lengthscale_param in ("adaptive", "auto", None) or (
+            isinstance(self.lengthscale_param, str) and self.lengthscale_param.lower() in ("adaptive", "auto")
+        ):
             if len(self.X_train) >= 2:
                 X_norm = self.X_train / ranges
                 dists = cdist(X_norm, X_norm, metric="euclidean")
@@ -124,6 +153,78 @@ class DistanceAwareEvidentialExtractor(BaseEpistemicExtractor):
                 self.lengthscale = 0.15
         elif isinstance(self.lengthscale_param, (int, float)):
             self.lengthscale = max(float(self.lengthscale_param), 1e-6)
+
+        # Precompute tree-path topological structures
+        if self.spatial_metric == "tree_path":
+            estimators = getattr(self.model, "estimators_", None)
+            if estimators is not None and len(estimators) > 0:
+                self.leaf_matrix_train = self.model.apply(self.X_train)
+                if self.leaf_matrix_train.ndim == 1:
+                    self.leaf_matrix_train = self.leaf_matrix_train.reshape(-1, len(estimators))
+
+                self.tree_node_depths = []
+                self.tree_node_ancestors = []
+                self.tree_leaf_dist_matrices = []
+                self.tree_train_leaf_dists = []
+                max_depths = []
+
+                for m, estimator in enumerate(estimators):
+                    tree = estimator.tree_
+                    n_nodes = tree.node_count
+                    children_left = tree.children_left
+                    children_right = tree.children_right
+
+                    depths = np.zeros(n_nodes, dtype=np.int32)
+                    ancestors: List[List[int]] = [[] for _ in range(n_nodes)]
+                    ancestors[0] = [0]
+
+                    stack = [0]
+                    while stack:
+                        curr = stack.pop()
+                        curr_path = ancestors[curr]
+                        left = children_left[curr]
+                        right = children_right[curr]
+
+                        if left != -1:
+                            depths[left] = depths[curr] + 1
+                            ancestors[left] = curr_path + [left]
+                            stack.append(left)
+                        if right != -1:
+                            depths[right] = depths[curr] + 1
+                            ancestors[right] = curr_path + [right]
+                            stack.append(right)
+
+                    max_d = int(np.max(depths)) if n_nodes > 0 else 1
+                    max_depths.append(max_d)
+                    self.tree_node_depths.append(depths)
+                    self.tree_node_ancestors.append(ancestors)
+
+                    # Precompute pairwise step distances d_m(u, v) = depth(u) + depth(v) - 2 * depth(LCA(u, v))
+                    dist_m = np.zeros((n_nodes, n_nodes), dtype=np.float32)
+                    for i in range(n_nodes):
+                        path_i = ancestors[i]
+                        len_i = len(path_i)
+                        depth_i = depths[i]
+                        for j in range(i, n_nodes):
+                            path_j = ancestors[j]
+                            len_j = len(path_j)
+                            min_len = min(len_i, len_j)
+                            lca_depth = 0
+                            for k in range(min_len):
+                                if path_i[k] == path_j[k]:
+                                    lca_depth = k
+                                else:
+                                    break
+                            d_ij = float(depth_i + depths[j] - 2 * lca_depth)
+                            dist_m[i, j] = d_ij
+                            dist_m[j, i] = d_ij
+
+                    train_leaves_m = self.leaf_matrix_train[:, m]
+                    self.tree_train_leaf_dists.append(dist_m[:, train_leaves_m])
+
+                self.mean_max_depth = float(np.mean(max_depths)) if len(max_depths) > 0 else 1.0
+                if self.mean_max_depth < 1e-6:
+                    self.mean_max_depth = 1.0
 
         self._is_fitted = True
 
@@ -161,6 +262,8 @@ class DistanceAwareEvidentialExtractor(BaseEpistemicExtractor):
         estimators = getattr(self.model, "estimators_", None)
         if estimators is not None and len(estimators) > 0:
             all_leaf_ids = self.model.apply(X_arr)  # shape: (n_samples, n_estimators)
+            if all_leaf_ids.ndim == 1:
+                all_leaf_ids = all_leaf_ids.reshape(n_samples, len(estimators))
             n_estimators = len(estimators)
             
             tree_means = np.zeros((n_estimators, n_samples), dtype=np.float64)
@@ -168,9 +271,7 @@ class DistanceAwareEvidentialExtractor(BaseEpistemicExtractor):
             
             for m, estimator in enumerate(estimators):
                 leaf_ids_m = all_leaf_ids[:, m]
-                # Tree leaf predictive values: shape (n_nodes, 1, 1) in sklearn
                 tree_means[m, :] = estimator.tree_.value[leaf_ids_m, 0, 0]
-                # Number of training samples in the leaf
                 counts_m = np.maximum(estimator.tree_.n_node_samples[leaf_ids_m], 1.0)
                 tree_inv_counts[m, :] = 1.0 / counts_m
                 
@@ -179,16 +280,52 @@ class DistanceAwareEvidentialExtractor(BaseEpistemicExtractor):
         else:
             v_ens = np.zeros(n_samples, dtype=np.float64)
             v_leaf = np.zeros(n_samples, dtype=np.float64)
+            all_leaf_ids = None
 
         # 2. Spatial Extrapolation Ignorance V_spatial(x)
-        X_w = X_arr * self.weights
-        min_sq_dists = cdist(X_w, self.X_train_w, metric="sqeuclidean").min(axis=1)
-        min_sq_dists = np.maximum(min_sq_dists, 0.0)
-        
-        exponent = -min_sq_dists / (2.0 * (self.lengthscale ** 2))
-        # Protect against extreme values underflow
-        exponent = np.clip(exponent, -700.0, 0.0)
-        v_spatial = (self.sigma_0 ** 2) * self.c_spatial * (1.0 - np.exp(exponent))
+        if self.spatial_metric == "tree_path":
+            if (
+                estimators is not None
+                and len(estimators) > 0
+                and self.leaf_matrix_train is not None
+                and len(self.tree_train_leaf_dists) == len(estimators)
+                and all_leaf_ids is not None
+            ):
+                n_train = len(self.leaf_matrix_train)
+                n_est = float(len(estimators))
+                
+                # Chunk large candidate batches (e.g. >= 2048) to fit in CPU L2 cache and reduce memory pressure
+                if n_samples > 2048:
+                    mean_tree_dist = np.empty(n_samples, dtype=np.float64)
+                    chunk_size = 2048
+                    for start in range(0, n_samples, chunk_size):
+                        end = min(start + chunk_size, n_samples)
+                        sub_sum = np.zeros((end - start, n_train), dtype=np.float32)
+                        sub_leaves = all_leaf_ids[start:end]
+                        for m in range(len(estimators)):
+                            sub_sum += self.tree_train_leaf_dists[m][sub_leaves[:, m]]
+                        mean_tree_dist[start:end] = (sub_sum.min(axis=1) / n_est).astype(np.float64)
+                else:
+                    sum_tree_dist = np.zeros((n_samples, n_train), dtype=np.float32)
+                    for m in range(len(estimators)):
+                        sum_tree_dist += self.tree_train_leaf_dists[m][all_leaf_ids[:, m]]
+                    mean_tree_dist = (sum_tree_dist.min(axis=1) / n_est).astype(np.float64)
+
+                denom = 2.0 * self.mean_max_depth
+                exponent = -self.tree_decay_lambda * (mean_tree_dist / denom)
+                exponent = np.clip(exponent, -700.0, 0.0)
+                v_spatial = (self.sigma_0 ** 2) * self.c_spatial * (1.0 - np.exp(exponent))
+            else:
+                v_spatial = np.zeros(n_samples, dtype=np.float64)
+        else:
+            # Euclidean distance
+            X_w = X_arr * self.weights
+            min_sq_dists = cdist(X_w, self.X_train_w, metric="sqeuclidean").min(axis=1)
+            min_sq_dists = np.maximum(min_sq_dists, 0.0)
+            
+            exponent = -min_sq_dists / (2.0 * (self.lengthscale ** 2))
+            exponent = np.clip(exponent, -700.0, 0.0)
+            v_spatial = (self.sigma_0 ** 2) * self.c_spatial * (1.0 - np.exp(exponent))
 
         # 3. Combine in standard deviation units
         total_var = np.maximum(v_ens + v_leaf + v_spatial, 0.0)

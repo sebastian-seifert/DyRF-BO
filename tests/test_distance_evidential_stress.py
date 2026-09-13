@@ -52,7 +52,7 @@ class TestDistanceAwareEvidentialExtractorAdversarialStress(unittest.TestCase):
         X_train = np.array([[0.0, 1.0], [1.0, 0.0]])
         y_train = np.array([1.5, 3.5])
         rf = RandomForestRegressor(n_estimators=5, random_state=42).fit(X_train, y_train)
-        ext = DistanceAwareEvidentialExtractor(rf)
+        ext = DistanceAwareEvidentialExtractor(rf, spatial_metric="euclidean")
         ext.fit(X_train, y_train)
 
         q = np.array([[0.5, 0.5], [10.0, 10.0]])
@@ -68,7 +68,7 @@ class TestDistanceAwareEvidentialExtractorAdversarialStress(unittest.TestCase):
         X_train = np.array([[0.0, 1.0], [1.0, 0.0]])
         y_train = np.array([42.0, 42.0])
         rf = RandomForestRegressor(n_estimators=5, random_state=42).fit(X_train, y_train)
-        ext = DistanceAwareEvidentialExtractor(rf)
+        ext = DistanceAwareEvidentialExtractor(rf, spatial_metric="euclidean")
         ext.fit(X_train, y_train)
 
         self.assertGreaterEqual(ext.sigma_0, 1e-6)
@@ -91,7 +91,7 @@ class TestDistanceAwareEvidentialExtractorAdversarialStress(unittest.TestCase):
         y_train = 5.0 * x0 + np.random.normal(0, 0.01, 20)
 
         rf = RandomForestRegressor(n_estimators=5, random_state=42).fit(X_train, y_train)
-        ext = DistanceAwareEvidentialExtractor(rf)
+        ext = DistanceAwareEvidentialExtractor(rf, spatial_metric="euclidean")
         ext.fit(X_train, y_train)
 
         self.assertTrue(np.all(np.isfinite(ext.weights)))
@@ -112,7 +112,7 @@ class TestDistanceAwareEvidentialExtractorAdversarialStress(unittest.TestCase):
         y_train = 2.0 * X_train[:, 0]
 
         rf = RandomForestRegressor(n_estimators=5, random_state=42).fit(X_train, y_train)
-        ext = DistanceAwareEvidentialExtractor(rf)
+        ext = DistanceAwareEvidentialExtractor(rf, spatial_metric="euclidean")
         ext.fit(X_train, y_train)
 
         self.assertTrue(np.all(np.isfinite(ext.weights)))
@@ -267,7 +267,7 @@ class TestDistanceAwareEvidentialExtractorAdversarialStress(unittest.TestCase):
         y_train = np.random.randn(30)
 
         rf = RandomForestRegressor(n_estimators=5, random_state=42).fit(X_train, y_train)
-        ext = DistanceAwareEvidentialExtractor(rf)
+        ext = DistanceAwareEvidentialExtractor(rf, spatial_metric="euclidean")
         ext.fit(X_train, y_train)
 
         # Query in-distribution vs 2x domain bound (clear extrapolation)
