@@ -78,4 +78,11 @@ def generate_epistemic_ood_sweep_tasks(
 
 
 if __name__ == "__main__":
-    generate_epistemic_ood_sweep_tasks()
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate Epistemic OOD Benchmark Sweep Tasks")
+    parser.add_argument("--output_file", type=str, default=TASK_FILE, help="Path to output tasks file")
+    parser.add_argument("--output_dir", type=str, default=DEFAULT_OUTPUT_DIR, help="Output directory for task results")
+    args = parser.parse_args()
+
+    generate_epistemic_ood_sweep_tasks(output_file=args.output_file, output_dir=args.output_dir)
+

@@ -187,10 +187,22 @@ def parse_epistemic_ood_sweep_results(
 
 
 def main():
-    res_dir = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_RESULTS_DIR
-    out_dir = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_OUTPUT_DIR
+    import argparse
+    parser = argparse.ArgumentParser(description="Parse Epistemic OOD Benchmark Sweep Results")
+    parser.add_argument("--results_dir", type=str, default=None, help="Directory containing result JSON files")
+    parser.add_argument("--output_dir", type=str, default=None, help="Directory to save summary tables")
+    parser.add_argument("pos_results_dir", nargs="?", default=None, help="Positional fallback for results_dir")
+    parser.add_argument("pos_output_dir", nargs="?", default=None, help="Positional fallback for output_dir")
+    args = parser.parse_args()
+
+    res_dir = args.results_dir or args.pos_results_dir or DEFAULT_RESULTS_DIR
+    out_dir = args.output_dir or args.pos_output_dir or (
+        os.path.join(res_dir, "summary") if res_dir != DEFAULT_RESULTS_DIR else DEFAULT_OUTPUT_DIR
+    )
+
     parse_epistemic_ood_sweep_results(results_dir=res_dir, output_dir=out_dir)
 
 
 if __name__ == "__main__":
     main()
+

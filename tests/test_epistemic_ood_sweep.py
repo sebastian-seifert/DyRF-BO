@@ -430,6 +430,44 @@ class TestEpistemicOODSweepBenchmark(unittest.TestCase):
             f"CHUNK_SIZE {chunk_val} in {all_sh} exceeds LUIS cluster limit of 300"
         )
 
+    def test_tree_path_isolated_sweep_task_generation_and_slurm_compliance(self):
+        """Asserts tree-path isolated sweep can generate tasks to dedicated folder and SLURM scripts are compliant."""
+        from scripts.generate_epistemic_ood_sweep_tasks import generate_epistemic_ood_sweep_tasks
+        import re
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            custom_task_file = os.path.join(tmp_dir, "test_tree_path_tasks.txt")
+            custom_out_dir = os.path.join(tmp_dir, "test_tree_path_results")
+
+            tasks = generate_epistemic_ood_sweep_tasks(
+                output_file=custom_task_file,
+                output_dir=custom_out_dir,
+            )
+            self.assertEqual(len(tasks), 2040)
+            self.assertTrue(os.path.isfile(custom_task_file))
+
+            # Verify every task line writes to custom_out_dir and does NOT touch epistemic_ood_sweep
+            for t in tasks:
+                self.assertIn(f"--output_dir={custom_out_dir}", t)
+                self.assertNotIn("--output_dir=results/epistemic_ood_sweep ", t)
+
+        # Verify dedicated Tree-Path SLURM submission scripts exist and comply
+        tp_array_sbatch = Path(REPO_ROOT) / "scripts" / "submit_epistemic_ood_sweep_tree_path_array.sbatch"
+        self.assertTrue(tp_array_sbatch.is_file(), f"{tp_array_sbatch} must exist")
+        content_array = tp_array_sbatch.read_text()
+        self.assertIn("results/epistemic_ood_sweep_tree_path", content_array)
+
+        tp_all_sh = Path(REPO_ROOT) / "scripts" / "submit_epistemic_ood_sweep_tree_path_all.sh"
+        self.assertTrue(tp_all_sh.is_file(), f"{tp_all_sh} must exist")
+        content_all = tp_all_sh.read_text()
+        self.assertIn("results/epistemic_ood_sweep_tree_path", content_all)
+
+        m_chunk = re.search(r"CHUNK_SIZE=([0-9]+)", content_all)
+        self.assertIsNotNone(m_chunk)
+        self.assertLessEqual(int(m_chunk.group(1)), 300)
+
 
 if __name__ == "__main__":
     unittest.main()
+
