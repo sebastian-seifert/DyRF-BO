@@ -15,25 +15,43 @@ class CustomUncertaintyRandomForest(RandomForest):
         self,
         uncertainty_func: Union[str, Callable[[Any, np.ndarray, np.ndarray], np.ndarray]] = "standard_disagreement",
         oob_score: bool = True,
+        extractor_kwargs: dict | None = None,
         **kwargs
     ):
         super().__init__(oob_score=oob_score, **kwargs)
         self.uncertainty_func = uncertainty_func
+        self.extractor_kwargs = extractor_kwargs
         self.uq_extractor = None
         self.last_X = None
         self.last_y = None
 
-    def train(self, X: np.ndarray, y: np.ndarray) -> "CustomUncertaintyRandomForest":
+    @property
+    def extractor(self):
+        """Alias property for uq_extractor providing unified surrogate interface."""
+        return self.uq_extractor
+
+    def train(
+        self,
+        X: np.ndarray,
+        y: np.ndarray | None = None,
+        Y: np.ndarray | None = None,
+        **kwargs
+    ) -> "CustomUncertaintyRandomForest":
         """Fits standard SMAC3 Random Forest and the custom uncertainty extractor/function."""
-        super().train(X, y)
+        y_target = Y if y is None else y
+        if y_target is None:
+            raise ValueError("Target values must be provided via 'y' or 'Y'.")
+        super().train(X, y_target)
         X_clean = self._impute_inactive(X)
         self.last_X = X_clean
-        self.last_y = y.flatten() if y is not None else None
+        self.last_y = y_target.flatten()
         
         # SMAC3's self._rf is an EPMRandomForest (subclass of sklearn RandomForestRegressor).
         # We pass self._rf directly into UQExtractorRegistry with zero secondary model retraining overhead!
         if isinstance(self.uncertainty_func, str) and self._rf is not None:
-            self.uq_extractor = UQExtractorRegistry.get(self.uncertainty_func, self._rf)
+            self.uq_extractor = UQExtractorRegistry.get(
+                self.uncertainty_func, self._rf, **(self.extractor_kwargs or {})
+            )
             self.uq_extractor.fit(X_clean, self.last_y)
         return self
 
@@ -47,7 +65,9 @@ class CustomUncertaintyRandomForest(RandomForest):
         
         if isinstance(self.uncertainty_func, str):
             if self.uq_extractor is None and self._rf is not None:
-                self.uq_extractor = UQExtractorRegistry.get(self.uncertainty_func, self._rf)
+                self.uq_extractor = UQExtractorRegistry.get(
+                    self.uncertainty_func, self._rf, **(self.extractor_kwargs or {})
+                )
                 self.uq_extractor.fit(self.last_X if self.last_X is not None else X_clean, self.last_y)
             unc_signal = self.uq_extractor.extract_epistemic_signal(X_clean)
         elif callable(self.uncertainty_func):
@@ -56,4 +76,5 @@ class CustomUncertaintyRandomForest(RandomForest):
             raise ValueError(f"Unsupported uncertainty_func: {self.uncertainty_func}")
             
         var = (unc_signal ** 2).reshape(-1, 1)
+        var = np.maximum(var, 1e-10)
         return mean, var

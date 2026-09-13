@@ -203,6 +203,11 @@ def get_6d_functions():
             "gap": (3.5, 6.5),
             "range": (0, 10),
         },
+        "gaussian_6d": {
+            "func": lambda x1, x2, x3, x4, x5, x6: np.exp(-(x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2) / 25),
+            "gap": (3.5, 6.5),
+            "range": (-5, 5),
+        },
         "friedman_6d": {
             "func": lambda x1, x2, x3, x4, x5, x6: 10 * np.sin(np.pi * x1 * x2 / 100) + 20 * (x3 / 10 - 0.5)**2 + 10 * x4 / 10 + 5 * x5 / 10 + x6 / 10,
             "gap": (4, 6),
@@ -292,6 +297,11 @@ def get_10d_functions():
             "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10: (x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2 + x7**2 + x8**2 + x9**2 + x10**2) / 500,
             "gap": (3.5, 6.5),
             "range": (0, 10),
+        },
+        "gaussian_10d": {
+            "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10: np.exp(-(x1**2 + x2**2 + x3**2 + x4**2 + x5**2 + x6**2 + x7**2 + x8**2 + x9**2 + x10**2) / 40),
+            "gap": (3.5, 6.5),
+            "range": (-5, 5),
         },
         "friedman_10d": {
             "func": lambda x1, x2, x3, x4, x5, x6, x7, x8, x9, x10: 10 * np.sin(np.pi * x1 * x2 / 100) + 20 * (x3 / 10 - 0.5)**2 + 10 * x4 / 10 + 5 * x5 / 10 + (x6+x7+x8+x9+x10)/10,
@@ -449,16 +459,185 @@ def get_branin_hartmann_functions():
             "func": branin_func,
             "gap": (4, 6),
             "range": (0, 10),
+            "bounds": (0, 10),
+            "dim": 2,
         },
         "hartmann3": {
             "func": hartmann3_func,
             "gap": (0.4, 0.6),
             "range": (0, 1),
+            "bounds": (0, 1),
+            "dim": 3,
         },
         "hartmann6": {
             "func": hartmann6_func,
             "gap": (0.4, 0.6),
             "range": (0, 1),
+            "bounds": (0, 1),
+            "dim": 6,
         }
     }
     return functions
+
+
+def get_all_normal_functions():
+    """
+    Returns dictionary of all 41 normal synthetic benchmark functions across 1D-15D.
+    Excludes the 10 special named functions.
+    Every function entry contains 'func', 'gap', 'range', 'bounds', and 'dim'.
+    """
+    normal_funcs = {}
+
+    # 1D (5)
+    for name, cfg in get_1d_functions().items():
+        entry = dict(cfg)
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 1
+        normal_funcs[name] = entry
+
+    # 2D (5 normal)
+    f2 = get_2d_functions()
+    for name in ["sin_cos", "quadratic", "sin_sum_mod", "gaussian", "abs_sin"]:
+        entry = dict(f2[name])
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 2
+        normal_funcs[name] = entry
+
+    # 3D (5)
+    for name, cfg in get_3d_functions().items():
+        entry = dict(cfg)
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 3
+        normal_funcs[name] = entry
+
+    # 4D (3 normal)
+    f4 = get_4d_functions()
+    for name in ["sin_cos_4d", "quadratic_4d", "sin_sum_4d"]:
+        entry = dict(f4[name])
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 4
+        normal_funcs[name] = entry
+
+    # 5D (3)
+    for name, cfg in get_5d_functions().items():
+        entry = dict(cfg)
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 5
+        normal_funcs[name] = entry
+
+    # 6D (3 normal)
+    f6 = get_6d_functions()
+    for name in ["sin_cos_6d", "quadratic_6d", "gaussian_6d"]:
+        entry = dict(f6[name])
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 6
+        normal_funcs[name] = entry
+
+    # 7D (3)
+    for name, cfg in get_7d_functions().items():
+        entry = dict(cfg)
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 7
+        normal_funcs[name] = entry
+
+    # 8D (3)
+    for name, cfg in get_8d_functions().items():
+        entry = dict(cfg)
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 8
+        normal_funcs[name] = entry
+
+    # 9D (3)
+    for name, cfg in get_9d_functions().items():
+        entry = dict(cfg)
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 9
+        normal_funcs[name] = entry
+
+    # 10D (3 normal)
+    f10 = get_10d_functions()
+    for name in ["sin_cos_10d", "quadratic_10d", "gaussian_10d"]:
+        entry = dict(f10[name])
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 10
+        normal_funcs[name] = entry
+
+    # 11D - 15D (1 each)
+    dim_getters = [
+        (11, get_11d_functions),
+        (12, get_12d_functions),
+        (13, get_13d_functions),
+        (14, get_14d_functions),
+        (15, get_15d_functions),
+    ]
+    for dim, getter in dim_getters:
+        for name, cfg in getter().items():
+            entry = dict(cfg)
+            entry["bounds"] = entry.get("bounds", entry["range"])
+            entry["dim"] = dim
+            normal_funcs[name] = entry
+
+    return normal_funcs
+
+
+def get_special_functions():
+    """
+    Returns dictionary of the 10 special named benchmark functions:
+    ackley_2d, rosenbrock_2d, ackley_4d, rosenbrock_4d, friedman_6d, hartmann_6d,
+    friedman_10d, branin, hartmann3, hartmann6.
+    Every function entry contains 'func', 'gap', 'range', 'bounds', and 'dim'.
+    """
+    special_funcs = {}
+
+    f2 = get_2d_functions()
+    for name in ["ackley_2d", "rosenbrock_2d"]:
+        entry = dict(f2[name])
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 2
+        special_funcs[name] = entry
+
+    f4 = get_4d_functions()
+    for name in ["ackley_4d", "rosenbrock_4d"]:
+        entry = dict(f4[name])
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 4
+        special_funcs[name] = entry
+
+    f6 = get_6d_functions()
+    for name in ["friedman_6d", "hartmann_6d"]:
+        entry = dict(f6[name])
+        entry["bounds"] = entry.get("bounds", entry["range"])
+        entry["dim"] = 6
+        special_funcs[name] = entry
+
+    f10 = get_10d_functions()
+    entry = dict(f10["friedman_10d"])
+    entry["bounds"] = entry.get("bounds", entry["range"])
+    entry["dim"] = 10
+    special_funcs["friedman_10d"] = entry
+
+    bh = get_branin_hartmann_functions()
+    b_entry = dict(bh["branin"])
+    b_entry["bounds"] = b_entry.get("bounds", b_entry["range"])
+    b_entry["dim"] = 2
+    special_funcs["branin"] = b_entry
+
+    h3_entry = dict(bh["hartmann3"])
+    h3_entry["bounds"] = h3_entry.get("bounds", h3_entry["range"])
+    h3_entry["dim"] = 3
+    special_funcs["hartmann3"] = h3_entry
+
+    h6_entry = dict(bh["hartmann6"])
+    h6_entry["bounds"] = h6_entry.get("bounds", h6_entry["range"])
+    h6_entry["dim"] = 6
+    special_funcs["hartmann6"] = h6_entry
+
+    return special_funcs
+
+
+def get_all_epistemic_ood_benchmark_functions():
+    """
+    Returns combined master dictionary of all 51 benchmark functions (41 normal + 10 special).
+    """
+    return {**get_all_normal_functions(), **get_special_functions()}
+

@@ -78,4 +78,5 @@ from ep_extractors import standard_proximity
 from ep_extractors import proximity_b
 from ep_extractors import proximity_bc
 from ep_extractors import proximity_auto_lambda
+from ep_extractors import distance_evidential
 

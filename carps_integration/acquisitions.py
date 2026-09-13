@@ -13,6 +13,8 @@ class ExpectedImprovement(BaseAcquisitionFunction):
         self.xi = float(xi)
 
     def compute(self, preds: np.ndarray, unc: np.ndarray, y_best: float) -> np.ndarray:
+        preds = np.asarray(preds).ravel()
+        unc = np.asarray(unc).ravel()
         sigma = np.where(unc > 1e-9, unc, 1e-9)
         diff = (y_best - self.xi) - preds
         z = diff / sigma
@@ -24,6 +26,8 @@ class LowerConfidenceBound(BaseAcquisitionFunction):
         self.beta = float(beta)
 
     def compute(self, preds: np.ndarray, unc: np.ndarray, y_best: float) -> np.ndarray:
+        preds = np.asarray(preds).ravel()
+        unc = np.asarray(unc).ravel()
         # For minimization, we negate (mean - beta * unc) so argmax selects lowest LCB
         return -preds + self.beta * unc
 
@@ -32,6 +36,8 @@ class ProbabilityOfImprovement(BaseAcquisitionFunction):
         self.xi = float(xi)
 
     def compute(self, preds: np.ndarray, unc: np.ndarray, y_best: float) -> np.ndarray:
+        preds = np.asarray(preds).ravel()
+        unc = np.asarray(unc).ravel()
         sigma = np.where(unc > 1e-9, unc, 1e-9)
         z = ((y_best - self.xi) - preds) / sigma
         return norm.cdf(z)
@@ -96,6 +102,7 @@ class AdditiveEpistemicAcquisition(BaseAcquisitionFunction):
         y_best: float,
         beta_t: float = 1.0
     ) -> np.ndarray:
+        u_epistemic = np.asarray(u_epistemic).ravel()
         raw_base = self.base_acq.compute(preds, unc_tot, y_best)
         # Shift LCB unconditionally so min is 0.0, preserving translation invariance under max_relative normalization
         if isinstance(self.base_acq, LowerConfidenceBound):
