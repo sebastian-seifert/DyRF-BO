@@ -1,0 +1,17 @@
+# @package _global_
+defaults:
+  - /optimizer/smac20/base
+optimizer_id: SMAC20_DAEHRF_DirectEI
+optimizer_container_id: SMAC20_DAEHRF_DirectEI
+optimizer:
+  acq_func_name: "ei"
+  smac_cfg:
+    smac_class: smac.facade.HyperparameterOptimizationFacade
+    model_class: carps_integration.custom_uncertainty_model.CustomUncertaintyRandomForest
+    model_kwargs:
+      uncertainty_func: "distance_evidential"
+      extractor_kwargs:
+        spatial_metric: "tree_path"
+        tree_decay_lambda: 3.0
+        kappa_leaf: 1.0
+        c_spatial: 1.0

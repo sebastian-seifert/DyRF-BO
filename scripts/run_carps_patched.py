@@ -175,14 +175,17 @@ def patched_smac3_setup_optimizer(self):
     if self.smac_cfg.smac_kwargs is not None:
         smac_kwargs = OmegaConf.to_container(self.smac_cfg.smac_kwargs, resolve=True, enum_to_str=True)
 
-    if hasattr(self, "acq_func_name") and self.acq_func_name:
+    acq_name = getattr(self, "acq_func_name", None) or (
+        self.smac_cfg.acq_func_name if hasattr(self.smac_cfg, "acq_func_name") else None
+    )
+    if "acquisition_function" not in smac_kwargs and acq_name:
         import smac.acquisition.function as acq_module
         acq_map = {
             "ei": acq_module.EI,
             "pi": acq_module.PI,
             "lcb": acq_module.LCB,
         }
-        acq_cls = acq_map.get(str(self.acq_func_name).lower())
+        acq_cls = acq_map.get(str(acq_name).lower())
         if acq_cls is not None:
             smac_kwargs["acquisition_function"] = acq_cls()
 
@@ -194,6 +197,18 @@ def patched_smac3_setup_optimizer(self):
 
     scenario = Scenario(**scenario_kwargs)
     smac_kwargs["scenario"] = scenario
+
+    # Custom uncertainty surrogate model integration
+    if "model" not in smac_kwargs and hasattr(self.smac_cfg, "model_class") and self.smac_cfg.model_class:
+        model_cls = get_class(self.smac_cfg.model_class)
+        model_kwargs = {}
+        if hasattr(self.smac_cfg, "model_kwargs") and self.smac_cfg.model_kwargs is not None:
+            model_kwargs = OmegaConf.to_container(self.smac_cfg.model_kwargs, resolve=True)
+        smac_kwargs["model"] = model_cls(
+            configspace=self.configspace,
+            seed=scenario.seed,
+            **model_kwargs,
+        )
 
     if "callbacks" not in smac_kwargs:
         smac_kwargs["callbacks"] = []

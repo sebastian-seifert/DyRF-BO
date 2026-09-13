@@ -18,6 +18,7 @@ BBOB_FUNCTION_NAMES = [
     "schwefel",
     "ellipsoid",
     "discus",
+    "ackley",
 ]
 
 BBOB_NOISE_MODELS = Literal["gaussian", "uniform", "cauchy"]
@@ -79,7 +80,7 @@ class BBOBNoisyProblem(NoisyBenchmarkProblem):
             return 0.0, np.zeros(dimension)
         elif self.func_name == "schwefel":
             return 0.0, np.full(dimension, 4.20968746)
-        elif self.func_name in ["ellipsoid", "discus"]:
+        elif self.func_name in ["ellipsoid", "discus", "ackley"]:
             return 0.0, np.zeros(dimension)
         return 0.0, None
 
@@ -93,6 +94,11 @@ class BBOBNoisyProblem(NoisyBenchmarkProblem):
 
         elif self.func_name == "rosenbrock":
             return float(np.sum(100.0 * (x[1:] - x[:-1]**2)**2 + (x[:-1] - 1.0)**2))
+
+        elif self.func_name == "ackley":
+            sum_sq = np.sum(x**2)
+            sum_cos = np.sum(np.cos(2.0 * np.pi * x))
+            return float(-20.0 * np.exp(-0.2 * np.sqrt(sum_sq / d)) - np.exp(sum_cos / d) + 20.0 + np.e)
 
         elif self.func_name == "rastrigin":
             return float(10.0 * d + np.sum(x**2 - 10.0 * np.cos(2.0 * np.pi * x)))

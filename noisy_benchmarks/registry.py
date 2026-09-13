@@ -24,7 +24,7 @@ class NoisyBenchmarkRegistry:
             "hetgp_sinusoid_8d",
         ]
         # BBOB-Noisy Suite
-        for fn in ["sphere", "rosenbrock", "rastrigin", "bent_cigar", "attractive_sector", "schwefel"]:
+        for fn in ["sphere", "rosenbrock", "rastrigin", "bent_cigar", "attractive_sector", "schwefel", "ackley"]:
             for d in [2, 4]:
                 for noise in ["gaussian", "uniform", "cauchy"]:
                     problems.append(f"bbob_noisy_{fn}_{d}d_{noise}")
