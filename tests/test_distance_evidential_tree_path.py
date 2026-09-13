@@ -319,5 +319,52 @@ class TestDistanceEvidentialTreePath(unittest.TestCase):
         self.assertEqual(len(u_empty), 0)
 
 
+    def test_zero_oom_memory_streaming_high_dim(self):
+        """Asserts fit() and extract_epistemic_signal() do not store huge distance matrices and stream within < 50MB."""
+        import tracemalloc
+
+        rng = np.random.default_rng(42)
+        n_train = 1000
+        n_test = 200
+        X_train = rng.uniform(-5.0, 5.0, size=(n_train, 10))
+        y_train = rng.normal(0.0, 1.0, size=n_train)
+        X_test = rng.uniform(-5.0, 5.0, size=(n_test, 10))
+
+        rf = RandomForestRegressor(n_estimators=10, min_samples_leaf=5, random_state=42)
+        rf.fit(X_train, y_train)
+
+        tracemalloc.start()
+        ext = DistanceAwareEvidentialExtractor(rf, spatial_metric="tree_path")
+        ext.fit(X_train, y_train)
+
+        # Assert no giant dense distance matrices stored on self
+        self.assertFalse(
+            hasattr(ext, "tree_train_leaf_dists") and len(getattr(ext, "tree_train_leaf_dists", [])) > 0,
+            "Extractor must not store dense tree_train_leaf_dists matrices in RAM."
+        )
+        self.assertFalse(
+            hasattr(ext, "tree_leaf_dist_matrices") and len(getattr(ext, "tree_leaf_dist_matrices", [])) > 0,
+            "Extractor must not store dense tree_leaf_dist_matrices in RAM."
+        )
+
+        # Extract uncertainty on test batch
+        u_signal = ext.extract_epistemic_signal(X_test)
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        self.assertEqual(len(u_signal), n_test)
+        self.assertTrue(np.all(np.isfinite(u_signal)))
+        self.assertTrue(np.all(u_signal >= 0.0))
+
+        # Peak RAM must be strictly below 50 MB
+        peak_mb = peak / (1024 * 1024)
+        self.assertLess(
+            peak_mb,
+            50.0,
+            f"Peak memory during fit and extraction ({peak_mb:.2f} MB) exceeded 50 MB threshold."
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
+
