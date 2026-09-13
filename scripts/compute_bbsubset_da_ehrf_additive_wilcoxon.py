@@ -71,8 +71,27 @@ def compute_bbsubset_da_ehrf_additive_wilcoxon(
     """
     input_path = Path(input_file)
     if not input_path.exists():
-        raise FileNotFoundError(f"Input file not found: {input_file}")
+        candidates = [
+            input_path.parent / "logs.parquet",
+            input_path.parent / "logs_normalized.parquet",
+            input_path.parent / "logs.csv",
+            Path("results/bbsubset_da_ehrf_additive_analysis/logs.parquet"),
+            Path("results/bbsubset_da_ehrf_additive_analysis/logs_normalized.parquet"),
+            Path("results/bbsubset_da_ehrf_additive_analysis/logs.csv"),
+        ]
+        found = False
+        for cand in candidates:
+            if cand.exists():
+                input_path = cand
+                input_file = str(cand)
+                found = True
+                break
+        if not found:
+            raise FileNotFoundError(
+                f"Input file not found: {input_file}. Also checked candidates: {[str(c) for c in candidates]}"
+            )
 
+    print(f"Reading CARP-S logs from: {input_path}")
     if str(input_file).endswith(".csv"):
         df = pd.read_csv(input_file)
     else:
@@ -80,26 +99,39 @@ def compute_bbsubset_da_ehrf_additive_wilcoxon(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Determine metric and trial column names
+    # Determine column names flexibly
+    task_col = "task_id" if "task_id" in df.columns else ("task" if "task" in df.columns else "benchmark_id")
+    opt_col = "optimizer_id" if "optimizer_id" in df.columns else ("optimizer" if "optimizer" in df.columns else "optimizer_name")
+    seed_col = "seed" if "seed" in df.columns else ("trial_info__seed" if "trial_info__seed" in df.columns else "seed")
     cost_col = (
         "trial_value__cost_inc_norm"
         if "trial_value__cost_inc_norm" in df.columns
         else ("trial_value__cost" if "trial_value__cost" in df.columns else "cost")
     )
-    trials_col = "n_trials" if "n_trials" in df.columns else ("trial_id" if "trial_id" in df.columns else None)
+    trials_col = "n_trials" if "n_trials" in df.columns else ("trial_id" if "trial_id" in df.columns else ("trial" if "trial" in df.columns else None))
 
     if trials_col:
-        final_df = df.sort_values(trials_col).groupby(["task_id", "seed", "optimizer_id"]).last().reset_index()
+        final_df = df.sort_values(trials_col).groupby([task_col, seed_col, opt_col]).last().reset_index()
     else:
-        final_df = df.groupby(["task_id", "seed", "optimizer_id"]).last().reset_index()
+        final_df = df.groupby([task_col, seed_col, opt_col]).last().reset_index()
 
     # Aggregate mean final regret per task across seeds
-    task_matrix = final_df.groupby(["task_id", "optimizer_id"])[cost_col].mean().unstack()
+    task_matrix = final_df.groupby([task_col, opt_col])[cost_col].mean().unstack()
 
+    # Resolve column names if exact match is not found but prefix matches
     if baseline_id not in task_matrix.columns:
-        raise ValueError(f"Baseline optimizer '{baseline_id}' not found in data columns: {list(task_matrix.columns)}")
+        matching = [c for c in task_matrix.columns if c.startswith(baseline_id) or baseline_id.startswith(c)]
+        if matching:
+            baseline_id = matching[0]
+        else:
+            raise ValueError(f"Baseline optimizer '{baseline_id}' not found in data columns: {list(task_matrix.columns)}")
+            
     if proposed_id not in task_matrix.columns:
-        raise ValueError(f"Proposed optimizer '{proposed_id}' not found in data columns: {list(task_matrix.columns)}")
+        matching = [c for c in task_matrix.columns if c.startswith(proposed_id) or proposed_id.startswith(c)]
+        if matching:
+            proposed_id = matching[0]
+        else:
+            raise ValueError(f"Proposed optimizer '{proposed_id}' not found in data columns: {list(task_matrix.columns)}")
 
     # Clean rows with complete paired evaluations
     valid_tasks = task_matrix.dropna(subset=[baseline_id, proposed_id])
