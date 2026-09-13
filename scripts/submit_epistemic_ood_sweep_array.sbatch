@@ -8,6 +8,10 @@
 #SBATCH --time=02:00:00
 
 # Environment / Module / Conda Setup
+if [ -n "$SLURM_SUBMIT_DIR" ]; then
+    cd "$SLURM_SUBMIT_DIR"
+fi
+
 eval "$(conda shell.bash hook 2>/dev/null)" || true
 conda activate dyrf 2>/dev/null || true
 

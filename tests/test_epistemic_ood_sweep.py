@@ -385,6 +385,51 @@ class TestEpistemicOODSweepBenchmark(unittest.TestCase):
             self.assertTrue(os.path.isfile(t2_csv), f"Missing {t2_csv}")
             self.assertTrue(os.path.isfile(t2_md), f"Missing {t2_md}")
 
+    def test_slurm_scripts_comply_with_luis_array_limit(self):
+        """Asserts all SLURM scripts for epistemic OOD sweep comply with LUIS MaxArraySize <= 300 limit."""
+        import re
+        from pathlib import Path
+
+        # 1. Inspect scripts/submit_epistemic_ood_sweep_array.sbatch
+        array_sbatch = Path(REPO_ROOT) / "scripts" / "submit_epistemic_ood_sweep_array.sbatch"
+        self.assertTrue(array_sbatch.is_file(), f"{array_sbatch} must exist")
+        content = array_sbatch.read_text()
+        for line in content.splitlines():
+            if "#SBATCH --array=" in line:
+                m = re.search(r"--array=([0-9]+)-([0-9]+)", line)
+                if m:
+                    count = int(m.group(2)) - int(m.group(1)) + 1
+                    self.assertLessEqual(
+                        count, 300,
+                        f"SLURM array size {count} in {array_sbatch} exceeds LUIS cluster limit of 300"
+                    )
+
+        # 2. Inspect scripts/submit_epistemic_ood_sweep_slurm.sh
+        slurm_sh = Path(REPO_ROOT) / "scripts" / "submit_epistemic_ood_sweep_slurm.sh"
+        self.assertTrue(slurm_sh.is_file(), f"{slurm_sh} must exist")
+        content_sh = slurm_sh.read_text()
+        for line in content_sh.splitlines():
+            if "#SBATCH --array=" in line:
+                m = re.search(r"--array=([0-9]+)-([0-9]+)", line)
+                if m:
+                    count = int(m.group(2)) - int(m.group(1)) + 1
+                    self.assertLessEqual(
+                        count, 300,
+                        f"SLURM array size {count} in {slurm_sh} exceeds LUIS cluster limit of 300"
+                    )
+
+        # 3. Inspect scripts/submit_epistemic_ood_sweep_all.sh
+        all_sh = Path(REPO_ROOT) / "scripts" / "submit_epistemic_ood_sweep_all.sh"
+        self.assertTrue(all_sh.is_file(), f"{all_sh} must exist")
+        content_all = all_sh.read_text()
+        m_chunk = re.search(r"CHUNK_SIZE=([0-9]+)", content_all)
+        self.assertIsNotNone(m_chunk, "CHUNK_SIZE must be defined in submit_epistemic_ood_sweep_all.sh")
+        chunk_val = int(m_chunk.group(1))
+        self.assertLessEqual(
+            chunk_val, 300,
+            f"CHUNK_SIZE {chunk_val} in {all_sh} exceeds LUIS cluster limit of 300"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
