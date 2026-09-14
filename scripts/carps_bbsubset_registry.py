@@ -75,3 +75,33 @@ class CarpsBBSubsetRegistry:
         if exclude_nas:
             return [t for t in cls.DEV_TASKS if "tabular_nas" not in t]
         return list(cls.DEV_TASKS)
+
+    # Official CARP-S Blackbox Held-Out Test Subset (20 Tasks)
+    TEST_TASKS = [
+        "+task=subselection/blackbox/test/subset_bbob_2_6_1",
+        "+task=subselection/blackbox/test/subset_bbob_2_9_0",
+        "+task=subselection/blackbox/test/subset_bbob_2_12_2",
+        "+task=subselection/blackbox/test/subset_bbob_8_22_0",
+        "+task=subselection/blackbox/test/subset_bbob_16_1_1",
+        "+task=subselection/blackbox/test/subset_bbob_16_11_0",
+        "+task=subselection/blackbox/test/subset_bbob_32_9_0",
+        "+task=subselection/blackbox/test/subset_bbob_32_11_0",
+        "+task=subselection/blackbox/test/subset_hpobench_blackbox_tabular_ml_svm_12",
+        "+task=subselection/blackbox/test/subset_yahpo_lcbench_167184_None",
+        "+task=subselection/blackbox/test/subset_yahpo_rbv2_glmnet_32_None",
+        "+task=subselection/blackbox/test/subset_yahpo_rbv2_glmnet_375_None",
+        "+task=subselection/blackbox/test/subset_yahpo_rbv2_ranger_29_None",
+        "+task=subselection/blackbox/test/subset_yahpo_rbv2_rpart_18_None",
+        "+task=subselection/blackbox/test/subset_yahpo_rbv2_rpart_4534_None",
+        "+task=subselection/blackbox/test/subset_yahpo_rbv2_svm_1493_None",
+        "+task=subselection/blackbox/test/subset_yahpo_rbv2_xgboost_1457_None",
+        "+task=subselection/blackbox/test/subset_yahpo_rbv2_xgboost_1493_None",
+        "+task=subselection/blackbox/test/subset_yahpo_rbv2_xgboost_1510_None",
+        "+task=subselection/blackbox/test/subset_yahpo_rbv2_xgboost_41027_None",
+    ]
+
+    @classmethod
+    def get_test_tasks(cls) -> List[str]:
+        """Returns the 20 CARP-S Blackbox Held-Out Test Tasks."""
+        return list(cls.TEST_TASKS)
+
