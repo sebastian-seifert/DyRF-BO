@@ -78,3 +78,58 @@ class CustomUncertaintyRandomForest(RandomForest):
         var = (unc_signal ** 2).reshape(-1, 1)
         var = np.maximum(var, 1e-10)
         return mean, var
+
+    def predict_standard_rf(self, X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Returns the pure, authentic SMAC3 Random Forest (mean, tree_variance)
+        directly from underlying EPMRandomForest (super()._predict),
+        strictly bypassing any custom uncertainty extractors.
+        """
+        X_clean = self._impute_inactive(X)
+        return super()._predict(X_clean)
+
+    @property
+    def oob_mae(self) -> float:
+        """Exposes global OOB MAE from active extractor or underlying EPMRandomForest."""
+        if self.uq_extractor is not None and hasattr(self.uq_extractor, "oob_mae"):
+            return self.uq_extractor.oob_mae
+        if hasattr(self._rf, "oob_prediction_") and self.last_y is not None:
+            return float(np.mean(np.abs(self.last_y - self._rf.oob_prediction_)))
+        return 1.0
+
+    def predict_with_intervals(
+        self,
+        X: np.ndarray,
+        n_neighbors: int | str = "auto",
+        level: float = 0.95,
+        return_mae: bool = False
+    ):
+        """
+        Generates point predictions and empirical prediction intervals.
+        Delegates directly to uq_extractor if supported.
+        """
+        X_clean = self._impute_inactive(X)
+        if self.uq_extractor is None and self._rf is not None and isinstance(self.uncertainty_func, str):
+            self.uq_extractor = UQExtractorRegistry.get(
+                self.uncertainty_func, self._rf, **(self.extractor_kwargs or {})
+            )
+            self.uq_extractor.fit(self.last_X if self.last_X is not None else X_clean, self.last_y)
+
+        if self.uq_extractor is not None and hasattr(self.uq_extractor, "predict_with_intervals"):
+            return self.uq_extractor.predict_with_intervals(
+                X_clean, n_neighbors=n_neighbors, level=level, return_mae=return_mae
+            )
+
+        # Fallback to Gaussian interval via _predict
+        mean, var = self._predict(X_clean)
+        mean = mean.flatten()
+        std = np.sqrt(var.flatten())
+        from scipy.stats import norm
+        alpha = 1.0 - level
+        kappa = float(norm.ppf(1.0 - alpha / 2.0)) if level > 0.0 else 0.0
+        y_lwr = mean - kappa * std
+        y_upr = mean + kappa * std
+        if return_mae:
+            mae = np.full_like(mean, self.oob_mae)
+            return y_lwr, mean, y_upr, mae
+        return y_lwr, mean, y_upr

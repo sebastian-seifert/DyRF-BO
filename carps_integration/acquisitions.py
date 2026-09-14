@@ -130,3 +130,5 @@ class AcquisitionRegistry:
             )
         return cls._REGISTRY[name_clean](**kwargs)
 
+from carps_integration.proximity_lcb import ProximityLowerBoundAcquisition
+

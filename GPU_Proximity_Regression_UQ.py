@@ -714,6 +714,158 @@ class GPUProximityRegressionUQ:
             
         return uq
 
+    @property
+    def oob_mae(self) -> float:
+        """Mean absolute error of out-of-bag training residuals."""
+        if hasattr(self, "oob_residuals") and self.oob_residuals is not None:
+            resids = self.oob_residuals
+            if hasattr(resids, "get"):
+                resids = resids.get()
+            return float(np.mean(np.abs(resids)))
+        return 1.0
+
+    def predict_with_intervals(
+        self,
+        X_test: np.ndarray,
+        n_neighbors: int | str = "auto",
+        level: float = 0.95,
+        return_mae: bool = False
+    ):
+        """
+        Generate point predictions with empirical prediction intervals using RF proximities.
+        Optionally returns localized in-interval MAE.
+        """
+        if not hasattr(self, "estimators"):
+            self.fit()
+
+        X_test = np.asarray(X_test)
+        n_test = len(X_test)
+
+        if n_neighbors != "auto" and n_neighbors != "all":
+            try:
+                if isinstance(n_neighbors, float) or (isinstance(n_neighbors, str) and "." in n_neighbors):
+                    n_neighbors_val = int(round(float(n_neighbors)))
+                else:
+                    n_neighbors_val = int(n_neighbors)
+                if n_neighbors_val <= 0 or n_neighbors_val > self.n_train:
+                    raise ValueError(f"n_neighbors must be between 1 and {self.n_train}.")
+                n_neighbors = n_neighbors_val
+            except (ValueError, TypeError):
+                raise ValueError("n_neighbors must be a positive integer, 'auto', or 'all'.")
+
+        leaf_matrix_test = self.model.apply(X_test)
+        if self.using_gpu:
+            leaf_matrix_test_pinned = cupyx.empty_pinned(leaf_matrix_test.shape, dtype=leaf_matrix_test.dtype)
+            leaf_matrix_test_pinned[...] = leaf_matrix_test
+            leaf_matrix_test_xp = cp.asarray(leaf_matrix_test_pinned)
+        else:
+            leaf_matrix_test_xp = leaf_matrix_test
+
+        resid_lwr = self.xp.zeros(n_test, dtype=self.xp.float32)
+        resid_upr = self.xp.zeros(n_test, dtype=self.xp.float32)
+        local_mae = self.xp.zeros(n_test, dtype=self.xp.float32)
+
+        alpha_lwr = (1.0 - level) / 2.0
+        alpha_upr = 1.0 - alpha_lwr
+
+        batch_size = self._get_dynamic_batch_size(n_test) if self.batch_size_param == "auto" else int(self.batch_size_param)
+
+        for start in range(0, n_test, batch_size):
+            end = min(start + batch_size, n_test)
+            batch_len = end - start
+            leaf_batch = leaf_matrix_test_xp[start:end, :]
+
+            prox_batch = self.xp.zeros((batch_len, self.n_train), dtype=self.xp.float32)
+            for t in range(self.n_estimators):
+                if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+                    id_to_dense = self.tree_leaf_id_to_dense[t]
+                    dense_test = id_to_dense[leaf_batch[:, t]]
+                    dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
+                    d_t = self.tree_leaf_distances[t][dense_test[:, None], dense_train[None, :]]
+                    if self.normalize_by_depth:
+                        max_depth_val = max(1.0, float(self.tree_max_depths[t]))
+                        decay_t = self.xp.exp(-self.topological_decay_lambda * d_t / (2.0 * max_depth_val))
+                    else:
+                        decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
+                    prox_batch += decay_t * self.train_weights_xp[None, :, t]
+                else:
+                    matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                    prox_batch += matches_t * self.train_weights_xp[None, :, t]
+
+            prox_batch /= self.n_estimators
+
+            if n_neighbors == "auto":
+                if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
+                    lwr_b = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_lwr)
+                    upr_b = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_upr)
+                    resid_lwr[start:end] = lwr_b
+                    resid_upr[start:end] = upr_b
+                    if return_mae:
+                        resids = self.oob_residuals_xp[None, :]
+                        in_int = (resids >= lwr_b[:, None]) & (resids <= upr_b[:, None])
+                        w_in = prox_batch * in_int
+                        w_sum = self.xp.sum(w_in, axis=1)
+                        mae_val = self.xp.sum(self.xp.abs(resids) * w_in, axis=1) / self.xp.maximum(w_sum, 1e-10)
+                        local_mae[start:end] = self.xp.where(w_sum > 0, mae_val, float(self.oob_mae))
+                else:
+                    masked_residuals = self.xp.where(prox_batch >= 1e-10, self.oob_residuals_xp[None, :], self.xp.nan)
+                    if self.using_gpu and not self.nanquantile_supported:
+                        tiled_cpu = cp.asnumpy(masked_residuals)
+                        lwr_cpu = np.nanquantile(tiled_cpu, alpha_lwr, axis=1)
+                        upr_cpu = np.nanquantile(tiled_cpu, alpha_upr, axis=1)
+                        lwr_b = cp.asarray(lwr_cpu)
+                        upr_b = cp.asarray(upr_cpu)
+                    else:
+                        lwr_b = self.xp.nanquantile(masked_residuals, alpha_lwr, axis=1)
+                        upr_b = self.xp.nanquantile(masked_residuals, alpha_upr, axis=1)
+                    resid_lwr[start:end] = lwr_b
+                    resid_upr[start:end] = upr_b
+                    if return_mae:
+                        in_int = (masked_residuals >= lwr_b[:, None]) & (masked_residuals <= upr_b[:, None])
+                        valid_cnt = self.xp.sum(in_int & (~self.xp.isnan(masked_residuals)), axis=1)
+                        abs_res = self.xp.where(~self.xp.isnan(masked_residuals), self.xp.abs(masked_residuals), 0.0)
+                        sum_abs = self.xp.sum(abs_res * in_int, axis=1)
+                        mae_val = sum_abs / self.xp.maximum(valid_cnt, 1)
+                        local_mae[start:end] = self.xp.where(valid_cnt > 0, mae_val, float(self.oob_mae))
+            else:
+                k = self.n_train if n_neighbors == "all" else int(n_neighbors)
+                if k < self.n_train:
+                    partition_idx = self.xp.flip(self.xp.argsort(prox_batch, axis=1), axis=1)[:, :k]
+                    k_residuals = self.oob_residuals_xp[partition_idx]
+                else:
+                    k_residuals = self.xp.broadcast_to(self.oob_residuals_xp[None, :], (batch_len, self.n_train))
+                lwr_b = self.xp.quantile(k_residuals, alpha_lwr, axis=1)
+                upr_b = self.xp.quantile(k_residuals, alpha_upr, axis=1)
+                resid_lwr[start:end] = lwr_b
+                resid_upr[start:end] = upr_b
+                if return_mae:
+                    in_int = (k_residuals >= lwr_b[:, None]) & (k_residuals <= upr_b[:, None])
+                    cnt = self.xp.sum(in_int, axis=1)
+                    sum_abs = self.xp.sum(self.xp.abs(k_residuals) * in_int, axis=1)
+                    mae_val = sum_abs / self.xp.maximum(cnt, 1)
+                    local_mae[start:end] = self.xp.where(cnt > 0, mae_val, float(self.oob_mae))
+
+        y_pred = self.model.predict(X_test)
+        if isinstance(y_pred, tuple):
+            y_pred = y_pred[0]
+        y_pred = np.asarray(y_pred, dtype=np.float32).flatten()
+
+        if self.using_gpu:
+            resid_lwr = resid_lwr.get().flatten()
+            resid_upr = resid_upr.get().flatten()
+            local_mae = local_mae.get().flatten()
+        else:
+            resid_lwr = np.asarray(resid_lwr, dtype=np.float32).flatten()
+            resid_upr = np.asarray(resid_upr, dtype=np.float32).flatten()
+            local_mae = np.asarray(local_mae, dtype=np.float32).flatten()
+
+        y_pred_lwr = y_pred + resid_lwr
+        y_pred_upr = y_pred + resid_upr
+
+        if return_mae:
+            return y_pred_lwr, y_pred, y_pred_upr, local_mae
+        return y_pred_lwr, y_pred, y_pred_upr
+
     def _precompute_tree_paths(self, tree_idx):
         """Precomputes paths from root to all nodes in tree_idx."""
         if not hasattr(self, "tree_paths"):

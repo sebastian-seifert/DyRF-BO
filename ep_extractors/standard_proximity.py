@@ -29,3 +29,22 @@ class StandardProximityExtractor(BaseEpistemicExtractor):
         if self.uq_model is None:
             raise RuntimeError("Extractor must be fitted before extracting signal.")
         return self.uq_model.compute_uq(X)
+
+    @property
+    def oob_mae(self) -> float:
+        if self.uq_model is not None and hasattr(self.uq_model, "oob_mae"):
+            return self.uq_model.oob_mae
+        return 1.0
+
+    def predict_with_intervals(
+        self,
+        X: np.ndarray,
+        n_neighbors: int | str = "auto",
+        level: float = 0.95,
+        return_mae: bool = False
+    ):
+        if self.uq_model is None:
+            raise RuntimeError("Extractor must be fitted before computing intervals.")
+        return self.uq_model.predict_with_intervals(
+            X, n_neighbors=n_neighbors, level=level, return_mae=return_mae
+        )
