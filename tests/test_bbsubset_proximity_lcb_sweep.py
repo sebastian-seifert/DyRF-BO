@@ -220,5 +220,14 @@ class TestDualCheckpointAnalysis(unittest.TestCase):
             self.assertTrue(report_100.exists())
 
 
+class TestGatherBBSUBSETProximityLCB(unittest.TestCase):
+    def test_gather_script_exists_and_callable(self):
+        """Gather script must exist and provide gather_bbsubset_proximity_lcb_data."""
+        gather_path = Path(PROJECT_ROOT) / "scripts/gather_bbsubset_proximity_lcb.py"
+        self.assertTrue(gather_path.exists(), f"Missing: {gather_path}")
+        from scripts.gather_bbsubset_proximity_lcb import gather_bbsubset_proximity_lcb_data
+        self.assertTrue(callable(gather_bbsubset_proximity_lcb_data))
+
+
 if __name__ == "__main__":
     unittest.main()
