@@ -346,5 +346,99 @@ class TestProximityLowerBoundAcquisition(unittest.TestCase):
         expected_score = -(10.0 - kappa * 0.5)
         self.assertAlmostEqual(score, expected_score, places=5)
 
+    def test_proximity_b_predict_with_intervals_contract(self):
+        """Verify that proximity_b (Laplacian tree-path lambda=1.0) implements predict_with_intervals."""
+        np.random.seed(42)
+        X_train = np.random.uniform(-3.0, 3.0, size=(25, 2))
+        y_train = np.sin(X_train[:, 0]) + 0.1 * np.random.normal(size=25)
+
+        surrogate = CustomUncertaintyRandomForest(
+            uncertainty_func="proximity_b",
+            configspace=self.cs,
+            n_trees=10,
+            oob_score=True
+        )
+        surrogate.train(X_train, y_train)
+
+        self.assertTrue(hasattr(surrogate, "predict_with_intervals"))
+        self.assertTrue(hasattr(surrogate.uq_extractor, "predict_with_intervals"))
+        self.assertTrue(hasattr(surrogate.uq_extractor, "oob_mae"))
+
+        X_test = np.random.uniform(-3.0, 3.0, size=(5, 2))
+        res = surrogate.predict_with_intervals(X_test, n_neighbors=10, level=0.95, return_mae=True)
+        self.assertEqual(len(res), 4)
+        y_lwr, y_pred, y_upr, local_mae = res
+
+        self.assertEqual(y_lwr.shape, (5,))
+        self.assertEqual(y_pred.shape, (5,))
+        self.assertEqual(y_upr.shape, (5,))
+        self.assertEqual(local_mae.shape, (5,))
+        self.assertTrue(np.all(np.isfinite(y_lwr)))
+        self.assertTrue(np.all(np.isfinite(local_mae)))
+        self.assertTrue(np.all(local_mae > 0.0))
+
+    def test_proximity_lower_bound_acq_with_proximity_b_surrogate(self):
+        """Verify ProximityLowerBoundAcquisition with proximity_b surrogate under warmup and active phases."""
+        np.random.seed(42)
+        X_train = np.random.uniform(-3.0, 3.0, size=(25, 2))
+        y_train = np.sin(X_train[:, 0])
+
+        surrogate = CustomUncertaintyRandomForest(
+            uncertainty_func="proximity_b",
+            configspace=self.cs,
+            n_trees=10,
+            oob_score=True
+        )
+        surrogate.train(X_train, y_train)
+
+        acq = ProximityLowerBoundAcquisition(eps=0.10, level=0.95, k=10)
+
+        # Test warmup phase (N = 5 <= k = 10)
+        acq.update(surrogate, num_data=5)
+        X_test = np.array([[0.0, 0.0], [1.0, 1.0]])
+        warmup_scores = acq._compute(X_test)
+        self.assertEqual(warmup_scores.shape, (2, 1))
+        self.assertTrue(np.all(np.isfinite(warmup_scores)))
+
+        # Test active proximity phase (N = 25 > k = 10)
+        acq.update(surrogate, num_data=25)
+        active_scores = acq._compute(X_test)
+        self.assertEqual(active_scores.shape, (2, 1))
+        self.assertTrue(np.all(np.isfinite(active_scores)))
+
+    def test_laplacian_lambda1_top_k_ranks_closer_leaves_higher(self):
+        """Verify that Laplacian kernel (lambda=1.0) ranks points with smaller tree-path step distance higher."""
+        from GPU_Proximity_Regression_UQ import GPUProximityRegressionUQ
+        from sklearn.ensemble import RandomForestRegressor
+
+        np.random.seed(42)
+        X_train = np.array([
+            [0.0, 0.0],
+            [0.1, 0.0],   # Very close to X_train[0]
+            [5.0, 5.0],   # Far away from X_train[0]
+            [5.1, 5.0],
+        ])
+        y_train = np.array([1.0, 1.1, 10.0, 10.1])
+
+        rf = RandomForestRegressor(n_estimators=10, max_depth=3, oob_score=True, random_state=42)
+        rf.fit(X_train, y_train)
+
+        uq = GPUProximityRegressionUQ(
+            rf, X_train, y_train,
+            device="cpu",
+            topological_decay_lambda=1.0,
+            normalize_by_depth=True
+        )
+        uq.fit()
+
+        X_query = np.array([[0.05, 0.0]])
+        # Proximity matrix between query and train
+        prox = uq.compute_proximity_matrix(X_query)[0]
+
+        # Points [0.0, 0.0] and [0.1, 0.0] should have strictly higher proximity than [5.0, 5.0]
+        self.assertGreater(prox[0], prox[2])
+        self.assertGreater(prox[1], prox[2])
+
 if __name__ == "__main__":
     unittest.main()
+
