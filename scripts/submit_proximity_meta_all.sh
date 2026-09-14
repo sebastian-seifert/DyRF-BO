@@ -8,24 +8,25 @@ echo "=================================================="
 TASK_FILE="results/sweep_proximity_meta_hpo/tasks.txt"
 CONFIG_FILE="results/sweep_proximity_meta_hpo/sobol_configs.json"
 
-if [ ! -f "$CONFIG_FILE" ] || [ ! -s "$CONFIG_FILE" ]; then
-    echo "Sampling Sobol configurations..."
-    if [ -f ".venv/bin/python" ]; then
-        .venv/bin/python scripts/sample_proximity_meta_configs.py -o "$CONFIG_FILE"
-    else
-        python3 scripts/sample_proximity_meta_configs.py -o "$CONFIG_FILE"
+if [ -f "$TASK_FILE" ] && [ -s "$TASK_FILE" ]; then
+    echo "Using existing task file: ${TASK_FILE}"
+else
+    echo "Task file missing. Generating from Sobol configurations..."
+    if [ ! -f "$CONFIG_FILE" ] || [ ! -s "$CONFIG_FILE" ]; then
+        echo "Sampling Sobol configurations..."
+        if [ -f ".venv/bin/python" ]; then
+            .venv/bin/python scripts/sample_proximity_meta_configs.py -o "$CONFIG_FILE"
+        else
+            python3 scripts/sample_proximity_meta_configs.py -o "$CONFIG_FILE"
+        fi
     fi
-fi
 
-if [ ! -f "$TASK_FILE" ] || [ ! -s "$TASK_FILE" ]; then
     echo "Generating task file..."
     if [ -f ".venv/bin/python" ]; then
         .venv/bin/python scripts/generate_proximity_meta_sweep_tasks.py -o "$TASK_FILE" -c "$CONFIG_FILE"
     else
         python3 scripts/generate_proximity_meta_sweep_tasks.py -o "$TASK_FILE" -c "$CONFIG_FILE"
     fi
-else
-    echo "Using existing task file: ${TASK_FILE}"
 fi
 
 TOTAL_TASKS=$(wc -l < "$TASK_FILE" | tr -d ' ')
