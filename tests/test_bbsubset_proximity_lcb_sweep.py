@@ -219,6 +219,37 @@ class TestDualCheckpointAnalysis(unittest.TestCase):
             self.assertTrue(report_50.exists())
             self.assertTrue(report_100.exists())
 
+    def test_compute_analysis_with_carps_n_trials_column(self):
+        """CARP-S filelogs_to_df uses 'n_trials'; analysis script must handle it without KeyError."""
+        from scripts.compute_bbsubset_proximity_lcb_analysis import compute_dual_checkpoint_analysis
+
+        records = []
+        for opt in ["SMAC20_ProximityLCB_k10", "SMAC3_HPOFacade_lcb"]:
+            for seed in range(1, 6):
+                for trial_idx in range(1, 101):
+                    records.append({
+                        "task_id": "test_task",
+                        "optimizer_id": opt,
+                        "seed": seed,
+                        "n_trials": trial_idx,
+                        "trial_value__cost_inc": 1.0 / trial_idx,
+                    })
+        df = pd.DataFrame(records)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            parquet_path = os.path.join(tmpdir, "logs.parquet")
+            df.to_parquet(parquet_path)
+
+            results = compute_dual_checkpoint_analysis(
+                input_file=parquet_path,
+                output_dir=tmpdir,
+                checkpoints=[50, 100],
+                proposed_id="SMAC20_ProximityLCB_k10",
+                baseline_id="SMAC3_HPOFacade_lcb",
+            )
+            self.assertIn(50, results)
+            self.assertIn(100, results)
+
 
 class TestGatherBBSUBSETProximityLCB(unittest.TestCase):
     def test_gather_script_exists_and_callable(self):

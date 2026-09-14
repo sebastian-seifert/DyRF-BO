@@ -240,12 +240,23 @@ def compute_dual_checkpoint_analysis(
     os.makedirs(output_dir, exist_ok=True)
     df = load_logs_dataframe(input_file)
 
-    # Standardize column names if needed
-    trial_col = "trial"
-    if trial_col not in df.columns:
-        for c in ["trial_number", "trial_idx", "iteration", "step"]:
+    # Standardize column names if needed (CARP-S uses 'n_trials')
+    trial_col = None
+    for candidate in ["n_trials", "n_function_calls", "trial", "trial_number", "trial_idx", "iteration", "step"]:
+        if candidate in df.columns:
+            trial_col = candidate
+            break
+
+    if trial_col is None:
+        raise KeyError(
+            f"Could not find trial index column in dataframe. Available columns: {list(df.columns)}"
+        )
+
+    # Standardize cost column if needed
+    if cost_col not in df.columns:
+        for c in ["trial_value__cost_inc", "cost_inc", "trial_value__cost", "cost", "value"]:
             if c in df.columns:
-                trial_col = c
+                cost_col = c
                 break
 
     results: Dict[int, Dict[str, Any]] = {}
