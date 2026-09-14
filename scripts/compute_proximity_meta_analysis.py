@@ -301,6 +301,12 @@ def analyze_proximity_meta_hpo(
             f.write(dataframe_to_markdown(norm_task_df.reset_index().rename(columns={"index": "config_id"})))
             f.write("\n")
 
+        # Save optimal configuration as dedicated JSON artifact
+        best_cfg_dict = leaderboard_df.iloc[0].to_dict()
+        best_json_path = out_p / "best_config.json"
+        with open(best_json_path, "w") as f:
+            json.dump(best_cfg_dict, f, indent=2)
+
     return leaderboard_df, norm_task_df
 
 
@@ -341,10 +347,20 @@ def main() -> None:
         output_dir=args.output_dir,
         checkpoint=args.checkpoint,
     )
-    print("=" * 60)
-    print("Top 10 Configurations by Normalized Regret Loss:")
-    print("=" * 60)
-    print(leaderboard.head(10).to_string(index=False))
+
+    best = leaderboard.iloc[0]
+    print("\n" + "=" * 65)
+    print("🏆 OPTIMAL HYPERPARAMETER CONFIGURATION FOUND:")
+    print("=" * 65)
+    print(f"  Rank:                   1")
+    print(f"  Config ID:              {best['config_id']}")
+    print(f"  k (Neighbors):          {int(best['k'])}")
+    print(f"  lambda (Decay Rate):    {best['lambda']:.4f}")
+    print(f"  eps (Floor Ratio):      {best['eps']:.4f}")
+    print(f"  Normalized Regret Loss: {best['loss_normalized_regret']:.4f}")
+    print("=" * 65)
+    print(f"Full details saved to: {args.output_dir}/best_config.json")
+    print(f"Leaderboard saved to:  {args.output_dir}/proximity_meta_hpo_leaderboard.md\n")
 
 
 if __name__ == "__main__":
