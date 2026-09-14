@@ -36,3 +36,35 @@ class CarpsBBSubsetRegistry:
     def get_dev_tasks(cls) -> List[str]:
         """Returns the 20 CARP-S Blackbox Dev Tasks."""
         return list(cls.DEV_TASKS)
+
+    # 14 Real-World ML Tasks (3 HPOBench ML + 11 YAHPO)
+    REALWORLD_ML_DEV_TASKS = [
+        "+task=subselection/blackbox/dev/subset_hpobench_blackbox_tabular_ml_lr_146818",
+        "+task=subselection/blackbox/dev/subset_hpobench_blackbox_tabular_ml_rf_146212",
+        "+task=subselection/blackbox/dev/subset_hpobench_blackbox_tabular_ml_xgboost_146212",
+        "+task=subselection/blackbox/dev/subset_yahpo_lcbench_168335_None",
+        "+task=subselection/blackbox/dev/subset_yahpo_rbv2_aknn_1462_None",
+        "+task=subselection/blackbox/dev/subset_yahpo_rbv2_aknn_312_None",
+        "+task=subselection/blackbox/dev/subset_yahpo_rbv2_aknn_40498_None",
+        "+task=subselection/blackbox/dev/subset_yahpo_rbv2_aknn_458_None",
+        "+task=subselection/blackbox/dev/subset_yahpo_rbv2_glmnet_41157_None",
+        "+task=subselection/blackbox/dev/subset_yahpo_rbv2_ranger_40927_None",
+        "+task=subselection/blackbox/dev/subset_yahpo_rbv2_svm_182_None",
+        "+task=subselection/blackbox/dev/subset_yahpo_rbv2_svm_24_None",
+        "+task=subselection/blackbox/dev/subset_yahpo_rbv2_xgboost_23512_None",
+        "+task=subselection/blackbox/dev/subset_yahpo_rbv2_xgboost_42_None",
+    ]
+
+    # 2 HPOBench Tabular NAS Tasks
+    REALWORLD_NAS_DEV_TASKS = [
+        "+task=subselection/blackbox/dev/subset_hpobench_blackbox_tabular_nas_NavalPropulsionBenchmark",
+        "+task=subselection/blackbox/dev/subset_hpobench_blackbox_tabular_nas_SliceLocalizationBenchmark",
+    ]
+
+    @classmethod
+    def get_realworld_dev_tasks(cls, include_nas: bool = False) -> List[str]:
+        """Returns the real-world dev tasks (14 ML tasks by default, or 16 if include_nas=True)."""
+        tasks = list(cls.REALWORLD_ML_DEV_TASKS)
+        if include_nas:
+            tasks.extend(cls.REALWORLD_NAS_DEV_TASKS)
+        return tasks
