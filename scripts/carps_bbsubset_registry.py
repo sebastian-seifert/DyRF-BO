@@ -68,3 +68,10 @@ class CarpsBBSubsetRegistry:
         if include_nas:
             tasks.extend(cls.REALWORLD_NAS_DEV_TASKS)
         return tasks
+
+    @classmethod
+    def get_working_dev_tasks(cls, exclude_nas: bool = True) -> List[str]:
+        """Returns all working tasks from the CARP-S BBsubset (18 tasks when excluding broken NAS tasks)."""
+        if exclude_nas:
+            return [t for t in cls.DEV_TASKS if "tabular_nas" not in t]
+        return list(cls.DEV_TASKS)

@@ -150,6 +150,8 @@ original_smac3_init = carps.optimizers.smac20.SMAC3Optimizer.__init__
 def patched_smac3_init(self, task, smac_cfg, loggers=None, expects_multiple_objectives=False, expects_fidelities=False, **kwargs):
     if "acq_func_name" in kwargs:
         self.acq_func_name = kwargs.pop("acq_func_name")
+    if "acq_func_kwargs" in kwargs:
+        self.acq_func_kwargs = kwargs.pop("acq_func_kwargs")
     original_smac3_init(
         self,
         task=task,
@@ -178,16 +180,32 @@ def patched_smac3_setup_optimizer(self):
     acq_name = getattr(self, "acq_func_name", None) or (
         self.smac_cfg.acq_func_name if hasattr(self.smac_cfg, "acq_func_name") else None
     )
+    acq_kwargs = {}
+    if hasattr(self, "acq_func_kwargs") and self.acq_func_kwargs:
+        acq_kwargs = dict(self.acq_func_kwargs)
+    elif hasattr(self.smac_cfg, "acq_func_kwargs") and self.smac_cfg.acq_func_kwargs:
+        acq_kwargs = OmegaConf.to_container(self.smac_cfg.acq_func_kwargs, resolve=True)
+
     if "acquisition_function" not in smac_kwargs and acq_name:
-        import smac.acquisition.function as acq_module
-        acq_map = {
-            "ei": acq_module.EI,
-            "pi": acq_module.PI,
-            "lcb": acq_module.LCB,
-        }
-        acq_cls = acq_map.get(str(acq_name).lower())
-        if acq_cls is not None:
-            smac_kwargs["acquisition_function"] = acq_cls()
+        acq_lower = str(acq_name).lower()
+        if acq_lower in ("proximity_lcb", "proximity_lower_bound"):
+            from carps_integration.proximity_lcb import ProximityLowerBoundAcquisition
+            smac_kwargs["acquisition_function"] = ProximityLowerBoundAcquisition(**acq_kwargs)
+        else:
+            import smac.acquisition.function as acq_module
+            acq_map = {
+                "ei": acq_module.EI,
+                "pi": acq_module.PI,
+                "lcb": acq_module.LCB,
+            }
+            acq_cls = acq_map.get(acq_lower)
+            if acq_cls is not None:
+                if acq_lower == "lcb":
+                    if "kappa" in acq_kwargs:
+                        kappa_val = acq_kwargs.pop("kappa")
+                        acq_kwargs["beta"] = float(kappa_val) ** 2
+                        acq_kwargs["update_beta"] = False
+                smac_kwargs["acquisition_function"] = acq_cls(**acq_kwargs)
 
     scenario_kwargs = {
         "configspace": self.configspace,
