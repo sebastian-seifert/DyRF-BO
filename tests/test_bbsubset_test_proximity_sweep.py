@@ -295,6 +295,72 @@ class TestComputeBBSUBSETTestProximityAnalysis(unittest.TestCase):
             self.assertIn("p_holm", scorecard_df.columns)
             self.assertIn("cliffs_delta", scorecard_df.columns)
 
+            # Statistical rigor: task-level Wilcoxon and valid Cliff's delta aggregation
+            self.assertIn("task_wilcoxon_stat", summary)
+            self.assertIn("task_wilcoxon_p_twosided", summary)
+            self.assertIn("task_wilcoxon_p_onesided", summary)
+            self.assertIn("mean_cliffs_delta", summary)
+            self.assertIn("task_level_cliffs_delta", summary)
+            self.assertIn("stratified_analysis", summary)
+            self.assertIn("bbob_high_d_16", summary["stratified_analysis"])
+            self.assertIn("suite_high_d_8", summary["stratified_analysis"])
+
+            # Verify markdown scorecard includes task-level test and high-D stratification
+            with open(md_scorecard) as f:
+                md_text = f.read()
+            self.assertIn("Task-level Wilcoxon (Demšar)", md_text)
+            self.assertIn("High-Dimensional Stratification", md_text)
+
+    def test_compute_analysis_min_dim_filter(self):
+        """Verify min_dim filtering creates targeted scorecard for high-D tasks."""
+        from scripts.compute_bbsubset_test_proximity_analysis import (
+            compute_bbsubset_test_proximity_analysis,
+        )
+
+        test_tasks = CarpsBBSubsetRegistry.get_test_tasks()
+        records = []
+
+        for t_idx, task_arg in enumerate(test_tasks):
+            task_name = task_arg.split("/")[-1]
+            for seed in range(1, 31):
+                cost_p = 5.0 + t_idx * 0.5 - 0.02 * seed
+                cost_b = 6.0 + t_idx * 0.5 - 0.01 * seed
+                records.append({
+                    "task_id": task_name,
+                    "optimizer_id": "SMAC20_ProximityLCB_tuned",
+                    "seed": seed,
+                    "n_trials": 100,
+                    "trial_value__cost_inc": cost_p,
+                })
+                records.append({
+                    "task_id": task_name,
+                    "optimizer_id": "SMAC3_HPOFacade_lcb",
+                    "seed": seed,
+                    "n_trials": 100,
+                    "trial_value__cost_inc": cost_b,
+                })
+
+        df = pd.DataFrame(records)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            parquet_path = os.path.join(tmpdir, "logs.parquet")
+            df.to_parquet(parquet_path)
+
+            summary_high_d = compute_bbsubset_test_proximity_analysis(
+                input_file=parquet_path,
+                output_dir=tmpdir,
+                proposed_id="SMAC20_ProximityLCB_tuned",
+                baseline_id="SMAC3_HPOFacade_lcb",
+                min_dim=8,
+                out_prefix="test_proximity_scorecard_high_d",
+            )
+
+            self.assertEqual(summary_high_d["n_tasks"], 10)
+            md_high_d = Path(tmpdir) / "test_proximity_scorecard_high_d.md"
+            csv_high_d = Path(tmpdir) / "test_proximity_scorecard_high_d.csv"
+            self.assertTrue(md_high_d.exists())
+            self.assertTrue(csv_high_d.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

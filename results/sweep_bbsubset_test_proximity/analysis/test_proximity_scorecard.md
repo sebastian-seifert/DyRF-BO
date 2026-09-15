@@ -9,9 +9,21 @@
 - **Seed-level Record (W / T / L)**: **270 / 128 / 202** (45.0% win rate)
 - **Task-level Empirical Record (W / T / L)**: **10 / 4 / 6**
 - **Task-level Statistically Significant Record (alpha=0.05) (W / T / L)**: **6 / 11 / 3**
-- **Mean Normalized Regret**: Proposed = **0.2271** vs Baseline = **0.2646**
-- **Overall Cliff's Delta**: `+0.0053` (Favors Baseline)
-- **Macro Wilcoxon p-value**: `3.1576e-06` (Significant (p < 0.05))
+- **Mean Normalized Regret**: Proposed = **0.2271** vs Baseline = **0.2646** (+14.2% relative reduction)
+- **Task-level Wilcoxon (Demšar) p-value (two-sided)**: `0.3011` (Not Significant (p >= 0.05))
+- **Task-level Wilcoxon (Demšar) p-value (one-sided, proposed < baseline)**: `0.1505`
+- **Mean Per-Task Cliff's Delta**: `-0.1082` (Favors Proposed)
+- **Task-Level Cliff's Delta (on normalized regret)**: `-0.0800`
+- **Legacy Pooled Wilcoxon p-value (unnormalized scale-sensitive)**: `2.7295e-06`
+
+## High-Dimensional Stratification Analysis
+
+| Stratum | N Tasks | Mean Regret Proposed | Mean Regret Baseline | Rel. Reduction | Mean Cliff's Delta | Wilcoxon p (1-sided) | Wilcoxon p (2-sided) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| BBOB High-D (D >= 16) | 4 | 0.2042 | 0.3874 | +47.3% | -0.511 | 0.0625 | 0.1250 |
+| BBOB High-D (D >= 8) | 5 | 0.2594 | 0.4175 | +37.9% | -0.434 | 0.0312 | 0.0625 |
+| All High-D (D >= 8) | 10 | 0.1901 | 0.2970 | +36.0% | -0.292 | 0.0078 | 0.0156 |
+| Low-D (D <= 3) | 6 | 0.1913 | 0.0971 | -97.1% | +0.231 | 1.0000 | 0.0625 |
 
 ## Per-Task Test Set Scorecard (Holm-Bonferroni FWER alpha = 0.05)
 
@@ -25,10 +37,10 @@
 | blackbox/20/test/bbob/32/11/0 | 30 | 438.5605 | 1239.2513 | 0.0619 | 0.2726 | 21 | 5 | 4 | -0.479 | 9.804e-04 | 1.373e-02 | WIN |
 | blackbox/20/test/bbob/32/9/0 | 30 | 182475.9886 | 228382.0350 | 0.4092 | 0.6122 | 26 | 0 | 4 | -0.558 | 1.192e-06 | 2.146e-05 | WIN |
 | blackbox/20/test/bbob/8/22/0 | 30 | 80.5662 | 84.3971 | 0.4799 | 0.5381 | 16 | 0 | 14 | -0.124 | 4.771e-01 | 1.000e+00 | WIN |
-| blackbox/20/test/hpobench/blackbox/tabular/ml/svm/12 | 30 | 0.0327 | 0.0327 | 0.0000 | 0.0000 | 0 | 30 | 0 | -0.033 | 1.000e+00 | 1.000e+00 | TIE |
+| blackbox/20/test/hpobench/blackbox/tabular/ml/svm/12 | 30 | 0.0327 | 0.0327 | 0.0000 | 0.0000 | 0 | 30 | 0 | +0.000 | 1.000e+00 | 1.000e+00 | TIE |
 | blackbox/20/test/yahpo/lcbench/167184/None | 30 | -84.1025 | -83.9662 | 0.6748 | 0.7006 | 16 | 0 | 14 | +0.042 | 7.922e-01 | 1.000e+00 | WIN |
 | blackbox/20/test/yahpo/rbv2_glmnet/32/None | 30 | -0.9678 | -0.9683 | 0.2873 | 0.1656 | 9 | 1 | 20 | +0.301 | 2.253e-02 | 2.253e-01 | LOSS |
-| blackbox/20/test/yahpo/rbv2_glmnet/375/None | 30 | -0.9608 | -0.9608 | 0.3123 | 0.1442 | 6 | 0 | 24 | +0.476 | 1.431e-03 | 1.717e-02 | LOSS |
+| blackbox/20/test/yahpo/rbv2_glmnet/375/None | 30 | -0.9608 | -0.9608 | 0.3123 | 0.1442 | 6 | 0 | 24 | +0.476 | 1.483e-03 | 1.780e-02 | LOSS |
 | blackbox/20/test/yahpo/rbv2_ranger/29/None | 30 | -0.9175 | -0.9169 | 0.3131 | 0.3708 | 20 | 0 | 10 | -0.187 | 2.801e-01 | 1.000e+00 | WIN |
 | blackbox/20/test/yahpo/rbv2_rpart/18/None | 30 | -0.8379 | -0.8263 | 0.0998 | 0.4544 | 28 | 0 | 2 | -0.844 | 3.148e-07 | 6.296e-06 | WIN |
 | blackbox/20/test/yahpo/rbv2_rpart/4534/None | 30 | -0.9608 | -0.9604 | 0.2893 | 0.3769 | 21 | 0 | 9 | -0.309 | 1.706e-01 | 1.000e+00 | WIN |

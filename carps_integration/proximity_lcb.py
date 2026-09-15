@@ -21,10 +21,10 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
     """
     def __init__(
         self,
-        eps: float = 0.10,
+        eps: float = 0.16,
         level: float = 0.95,
-        k: int | str = "auto",
-        k_warmup: int = 10
+        k: int | str = 25,
+        k_warmup: int = 25
     ) -> None:
         super().__init__()
         self._eps = float(eps)

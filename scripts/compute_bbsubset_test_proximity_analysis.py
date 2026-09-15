@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -24,6 +25,27 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import pandas as pd
 from scipy.stats import wilcoxon
+
+KNOWN_TASK_DIMS: Dict[str, int] = {
+    "svm_12": 2,
+    "lcbench": 7,
+    "glmnet": 3,
+    "ranger": 8,
+    "rpart": 5,
+    "rbv2_svm": 6,
+    "xgboost": 14,
+}
+
+
+def get_task_dimension(task_str: str) -> int:
+    """Infers problem dimensionality from task name or CARP-S path."""
+    m = re.search(r"bbob[/_](\d+)", task_str)
+    if m:
+        return int(m.group(1))
+    for k, v in KNOWN_TASK_DIMS.items():
+        if k in task_str:
+            return v
+    return 0
 
 
 def dataframe_to_markdown(df: pd.DataFrame) -> str:
@@ -169,6 +191,8 @@ def compute_bbsubset_test_proximity_analysis(
     alpha: float = 0.05,
     cost_col: str = "trial_value__cost_inc",
     tie_tolerance: float = 1e-6,
+    min_dim: Optional[int] = None,
+    out_prefix: str = "test_proximity_scorecard",
 ) -> Dict[str, Any]:
     """Computes full test-set statistical analysis, Holm-Bonferroni correction, and scorecards."""
     os.makedirs(output_dir, exist_ok=True)
@@ -189,6 +213,12 @@ def compute_bbsubset_test_proximity_analysis(
                 break
 
     task_col = "task_id" if "task_id" in df.columns else "task"
+
+    if min_dim is not None:
+        dims = df[task_col].apply(get_task_dimension)
+        df = df[dims >= min_dim].copy()
+        if df.empty:
+            raise ValueError(f"No tasks match min_dim >= {min_dim}")
 
     if cost_col in ["trial_value__cost", "cost", "value"] and "trial_value__cost_inc" not in df.columns:
         sort_cols = ["optimizer_id", task_col, "seed"]
@@ -337,14 +367,91 @@ def compute_bbsubset_test_proximity_analysis(
             task_ties += 1
 
     scorecard_df = pd.DataFrame(task_rows)
+    scorecard_df["dim"] = scorecard_df["task"].apply(get_task_dimension)
 
     # Save CSV scorecard
-    csv_path = Path(output_dir) / "test_proximity_scorecard.csv"
+    csv_path = Path(output_dir) / f"{out_prefix}.csv"
     scorecard_df.to_csv(csv_path, index=False)
+
+    # Task-level Wilcoxon signed-rank test on normalized regret (Demšar, 2006)
+    task_norm_p = scorecard_df["norm_regret_proposed"].to_numpy(dtype=float)
+    task_norm_b = scorecard_df["norm_regret_baseline"].to_numpy(dtype=float)
+    diff_norm = task_norm_p - task_norm_b
+    nonzero_norm = int(np.sum(np.abs(diff_norm) > 1e-12))
+    if nonzero_norm >= 5:
+        try:
+            task_w_stat, task_w_p_two = wilcoxon(task_norm_p, task_norm_b, alternative="two-sided")
+            _, task_w_p_one = wilcoxon(task_norm_p, task_norm_b, alternative="less")
+        except Exception:
+            task_w_stat, task_w_p_two, task_w_p_one = np.nan, 1.0, 1.0
+    else:
+        task_w_stat, task_w_p_two, task_w_p_one = np.nan, 1.0, 1.0
+
+    # Non-parametric effect sizes across tasks
+    mean_cliffs_delta = float(scorecard_df["cliffs_delta"].mean())
+    task_level_cliffs_delta = calculate_cliffs_delta(task_norm_p, task_norm_b)
+
+    # High-Dimensional Stratification
+    strata_definitions = [
+        ("bbob_high_d_16", "BBOB High-D (D >= 16)", scorecard_df[scorecard_df["task"].str.contains("bbob") & (scorecard_df["dim"] >= 16)]),
+        ("bbob_high_d_8", "BBOB High-D (D >= 8)", scorecard_df[scorecard_df["task"].str.contains("bbob") & (scorecard_df["dim"] >= 8)]),
+        ("suite_high_d_8", "All High-D (D >= 8)", scorecard_df[scorecard_df["dim"] >= 8]),
+        ("suite_low_d_3", "Low-D (D <= 3)", scorecard_df[scorecard_df["dim"] <= 3]),
+    ]
+
+    stratified_results: Dict[str, Dict[str, Any]] = {}
+    strat_table_rows = []
+    for key, label, sub_df in strata_definitions:
+        n_sub = len(sub_df)
+        if n_sub == 0:
+            continue
+        m_p = float(sub_df["norm_regret_proposed"].mean())
+        m_b = float(sub_df["norm_regret_baseline"].mean())
+        rel_red = float((m_b - m_p) / m_b * 100.0) if m_b > 1e-12 else 0.0
+        m_cd = float(sub_df["cliffs_delta"].mean())
+        s_p = sub_df["norm_regret_proposed"].to_numpy(dtype=float)
+        s_b = sub_df["norm_regret_baseline"].to_numpy(dtype=float)
+        s_cd = calculate_cliffs_delta(s_p, s_b)
+        s_diff = s_p - s_b
+        nz = int(np.sum(np.abs(s_diff) > 1e-12))
+        if nz >= 4:
+            try:
+                s_stat, s_p_two = wilcoxon(s_p, s_b, alternative="two-sided")
+                _, s_p_one = wilcoxon(s_p, s_b, alternative="less")
+            except Exception:
+                s_stat, s_p_two, s_p_one = np.nan, 1.0, 1.0
+        else:
+            s_stat, s_p_two, s_p_one = np.nan, 1.0, 1.0
+
+        stratified_results[key] = {
+            "label": label,
+            "n_tasks": n_sub,
+            "mean_norm_regret_proposed": m_p,
+            "mean_norm_regret_baseline": m_b,
+            "relative_reduction_pct": rel_red,
+            "mean_cliffs_delta": m_cd,
+            "task_level_cliffs_delta": s_cd,
+            "wilcoxon_stat": float(s_stat) if np.isfinite(s_stat) else np.nan,
+            "p_twosided": float(s_p_two),
+            "p_onesided": float(s_p_one),
+        }
+        strat_table_rows.append({
+            "Stratum": label,
+            "N Tasks": n_sub,
+            "Mean Regret Proposed": f"{m_p:.4f}",
+            "Mean Regret Baseline": f"{m_b:.4f}",
+            "Rel. Reduction": f"{rel_red:+.1f}%",
+            "Mean Cliff's Delta": f"{m_cd:+.3f}",
+            "Wilcoxon p (1-sided)": f"{s_p_one:.4f}",
+            "Wilcoxon p (2-sided)": f"{s_p_two:.4f}",
+        })
+
+    strat_df = pd.DataFrame(strat_table_rows)
 
     # Build Markdown scorecard
     mean_norm_p = float(scorecard_df["norm_regret_proposed"].mean())
     mean_norm_b = float(scorecard_df["norm_regret_baseline"].mean())
+    rel_red_all = float((mean_norm_b - mean_norm_p) / mean_norm_b * 100.0) if mean_norm_b > 1e-12 else 0.0
 
     sig_task_wins = int(np.sum((scorecard_df["decision"] == "WIN") & scorecard_df["significant"]))
     sig_task_losses = int(np.sum((scorecard_df["decision"] == "LOSS") & scorecard_df["significant"]))
@@ -362,9 +469,16 @@ def compute_bbsubset_test_proximity_analysis(
         f"- **Seed-level Record (W / T / L)**: **{overall_wins} / {overall_ties} / {overall_losses}** ({overall_wins / len(p_all_val) * 100:.1f}% win rate)",
         f"- **Task-level Empirical Record (W / T / L)**: **{task_wins} / {task_ties} / {task_losses}**",
         f"- **Task-level Statistically Significant Record (alpha={alpha}) (W / T / L)**: **{sig_task_wins} / {sig_task_ties} / {sig_task_losses}**",
-        f"- **Mean Normalized Regret**: Proposed = **{mean_norm_p:.4f}** vs Baseline = **{mean_norm_b:.4f}**",
-        f"- **Overall Cliff's Delta**: `{overall_delta:+.4f}` ({'Favors Proposed' if overall_delta < 0 else 'Favors Baseline'})",
-        f"- **Macro Wilcoxon p-value**: `{macro_p:.4e}` ({'Significant (p < 0.05)' if macro_p < alpha else 'Not Significant'})",
+        f"- **Mean Normalized Regret**: Proposed = **{mean_norm_p:.4f}** vs Baseline = **{mean_norm_b:.4f}** ({rel_red_all:+.1f}% relative reduction)",
+        f"- **Task-level Wilcoxon (Demšar) p-value (two-sided)**: `{task_w_p_two:.4f}` ({'Significant (p < 0.05)' if task_w_p_two < alpha else 'Not Significant (p >= 0.05)'})",
+        f"- **Task-level Wilcoxon (Demšar) p-value (one-sided, proposed < baseline)**: `{task_w_p_one:.4f}`",
+        f"- **Mean Per-Task Cliff's Delta**: `{mean_cliffs_delta:+.4f}` ({'Favors Proposed' if mean_cliffs_delta < 0 else 'Favors Baseline'})",
+        f"- **Task-Level Cliff's Delta (on normalized regret)**: `{task_level_cliffs_delta:+.4f}`",
+        f"- **Legacy Pooled Wilcoxon p-value (unnormalized scale-sensitive)**: `{macro_p:.4e}`",
+        "",
+        "## High-Dimensional Stratification Analysis",
+        "",
+        dataframe_to_markdown(strat_df),
         "",
         "## Per-Task Test Set Scorecard (Holm-Bonferroni FWER alpha = 0.05)",
         "",
@@ -388,7 +502,7 @@ def compute_bbsubset_test_proximity_analysis(
     md_lines.append(dataframe_to_markdown(display_df))
     md_lines.append("")
 
-    md_path = Path(output_dir) / "test_proximity_scorecard.md"
+    md_path = Path(output_dir) / f"{out_prefix}.md"
     with open(md_path, "w") as f:
         f.write("\n".join(md_lines))
 
@@ -408,7 +522,13 @@ def compute_bbsubset_test_proximity_analysis(
         "mean_norm_regret_proposed": mean_norm_p,
         "mean_norm_regret_baseline": mean_norm_b,
         "overall_cliffs_delta": overall_delta,
+        "mean_cliffs_delta": mean_cliffs_delta,
+        "task_level_cliffs_delta": task_level_cliffs_delta,
+        "task_wilcoxon_stat": float(task_w_stat) if np.isfinite(task_w_stat) else np.nan,
+        "task_wilcoxon_p_twosided": float(task_w_p_two),
+        "task_wilcoxon_p_onesided": float(task_w_p_one),
         "macro_wilcoxon_p": macro_p,
+        "stratified_analysis": stratified_results,
         "scorecard_df": scorecard_df,
     }
 
@@ -445,6 +565,17 @@ def main() -> None:
         default=0.05,
         help="Family-wise error rate significance threshold (default: 0.05)",
     )
+    parser.add_argument(
+        "--min-dim",
+        type=int,
+        default=None,
+        help="Filter to tasks with minimum dimensionality (e.g. 8 for high-D tasks)",
+    )
+    parser.add_argument(
+        "--out-prefix",
+        default="test_proximity_scorecard",
+        help="Prefix for output scorecard files (default: test_proximity_scorecard)",
+    )
 
     args = parser.parse_args()
     compute_bbsubset_test_proximity_analysis(
@@ -453,6 +584,8 @@ def main() -> None:
         proposed_id=args.proposed_id,
         baseline_id=args.baseline_id,
         alpha=args.alpha,
+        min_dim=args.min_dim,
+        out_prefix=args.out_prefix,
     )
 
 

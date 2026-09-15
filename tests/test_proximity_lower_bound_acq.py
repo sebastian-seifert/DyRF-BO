@@ -439,6 +439,31 @@ class TestProximityLowerBoundAcquisition(unittest.TestCase):
         self.assertGreater(prox[0], prox[2])
         self.assertGreater(prox[1], prox[2])
 
+    def test_proximity_lower_bound_default_parameters(self):
+        """Verify standard default parameters reflect tuned configuration: k=25, eps=0.16."""
+        acq = ProximityLowerBoundAcquisition()
+        self.assertEqual(acq._k, 25)
+        self.assertEqual(acq._k_warmup, 25)
+        self.assertAlmostEqual(acq._eps, 0.16, places=4)
+        self.assertAlmostEqual(acq._level, 0.95, places=4)
+
+    def test_smac20_proximity_lcb_yaml_defaults(self):
+        """Verify smac20_proximity_lcb.yaml has tuned defaults: k=25, lambda=1.345, eps=0.16."""
+        import yaml
+        from pathlib import Path
+        yaml_path = Path("carps_integration/configs/optimizer/smac20_proximity_lcb.yaml")
+        with open(yaml_path) as f:
+            cfg = yaml.safe_load(f)
+        self.assertEqual(cfg["optimizer"]["acq_func_kwargs"]["k"], 25)
+        self.assertAlmostEqual(cfg["optimizer"]["acq_func_kwargs"]["eps"], 0.16, places=4)
+        self.assertAlmostEqual(cfg["optimizer"]["smac_cfg"]["model_kwargs"]["extractor_kwargs"]["decay_lambda"], 1.345, places=4)
+
+    def test_proximity_b_default_decay_lambda(self):
+        """Verify proximity_b extractor default decay_lambda is 1.345."""
+        from ep_extractors.proximity_b import ProximityBExtractor
+        extractor = ProximityBExtractor(model=None)
+        self.assertAlmostEqual(extractor.decay_lambda, 1.345, places=4)
+
 if __name__ == "__main__":
     unittest.main()
 
