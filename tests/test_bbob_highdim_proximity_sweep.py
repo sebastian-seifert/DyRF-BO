@@ -189,6 +189,21 @@ class TestSlurmSubmissionScripts(unittest.TestCase):
         self.assertIn("CHUNK_SIZE=200", all_sh_content)
         self.assertIn("%25", all_sh_content)
 
+        # Batch 1 and Batch 2 scripts
+        b1_path = Path("scripts/submit_bbob_highdim_proximity_batch1.sh")
+        b2_path = Path("scripts/submit_bbob_highdim_proximity_batch2.sh")
+        self.assertTrue(b1_path.exists(), f"{b1_path} must exist")
+        self.assertTrue(b2_path.exists(), f"{b2_path} must exist")
+
+        b1_content = b1_path.read_text()
+        b2_content = b2_path.read_text()
+        self.assertIn("START_TASK=1", b1_content)
+        self.assertIn("END_TASK=5000", b1_content)
+        self.assertIn("START_TASK=5001", b2_content)
+        self.assertIn("END_TASK=8640", b2_content)
+        self.assertIn("%25", b1_content)
+        self.assertIn("%25", b2_content)
+
 
 class TestBBOBHighDimAnalysisCalculations(unittest.TestCase):
     def test_compute_analysis_metrics(self):
