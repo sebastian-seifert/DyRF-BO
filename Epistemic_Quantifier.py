@@ -1,7 +1,7 @@
 import os
 import sys
 import numpy as np
-from scipy.special import logsumexp
+from scipy.special import logsumexp, roots_hermite
 
 try:
     import cupy as cp
@@ -198,7 +198,9 @@ class EpistemicQuantifier:
     # ==========================================
     # SHAKER METHOD
     # ==========================================
-    def shaker_get_epistemic_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto"):
+    # Approach 2: Shaker 2020 (Entropy-based)
+    # ==========================================
+    def shaker_get_epistemic_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", n_quadrature_points=32, method="gauss_hermite"):
         """
         Approach 2: Shaker 2020 (Epistemic Component)
         Calculated as: Total Uncertainty (GMM Entropy) - Aleatoric Uncertainty.
@@ -208,6 +210,8 @@ class EpistemicQuantifier:
         """
         X_test = np.atleast_2d(X_test)
         all_test_leaf_ids = self.model.apply(X_test)
+        n_trees = len(self.model.estimators_)
+        max_mi_bound = float(np.log2(n_trees))
         
         total_unc = self._shaker_calc_total_entropy(
             X_test,
@@ -215,14 +219,26 @@ class EpistemicQuantifier:
             batch_size=batch_size,
             random_state=random_state,
             backend=backend,
-            all_test_leaf_ids=all_test_leaf_ids
+            all_test_leaf_ids=all_test_leaf_ids,
+            n_quadrature_points=n_quadrature_points,
+            method=method
         )
         aleatoric_unc = self._shaker_calc_aleatoric_entropy(X_test, all_test_leaf_ids=all_test_leaf_ids)
         
-        # Epistemic = Total - Aleatoric
-        return np.maximum(total_unc - aleatoric_unc, 0.0)
+        raw_mi = total_unc - aleatoric_unc
 
-    def shaker_get_epistemic_variance(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto"):
+        # Enforce theoretical bounds: 0 <= MI <= log2(n_trees)
+        if np.any(raw_mi > max_mi_bound + 1e-4):
+            import warnings
+            max_viol = float(np.max(raw_mi - max_mi_bound))
+            warnings.warn(
+                f"Numerical integration exceeded information-theoretic MI upper bound log2({n_trees})={max_mi_bound:.4f} by {max_viol:.4f} bits. Clamping to bound.",
+                RuntimeWarning
+            )
+
+        return np.clip(raw_mi, 0.0, max_mi_bound)
+
+    def shaker_get_epistemic_variance(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", n_quadrature_points=32, method="gauss_hermite"):
         """
         Returns a Shaker-inspired epistemic proxy in variance units.
 
@@ -242,7 +258,9 @@ class EpistemicQuantifier:
             num_samples=num_samples,
             batch_size=batch_size,
             random_state=random_state,
-            backend=backend
+            backend=backend,
+            n_quadrature_points=n_quadrature_points,
+            method=method
         )
         aleatoric_var = self.base_get_aleatoric_variance(X_test, all_test_leaf_ids=all_test_leaf_ids)
 
@@ -250,7 +268,7 @@ class EpistemicQuantifier:
         safe_exponent = np.clip(2.0 * mi_bits, 0.0, 50.0)
         return aleatoric_var * np.maximum(2.0 ** safe_exponent - 1.0, 0.0)
 
-    def shaker_get_total_variance(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto"):
+    def shaker_get_total_variance(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", n_quadrature_points=32, method="gauss_hermite"):
         """Converts Shaker's total GMM entropy into entropy-power variance units."""
         total_entropy = self._shaker_calc_total_entropy(
             X_test,
@@ -258,6 +276,8 @@ class EpistemicQuantifier:
             batch_size=batch_size,
             random_state=random_state,
             backend=backend,
+            n_quadrature_points=n_quadrature_points,
+            method=method
         )
         return self._shaker_convert_entropy_to_var(total_entropy)
 
@@ -284,10 +304,10 @@ class EpistemicQuantifier:
         """Converts variance of a Gaussian to differential entropy in bits."""
         return 0.5 * np.log2(2.0 * np.pi * np.e * var)
 
-    def _shaker_calc_total_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", all_test_leaf_ids=None):
+    def _shaker_calc_total_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", all_test_leaf_ids=None, n_quadrature_points=32, method="gauss_hermite"):
         r"""
-        Calculates the Total Uncertainty (Entropy of the GMM) via fully vectorized
-        1D deterministic trapezoidal quadrature over batches of test query points.
+        Calculates the Total Uncertainty (Entropy of the GMM) via component-resolving
+        Gauss-Hermite quadrature or Monte Carlo sampling over batches of test query points.
         
         Formula: H = \int -p(y) \log_2 p(y) dy
         """
@@ -302,14 +322,6 @@ class EpistemicQuantifier:
         
         backend = self._mc_resolve_backend(backend)
         is_gpu = backend == "gpu"
-        xp = cp if is_gpu else np
-        
-        n_grid = 128
-        
-        if batch_size == "auto":
-            batch_size = self._get_dynamic_shaker_batch_size(n_grid, n_trees, backend)
-            if debug_timing:
-                print(f"Dynamically resolved Shaker batch size: {batch_size}")
         
         if all_test_leaf_ids is None:
             if self.leaf_cache is not None:
@@ -324,89 +336,121 @@ class EpistemicQuantifier:
             mu_all = self._get_tree_predictions(X_test, all_test_leaf_ids=all_test_leaf_ids)
             vars_all = self._base_calc_per_tree_variance(X_test, all_test_leaf_ids=all_test_leaf_ids)
             
+        vars_all = np.maximum(vars_all, 1e-6)
         sigmas_all = np.sqrt(vars_all)
         
         total_entropy = np.zeros(n_samples)
         
-        if is_gpu:
+        if method == "monte_carlo":
+            rng = np.random.default_rng(random_state)
+            mc_batch_size = 50 if batch_size == "auto" else batch_size
+            for start in range(0, n_samples, mc_batch_size):
+                end = min(start + mc_batch_size, n_samples)
+                B = end - start
+                mu_batch = mu_all[:, start:end]
+                sigma_batch = sigmas_all[:, start:end]
+                
+                tree_idx = rng.integers(0, n_trees, size=(num_samples, B))
+                m_chosen = np.take_along_axis(mu_batch, tree_idx, axis=0)
+                s_chosen = np.take_along_axis(sigma_batch, tree_idx, axis=0)
+                
+                y_samples = m_chosen + s_chosen * rng.standard_normal(size=(num_samples, B))
+                
+                u = (y_samples[:, None, :] - mu_batch[None, :, :]) / sigma_batch[None, :, :]
+                log_comp = -0.5 * u**2 - np.log(sigma_batch[None, :, :]) - 0.5 * np.log(2.0 * np.pi)
+                log_py = logsumexp(log_comp, axis=1) - np.log(n_trees)
+                log2_py = log_py / np.log(2.0)
+                
+                total_entropy[start:end] = - np.mean(log2_py, axis=0)
+            return total_entropy
+
+        # Gauss-Hermite component-resolving quadrature
+        K = n_quadrature_points
+        z_gh, w_gh = roots_hermite(K)
+        
+        if batch_size == "auto":
+            bytes_per_sample = n_trees * K * n_trees * 8
+            calc_b = max(1, min(64, int(50_000_000 / (bytes_per_sample + 1))))
+            batch_size = calc_b
+            if debug_timing:
+                print(f"Dynamically resolved Shaker GH batch size: {batch_size}")
+                
+        if is_gpu and cp is not None and cp_logsumexp is not None:
+            z_g = cp.asarray(z_gh)
+            w_g = cp.asarray(w_gh)
+            norm_w = (w_g / float(np.sqrt(np.pi)))[None, :, None]
             mu_g = cp.asarray(mu_all)
             sigmas_g = cp.asarray(sigmas_all)
-        else:
-            mu_g = mu_all
-            sigmas_g = sigmas_all
+            sqrt2 = float(np.sqrt(2.0))
+            half_log_2pi = float(0.5 * np.log(2.0 * np.pi))
+            log_ntrees = float(np.log(n_trees))
+            ln2 = float(np.log(2.0))
             
-        start = 0
-        while start < n_samples:
-            end = min(start + batch_size, n_samples)
-            try:
-                mu_batch = mu_g[:, start:end]
-                sigma_batch = sigmas_g[:, start:end]
+            start = 0
+            while start < n_samples:
+                end = min(start + batch_size, n_samples)
                 B = end - start
-                
-                # Define integration range per sample: y_min, y_max of shape (B,)
-                y_min = xp.min(mu_batch - 6.0 * sigma_batch, axis=0)
-                y_max = xp.max(mu_batch + 6.0 * sigma_batch, axis=0)
-                
-                # Setup 1D grid per sample: shape (B, n_grid)
-                grid_steps = xp.linspace(0.0, 1.0, n_grid)
-                y_grid = y_min[:, xp.newaxis] + grid_steps[xp.newaxis, :] * (y_max - y_min)[:, xp.newaxis]
-                dy = (y_max - y_min) / (n_grid - 1)
-                
-                # Reshape for multi-dimensional broadcasting:
-                # y_b: (1, B, n_grid)
-                # mu_b: (n_trees, B, 1)
-                # sigma_b: (n_trees, B, 1)
-                y_b = y_grid[xp.newaxis, :, :]
-                mu_b = mu_batch[:, :, xp.newaxis]
-                sigma_b = sigma_batch[:, :, xp.newaxis]
-                
-                # Compute component PDF: shape (n_trees, B, n_grid)
-                z = (y_b - mu_b) / sigma_b
-                inv_sqrt_2pi = 1.0 / np.sqrt(2.0 * np.pi)
-                pdf_comp = (xp.exp(-0.5 * z**2) * inv_sqrt_2pi) / sigma_b
-                
-                # Mixture PDF p(y): shape (B, n_grid)
-                p_y = xp.mean(pdf_comp, axis=0)
-                p_y_safe = xp.maximum(p_y, 1e-300)
-                
-                # Integrand: -p(y) * log2(p(y))
-                integrand = -p_y * xp.log2(p_y_safe)
-                
-                # Trapezoidal integration
-                trapz_weights = xp.ones(n_grid)
-                trapz_weights[0] = 0.5
-                trapz_weights[-1] = 0.5
-                
-                batch_entropy = xp.sum(integrand * trapz_weights[xp.newaxis, :], axis=1) * dy
-                
-                if is_gpu:
+                try:
+                    mu_b = mu_g[:, start:end]
+                    sig_b = sigmas_g[:, start:end]
+                    
+                    y = mu_b[:, None, :] + sqrt2 * sig_b[:, None, :] * z_g[None, :, None]
+                    y_exp = y[:, :, None, :]
+                    mu_exp = mu_b[None, None, :, :]
+                    sig_exp = sig_b[None, None, :, :]
+                    
+                    u = (y_exp - mu_exp) / sig_exp
+                    log_comp = -0.5 * u**2 - cp.log(sig_exp) - half_log_2pi
+                    log_py = cp_logsumexp(log_comp, axis=2) - log_ntrees
+                    log2_py = log_py / ln2
+                    
+                    h_per_tree = cp.sum(norm_w * (-log2_py), axis=1)
+                    batch_entropy = cp.mean(h_per_tree, axis=0)
                     total_entropy[start:end] = cp.asnumpy(batch_entropy)
-                else:
-                    total_entropy[start:end] = batch_entropy
-                    
-                start += B
-            except Exception as e:
-                # Catch GPU/CPU memory errors
-                is_oom = False
-                if is_gpu and cp is not None:
-                    if isinstance(e, cp.cuda.memory.OutOfMemoryError):
-                        is_oom = True
-                if isinstance(e, MemoryError):
-                    is_oom = True
-                    
-                if is_oom:
+                    start += B
+                except (MemoryError, Exception) as e:
                     if is_gpu and cp is not None:
                         cp.get_default_memory_pool().free_all_blocks()
-                    if batch_size <= 10:
-                        raise RuntimeError("OOM even with batch size <= 10")
-                    batch_size = max(10, batch_size // 2)
+                    if batch_size <= 1:
+                        raise e
+                    batch_size = max(1, batch_size // 2)
                     if debug_timing:
-                        print(f"   [GMM Shaker Profile] OOM encountered. Halving batch size to {batch_size}")
-                else:
-                    raise e
+                        print(f"OOM in GPU Shaker GH. Halving batch size to {batch_size}")
+        else:
+            norm_w = (w_gh / np.sqrt(np.pi))[None, :, None]
+            start = 0
+            while start < n_samples:
+                end = min(start + batch_size, n_samples)
+                B = end - start
+                try:
+                    mu_b = mu_all[:, start:end]
+                    sig_b = sigmas_all[:, start:end]
                     
+                    y = mu_b[:, None, :] + np.sqrt(2.0) * sig_b[:, None, :] * z_gh[None, :, None]
+                    y_exp = y[:, :, None, :]
+                    mu_exp = mu_b[None, None, :, :]
+                    sig_exp = sig_b[None, None, :, :]
+                    
+                    u = (y_exp - mu_exp) / sig_exp
+                    log_comp = -0.5 * u**2 - np.log(sig_exp) - 0.5 * np.log(2.0 * np.pi)
+                    log_py = logsumexp(log_comp, axis=2) - np.log(n_trees)
+                    log2_py = log_py / np.log(2.0)
+                    
+                    h_per_tree = np.sum(norm_w * (-log2_py), axis=1)
+                    batch_entropy = np.mean(h_per_tree, axis=0)
+                    total_entropy[start:end] = batch_entropy
+                    start += B
+                except (MemoryError, Exception) as e:
+                    if batch_size <= 1:
+                        raise e
+                    batch_size = max(1, batch_size // 2)
+                    if debug_timing:
+                        print(f"Memory pressure in CPU Shaker GH. Halving batch size to {batch_size}")
+                        
         if debug_timing:
             print(f"   [GMM Shaker Profile] Total total_entropy calculation took: {time.time() - t0:.6f}s")
+            
+        return total_entropy
             
         return total_entropy
 

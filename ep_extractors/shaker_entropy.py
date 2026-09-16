@@ -5,11 +5,13 @@ from Epistemic_Quantifier import EpistemicQuantifier
 
 @UQExtractorRegistry.register("shaker_entropy")
 class ShakerEntropyExtractor(BaseEpistemicExtractor):
-    def __init__(self, model, num_samples=10000, batch_size="auto", backend="auto", **kwargs):
+    def __init__(self, model, num_samples=10000, batch_size="auto", backend="auto", n_quadrature_points=32, method="gauss_hermite", **kwargs):
         super().__init__(model)
         self.num_samples = num_samples
         self.batch_size = batch_size
         self.backend = backend
+        self.n_quadrature_points = n_quadrature_points
+        self.method = method
         self.eq = None
 
     def fit(self, X_train: np.ndarray, y_train: np.ndarray) -> None:
@@ -43,7 +45,9 @@ class ShakerEntropyExtractor(BaseEpistemicExtractor):
             X,
             num_samples=self.num_samples,
             batch_size=self.batch_size,
-            backend=self.backend
+            backend=self.backend,
+            n_quadrature_points=self.n_quadrature_points,
+            method=self.method
         )
         return np.sqrt(epistemic_var)
 
