@@ -368,6 +368,7 @@ def run_single_test(
     ood_type: str = "hypercube",
     noise_std: float = 0.1,
     id_split: float = 0.7,
+    extractor_config: Optional[Any] = None,
 ) -> Tuple[Dict[str, Dict[str, float]], Dict[str, Any]]:
     """Executes evaluation for a single synthetic test function and random seed.
 
@@ -376,7 +377,7 @@ def run_single_test(
         func_name: Name key for the specific test function to evaluate.
         seed: Random seed for data generation, noise sampling, and model fitting.
         approaches: List of UQ approach names to evaluate.
-        rf_config: Random forest hyperparameter preset configuration ('A', 'B', 'C', or 1-5).
+        rf_config: Random forest hyperparameter preset configuration ('A', 'B', 'C', or 1-5, or RFConfig).
         k_neighbors: Number of nearest leaf neighbors or 'auto'/'all' selection mode.
         gap_type: Out-of-distribution gap specification ('empty' or 'sparse').
         sparse_multiplier: Multiplier parameter determining sparse point density in OOD regions.
@@ -389,29 +390,25 @@ def run_single_test(
         ood_type: Geometry for out-of-distribution evaluation ('hypercube' or 'manifold').
         noise_std: Standard deviation of homoscedastic Gaussian target noise.
         id_split: In-distribution fraction for train/test split.
+        extractor_config: Optional ExtractorConfig containing solver hyperparameters.
 
     Returns:
         Tuple[Dict[str, Dict[str, float]], Dict[str, Any]]:
             - Dictionary mapping approach name to metric name -> metric score float.
             - Dictionary containing execution runtime profiling statistics.
     """
-    # Determine standard Random Forest hyperparameters based on config selection to pass min_leaf to generate_data
-    if rf_config in ['A', 'a']:
-        n_est, min_leaf, min_split, max_feat = 100, 5, 2, "sqrt"
-    elif rf_config in ['B', 'b']:
-        n_est, min_leaf, min_split, max_feat = 500, 10, 2, "sqrt"
-    elif rf_config in ['C', 'c']:
-        n_est, min_leaf, min_split, max_feat = 1000, 25, 2, "sqrt"
-    elif rf_config == 1:
-        n_est, min_leaf, min_split, max_feat = 100, 5, 2, "sqrt"
-    elif rf_config == 2:
-        n_est, min_leaf, min_split, max_feat = 100, 25, 2, "sqrt"
-    elif rf_config == 3:
-        n_est, min_leaf, min_split, max_feat = 100, 50, 2, "sqrt"
-    elif rf_config == 4:
-        n_est, min_leaf, min_split, max_feat = 300, 10, 2, "sqrt"
-    else: # Config 5
-        n_est, min_leaf, min_split, max_feat = 300, 30, 2, "sqrt"
+    from config_schema import RFConfig
+    if isinstance(rf_config, RFConfig):
+        rf_cfg = rf_config
+    else:
+        rf_cfg = RFConfig.from_preset(rf_config)
+
+    n_est = rf_cfg.n_estimators
+    min_leaf = rf_cfg.min_samples_leaf
+    min_split = rf_cfg.min_samples_split
+    max_feat = rf_cfg.max_features
+    bootstrap = rf_cfg.bootstrap
+    oob_score = rf_cfg.oob_score
 
     import time
     import sys
@@ -436,7 +433,8 @@ def run_single_test(
         min_samples_leaf=min_leaf,
         min_samples_split=min_split,
         max_features=max_feat,
-        oob_score=True,
+        bootstrap=bootstrap,
+        oob_score=oob_score,
         n_jobs=n_jobs,
         random_state=seed
     )
@@ -483,37 +481,79 @@ def run_single_test(
         elif app == "Chen": uncertainties[app] = quantifier.chen_get_epistemic_variance(X_test)
         elif app == "Credal_GL_Bisect" or app == "Shaker_Likelihood_GL_Bisect":
             credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
-            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="gauss_legendre", sup_solver="bisection")
+            kw = {}
+            if extractor_config is not None:
+                if hasattr(extractor_config, "credal_quadrature_points"):
+                    kw["n_grid"] = extractor_config.credal_quadrature_points
+                if hasattr(extractor_config, "credal_bisection_max_iter"):
+                    kw["n_iter"] = extractor_config.credal_bisection_max_iter
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="gauss_legendre", sup_solver="bisection", **kw)
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Credal_GL_Newton" or app == "Shaker_Likelihood_GL_Newton":
             credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
-            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="gauss_legendre", sup_solver="newton")
+            kw = {}
+            if extractor_config is not None:
+                if hasattr(extractor_config, "credal_quadrature_points"):
+                    kw["n_grid"] = extractor_config.credal_quadrature_points
+                if hasattr(extractor_config, "credal_bisection_max_iter"):
+                    kw["n_iter"] = extractor_config.credal_bisection_max_iter
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="gauss_legendre", sup_solver="newton", **kw)
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Credal_Trapz_Bisect" or app == "Shaker_Likelihood_Trapz_Bisect":
             credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
-            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection")
+            kw = {}
+            if extractor_config is not None:
+                if hasattr(extractor_config, "credal_quadrature_points"):
+                    kw["n_grid"] = extractor_config.credal_quadrature_points
+                if hasattr(extractor_config, "credal_bisection_max_iter"):
+                    kw["n_iter"] = extractor_config.credal_bisection_max_iter
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", **kw)
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Credal_Trapz_Newton" or app == "Shaker_Likelihood_Trapz_Newton":
             credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
-            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="newton")
+            kw = {}
+            if extractor_config is not None:
+                if hasattr(extractor_config, "credal_quadrature_points"):
+                    kw["n_grid"] = extractor_config.credal_quadrature_points
+                if hasattr(extractor_config, "credal_bisection_max_iter"):
+                    kw["n_iter"] = extractor_config.credal_bisection_max_iter
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="newton", **kw)
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Shaker_Likelihood_Normal":
             credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
-            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="normal")
+            kw = {}
+            if extractor_config is not None:
+                if hasattr(extractor_config, "credal_quadrature_points"):
+                    kw["n_grid"] = extractor_config.credal_quadrature_points
+                if hasattr(extractor_config, "credal_bisection_max_iter"):
+                    kw["n_iter"] = extractor_config.credal_bisection_max_iter
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="normal", **kw)
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Shaker_Likelihood_StudentT":
             credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
-            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="student_t")
+            kw = {}
+            if extractor_config is not None:
+                if hasattr(extractor_config, "credal_quadrature_points"):
+                    kw["n_grid"] = extractor_config.credal_quadrature_points
+                if hasattr(extractor_config, "credal_bisection_max_iter"):
+                    kw["n_iter"] = extractor_config.credal_bisection_max_iter
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="student_t", **kw)
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Shaker_Likelihood_StudentT_Corrected":
             credal_q = CredalRegressionUQ(rf, X_train, y_train, leaf_cache=leaf_cache)
-            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="student_t_corrected")
+            kw = {}
+            if extractor_config is not None:
+                if hasattr(extractor_config, "credal_quadrature_points"):
+                    kw["n_grid"] = extractor_config.credal_quadrature_points
+                if hasattr(extractor_config, "credal_bisection_max_iter"):
+                    kw["n_iter"] = extractor_config.credal_bisection_max_iter
+            u_e_credal, u_a_credal = credal_q.compute_uq(X_test, backend="auto", integration_method="trapezoid", sup_solver="bisection", likelihood_type="student_t_corrected", **kw)
             uncertainties[app] = u_e_credal
             u_a_credal_dict[app] = u_a_credal
         elif app == "Proximity":
@@ -841,18 +881,80 @@ def parse_args_with_config(
     parser.add_argument("--noise_std", type=float, default=0.1, help="Homoscedastic target noise standard deviation")
     parser.add_argument("--id_split", type=float, default=0.7, help="Proportion of ID samples in test evaluation")
 
-    if args_list is not None:
-        args = parser.parse_args(args_list)
-    else:
-        args = parser.parse_args()
+    raw_tokens = args_list if args_list is not None else sys.argv[1:]
+    args = parser.parse_args(args_list)
+
+    explicit_keys = set()
+    for action in parser._actions:
+        for opt in action.option_strings:
+            if opt in raw_tokens:
+                explicit_keys.add(action.dest)
+                break
 
     if args.config_file and os.path.exists(args.config_file):
         with open(args.config_file, "r") as f:
             cfg_dict = json.load(f)
         master_cfg = BenchmarkMasterConfig.from_dict(cfg_dict)
+
+        if "rf_config" in explicit_keys:
+            master_cfg.rf = RFConfig.from_preset(args.rf_config)
+        if "gap_type" in explicit_keys:
+            master_cfg.data.gap_type = args.gap_type
+        if "scaling_law" in explicit_keys:
+            master_cfg.data.scaling_law = args.scaling_law
+        if "sparse_multiplier" in explicit_keys:
+            master_cfg.data.sparse_multiplier = args.sparse_multiplier
+        if "ood_type" in explicit_keys:
+            master_cfg.data.ood_type = args.ood_type
+        if "noise_std" in explicit_keys:
+            master_cfg.data.noise_std = args.noise_std
+        if "id_split" in explicit_keys:
+            master_cfg.data.id_split = args.id_split
+        if "seed" in explicit_keys:
+            master_cfg.data.seed = args.seed
+        elif "seed_offset" in explicit_keys:
+            master_cfg.data.seed = args.seed_offset
+        if "approaches" in explicit_keys:
+            master_cfg.extractors.approaches = [a.strip() for a in args.approaches.split(",")]
+        if "use_density_scaling" in explicit_keys:
+            master_cfg.proximity.use_density_scaling = args.use_density_scaling
+        if "density_scaling_alpha" in explicit_keys:
+            master_cfg.proximity.density_scaling_alpha = [float(x.strip()) for x in args.density_scaling_alpha.split(",")]
+        if "topological_decay_lambda" in explicit_keys:
+            if args.topological_decay_lambda is not None:
+                master_cfg.proximity.topological_decay_lambda = [float(x.strip()) for x in args.topological_decay_lambda.split(",")]
+            else:
+                master_cfg.proximity.topological_decay_lambda = []
+        if "k_neighbors" in explicit_keys:
+            master_cfg.proximity.k_neighbors = [x.strip() for x in args.k_neighbors.split(",")]
     else:
         seed_val = args.seed if args.seed is not None else args.seed_offset
-        rf_cfg = RFConfig.from_preset(args.rf_config) if args.rf_config in ["A", "B", "C"] else RFConfig(name=str(args.rf_config))
+        rf_cfg = RFConfig.from_preset(args.rf_config)
+
+        if args.topological_decay_lambda is not None:
+            if "," in args.topological_decay_lambda:
+                t_lambda = [float(x.strip()) for x in args.topological_decay_lambda.split(",")]
+            else:
+                t_lambda = [float(args.topological_decay_lambda)]
+        else:
+            t_lambda = [0.5, 1.0, 5.0]
+
+        if args.density_scaling_alpha is not None:
+            if "," in args.density_scaling_alpha:
+                d_alpha = [float(x.strip()) for x in args.density_scaling_alpha.split(",")]
+            else:
+                d_alpha = [float(args.density_scaling_alpha)]
+        else:
+            d_alpha = [1.0, 5.0]
+
+        if args.k_neighbors is not None:
+            if "," in args.k_neighbors:
+                k_list = [x.strip() for x in args.k_neighbors.split(",")]
+            else:
+                k_list = [args.k_neighbors.strip()]
+        else:
+            k_list = ["10", "20", "50", "auto"]
+
         master_cfg = BenchmarkMasterConfig(
             data=DataConfig(
                 gap_type=args.gap_type,
@@ -865,8 +967,30 @@ def parse_args_with_config(
             ),
             rf=rf_cfg,
             extractors=ExtractorConfig(approaches=[a.strip() for a in args.approaches.split(",")]),
-            proximity=ProximityConfig(use_density_scaling=args.use_density_scaling)
+            proximity=ProximityConfig(
+                topological_decay_lambda=t_lambda,
+                k_neighbors=k_list,
+                use_density_scaling=args.use_density_scaling,
+                density_scaling_alpha=d_alpha
+            )
         )
+
+    # Synchronize args with master_cfg
+    args.rf_config = master_cfg.rf.name
+    args.gap_type = master_cfg.data.gap_type
+    args.scaling_law = master_cfg.data.scaling_law
+    args.sparse_multiplier = master_cfg.data.sparse_multiplier
+    args.ood_type = master_cfg.data.ood_type
+    args.noise_std = master_cfg.data.noise_std
+    args.id_split = master_cfg.data.id_split
+    args.use_density_scaling = master_cfg.proximity.use_density_scaling
+    args.approaches = ",".join(master_cfg.extractors.approaches)
+    if master_cfg.proximity.topological_decay_lambda:
+        args.topological_decay_lambda = ",".join(map(str, master_cfg.proximity.topological_decay_lambda))
+    if master_cfg.proximity.density_scaling_alpha:
+        args.density_scaling_alpha = ",".join(map(str, master_cfg.proximity.density_scaling_alpha))
+    if master_cfg.proximity.k_neighbors:
+        args.k_neighbors = ",".join(master_cfg.proximity.k_neighbors)
 
     return args, master_cfg
 
@@ -874,15 +998,19 @@ def parse_args_with_config(
 if __name__ == "__main__":
     args, master_config = parse_args_with_config()
 
-    rf_config_arg = args.rf_config
-    try:
-        k_neighbors_arg = int(args.k_neighbors)
-    except ValueError:
-        k_neighbors_arg = args.k_neighbors
+    rf_config_arg = master_config.rf
+    if len(master_config.proximity.k_neighbors) == 1:
+        k_val = master_config.proximity.k_neighbors[0]
+        try:
+            k_neighbors_arg = int(k_val)
+        except ValueError:
+            k_neighbors_arg = k_val
+    else:
+        k_neighbors_arg = master_config.proximity.k_neighbors
 
-    gap_type_arg = args.gap_type
-    sparse_multiplier_arg = args.sparse_multiplier
-    scaling_law_arg = args.scaling_law
+    gap_type_arg = master_config.data.gap_type
+    sparse_multiplier_arg = master_config.data.sparse_multiplier
+    scaling_law_arg = master_config.data.scaling_law
     if args.seed is not None:
         n_runs = 1
         seed_offset_arg = args.seed
@@ -890,23 +1018,23 @@ if __name__ == "__main__":
         n_runs = args.n_runs
         seed_offset_arg = args.seed_offset
     debug_timing_arg = args.debug_timing
-    use_density_scaling_arg = args.use_density_scaling
+    use_density_scaling_arg = master_config.proximity.use_density_scaling
 
-    if args.density_scaling_alpha is not None and "," in args.density_scaling_alpha:
-        density_scaling_alpha_arg = [float(x.strip()) for x in args.density_scaling_alpha.split(",")]
+    if len(master_config.proximity.density_scaling_alpha) == 1:
+        density_scaling_alpha_arg = master_config.proximity.density_scaling_alpha[0]
     else:
-        density_scaling_alpha_arg = float(args.density_scaling_alpha) if args.density_scaling_alpha is not None else 1.0
+        density_scaling_alpha_arg = master_config.proximity.density_scaling_alpha
 
-    if args.topological_decay_lambda is not None:
-        if "," in args.topological_decay_lambda:
-            topological_decay_lambda_arg = [float(x.strip()) for x in args.topological_decay_lambda.split(",")]
+    if master_config.proximity.topological_decay_lambda:
+        if len(master_config.proximity.topological_decay_lambda) == 1:
+            topological_decay_lambda_arg = master_config.proximity.topological_decay_lambda[0]
         else:
-            topological_decay_lambda_arg = float(args.topological_decay_lambda)
+            topological_decay_lambda_arg = master_config.proximity.topological_decay_lambda
     else:
         topological_decay_lambda_arg = None
     n_jobs_arg = args.n_jobs
     output_dir_arg = args.output_dir
-    ood_type_arg = args.ood_type
+    ood_type_arg = master_config.data.ood_type
 
 
     if debug_timing_arg:
@@ -1011,7 +1139,8 @@ if __name__ == "__main__":
                     topological_decay_lambda=topological_decay_lambda_arg,
                     n_jobs=n_jobs_arg, ood_type=ood_type_arg,
                     noise_std=master_config.data.noise_std,
-                    id_split=master_config.data.id_split
+                    id_split=master_config.data.id_split,
+                    extractor_config=master_config.extractors
                 )
                 
                 # Accumulate timings

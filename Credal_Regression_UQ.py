@@ -81,7 +81,7 @@ class CredalRegressionUQ:
             
         return means, variances, counts
 
-    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size="auto", integration_method="gauss_legendre", sup_solver="bisection", likelihood_type="normal"):
+    def compute_uq(self, X_test, backend="auto", n_grid=None, batch_size="auto", integration_method="gauss_legendre", sup_solver="bisection", likelihood_type="normal", n_iter=None):
         """
         Computes the epistemic and aleatoric uncertainties using the continuous
         relative likelihood framework. Fully vectorized and GPU-accelerated when available.
@@ -95,6 +95,7 @@ class CredalRegressionUQ:
             integration_method: 'gauss_legendre' or 'trapezoid'
             sup_solver: 'bisection' or 'newton'
             likelihood_type: 'normal', 'student_t', or 'student_t_corrected'
+            n_iter: Maximum iterations for numerical solver (e.g. bisection)
             
         Returns:
             epistemic_var: np.ndarray of shape (n_samples,) in variance-like units
@@ -123,7 +124,8 @@ class CredalRegressionUQ:
             batch_size = self._get_dynamic_batch_size(n_grid, resolved_backend)
             print(f"Dynamically resolved Credal batch size: {batch_size}")
             
-        n_iter = 20
+        if n_iter is None:
+            n_iter = 20
         
         # Precompute leaf assignments for all test points once
         if self.leaf_cache is not None:

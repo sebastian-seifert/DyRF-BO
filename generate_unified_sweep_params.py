@@ -25,19 +25,19 @@ def main():
             for config in [1, 5]:
                 # --- empty gap_type ---
                 # 1. Baselines
-                f.write(f"--function {func_name} --rf_config {config} --gap_type empty --approaches {BASELINES}\n")
+                f.write(f"--function {func_name} --rf_config {config} --noise_std 0.1 --id_split 0.7 --gap_type empty --approaches {BASELINES}\n")
                 # 2. Proximity runs
                 for alpha in [1.0, 5.0]:
-                    f.write(f"--function {func_name} --rf_config {config} --gap_type empty --k_neighbors 20 --density_scaling_alpha {alpha} --approaches {PROXIMITY_METHODS}\n")
+                    f.write(f"--function {func_name} --rf_config {config} --noise_std 0.1 --id_split 0.7 --gap_type empty --k_neighbors 20 --density_scaling_alpha {alpha} --approaches {PROXIMITY_METHODS}\n")
                 
                 # --- sparse gap_type ---
                 for law in ["linear"]:
                     for mult in [5, 50]:
                         # 1. Baselines
-                        f.write(f"--function {func_name} --rf_config {config} --gap_type sparse --scaling_law {law} --sparse_multiplier {mult} --approaches {BASELINES}\n")
+                        f.write(f"--function {func_name} --rf_config {config} --noise_std 0.1 --id_split 0.7 --gap_type sparse --scaling_law {law} --sparse_multiplier {mult} --approaches {BASELINES}\n")
                         # 2. Proximity runs
                         for alpha in [1.0, 5.0]:
-                            f.write(f"--function {func_name} --rf_config {config} --gap_type sparse --scaling_law {law} --sparse_multiplier {mult} --k_neighbors 20 --density_scaling_alpha {alpha} --approaches {PROXIMITY_METHODS}\n")
+                            f.write(f"--function {func_name} --rf_config {config} --noise_std 0.1 --id_split 0.7 --gap_type sparse --scaling_law {law} --sparse_multiplier {mult} --k_neighbors 20 --density_scaling_alpha {alpha} --approaches {PROXIMITY_METHODS}\n")
 
     # 41 functions * 2 configs * (1 + 2 + 2*(1 + 2)) = 82 * (3 + 6) = 738 runs
     print(f"Generated unified_sweep_params.txt with {len(funcs) * 2 * 9} execution configurations (linear scaling only).")

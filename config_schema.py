@@ -27,16 +27,22 @@ class RFConfig:
     oob_score: bool = True
 
     @classmethod
-    def from_preset(cls, name: str) -> "RFConfig":
+    def from_preset(cls, name: Any) -> "RFConfig":
+        key = str(name).strip().upper()
         preset_map = {
             "A": {"n_estimators": 100, "min_samples_leaf": 5, "min_samples_split": 2, "max_features": "sqrt"},
             "B": {"n_estimators": 500, "min_samples_leaf": 10, "min_samples_split": 2, "max_features": "sqrt"},
             "C": {"n_estimators": 1000, "min_samples_leaf": 25, "min_samples_split": 2, "max_features": "sqrt"},
+            "1": {"n_estimators": 100, "min_samples_leaf": 5, "min_samples_split": 2, "max_features": "sqrt"},
+            "2": {"n_estimators": 100, "min_samples_leaf": 25, "min_samples_split": 2, "max_features": "sqrt"},
+            "3": {"n_estimators": 100, "min_samples_leaf": 50, "min_samples_split": 2, "max_features": "sqrt"},
+            "4": {"n_estimators": 300, "min_samples_leaf": 10, "min_samples_split": 2, "max_features": "sqrt"},
+            "5": {"n_estimators": 300, "min_samples_leaf": 30, "min_samples_split": 2, "max_features": "sqrt"},
         }
-        if name not in preset_map:
-            raise ValueError(f"Unknown RF config preset '{name}'. Choose from 'A', 'B', 'C'.")
-        params = preset_map[name]
-        return cls(name=name, **params)
+        if key not in preset_map:
+            raise ValueError(f"Unknown RF config preset '{name}'. Choose from 'A', 'B', 'C', '1', '2', '3', '4', '5'.")
+        params = preset_map[key]
+        return cls(name=str(name), **params)
 
 @dataclass
 class ExtractorConfig:
@@ -81,7 +87,14 @@ class BenchmarkMasterConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "BenchmarkMasterConfig":
         data_cfg = DataConfig(**data.get("data", {}))
-        rf_cfg = RFConfig(**data.get("rf", {}))
+        rf_raw = data.get("rf", {})
+        if "name" in rf_raw and len(rf_raw) == 1:
+            try:
+                rf_cfg = RFConfig.from_preset(rf_raw["name"])
+            except ValueError:
+                rf_cfg = RFConfig(**rf_raw)
+        else:
+            rf_cfg = RFConfig(**rf_raw)
         ext_cfg = ExtractorConfig(**data.get("extractors", {}))
         prox_cfg = ProximityConfig(**data.get("proximity", {}))
         acq_cfg = AcquisitionConfig(**data.get("acquisition", {}))
@@ -105,11 +118,18 @@ class BenchmarkMasterConfig:
         ks_str = ",".join(map(str, self.proximity.k_neighbors))
         alphas_str = ",".join(map(str, self.proximity.density_scaling_alpha))
 
+        data_args = (
+            f"--noise_std {self.data.noise_std} "
+            f"--id_split {self.data.id_split} "
+            f"--scaling_law {self.data.scaling_law} "
+            f"--sparse_multiplier {self.data.sparse_multiplier}"
+        )
+
         # Baseline task line
         base_line = (
             f"--function {func_name} --rf_config {self.rf.name} --seed {self.data.seed} "
             f"--gap_type {self.data.gap_type} --ood_type {self.data.ood_type} "
-            f"--approaches {base_approaches} --output_dir {output_dir}"
+            f"{data_args} --approaches {base_approaches} --output_dir {output_dir}"
         )
         lines.append(base_line)
 
@@ -117,7 +137,7 @@ class BenchmarkMasterConfig:
         prox_line = (
             f"--function {func_name} --rf_config {self.rf.name} --seed {self.data.seed} "
             f"--gap_type {self.data.gap_type} --ood_type {self.data.ood_type} "
-            f"--topological_decay_lambda {lambdas_str} --k_neighbors {ks_str} "
+            f"{data_args} --topological_decay_lambda {lambdas_str} --k_neighbors {ks_str} "
             f"--density_scaling_alpha {alphas_str} --approaches {prox_approaches} "
             f"--output_dir {output_dir}"
         )
