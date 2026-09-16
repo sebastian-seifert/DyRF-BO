@@ -30,22 +30,28 @@ if PROJECT_ROOT not in sys.path:
 def calculate_cliffs_delta(x: Sequence[float], y: Sequence[float]) -> float:
     """Computes Cliff's delta non-parametric effect size between two distributions.
 
-    delta = (sum_{i,j} [x_i > y_j] - sum_{i,j} [x_i < y_j]) / (|x| * |y|)
+    Uses the Mann-Whitney U relationship (delta = 2*U / (n_x * n_y) - 1) for
+    O((N+M) log(N+M)) performance and minimal memory consumption.
 
     Returns:
         float in [-1, 1], where negative indicates x tends to be smaller (better for minimization).
     """
-    x = np.asarray(x).ravel()
-    y = np.asarray(y).ravel()
+    x = np.asarray(x, dtype=float).ravel()
+    y = np.asarray(y, dtype=float).ravel()
     n_x, n_y = len(x), len(y)
     if n_x == 0 or n_y == 0:
         return 0.0
-    greater = 0
-    less = 0
-    for val_x in x:
-        greater += int(np.sum(val_x > y))
-        less += int(np.sum(val_x < y))
-    return float((greater - less) / (n_x * n_y))
+    try:
+        from scipy.stats import mannwhitneyu
+        res = mannwhitneyu(x, y, alternative="two-sided")
+        return float((2.0 * res.statistic) / (n_x * n_y) - 1.0)
+    except Exception:
+        greater = 0
+        less = 0
+        for val_x in x:
+            greater += int(np.sum(val_x > y))
+            less += int(np.sum(val_x < y))
+        return float((greater - less) / (n_x * n_y))
 
 
 def apply_holm_bonferroni(p_vals: Sequence[float]) -> List[float]:
@@ -110,9 +116,36 @@ def compute_statistical_comparison(
         if cost_col is None:
             raise KeyError(f"Could not find cost column in df. Available: {list(df.columns)}")
 
-    df_clean = df.copy()
+    # Detect trial column to collapse multiple evaluation steps per run down to final incumbent
+    trial_col = None
+    for cand in ["n_trials", "n_function_calls", "trial", "trial_number", "trial_idx", "iteration", "step"]:
+        if cand in df.columns:
+            trial_col = cand
+            break
+
+    # Select only required columns to minimize memory footprint
+    needed_cols = [opt_col, task_col, seed_col, cost_col]
+    if "dimension" in df.columns:
+        needed_cols.append("dimension")
+    if trial_col and trial_col not in needed_cols:
+        needed_cols.append(trial_col)
+
+    df_clean = df[[c for c in needed_cols if c in df.columns]].copy()
+
     if "dimension" not in df_clean.columns:
         df_clean["dimension"] = df_clean[task_col].apply(_extract_dimension)
+
+    # CRITICAL OOM & LOGIC FIX:
+    # If df contains multiple trials per run (e.g. n_trials = 1..100), extract the final trial
+    # per (optimizer, task, seed) to prevent an explosive Cartesian product during pairing.
+    if trial_col is not None:
+        df_clean = df_clean.sort_values(by=trial_col).drop_duplicates(
+            subset=[opt_col, task_col, seed_col], keep="last"
+        ).reset_index(drop=True)
+    elif df_clean.duplicated(subset=[opt_col, task_col, seed_col]).any():
+        df_clean = df_clean.drop_duplicates(
+            subset=[opt_col, task_col, seed_col], keep="last"
+        ).reset_index(drop=True)
 
     df_p = df_clean[df_clean[opt_col] == proposed_id]
     df_b = df_clean[df_clean[opt_col] == baseline_id]
@@ -169,8 +202,8 @@ def compute_statistical_comparison(
         task_norm_b: List[float] = []
         task_details: List[Dict[str, Any]] = []
 
-        for task_name in sorted(sub_df[task_col].unique()):
-            t_sub = sub_df[sub_df[task_col] == task_name]
+        # Vectorized groupby iteration instead of quadratic sub_df[sub_df[task_col] == task_name]
+        for task_name, t_sub in sub_df.groupby(task_col):
             tp = t_sub[f"{cost_col}_proposed"].to_numpy(dtype=float)
             tb = t_sub[f"{cost_col}_baseline"].to_numpy(dtype=float)
             v_mask = np.isfinite(tp) & np.isfinite(tb)
@@ -306,9 +339,23 @@ def main() -> None:
     if in_path.suffix == ".parquet":
         df = pd.read_parquet(in_path)
     else:
-        df = pd.read_csv(in_path)
+        # Memory optimization: read only candidate analysis columns if reading CSV
+        try:
+            sample_cols = pd.read_csv(in_path, nrows=0).columns.tolist()
+            cand_cols = [
+                "task", "task_id", "optimizer", "optimizer_id", "seed", "dimension",
+                "final_cost", "trial_value__cost_inc", "trial_value__cost", "cost",
+                "n_trials", "n_function_calls", "trial", "step", "iteration"
+            ]
+            load_cols = [c for c in cand_cols if c in sample_cols]
+            if len(load_cols) >= 4:
+                df = pd.read_csv(in_path, usecols=load_cols)
+            else:
+                df = pd.read_csv(in_path)
+        except Exception:
+            df = pd.read_csv(in_path)
 
-    print(f"Computing statistical comparison across {len(df)} records...")
+    print(f"Loaded {len(df)} records. Computing statistical comparison...")
     res = compute_statistical_comparison(df)
 
     # Save summary markdown
@@ -318,6 +365,8 @@ def main() -> None:
         f.write("Evaluation comparing **SMAC20_ProximityLCB** ($k=25, \\lambda=1.345, \\epsilon=0.16$) ")
         f.write("vs **SMAC3_HPOFacade_lcb** ($\\beta=3.8416$) across 30 seeds.\n\n")
         for strat_key, strat_data in [("overall", res["overall"]), ("dim_16", res["dim_16"]), ("dim_32", res["dim_32"])]:
+            if strat_data.get("n_tasks", 0) == 0:
+                continue
             f.write(f"## {strat_data.get('stratum', strat_key)}\n")
             f.write(f"- **Tasks Evaluated**: {strat_data['n_tasks']}\n")
             f.write(f"- **Paired Runs**: {strat_data['n_paired_runs']}\n")
@@ -329,6 +378,34 @@ def main() -> None:
             f.write(f"- **Mean Normalized Regret (Baseline)**: {strat_data['mean_norm_regret_baseline']:.4f}\n\n")
 
     print(f"[SUCCESS] Scorecard saved to {md_path}")
+
+    # Save stratified summary CSV
+    strat_rows = []
+    for strat_key, strat_data in [("overall", res["overall"]), ("dim_16", res["dim_16"]), ("dim_32", res["dim_32"])]:
+        if strat_data.get("n_tasks", 0) > 0:
+            strat_rows.append({
+                "stratum": strat_data.get("stratum", strat_key),
+                "n_tasks": strat_data["n_tasks"],
+                "n_paired_runs": strat_data["n_paired_runs"],
+                "wins": strat_data["wins"],
+                "losses": strat_data["losses"],
+                "ties": strat_data["ties"],
+                "win_rate_proposed": strat_data["win_rate_proposed"],
+                "cliffs_delta_all_runs": strat_data["cliffs_delta_all_runs"],
+                "demsar_task_wilcoxon_p": strat_data["demsar_task_wilcoxon_p"],
+                "mean_norm_regret_proposed": strat_data["mean_norm_regret_proposed"],
+                "mean_norm_regret_baseline": strat_data["mean_norm_regret_baseline"],
+            })
+    if strat_rows:
+        strat_csv = out_dir / "stratified_scorecard.csv"
+        pd.DataFrame(strat_rows).to_csv(strat_csv, index=False)
+        print(f"[SUCCESS] Stratified scorecard saved to {strat_csv}")
+
+    # Save detailed per-task CSV
+    if "task_details" in res.get("overall", {}):
+        task_csv = out_dir / "task_details.csv"
+        pd.DataFrame(res["overall"]["task_details"]).to_csv(task_csv, index=False)
+        print(f"[SUCCESS] Task details saved to {task_csv}")
 
 
 if __name__ == "__main__":

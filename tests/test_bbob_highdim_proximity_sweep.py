@@ -239,6 +239,112 @@ class TestBBOBHighDimAnalysisCalculations(unittest.TestCase):
         self.assertIn("dim_32", results)
         self.assertEqual(results["overall"]["win_rate_proposed"], 1.0)
 
+    def test_multi_trial_per_run_reduces_to_final_trial(self):
+        """Verify that multi-step trial logs are properly reduced to the final trial per run, avoiding Cartesian explosion."""
+        from scripts.compute_bbob_highdim_proximity_analysis import compute_statistical_comparison
+
+        rows = []
+        # 2 tasks (dim 16, dim 32), 2 seeds, 2 optimizers, each with 50 trials
+        for task, dim in [("cfg_16_1_0", 16), ("cfg_32_1_0", 32)]:
+            for seed in [1, 2]:
+                for opt in ["SMAC20_ProximityLCB", "SMAC3_HPOFacade_lcb"]:
+                    base_val = 100.0 if opt == "SMAC3_HPOFacade_lcb" else 80.0
+                    for t in range(1, 51):
+                        # Cost improves over trials
+                        c = base_val / t
+                        rows.append({
+                            "task_id": task,
+                            "dimension": dim,
+                            "seed": seed,
+                            "optimizer_id": opt,
+                            "n_trials": t,
+                            "trial_value__cost": c,
+                            "trial_value__cost_inc": c,
+                        })
+
+        df_multi = pd.DataFrame(rows)
+        # Total rows = 2 tasks * 2 seeds * 2 optimizers * 50 trials = 400 rows
+        self.assertEqual(len(df_multi), 400)
+
+        results = compute_statistical_comparison(df_multi)
+        # Paired runs MUST be 4 (2 tasks * 2 seeds), NOT 4 * 50 * 50 = 10,000!
+        self.assertEqual(results["overall"]["n_paired_runs"], 4)
+        self.assertEqual(results["dim_16"]["n_paired_runs"], 2)
+        self.assertEqual(results["dim_32"]["n_paired_runs"], 2)
+        # Proposed (80/50 = 1.6) is strictly better than baseline (100/50 = 2.0)
+        self.assertEqual(results["overall"]["wins"], 4)
+        self.assertEqual(results["overall"]["losses"], 0)
+
+    def test_calculate_cliffs_delta_matches_definition(self):
+        """Verify Cliff's delta matches the formal definition across edge cases including ties."""
+        from scripts.compute_bbob_highdim_proximity_analysis import calculate_cliffs_delta
+
+        def ground_truth_cliffs(x, y):
+            gt = 0
+            lt = 0
+            for vx in x:
+                gt += int(np.sum(vx > y))
+                lt += int(np.sum(vx < y))
+            return float((gt - lt) / (len(x) * len(y)))
+
+        # Test case with distinct values and ties
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 5.0])
+        y = np.array([2.0, 3.0, 5.0, 5.0, 6.0, 7.0])
+        self.assertAlmostEqual(calculate_cliffs_delta(x, y), ground_truth_cliffs(x, y), places=7)
+
+        # Empty array edge case
+        self.assertEqual(calculate_cliffs_delta([], [1.0, 2.0]), 0.0)
+
+        # Identical arrays
+        self.assertEqual(calculate_cliffs_delta([2.0, 2.0], [2.0, 2.0]), 0.0)
+
+    def test_end_to_end_analysis_cli_file_generation(self):
+        """Verify that running compute_bbob_highdim_proximity_analysis outputs valid scorecard and CSVs without OOM."""
+        import tempfile
+        from scripts.compute_bbob_highdim_proximity_analysis import main
+        import sys
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            input_csv = tmp_path / "logs.csv"
+            out_dir = tmp_path / "analysis"
+
+            rows = []
+            for task, dim in [("cfg_16_1_0", 16), ("cfg_32_1_0", 32)]:
+                for seed in [1, 2]:
+                    for opt in ["SMAC20_ProximityLCB", "SMAC3_HPOFacade_lcb"]:
+                        for t in range(1, 11):
+                            rows.append({
+                                "task_id": task,
+                                "dimension": dim,
+                                "seed": seed,
+                                "optimizer_id": opt,
+                                "n_trials": t,
+                                "trial_value__cost": 10.0 / t if "Proximity" in opt else 15.0 / t,
+                                "trial_value__cost_inc": 10.0 / t if "Proximity" in opt else 15.0 / t,
+                            })
+
+            pd.DataFrame(rows).to_csv(input_csv, index=False)
+
+            old_argv = sys.argv
+            try:
+                sys.argv = [
+                    "compute_bbob_highdim_proximity_analysis.py",
+                    "--input", str(input_csv),
+                    "--output-dir", str(out_dir),
+                ]
+                main()
+            finally:
+                sys.argv = old_argv
+
+            self.assertTrue((out_dir / "bbob_highdim_proximity_scorecard.md").exists())
+            self.assertTrue((out_dir / "stratified_scorecard.csv").exists())
+            self.assertTrue((out_dir / "task_details.csv").exists())
+
+            strat_df = pd.read_csv(out_dir / "stratified_scorecard.csv")
+            self.assertIn("Overall (D=16 & D=32)", strat_df["stratum"].values)
+            self.assertEqual(int(strat_df.loc[strat_df["stratum"] == "Overall (D=16 & D=32)", "n_paired_runs"].iloc[0]), 4)
+
 
 if __name__ == "__main__":
     unittest.main()
