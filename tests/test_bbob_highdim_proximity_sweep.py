@@ -346,5 +346,62 @@ class TestBBOBHighDimAnalysisCalculations(unittest.TestCase):
             self.assertEqual(int(strat_df.loc[strat_df["stratum"] == "Overall (D=16 & D=32)", "n_paired_runs"].iloc[0]), 4)
 
 
+class TestBBOBHighDimGathering(unittest.TestCase):
+    def test_gather_resolves_hydra_interpolated_task_name(self):
+        """Verify gather_bbob_highdim_logs resolves ${task.name} and assigns correct dimensions."""
+        import tempfile
+        import json
+        from scripts.gather_bbob_highdim_proximity import gather_bbob_highdim_logs
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            runs_dir = tmp_path / "runs"
+            out_dir = tmp_path / "results"
+
+            # Create mock run 1: BBOB 16D with task_id: ${task.name}
+            run1 = runs_dir / "SMAC20_ProximityLCB" / "BBOB" / "bbob" / "16" / "1" / "0" / "1"
+            run1.mkdir(parents=True, exist_ok=True)
+            (run1 / ".hydra").mkdir(parents=True, exist_ok=True)
+            with open(run1 / ".hydra" / "config.yaml", "w") as f:
+                f.write(
+                    "task_id: ${task.name}\n"
+                    "optimizer_id: SMAC20_ProximityLCB\n"
+                    "seed: 1\n"
+                    "task:\n"
+                    "  name: bbob/16/1/0\n"
+                )
+            with open(run1 / "trial_logs.jsonl", "w") as f:
+                f.write(json.dumps({"n_trials": 1, "trial_value": {"cost": 42.0}}) + "\n")
+
+            # Create mock run 2: BBOB 32D with task_id: ${task.name}
+            run2 = runs_dir / "SMAC3_HPOFacade_lcb" / "BBOB" / "bbob" / "32" / "2" / "1" / "1"
+            run2.mkdir(parents=True, exist_ok=True)
+            (run2 / ".hydra").mkdir(parents=True, exist_ok=True)
+            with open(run2 / ".hydra" / "config.yaml", "w") as f:
+                f.write(
+                    "task_id: ${task.name}\n"
+                    "optimizer_id: SMAC3_HPOFacade_lcb\n"
+                    "seed: 1\n"
+                    "task:\n"
+                    "  name: bbob/32/2/1\n"
+                )
+            with open(run2 / "trial_logs.jsonl", "w") as f:
+                f.write(json.dumps({"n_trials": 1, "trial_value": {"cost": 55.0}}) + "\n")
+
+            df = gather_bbob_highdim_logs(runs_dir=str(runs_dir), output_dir=str(out_dir))
+
+            self.assertFalse(df.empty)
+            # Must NOT be the unresolved string "${task.name}"
+            self.assertNotIn("${task.name}", df["task_id"].values)
+            self.assertIn("bbob/16/1/0", df["task_id"].values)
+            self.assertIn("bbob/32/2/1", df["task_id"].values)
+
+            # Dimensions must be resolved to 16 and 32
+            row16 = df[df["task_id"] == "bbob/16/1/0"].iloc[0]
+            row32 = df[df["task_id"] == "bbob/32/2/1"].iloc[0]
+            self.assertEqual(row16["dimension"], 16)
+            self.assertEqual(row32["dimension"], 32)
+
+
 if __name__ == "__main__":
     unittest.main()

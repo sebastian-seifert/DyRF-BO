@@ -49,23 +49,53 @@ def gather_bbob_highdim_logs(
         seed = 1
 
         if hydra_cfg_file.exists():
+            # 1. Attempt OmegaConf to resolve ${...} interpolations (e.g. task_id: ${task.name})
             try:
-                import yaml
-                with open(hydra_cfg_file, "r") as f:
-                    cfg_data = yaml.safe_load(f)
-                if isinstance(cfg_data, dict):
-                    opt_id = cfg_data.get("optimizer_id", opt_id)
-                    task_id = cfg_data.get("task_id", cfg_data.get("task_name", task_id))
-                    seed = int(cfg_data.get("seed", seed))
+                from omegaconf import OmegaConf
+                cfg = OmegaConf.load(hydra_cfg_file)
+                if "optimizer_id" in cfg and cfg.optimizer_id is not None:
+                    opt_id = str(cfg.optimizer_id)
+                if "task_id" in cfg and cfg.task_id is not None:
+                    task_id = str(cfg.task_id)
+                elif "task" in cfg and hasattr(cfg.task, "name") and cfg.task.name:
+                    task_id = str(cfg.task.name)
+                elif "task_name" in cfg and cfg.task_name is not None:
+                    task_id = str(cfg.task_name)
+                if "seed" in cfg and cfg.seed is not None:
+                    seed = int(cfg.seed)
             except Exception:
                 pass
 
-        if opt_id == "unknown" or task_id == "unknown":
+            # 2. PyYAML fallback if OmegaConf unavailable or task_id is still unresolved macro
+            if opt_id == "unknown" or task_id == "unknown" or task_id.startswith("${"):
+                try:
+                    import yaml
+                    with open(hydra_cfg_file, "r") as f:
+                        cfg_data = yaml.safe_load(f)
+                    if isinstance(cfg_data, dict):
+                        opt_id = cfg_data.get("optimizer_id", opt_id)
+                        raw_tid = cfg_data.get("task_id", cfg_data.get("task_name", task_id))
+                        if isinstance(raw_tid, str) and raw_tid.startswith("${"):
+                            task_dict = cfg_data.get("task")
+                            if isinstance(task_dict, dict) and "name" in task_dict and str(task_dict["name"]).strip():
+                                raw_tid = task_dict["name"]
+                        task_id = str(raw_tid) if raw_tid is not None else task_id
+                        seed = int(cfg_data.get("seed", seed))
+                except Exception:
+                    pass
+
+        # 3. Path-based heuristic fallback if task_id / opt_id is still unresolved
+        if opt_id == "unknown" or task_id == "unknown" or task_id.startswith("${"):
             parts = run_dir.parts
-            for p in parts:
+            for i, p in enumerate(parts):
                 if "ProximityLCB" in p or "SMAC3_HPOFacade" in p:
                     opt_id = p
-                if "cfg_" in p or "bbob" in p.lower():
+                if p == "BBOB" and i + 4 < len(parts):
+                    # e.g. runs/<opt>/BBOB/bbob/16/1/0/<seed>
+                    task_id = f"bbob/{parts[i+2]}/{parts[i+3]}/{parts[i+4]}"
+                elif "cfg_16_" in p or "cfg_32_" in p:
+                    task_id = p
+                elif ("bbob" in p.lower() or "cfg_" in p) and task_id == "unknown":
                     task_id = p
                 if p.isdigit() and seed == 1:
                     seed = int(p)
