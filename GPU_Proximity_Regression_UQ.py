@@ -992,29 +992,13 @@ class GPUProximityRegressionUQ:
         sum_weights_clipped = self.xp.maximum(sum_weights, 1e-10)
         cum_weights_norm = cum_weights / sum_weights_clipped
         
-        # Find first index where cumulative probability is >= q
+        # Find first index where cumulative probability is >= q (inverse empirical CDF)
         idx_mask = cum_weights_norm >= q
         idx = self.xp.argmax(idx_mask, axis=1)
+        val = sorted_values[idx]
         
-        # Detect zero-weight rows
+        # Detect zero-weight rows and fall back to standard unweighted quantile
         zero_weight_mask = (sum_weights.ravel() <= 1e-10)
-        
-        # Compute linear interpolation
-        idx_prev = self.xp.maximum(idx - 1, 0)
-        
-        c_prev = cum_weights_norm[self.xp.arange(len(weights)), idx_prev]
-        c_curr = cum_weights_norm[self.xp.arange(len(weights)), idx]
-        
-        v_prev = sorted_values[idx_prev]
-        v_curr = sorted_values[idx]
-        
-        denom = self.xp.maximum(c_curr - c_prev, 1e-10)
-        fraction = (q - c_prev) / denom
-        fraction = self.xp.clip(fraction, 0.0, 1.0)
-        
-        val = v_prev + (v_curr - v_prev) * fraction
-        
-        # Fallback to standard unweighted quantile for zero-weight rows
         if self.xp.any(zero_weight_mask):
             fallback_val = self.xp.quantile(values, q)
             val = self.xp.where(zero_weight_mask, fallback_val, val)
