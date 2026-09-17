@@ -16,9 +16,20 @@ class CustomUncertaintyRandomForest(RandomForest):
         uncertainty_func: Union[str, Callable[[Any, np.ndarray, np.ndarray], np.ndarray]] = "standard_disagreement",
         oob_score: bool = True,
         extractor_kwargs: dict | None = None,
+        min_samples_leaf: int = 1,
+        min_samples_split: int = 2,
+        ratio_features: float = 1.0,
+        log_y: bool = True,
         **kwargs
     ):
-        super().__init__(oob_score=oob_score, **kwargs)
+        super().__init__(
+            oob_score=oob_score,
+            min_samples_leaf=min_samples_leaf,
+            min_samples_split=min_samples_split,
+            ratio_features=ratio_features,
+            log_y=log_y,
+            **kwargs
+        )
         self.uncertainty_func = uncertainty_func
         self.extractor_kwargs = extractor_kwargs
         self.uq_extractor = None
