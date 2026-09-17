@@ -303,43 +303,41 @@ class CredalRegressionUQ:
                 return xp_log_ndtr(w)
             
         if sup_solver == "newton":
-            # Newton-Raphson iterations: 8 is more than enough for machine precision
-            n_iter_newton = 8
+            # Newton-Raphson iterations: 12 is sufficient for machine precision across full domain
+            n_iter_newton = 12
             log_sqrt_2pi = 0.5 * xp.log(2.0 * np.pi)
             
-            # --- Vectorized Newton-Raphson for pi_le ---
-            # Initialize u using a negative value scaled by z
-            u_le = - (xp.abs(z_b) + 1.0) / (xp.sqrt(k_b) + 1.0)
+            def _solve_pi_le_newton(z_eval):
+                # Vectorized Newton-Raphson for pi_le on negative branch u <= 0.
+                # Accurate piecewise initialization based on sign of z_eval:
+                # - For z <= 0, asymptotic balance yields u ~ (z - 0.5) / (sqrt(k) + 1).
+                # - For z > 0, log Phi(z) ~ 0 yields u ~ -sqrt(-2 * log Phi(z) / k).
+                u_neg = (z_eval - 0.5) / (xp.sqrt(k_b) + 1.0)
+                u_pos = - xp.sqrt(xp.maximum(-2.0 * xp_log_ndtr(z_eval) / k_b, 1e-15))
+                u = xp.where(z_eval <= 0.0, u_neg, u_pos)
+                u = xp.minimum(u, -1e-15)
+
+                for _ in range(n_iter_newton):
+                    w = z_eval - u
+                    log_phi = xp_log_ndtr(w)
+                    inv_mills = xp.exp(-0.5 * w**2 - log_sqrt_2pi - log_phi)
+                    
+                    h_val = -0.5 * k_b * u**2 - log_phi
+                    h_prime = -k_b * u + inv_mills
+                    
+                    u = u - h_val / h_prime
+                    u = xp.minimum(u, -1e-15)
+                return xp.exp(-k_b * u**2 / 2.0)
             
-            for _ in range(n_iter_newton):
-                w = z_b - u_le
-                log_phi = xp_log_ndtr(w)
-                inv_mills = xp.exp(-0.5 * w**2 - log_sqrt_2pi - log_phi)
-                
-                h_val = -0.5 * k_b * u_le**2 - log_phi
-                h_prime = -k_b * u_le + inv_mills
-                
-                u_le = u_le - h_val / h_prime
-                u_le = xp.minimum(u_le, -1e-15)
-                
-            pi_le = xp.exp(-k_b * u_le**2 / 2.0)
+            # --- Solve lower event pi(Y <= t) at standardized threshold z_b ---
+            pi_le = _solve_pi_le_newton(z_b)
             
-            # --- Vectorized Newton-Raphson for pi_ge ---
-            # Initialize u using a negative value scaled by z
-            u_ge = - (xp.abs(z_b) + 1.0) / (xp.sqrt(k_b) + 1.0)
-            
-            for _ in range(n_iter_newton):
-                w = u_ge - z_b
-                log_phi = xp_log_ndtr(w)
-                inv_mills = xp.exp(-0.5 * w**2 - log_sqrt_2pi - log_phi)
-                
-                h_val = -0.5 * k_b * u_ge**2 - log_phi
-                h_prime = -k_b * u_ge - inv_mills
-                
-                u_ge = u_ge - h_val / h_prime
-                u_ge = xp.minimum(u_ge, -1e-15)
-                
-            pi_ge = xp.exp(-k_b * u_ge**2 / 2.0)
+            # --- Solve upper event pi(Y >= t) via analytical reflection ---
+            # By symmetry of the standard Gaussian distribution:
+            # Phi(u - z) = Phi((-z) - (-u)). With v = -u <= 0 and pi_H(-v) = pi_H(v),
+            # the upper event at z is mathematically equivalent to the lower event at -z:
+            # pi(Y >= t; z) = pi(Y <= -t; -z).
+            pi_ge = _solve_pi_le_newton(-z_b)
             
         else: # bisection
             if likelihood_type in ["student_t", "student_t_corrected"]:
