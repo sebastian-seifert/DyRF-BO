@@ -1,4 +1,5 @@
 from __future__ import annotations
+import warnings
 from typing import Any
 import numpy as np
 from scipy.stats import norm
@@ -102,6 +103,12 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
                 local_mae = getattr(self._model, "oob_mae", 1.0)
         else:
             # Fallback to standard Gaussian prediction
+            warnings.warn(
+                f"Surrogate model '{type(self._model).__name__}' does not have 'predict_with_intervals'; "
+                "falling back to standard Gaussian prediction for Proximity LCB.",
+                UserWarning,
+                stacklevel=2,
+            )
             mean, var = self._model.predict_marginalized(X)
             y_pred = mean.flatten()
             std = np.sqrt(var.flatten())

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import warnings
 from typing import Callable, Union, Any
 import numpy as np
 
@@ -132,6 +133,13 @@ class CustomUncertaintyRandomForest(RandomForest):
             )
 
         # Fallback to Gaussian interval via _predict
+        extractor_name = type(self.uq_extractor).__name__ if self.uq_extractor is not None else str(self.uncertainty_func)
+        warnings.warn(
+            f"Active UQ extractor '{extractor_name}' does not implement 'predict_with_intervals'; "
+            "falling back to Gaussian prediction intervals.",
+            UserWarning,
+            stacklevel=2,
+        )
         mean, var = self._predict(X_clean)
         mean = mean.flatten()
         std = np.sqrt(var.flatten())

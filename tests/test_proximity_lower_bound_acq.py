@@ -464,6 +464,71 @@ class TestProximityLowerBoundAcquisition(unittest.TestCase):
         extractor = ProximityBExtractor(model=None)
         self.assertAlmostEqual(extractor.decay_lambda, 1.345, places=4)
 
+    def test_gaussian_fallback_warning_when_predict_with_intervals_missing(self):
+        """
+        Verify that when N > k and the model lacks predict_with_intervals,
+        ProximityLowerBoundAcquisition issues a warning when falling back to Gaussian prediction.
+        """
+        import warnings
+
+        class MockStandardModelWithoutIntervals:
+            def __init__(self, n_train: int = 50):
+                self.n_train = n_train
+                self.last_X = np.zeros((n_train, 2))
+
+            def predict_marginalized(self, X: np.ndarray):
+                n = len(X)
+                mean = np.full((n, 1), 5.0)
+                var = np.full((n, 1), 1.0)
+                return mean, var
+
+        surrogate = MockStandardModelWithoutIntervals(n_train=50)
+        acq = ProximityLowerBoundAcquisition(eps=0.10, level=0.95, k=10)
+        acq.update(surrogate, num_data=50)
+
+        X = np.array([[0.0, 0.0], [1.0, 1.0]])
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            scores = acq._compute(X)
+
+        self.assertEqual(scores.shape, (2, 1))
+        fallback_warnings = [
+            w for w in caught_warnings
+            if issubclass(w.category, UserWarning) and "falling back to standard gaussian prediction" in str(w.message).lower()
+        ]
+        self.assertGreaterEqual(len(fallback_warnings), 1)
+
+    def test_custom_rf_gaussian_fallback_warning_when_extractor_lacks_intervals(self):
+        """
+        Verify that when CustomUncertaintyRandomForest has an extractor that does not implement
+        predict_with_intervals, calling predict_with_intervals issues a warning and falls back.
+        """
+        import warnings
+
+        np.random.seed(42)
+        X_train = np.random.uniform(-3.0, 3.0, size=(20, 2))
+        y_train = np.sin(X_train[:, 0])
+
+        surrogate = CustomUncertaintyRandomForest(
+            uncertainty_func="standard_disagreement",
+            configspace=self.cs,
+            n_trees=10,
+            oob_score=True
+        )
+        surrogate.train(X_train, y_train)
+
+        X_test = np.array([[0.0, 0.0]])
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            res = surrogate.predict_with_intervals(X_test, n_neighbors=5, level=0.95, return_mae=True)
+
+        self.assertEqual(len(res), 4)
+        fallback_warnings = [
+            w for w in caught_warnings
+            if issubclass(w.category, UserWarning) and "falling back to gaussian prediction" in str(w.message).lower()
+        ]
+        self.assertGreaterEqual(len(fallback_warnings), 1)
+
 if __name__ == "__main__":
     unittest.main()
 
