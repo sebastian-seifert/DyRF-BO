@@ -188,24 +188,50 @@ class GPUProximityRegressionUQ:
         from sklearn.ensemble._forest import _generate_unsampled_indices, _generate_sample_indices
         
         if self.using_gpu:
-            self.oob_residuals = cupyx.empty_pinned(self.y_train.shape, dtype=np.float32)
-            self.oob_residuals[...] = self.y_train - self.oob_prediction_
             self.oob_indices = cupyx.zeros_pinned((self.n_train, self.n_estimators), dtype=np.int32)
             self.in_bag_counts = cupyx.zeros_pinned((self.n_train, self.n_estimators), dtype=np.int32)
         else:
-            self.oob_residuals = self.y_train - self.oob_prediction_
             self.oob_indices = np.zeros((self.n_train, self.n_estimators), dtype=np.int32)
             self.in_bag_counts = np.zeros((self.n_train, self.n_estimators), dtype=np.int32)
         
         for t, tree in enumerate(self.estimators):
-            # 1. Unsampled indices = Out-of-Bag (OOB) samples
-            oob_idx = _generate_unsampled_indices(tree.random_state, self.n_train, self.n_train)
+            if hasattr(self.model, "estimators_samples_") and t < len(self.model.estimators_samples_):
+                ib_idx = self.model.estimators_samples_[t]
+                in_bag_set = set(ib_idx)
+                oob_idx = np.array([i for i in range(self.n_train) if i not in in_bag_set], dtype=np.int32)
+            else:
+                max_samples = getattr(self.model, "max_samples", None)
+                if max_samples is None:
+                    n_samples_bootstrap = self.n_train
+                elif isinstance(max_samples, (int, np.integer)):
+                    n_samples_bootstrap = int(max_samples)
+                elif isinstance(max_samples, float):
+                    n_samples_bootstrap = int(round(max_samples * self.n_train))
+                else:
+                    n_samples_bootstrap = self.n_train
+                oob_idx = _generate_unsampled_indices(tree.random_state, self.n_train, n_samples_bootstrap)
+                ib_idx = _generate_sample_indices(tree.random_state, self.n_train, n_samples_bootstrap)
+
             self.oob_indices[oob_idx, t] = 1
-            
-            # 2. Sampled indices = In-bag samples (with frequency counts)
-            ib_idx = _generate_sample_indices(tree.random_state, self.n_train, self.n_train)
             idx, counts = np.unique(ib_idx, return_counts=True)
             self.in_bag_counts[idx, t] = counts
+
+        oob_counts = np.sum(self.oob_indices, axis=1)
+        self.valid_oob_mask = (oob_counts > 0) & (np.isfinite(self.oob_prediction_) if self.oob_prediction_ is not None else False)
+
+        # Replace non-finite or invalid OOB entries with 0.0 in oob_residuals
+        # to ensure zero-weighted invalid rows cannot poison downstream arrays with NaNs
+        if self.oob_prediction_ is not None:
+            clean_oob_pred = np.where(self.valid_oob_mask, self.oob_prediction_, self.y_train)
+            raw_residuals = self.y_train - clean_oob_pred
+        else:
+            raw_residuals = np.zeros_like(self.y_train)
+
+        if self.using_gpu:
+            self.oob_residuals = cupyx.empty_pinned(self.y_train.shape, dtype=np.float32)
+            self.oob_residuals[...] = raw_residuals
+        else:
+            self.oob_residuals = raw_residuals.astype(np.float32)
             
         if self.using_gpu:
             self.in_bag_indices = cupyx.empty_pinned(self.oob_indices.shape, dtype=np.int32)
@@ -613,6 +639,22 @@ class GPUProximityRegressionUQ:
                 
             prox_batch /= self.n_estimators
             
+            if hasattr(self, "valid_oob_mask") and self.valid_oob_mask is not None:
+                prox_batch[:, ~self.valid_oob_mask] = 0.0
+
+            w_sum = self.xp.sum(prox_batch, axis=1)
+            w_sq_sum = self.xp.sum(prox_batch**2, axis=1)
+            k_eff = self.xp.where(w_sq_sum > 0, (w_sum**2) / w_sq_sum, 0.0)
+            low_support = (w_sum < 1e-5) | (k_eff < 3.0)
+            if self.xp.any(low_support):
+                warnings.warn(
+                    f"[DyRF-BO UQ Warning] Insufficient valid OOB neighbor support for {int(self.xp.sum(low_support))} query point(s) "
+                    f"(minimum k_eff={float(self.xp.min(k_eff)):.1f} < 3, weight={float(self.xp.min(w_sum)):.2e}). "
+                    "Empirical quantiles may be degenerate.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            
             if use_density_scaling and self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
                 walked_densities[start:end] = density_batch / self.n_estimators
             
@@ -793,6 +835,22 @@ class GPUProximityRegressionUQ:
                     prox_batch += matches_t * self.train_weights_xp[None, :, t]
 
             prox_batch /= self.n_estimators
+
+            if hasattr(self, "valid_oob_mask") and self.valid_oob_mask is not None:
+                prox_batch[:, ~self.valid_oob_mask] = 0.0
+
+            w_sum = self.xp.sum(prox_batch, axis=1)
+            w_sq_sum = self.xp.sum(prox_batch**2, axis=1)
+            k_eff = self.xp.where(w_sq_sum > 0, (w_sum**2) / w_sq_sum, 0.0)
+            low_support = (w_sum < 1e-5) | (k_eff < 3.0)
+            if self.xp.any(low_support):
+                warnings.warn(
+                    f"[DyRF-BO UQ Warning] Insufficient valid OOB neighbor support for {int(self.xp.sum(low_support))} query point(s) "
+                    f"(minimum k_eff={float(self.xp.min(k_eff)):.1f} < 3, weight={float(self.xp.min(w_sum)):.2e}). "
+                    "Empirical quantiles may be degenerate.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
             if n_neighbors == "auto":
                 if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:

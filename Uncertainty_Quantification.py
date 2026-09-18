@@ -444,7 +444,7 @@ def run_single_test(
         print(f"    [TIMING] Random Forest Fitting: {t2 - t1:.4f} s")
         sys.stdout.flush()
     
-    leaf_cache = LeafCache(rf, X_test)
+    leaf_cache = LeafCache(rf, X_test, X_train=X_train)
     quantifier = EpistemicQuantifier(rf, X_train, y_train, leaf_cache=leaf_cache)
     t3 = time.perf_counter()
 

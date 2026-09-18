@@ -15,6 +15,7 @@ if sys.stderr is not None:
         pass
 
 from scipy.special import erf as np_erf, log_ndtr as np_log_ndtr
+from Epistemic_Quantifier import compute_leaf_stats
 try:
     import cupy as cp
     import cupyx
@@ -38,8 +39,10 @@ class CredalRegressionUQ:
         for Random Forest Regression.
         """
         self.model = model
-        self.X_train = np.asarray(X_train)
-        self.y_train = np.asarray(y_train)
+        self.X_train = np.asarray(X_train) if X_train is not None else None
+        self.y_train = np.asarray(y_train) if y_train is not None else None
+        if leaf_cache is not None and self.X_train is not None and hasattr(leaf_cache, "update_with_train"):
+            leaf_cache.update_with_train(self.X_train)
         self.leaf_cache = leaf_cache
 
     def _calc_leaf_stats(self, X_test, min_var=1e-6):
@@ -47,6 +50,9 @@ class CredalRegressionUQ:
         Calculates leaf statistics (means, variances, and counts) for each tree and test sample.
         Supports passing either X_test (backward compatibility) or pre-extracted leaf IDs.
         """
+        if self.leaf_cache is not None:
+            return self.leaf_cache.means, self.leaf_cache.variances, self.leaf_cache.counts
+
         X_test_arr = np.asarray(X_test)
         if np.issubdtype(X_test_arr.dtype, np.integer) and X_test_arr.ndim == 2 and X_test_arr.shape[1] == len(self.model.estimators_):
             # This is already leaf_matrix of shape (n_samples, n_trees)
@@ -64,20 +70,11 @@ class CredalRegressionUQ:
         
         for i, estimator in enumerate(self.model.estimators_):
             test_leaf_ids = all_test_leaf_ids[:, i]
-            
-            # Fetch pre-calculated statistics directly from the estimator tree structure
             node_means = estimator.tree_.value[:, 0, 0]
-            node_impurities = estimator.tree_.impurity
-            node_samples = estimator.tree_.n_node_samples
-            
             means[i, :] = node_means[test_leaf_ids]
-            
-            n_samples_node = node_samples[test_leaf_ids]
-            denom = np.maximum(n_samples_node - 1.0, 1.0)
-            scale = np.where(n_samples_node > 1, n_samples_node / denom, 0.0)
-            variances[i, :] = node_impurities[test_leaf_ids] * scale + min_var
-            
-            counts[i, :] = n_samples_node
+            v_t, c_t = compute_leaf_stats(estimator, test_leaf_ids, X_train=self.X_train, rf_parent=self.model, tree_idx=i, min_var=min_var)
+            variances[i, :] = v_t
+            counts[i, :] = c_t
             
         return means, variances, counts
 

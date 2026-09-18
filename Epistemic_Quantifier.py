@@ -25,9 +25,73 @@ except ImportError:
     HAS_CUPY = False
     HAS_GPU = False
 
+def compute_leaf_stats(estimator, test_leaf_ids, X_train=None, rf_parent=None, tree_idx=None, min_var=1e-6):
+    """
+    Computes unbiased sample variances and effective counts for given test leaf assignments.
+    
+    When X_train is provided:
+      Reconstructs in-bag bootstrap frequencies w_i >= 0.
+      Calculates node-level weighted moments:
+        V1 = sum_{i in leaf} w_i
+        V2 = sum_{i in leaf} w_i^2
+      Unbiased scaling factor:
+        scale = V1^2 / (V1^2 - V2)  if V1^2 > V2 else 0.0
+      Unbiased sample variance:
+        var = impurity * scale + min_var
+      Effective sample count (Kish Neff):
+        count = V1^2 / V2  if V2 > 0 else n_node_samples
+        
+    When X_train is None:
+      Falls back to unweighted Bessel correction:
+        scale = n_node_samples / max(n_node_samples - 1.0, 1.0)
+    """
+    if not hasattr(estimator, "tree_"):
+        return np.zeros(len(test_leaf_ids), dtype=np.float64), np.zeros(len(test_leaf_ids), dtype=np.float64)
+        
+    node_count = getattr(estimator.tree_, "node_count", len(estimator.tree_.impurity))
+    
+    if X_train is not None and len(X_train) > 0 and hasattr(estimator, "apply"):
+        n_train = len(X_train)
+        sample_indices = None
+        if rf_parent is not None and hasattr(rf_parent, "estimators_samples_") and tree_idx is not None:
+            if tree_idx < len(rf_parent.estimators_samples_):
+                sample_indices = rf_parent.estimators_samples_[tree_idx]
+        if sample_indices is None:
+            is_bootstrap = getattr(rf_parent, "bootstrap", getattr(estimator, "bootstrap", True))
+            if is_bootstrap:
+                from sklearn.ensemble._forest import _generate_sample_indices
+                sample_indices = _generate_sample_indices(estimator.random_state, n_train, n_train)
+            else:
+                sample_indices = np.arange(n_train)
+
+        w = np.bincount(sample_indices, minlength=n_train)
+        train_leaves = estimator.apply(X_train)
+        V1 = np.bincount(train_leaves, weights=w, minlength=node_count)
+        V2 = np.bincount(train_leaves, weights=w**2, minlength=node_count)
+
+        denom = V1**2 - V2
+        scale = np.zeros(node_count, dtype=np.float64)
+        valid = denom > 0
+        scale[valid] = (V1[valid]**2) / denom[valid]
+
+        node_impurities = estimator.tree_.impurity
+        node_variances = node_impurities * scale + min_var
+        node_counts = np.divide(V1**2, V2, out=estimator.tree_.n_node_samples.astype(np.float64), where=V2 > 0)
+    else:
+        n_node_samples = estimator.tree_.n_node_samples.astype(np.float64)
+        denom = np.maximum(n_node_samples - 1.0, 1.0)
+        scale = np.where(n_node_samples > 1, n_node_samples / denom, 0.0)
+        node_impurities = estimator.tree_.impurity
+        node_variances = node_impurities * scale + min_var
+        node_counts = n_node_samples
+
+    return node_variances[test_leaf_ids], node_counts[test_leaf_ids]
+
 class LeafCache:
-    def __init__(self, model, X_test, means=None, variances=None, counts=None, leaf_ids=None):
+    def __init__(self, model, X_test, X_train=None, means=None, variances=None, counts=None, leaf_ids=None, min_var=1e-6):
         self.model = model
+        self.min_var = min_var
+        self.has_train_stats = (X_train is not None)
         if leaf_ids is not None:
             self.all_test_leaf_ids = leaf_ids
             self.means = means
@@ -45,14 +109,20 @@ class LeafCache:
             for i, estimator in enumerate(model.estimators_):
                 test_leaf_ids = self.all_test_leaf_ids[:, i]
                 node_means = estimator.tree_.value[:, 0, 0]
-                node_impurities = estimator.tree_.impurity
-                node_samples = estimator.tree_.n_node_samples
-                
                 self.means[i, :] = node_means[test_leaf_ids]
-                n_samples_node = node_samples[test_leaf_ids]
-                scale = np.where(n_samples_node > 1, n_samples_node / (n_samples_node - 1), 0.0)
-                self.variances[i, :] = node_impurities[test_leaf_ids] * scale + 1e-6
-                self.counts[i, :] = n_samples_node
+                v_t, c_t = compute_leaf_stats(estimator, test_leaf_ids, X_train=X_train, rf_parent=model, tree_idx=i, min_var=min_var)
+                self.variances[i, :] = v_t
+                self.counts[i, :] = c_t
+
+    def update_with_train(self, X_train):
+        if self.has_train_stats or X_train is None:
+            return
+        for i, estimator in enumerate(self.model.estimators_):
+            test_leaf_ids = self.all_test_leaf_ids[:, i]
+            v_t, c_t = compute_leaf_stats(estimator, test_leaf_ids, X_train=X_train, rf_parent=self.model, tree_idx=i, min_var=self.min_var)
+            self.variances[i, :] = v_t
+            self.counts[i, :] = c_t
+        self.has_train_stats = True
 
     def get_slice(self, start, end):
         return LeafCache(
@@ -61,14 +131,17 @@ class LeafCache:
             means=self.means[:, start:end],
             variances=self.variances[:, start:end],
             counts=self.counts[:, start:end],
-            leaf_ids=self.all_test_leaf_ids[start:end, :]
+            leaf_ids=self.all_test_leaf_ids[start:end, :],
+            min_var=self.min_var
         )
 
 class EpistemicQuantifier:
     def __init__(self, model, X_train, y_train, leaf_cache=None):
         self.model = model
-        self.X_train = np.asarray(X_train)
-        self.y_train = np.asarray(y_train)
+        self.X_train = np.asarray(X_train) if X_train is not None else None
+        self.y_train = np.asarray(y_train) if y_train is not None else None
+        if leaf_cache is not None and self.X_train is not None and hasattr(leaf_cache, "update_with_train"):
+            leaf_cache.update_with_train(self.X_train)
         self.leaf_cache = leaf_cache
 
     # ==========================================
@@ -77,8 +150,7 @@ class EpistemicQuantifier:
     def _base_calc_per_tree_variance(self, X_test, min_var=1e-6, all_test_leaf_ids=None):
         """
         Calculates the per-tree unbiased variances (sigma^2) for each sample in X_test.
-        Optimized by directly retrieving pre-computed tree node impurities (MSE) 
-        and scaling them to unbiased variances, bypassing slow nested CPU loops.
+        Uses exact weighted bootstrap scaling V1^2 / (V1^2 - V2).
         
         Returns: np.array of shape (n_trees, n_samples_test)
         """
@@ -94,19 +166,10 @@ class EpistemicQuantifier:
             all_test_leaf_ids = self.model.apply(X_test)
         
         variances = np.zeros((n_trees, n_samples))
-        
         for t, estimator in enumerate(self.model.estimators_):
             test_leaf_ids = all_test_leaf_ids[:, t]
-            
-            # Scikit-learn precomputes node impurity (MSE) during training
-            impurity = estimator.tree_.impurity[test_leaf_ids]
-            n_node_samples = estimator.tree_.n_node_samples[test_leaf_ids]
-            
-            # Compute unbiased variance: s^2 = impurity * (N / (N - 1))
-            # If N <= 1, variance is 0.0
-            denom = np.maximum(n_node_samples - 1.0, 1.0)
-            scale = np.where(n_node_samples > 1, n_node_samples / denom, 0.0)
-            variances[t, :] = impurity * scale + min_var
+            v_t, _ = compute_leaf_stats(estimator, test_leaf_ids, X_train=self.X_train, rf_parent=self.model, tree_idx=t, min_var=min_var)
+            variances[t, :] = v_t
             
         return variances
 
