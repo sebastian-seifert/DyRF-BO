@@ -1,0 +1,1145 @@
+RESEARCH REPOSITORY AUDIT
+=========================
+
+Repository: DyRF-BO
+Repository path: /home/sebastians/Projects/university/bachelorthesis/DyRF-BO
+Reviewed revision: d1c3140dc5396ccabb54c5bc4a1814e2daa87561
+Review date: 2026-09-16
+
+1. EXECUTIVE SUMMARY
+--------------------
+
+Findings: 15 unique issues.
+- CRITICAL: 0
+- HIGH: 7
+- MEDIUM: 8
+- LOW: 0
+
+Remediation Status:
+- [HIGH-001] [SOLVED] Executed experiments and their configuration can disagree
+- [HIGH-002] [SOLVED] Shaker quadrature can violate the information-theoretic bound
+- [HIGH-003] [SOLVED] The credal Newton solver uses the wrong upper-event root branch
+- [HIGH-004] [NOT SOLVED] Credal "epistemic" uncertainty contains irreducible uncertainty
+- [HIGH-005] [SOLVED] Weighted quantiles are affected by zero-weight residuals
+- [HIGH-006] [SOLVED] Nominal uncertainty/acquisition comparisons change other model behavior
+- [HIGH-007] [NOT SOLVED] Evaluation combines incompatible uncertainty quantities
+- [MEDIUM-001] [SOLVED] Leaf variance correction mixes bootstrap weights and unique counts
+- [MEDIUM-002] [SOLVED] OOB calibration can use the wrong sampling mask or nonexistent predictions
+- [MEDIUM-003] [NOT SOLVED] Depth-normalized density scaling uses an unnormalized reference
+- [MEDIUM-004] [NOT SOLVED] Proximity fitting resets the process-wide random generator
+- [MEDIUM-005] [NOT SOLVED] The standalone additive noisy runner uses epistemic UQ twice
+- [MEDIUM-006] [NOT SOLVED] Cross-task statistical conclusions depend on arbitrary objective units
+- [MEDIUM-007] [NOT SOLVED] Expanded proximity grid names break experiment aggregation
+- [MEDIUM-008] [NOT SOLVED] The Student-t branch does not evaluate a proper Student-t CDF
+
+The principal correctness problems are in the numerical uncertainty estimators,
+uncertainty-to-evaluation contracts, and experimental configuration/integration:
+
+- Numeric CLI RF presets all select the same fallback forest, and the saved
+  configuration is not a reliable description of the executed experiment.
+- The Shaker integration can miss narrow mixture components and return mutual
+  information greater than its mathematical upper bound.
+- The credal Newton solver selects the wrong branch for the upper event. Even
+  with bisection, the quantity called epistemic uncertainty retains substantial
+  irreducible Gaussian noise in the infinite-data limit.
+- Weighted residual quantiles can interpolate through zero-weight observations,
+  generating intervals outside the support of the weighted distribution.
+- The nominal uncertainty-replacement SMAC comparison also changes forest
+  hyperparameters and leaf prediction semantics. Additive comparisons introduce
+  further optimizer differences that prevent attribution to the acquisition
+  modification alone.
+- Evaluation combines standard deviations, variances, and entropy scores in
+  incompatible ways, and adds a second noise estimate to residual-based total
+  predictive uncertainty.
+
+Additional issues affect bootstrap/OOB statistics, depth-normalized density
+scaling, random-state isolation, the standalone noisy additive runner, grid
+aggregation, Student-t calculations, and cross-task statistical conclusions.
+
+Review approach and limits:
+The audit inspected source and configuration, traced callers and consumers, and
+used small in-memory numerical probes. Existing experiment outputs were not used
+to substantiate findings. Thus, findings establish behavior of the implementation,
+not which historical experiments encountered it. CONFIRMED findings refer to the
+explicitly stated execution conditions, not necessarily every configuration.
+
+Numerical probes used the existing interpreter with bytecode generation disabled,
+CuPy imports disabled, and a filesystem-write-denying audit hook. No experiment
+runner, repository test suite, or plotting/output routine was executed. Some
+orchestration definitions were loaded through their syntax tree to inspect their
+behavior without importing output-producing modules. Analytic leaf statistics and
+small fitted forests provided independent reference cases.
+
+Probe environment: Python 3.14.3, NumPy 2.5.2, SciPy 1.17.1, scikit-learn 1.8.0,
+SMAC 2.4.0, CARP-S 1.0.4, ConfigSpace 1.2.2. GPU execution was not validated.
+Targeted installed SMAC/CARP-S implementation snippets were inspected only where
+necessary to establish the native model and optimizer contracts.
+
+
+2. CRITICAL FINDINGS
+--------------------
+
+No CRITICAL finding was established. The HIGH findings materially affect specific
+methods and comparisons; the inspected evidence does not establish that the whole
+research program or all experiment results are invalid.
+
+
+3. HIGH FINDINGS
+----------------
+
+[HIGH-001] Executed experiments and their configuration can disagree [SOLVED]
+
+Severity: HIGH
+Confidence: CONFIRMED
+Category: Configuration correctness; reproducibility; experimental validity
+File: Uncertainty_Quantification.py; config_schema.py;
+      generate_unified_sweep_params.py
+Location: Uncertainty_Quantification.py:398-414, 824, 849-869, 877-909,
+          922, 1004-1015, 1206-1209;
+          config_schema.py:7-59, 96-126;
+          generate_unified_sweep_params.py:25-40
+Function/Class: parse_args_with_config; run_single_test; module entry point;
+                BenchmarkMasterConfig.generate_sweep_task_lines
+
+Observation:
+Every numeric CLI RF preset is passed as a string but compared against integers.
+Presets "1" through "5" therefore all select the fallback configuration. In
+addition, configuration-file values and serialized snapshots are only partially
+connected to the experiment that actually runs.
+
+Technical Explanation:
+The parser declares --rf_config as str and the entry point forwards it unchanged.
+run_single_test recognizes string presets A/B/C, but its numeric branches compare
+rf_config == 1, == 2, etc. All numeric strings reach the final else branch:
+300 trees, min_samples_leaf=30, min_samples_split=2, max_features="sqrt".
+The unified sweep explicitly compares CLI presets 1 and 5, making those nominal
+RF settings identical.
+
+When --config_file is supplied, most execution variables still come from argparse
+rather than master_config: the RF preset, seed, approaches, gap geometry, sparse
+sampling settings, and proximity parameters. Only noise_std and id_split are read
+from master_config at the run_single_test call. Custom RF fields and extractor
+solver settings in the schema do not construct the actual model/solver.
+Conversely, CLI lambda/k/alpha are not copied into the snapshot's ProximityConfig.
+The schema's task-line generator also omits material data settings such as
+noise_std, id_split, scaling_law, and sparse_multiplier.
+
+Evidence:
+A read-only probe captured the effective RF construction parameters immediately
+before data generation: CLI values "1", "2", "3", "4", and "5" all produced
+(300, 30, 2, "sqrt"); integer 1 and string "A" produced (100, 5, 2, "sqrt").
+Parsing --topological_decay_lambda 7.5 --k_neighbors 3
+--density_scaling_alpha 2.5 left the snapshot at lambda=[0.5,1.0,5.0],
+k=["10","20","50","auto"], alpha=[1.0,5.0]. The source saves this snapshot.
+No downstream preset conversion or comprehensive configuration merge was found.
+
+Research Impact:
+Nominal RF ablations can compare the same implementation. Sparse data generated
+under scaling_law="leaf" can also change because the wrong min_leaf enters the
+data generator. Published configuration snapshots cannot reliably reconstruct
+models or sampling conditions.
+
+Recommended Remediation:
+Resolve presets and CLI/file precedence once into a validated effective
+configuration. Construct all experiment components from that object and serialize
+it after resolution. Reject unknown presets. Make sweep generation preserve all
+scientifically relevant configured fields, or explicitly reject unsupported ones.
+Re-run affected numeric-preset comparisons using the effective model parameters.
+
+
+[HIGH-002] Shaker quadrature can violate the information-theoretic bound [SOLVED]
+
+Severity: HIGH
+Confidence: CONFIRMED
+Category: Numerical integration; uncertainty correctness
+File: Epistemic_Quantifier.py; ep_extractors/shaker_entropy.py
+Location: Epistemic_Quantifier.py:201-251, 287-307, 346-380;
+          ep_extractors/shaker_entropy.py:18-48
+Function/Class: EpistemicQuantifier._shaker_calc_total_entropy;
+                shaker_get_epistemic_entropy; shaker_get_epistemic_variance;
+                ShakerEntropyExtractor.extract_epistemic_signal
+
+Observation:
+A fixed 128-point uniform grid can entirely miss narrow Gaussian mixture modes.
+The resulting entropy error becomes a very large positive epistemic score after
+subtracting component entropy and applying the exponential variance mapping.
+
+Technical Explanation:
+The grid spans the full range from min(mu-6*sigma) to max(mu+6*sigma), irrespective
+of the smallest component width. Pure RF leaves receive variance 1e-6, so their
+standard deviation is 0.001. With separated leaf means, grid spacing can exceed
+this width by an order of magnitude. The trapezoid sum then need not approximate
+either a normalized density or its entropy. There is no mass or convergence check.
+The num_samples argument exposed by the extractor does not control this grid.
+Clipping negative MI and the subsequent exponent does not repair this error.
+
+Evidence:
+A fitted 100-tree forest on X=0,...,39 with targets -1 for X<20 and +1 otherwise,
+max_depth=1, min_samples_leaf=1, bootstrap=True, random_state=3, produced at X=19.5
+85 component means -1 and 15 means +1, each with variance 1e-6.
+The repository returned MI=7.918689563 bits. For 100 equally weighted tree labels,
+MI must be <= log2(100)=6.643856190 bits. Because this example has only two distinct,
+well-separated component distributions, its reference MI is approximately
+H(0.85,0.15)=0.609840305 bits, making the discrepancy substantially larger still.
+This exercised the actual fitted-forest path, not just arbitrary input arrays.
+
+Research Impact:
+The Shaker signal, its converted variance, acquisition values, and UQ comparisons
+can be dominated by integration artifacts. The exponential conversion magnifies
+the error. The problem is relevant to small/pure leaves in sequential BO.
+
+Recommended Remediation:
+Use integration or sampling that resolves individual component widths, with an
+explicit numerical error budget. Check mixture mass and the MI bound, and verify
+convergence on separated and unequal-width mixtures. Expose meaningful accuracy
+controls. A bound clamp alone is insufficient because it would hide the inaccurate
+estimator. Recompute Shaker-based comparisons after validation.
+
+
+[HIGH-003] The credal Newton solver uses the wrong upper-event root branch [SOLVED]
+
+Severity: HIGH
+Confidence: CONFIRMED
+Category: Mathematical implementation; numerical root solving
+File: Credal_Regression_UQ.py; Uncertainty_Quantification.py
+Location: Credal_Regression_UQ.py:303-340, 372-398;
+          Uncertainty_Quantification.py:484-502
+Function/Class: CredalRegressionUQ._compute_uq_batch
+
+Observation:
+The Newton implementation initializes and constrains the upper-event shift u_ge
+to negative values, although the supremum intersection for that event is on the
+nonnegative branch. Newton and bisection therefore implement different operations.
+
+Technical Explanation:
+For the lower event, the solver intersects exp(-k*u^2/2) with Phi(z-u) on u<=0.
+The upper event has the reflected construction with Phi(u-z) and u>=0. Its
+bisection code moves toward this positive root, but Newton initializes u_ge<0
+and applies minimum(u_ge,-1e-15) after every step. This is not a convergence
+precision difference: the required root is excluded from the Newton iterates.
+Eight unchecked iterations further provide no residual/convergence assurance.
+
+Evidence:
+Using a single Gaussian leaf with mean 0, variance 1, count 5, and the same dense
+1025-point trapezoidal grid, the repository's bisection returned
+(epistemic, aleatoric)=(2.811413020, 0.308859474), while Newton returned
+(0.636611702, 0.637572055). Bisection used 50 iterations in this diagnostic to
+isolate the branch error. The normal CLI variants expose both solvers as
+alternative implementations of the same likelihood method. Student-t's explicit
+fallback to bisection does not compensate for the normal Newton branch.
+
+Research Impact:
+Solver comparisons and all normal-likelihood Newton UQ values can be scientifically
+misinterpreted as numerical alternatives to the same estimator, although their
+results differ for mathematical reasons.
+
+Recommended Remediation:
+Derive the reflected upper-event equation and constrain each solver to its correct
+branch. Use safeguarded iteration with residual checks and a verified bracket.
+Establish reflection symmetry and agreement with an independent scalar supremum
+reference before using either Newton variant in experiments.
+
+
+[HIGH-004] Credal "epistemic" uncertainty contains irreducible uncertainty [NOT SOLVED]
+
+Severity: HIGH
+Confidence: CONFIRMED
+Category: Uncertainty decomposition; mathematical/research-method consistency
+File: Credal_Regression_UQ.py; ep_extractors/likelihood_credal.py;
+      Uncertainty_Quantification.py
+Location: Credal_Regression_UQ.py:404-427;
+          ep_extractors/likelihood_credal.py:18-28;
+          Uncertainty_Quantification.py:484-518, 642-657
+Function/Class: CredalRegressionUQ._compute_uq_batch;
+                LikelihoodCredalExtractor.extract_epistemic_signal
+
+Observation:
+The implementation squares the integral of min(mean_pi_le, mean_pi_ge) and labels
+it epistemic variance. That overlap remains nonzero for one completely known
+Gaussian predictive distribution, with no uncertainty about its mean.
+
+Technical Explanation:
+Consider identical trees with distribution N(mu,sigma^2) and leaf count k tending
+to infinity. The relative likelihood concentrates at zero mean shift, so the two
+calculated event quantities tend to F(t) and 1-F(t). The code's epistemic integrand
+then becomes min(F,1-F); its aleatoric integrand, 1-max(F,1-F), is the same quantity.
+Both integrals equal sigma*sqrt(2/pi), and both reported squared values tend to
+(2/pi)*sigma^2. Epistemic uncertainty should disappear in this precise-distribution
+limit if the method is to disentangle uncertainty about the model from noise.
+The source computes total event overlap rather than subtracting its irreducible
+component. Squaring an overlap integral also does not by itself calibrate it to
+a predictive variance.
+
+Evidence:
+With bisection, a single leaf of mean 0, variance 1, count 1e8, and 1025 trapezoid
+points returned epistemic=0.636917886 and aleatoric=0.636517855, approaching the
+analytical limit 2/pi=0.636619772 for both. This is independent of HIGH-003.
+The registry takes the square root of the first quantity and supplies it as an
+epistemic signal. The evaluation code adds the two squared quantities as total
+variance. No downstream subtraction recovers an epistemic-only component.
+
+Research Impact:
+The likelihood-based method cannot support the claimed epistemic/aleatoric
+separation as implemented. Persistent noise can drive an allegedly epistemic
+acquisition even when the predictive distribution is known. Reported component
+and calibration comparisons inherit the misinterpretation.
+
+Recommended Remediation:
+Re-derive the intended continuous likelihood/possibility decomposition, explicitly
+distinguishing total event overlap, irreducible uncertainty, and epistemic excess.
+Validate the precise-distribution and large-sample limits. Define and justify the
+mapping to variance before addition or Gaussian scoring. Update the extractor and
+evaluation consumers together, then re-run the affected method comparisons.
+
+
+[HIGH-005] Weighted quantiles are affected by zero-weight residuals [SOLVED]
+
+Severity: HIGH
+Confidence: CONFIRMED
+Category: Weighted empirical distributions; interval correctness
+File: GPU_Proximity_Regression_UQ.py
+Location: 629-633, 797-802, 968-1022
+Function/Class: GPUProximityRegressionUQ._compute_weighted_quantile;
+                compute_uq; predict_with_intervals
+
+Observation:
+The weighted quantile interpolates between the selected residual and the previous
+array element, even when that previous element has zero weight. Values outside
+the weighted distribution's support can determine its interval endpoints.
+
+Technical Explanation:
+After sorting all residuals, the routine identifies the first cumulative weight
+>=q and uses idx-1 as the interpolation predecessor. A zero-weight observation
+can occupy that predecessor position. Neither the weighted empirical CDF nor a
+positive-support interpolated quantile should change when a zero-mass observation
+is inserted or moved. A point mass must have all interior quantiles at its sole
+support point. The zero-row fallback only handles rows with no total mass; it does
+not handle zero-mass observations in an otherwise valid row.
+
+Evidence:
+The actual routine, supplied values [-100,0,10] and weights [[0,1,0]], returned
+q_0.025=-97.5, q_0.5=-50, q_0.975=-2.5. All three quantiles must be 0 for that
+weighted distribution. Removing the zero-weight -100 observation restores 0.
+Zero weights arise from in-bag masks and can also arise from float32 exponential
+underflow at large path distance/decay. Near-zero weights create a related strong
+interpolation sensitivity. Both automatic topological UQ and empirical interval
+prediction call this routine directly.
+
+Research Impact:
+Spurious interval widths and lower bounds can alter both uncertainty rankings and
+candidate selection. A residual with no relevant neighborhood mass can create an
+arbitrarily large apparent exploration incentive.
+
+Recommended Remediation:
+Choose a clearly specified weighted-quantile convention and implement it over
+positive-weight support, handling cumulative-weight plateaus explicitly. Validate
+point masses, insertion/removal of zero-weight observations, tied residuals,
+skewed weights, and CPU/GPU agreement before recalculating proximity results.
+
+
+[HIGH-006] Nominal uncertainty/acquisition comparisons change other model behavior [SOLVED]
+
+Severity: HIGH
+Confidence: ACADEMIC CONCERN
+Category: Confounded baselines; experimental attribution
+File: carps_integration/custom_uncertainty_model.py;
+      scripts/run_carps_patched.py;
+      carps_integration/configs/optimizer/smac20_custom_uncertainty.yaml;
+      carps_integration/configs/optimizer/smac20_proximity_lcb.yaml;
+      scripts/generate_noisy_sweep_tasks.py;
+      scripts/generate_bbsubset_test_proximity_tasks.py;
+      rf_dynamic/dynamic_rf_surrogate.py; carps_integration/optimizer.py
+Location: custom_uncertainty_model.py:8-21;
+          run_carps_patched.py:219-229;
+          smac20_custom_uncertainty.yaml:7-11;
+          smac20_proximity_lcb.yaml:13-19;
+          generate_noisy_sweep_tasks.py:60-119, 160-192;
+          generate_bbsubset_test_proximity_tasks.py:63-99;
+          dynamic_rf_surrogate.py:65-76; optimizer.py:114-132, 165-167
+Function/Class: CustomUncertaintyRandomForest.__init__;
+                patched_smac3_setup_optimizer; benchmark task generators;
+                DynamicRFSurrogate.fit; CARPSDynamicRFOptimizer.ask
+
+Observation:
+The native HPO-facade baseline and the custom uncertainty model do not share the
+same effective forest defaults. The additive optimizer also uses a different RF
+and candidate-search/initialization mechanism. Consequently, these comparisons
+cannot isolate the effect of replacing uncertainty or adding an exploration term.
+
+Technical Explanation:
+The custom class calls the bare SMAC RandomForest constructor. The patched setup
+instantiates it directly with configspace, seed, and model_kwargs that generally
+only select the uncertainty method. The native baseline instead receives the
+forest returned by HyperparameterOptimizationFacade.get_model.
+In installed SMAC 2.4.0 the native factory sets min_samples_leaf=1,
+min_samples_split=2, ratio_features=1.0, log_y=True; the bare defaults are 3, 3,
+5/6, False. log_y changes leaf prediction aggregation for log-encoded responses.
+The custom method therefore changes the mean predictor and smoothing, not only
+its reported uncertainty. Even its "standard_disagreement" control is not the
+native baseline forest.
+
+The additive path constructs a sklearn forest with its own defaults (100 trees,
+leaf base 2, feature fraction 0.5), fixed n_init=10, and a 5000-point random
+candidate pool. It does not reuse SMAC's acquisition maximizer or native model.
+
+Evidence:
+A constructor probe on a two-feature space found native/custom differences:
+min_samples_split 2/3, min_samples_leaf 1/3, max_features 2/1, log_y True/False.
+The SMAC factory and bare constructor were inspected specifically to verify this
+contract. EPMRandomForest.fit additionally confirmed that log_y=True replaces
+leaf means with log(mean(exp(leaf targets))). Local configs and task generators
+supply no overrides that align these differences. The held-out proximity-LCB
+comparison uses the same custom-versus-native construction paths.
+
+Research Impact:
+Measured gains may be due to forest regularization, target aggregation, tree count,
+initial design, or search strategy. Whole-system comparisons remain possible,
+but attributing them to UQ quality or the additive acquisition alone is unsupported
+without matched controls. This affects central comparison designs.
+
+Recommended Remediation:
+Define a matched native-model control and align its effective forest/target
+semantics with the replacement model. For acquisition ablations, use the same
+surrogate, initialization, budget accounting, and acquisition maximizer. Keep
+whole-optimizer comparisons explicitly identifiable. Validate equality of mean
+predictions in a variance-replacement control and record the effective dependency
+versions and model options used for the comparison.
+
+
+[HIGH-007] Evaluation combines incompatible uncertainty quantities
+
+Severity: HIGH
+Confidence: CONFIRMED
+Category: Units; uncertainty estimands; probabilistic evaluation
+File: Uncertainty_Quantification.py; Hybrid_Proximity_Epistemic_UQ.py;
+      GPU_Proximity_Regression_UQ.py; metrics.py
+Location: Uncertainty_Quantification.py:642-657;
+          Hybrid_Proximity_Epistemic_UQ.py:72-81, 122-124;
+          GPU_Proximity_Regression_UQ.py:184-197, 680-709;
+          metrics.py:276-287
+Function/Class: run_single_test; HybridProximityEpistemicUQ._get_base_epistemic;
+                GPUProximityRegressionUQ.compute_uq; calculate_nlpd
+
+Observation:
+The evaluation adds proximity standard deviations to aleatoric variances for
+Spearman correlation. It treats hybrid Shaker entropy scores as variances for
+both correlation and NLPD. It also adds leaf noise variance to a proximity
+residual variance that already contains observation noise.
+
+Technical Explanation:
+compute_uq divides an empirical residual interval width by a Gaussian divisor
+and returns target-standard-deviation units. NLPD squares proximity values, but
+the Spearman branch instead adds u_e+u_a directly, mixing [y] and [y^2]. This is
+not rescued by Spearman's monotonic-transform invariance because the incompatible
+quantity is added to a varying second term before ranking.
+The hybrid Shaker branch calls shaker_get_epistemic_entropy, not the variance
+conversion; its blend remains an entropy/MI score. Its name lacks the Proximity
+prefix, so evaluation adds that score directly to u_a and passes it as a Gaussian
+variance. Meanwhile OOB residuals y_i - prediction_OOB(x_i) contain the noise in
+y_i. Their estimated spread is predictive error uncertainty, not a noise-free
+epistemic variance to which the same observation-noise variance can be added.
+
+Evidence:
+The return and dispatch paths above directly establish the unit mismatches.
+A pure-noise repeated-input probe used 1000 targets from N(0,1), all X=0, and a
+100-tree seeded forest. The proximity residual variance was 0.98159987 and leaf
+aleatoric variance 0.97254817. The evaluated sum was 1.95414804 although the actual
+noise variance was 1 and tree-mean disagreement only 0.00088932. The benchmark's
+Gaussian NLPD formula itself was inspected and is consistent with its variance
+argument; it does not remove duplicated noise or convert entropy scores.
+
+Research Impact:
+Different methods are scored against inconsistent predictive distributions and
+uncertainty definitions. Correlation rankings and NLPD comparisons can change for
+reasons unrelated to the intended epistemic estimator. Residual-based methods
+cannot substantiate pure epistemic-noise disentanglement through this evaluation.
+
+Recommended Remediation:
+Specify each returned quantity's units and estimand: epistemic variance,
+observation-noise variance, total predictive variance, or uncalibrated score.
+Build evaluation distributions from those contracts rather than method-name
+prefixes. Convert or separately evaluate entropy scores using a justified model;
+use residual uncertainty as total predictive error unless a validated decomposition
+removes its noise component. Recompute affected Spearman and NLPD comparisons.
+
+
+4. MEDIUM FINDINGS
+------------------
+
+[MEDIUM-001] Leaf variance correction mixes bootstrap weights and unique counts
+
+Severity: MEDIUM
+Confidence: CONFIRMED
+Category: Statistical estimation; bootstrap consistency
+File: Epistemic_Quantifier.py; Credal_Regression_UQ.py
+Location: Epistemic_Quantifier.py:45-55, 98-109;
+          Credal_Regression_UQ.py:65-80
+Function/Class: LeafCache.__init__; EpistemicQuantifier._base_calc_per_tree_variance;
+                CredalRegressionUQ._calc_leaf_stats
+
+Observation:
+Impurity is converted to an allegedly unbiased sample variance using
+n_node_samples/(n_node_samples-1), although bootstrap impurities use unequal
+multiplicity weights and n_node_samples counts distinct in-bag observations.
+
+Technical Explanation:
+A weighted population second moment cannot generally be made unbiased by applying
+the unweighted Bessel correction for the number of distinct observations. For
+fixed multiplicity weights w_i and independent equal-variance observations, the
+correction is 1/(1-sum(w_i^2)/(sum(w_i))^2). Treating repeated bootstrap draws as
+the sample instead gives a different correction based on their total count.
+Recomputing an unweighted variance of unique observations is another distinct
+estimand. The current code mixes the weighted moment with the unique count.
+
+Evidence:
+A no-split tree on targets [0,1,2,4,7,12] with random_state=4 had multiplicities
+[0,1,0,0,1,4], unique count 3, weighted count 6, and impurity 17.22222222.
+The repository returned 25.83333433 including its floor. The fixed-weight unbiased
+reference is 34.44444444. This example has no adaptive split-selection complication.
+Both cache and uncached implementations use the same correction, so choosing the
+cache does not compensate for the discrepancy.
+
+Research Impact:
+Aleatoric variances, GMM component widths, and credal leaf statistics are
+systematically inconsistent with their stated estimator. The effect is relevant
+to small leaves and heterogeneous bootstrap multiplicities.
+
+Recommended Remediation:
+Choose and document the leaf sampling/weighting model. Compute the required
+weighted moments, correction, and effective evidence count consistently from the
+actual in-bag observations. Validate on unequal multiplicities and no-split
+forests before propagating the correction to all UQ backends.
+
+
+[MEDIUM-002] OOB calibration can use the wrong sampling mask or nonexistent predictions
+
+Severity: MEDIUM
+Confidence: CONFIRMED
+Category: OOB correctness; surrogate API assumptions
+File: GPU_Proximity_Regression_UQ.py; rf_dynamic/dynamic_rf_surrogate.py;
+      carps_integration/custom_uncertainty_model.py
+Location: GPU_Proximity_Regression_UQ.py:184-208, 238-255, 348-355, 629-664;
+          dynamic_rf_surrogate.py:65-75;
+          custom_uncertainty_model.py:14-21
+Function/Class: GPUProximityRegressionUQ.fit; compute_oob_nll; compute_uq
+
+Observation:
+Bootstrap reconstruction always assumes n_train draws per tree, ignoring an
+actual max_samples setting. Residual calibration also retains observations that
+received no OOB tree prediction.
+
+Technical Explanation:
+Both sklearn reconstruction helpers receive (n_train,n_train). If the fitted
+forest used a smaller bootstrap sample, reconstructed in-bag frequencies and OOB
+membership disagree with its training process. RF-GAP weights cease to reproduce
+the corresponding forest prediction.
+Separately, sklearn uses a placeholder prediction for observations with zero OOB
+coverage. Subtracting that placeholder from y does not produce an OOB residual.
+The code constructs coverage counts but never masks these observations out of
+residual quantiles, MAE, or NLL. Native custom forests default to only 10 trees,
+so this second condition is practically reachable.
+
+Evidence:
+For a fitted 40-row forest with max_samples=0.5, the true first-tree bootstrap had
+20 draws while reconstruction had 40; 16 frequency entries differed. The maximum
+absolute discrepancy between proximity_matrix@y and the forest prediction was
+0.09206147 in a sine-target probe.
+A separate 300-row, 10-tree forest with random_state=8 had one row with zero OOB
+trees; the repository retained its residual. The forest warned about incomplete
+OOB coverage, but the calibration path made no corrective adjustment.
+
+Research Impact:
+Supported RF settings can silently change the meaning of proximities. Invalid OOB
+residuals can distort interval tails and tuning, especially early in BO or with
+small forests. Their error can depend on target offset rather than prediction
+uncertainty.
+
+Recommended Remediation:
+Use actual estimators_samples_ or reconstruct with the effective bootstrap size.
+Track valid OOB coverage explicitly and exclude invalid reference residuals from
+all calibration/tuning consumers. Define a usable early-data fallback when valid
+OOB evidence is insufficient. Check RF-GAP reproduction under subsampling and
+residual invariance under target translation.
+
+
+[MEDIUM-003] Depth-normalized density scaling uses an unnormalized reference
+
+Severity: MEDIUM
+Confidence: CONFIRMED
+Category: Kernel consistency; uncertainty normalization
+File: GPU_Proximity_Regression_UQ.py; Uncertainty_Quantification.py
+Location: GPU_Proximity_Regression_UQ.py:301-324, 407-411, 586-606, 683-701;
+          Uncertainty_Quantification.py:576-602
+Function/Class: _compute_baseline_density; compute_uq; compute_oob_nll
+
+Observation:
+normalize_by_depth=True changes the query kernel, but not the kernel used to
+compute N_baseline. Consequently Method C compares densities measured on different
+scales. OOB lambda tuning likewise ignores depth normalization.
+
+Technical Explanation:
+Query density uses exp(-lambda*d/(2*max_depth)) in normalized mode, while baseline
+training density always uses exp(-lambda*d). The ratio N_baseline/query_density
+therefore is not the promised training-reference density ratio. Raising this
+mismatched ratio to alpha can strongly suppress uncertainty. This affects the
+explicit Proximity_Method_C_Norm and Proximity_Method_B_C_Norm variants; the B-only
+variant does not use the density ratio.
+
+Evidence:
+For a 100-row, 50-tree forest of maximum depth 4, lambda=1, the median training
+density recomputed with the deployed normalized kernel was 57.70542968, but the
+stored N_baseline was 12.00446796: a ratio of 0.20803013. This used all training
+rows, eliminating subsampling as an explanation. The referenced callers set the
+normalization flag but supply no alternate baseline calculation.
+
+Research Impact:
+Normalized-versus-unnormalized method comparisons include an unintended scale
+change, and density-based uncertainty calibration is internally inconsistent.
+
+Recommended Remediation:
+Use one kernel definition, including normalization, for baseline density, query
+density, proximities, and any tuning objective. Validate the reference density
+against an independent calculation using identical training/query points.
+
+
+[MEDIUM-004] Proximity fitting resets the process-wide random generator
+
+Severity: MEDIUM
+Confidence: CONFIRMED
+Category: Random-state isolation; sequential-BO reproducibility
+File: GPU_Proximity_Regression_UQ.py; rf_dynamic/dynamic_rf_surrogate.py;
+      carps_integration/optimizer.py
+Location: GPU_Proximity_Regression_UQ.py:303-309, 368-379;
+          dynamic_rf_surrogate.py:29-30, 65-75;
+          optimizer.py:86-87, 98-111, 229-239
+Function/Class: _compute_baseline_density; compute_oob_nll;
+                DynamicRFSurrogate.fit
+
+Observation:
+The training-density and OOB-tuning subsamplers call np.random.seed(42), replacing
+the application's shared RNG state. Default dynamic forests have no explicit
+random_state and consume that shared state when subsequently fitted.
+
+Technical Explanation:
+The density reset occurs for positive decay and n_train>250; the tuning reset
+occurs for n_train>500. These are deterministic internal summaries, but invoking
+them changes unrelated future random draws. A topological-proximity run can thus
+change its subsequent forest-randomization sequence at a training-size threshold,
+while another extractor does not. Supplying an outer experiment seed does not
+isolate streams after this internal reset.
+
+Evidence:
+Starting from global seeds 1 and 901, fitting the same 300-row positive-decay
+proximity wrapper left identical subsequent integer draws:
+[19738,30746,49377,48404,54045]. DynamicRFSurrogate forwards rf_kwargs without
+injecting an experiment seed. A separate probe confirmed that its default tree
+seeds change with the process RNG. Explicitly supplied rf_kwargs.random_state
+protects that forest consumer, but does not remove the global side effect.
+
+Research Impact:
+Randomization becomes dependent on extractor choice, call ordering, and dataset
+size. This weakens controlled seed comparisons and reusable sequential execution.
+The issue is conditional on the stated size thresholds; it is not a claim that
+all short BO sweeps are unseeded or nondeterministic.
+
+Recommended Remediation:
+Use local generators for deterministic subsampling and an explicit model RNG/seed
+policy derived from the run seed. Verify that fitting or tuning UQ leaves the
+process-wide RNG unchanged and that model sequences depend only on the declared
+run/iteration seed policy.
+
+
+[MEDIUM-005] The standalone additive noisy runner uses epistemic UQ twice
+
+Severity: MEDIUM
+Confidence: CONFIRMED
+Category: Cross-runner algorithm inconsistency
+File: noisy_benchmarks/runner.py; carps_integration/custom_uncertainty_model.py;
+      carps_integration/optimizer.py; carps_integration/acquisitions.py
+Location: noisy_benchmarks/runner.py:123-168;
+          custom_uncertainty_model.py:58-89;
+          optimizer.py:179-202; acquisitions.py:84-115
+Function/Class: NoisyBOHarness.run_additive_epistemic_bo
+
+Observation:
+The standalone function advertised as decoupled additive epistemic BO computes
+its base EI using custom epistemic uncertainty, then adds the same epistemic
+quantity again. Its base uncertainty differs from the CARP-S additive path.
+
+Technical Explanation:
+CustomUncertaintyRandomForest.predict returns variance U_ep^2. The runner takes
+its square root into sigma_pred and uses sigma_pred inside EI. It then explicitly
+sets u_ep=sigma_pred for the additive bonus. In contrast, CARPSDynamicRFOptimizer
+requests uncertainty_type="total" for base EI and independently extracts U_ep.
+The standalone runner also applies min-max normalization to both terms, while the
+shared additive class uses max-relative normalization for EI and epistemic UQ.
+These normalizations do not generally preserve the same relative term weights.
+
+Evidence:
+The model's _predict implementation always replaces the variance with the squared
+custom signal; no flag at the runner's call bypasses it. A predict_standard_rf
+method exists but is not used there. The separate CARP-S chain was traced and does
+make a distinct base prediction, so this finding is scoped to the exported
+standalone harness and equivalence claims between runners.
+
+Research Impact:
+The two entry points implement different algorithms under the same decoupled
+additive description. Results obtained through this harness cannot be pooled with
+CARP-S additive results as implementations of one controlled method.
+
+Recommended Remediation:
+Use a separate base-model prediction for EI and a separate epistemic extraction.
+Share the acquisition and schedule definitions, including normalization, across
+runners. Verify candidate-score agreement on the same fitted model, observations,
+candidate pool, and iteration before treating the runners as equivalent.
+
+
+[MEDIUM-006] Cross-task statistical conclusions depend on arbitrary objective units
+
+Severity: MEDIUM
+Confidence: ACADEMIC CONCERN
+Category: Cross-benchmark statistics; scale comparability
+File: scripts/run_1v1_wilcoxon_analysis.py
+Location: 224-228, 348-351, 385-395, 738-762
+Function/Class: DataLoader.extract_terminal_costs;
+                StatisticalAnalysisEngine.analyze_1v1; run_full_1v1_analysis
+
+Observation:
+The default analysis prefers raw incumbent costs even when normalized costs are
+available, then applies a cross-task signed-rank test and computes a global mean
+and percentage improvement from those heterogeneous raw values.
+
+Technical Explanation:
+Wilcoxon ranks the magnitudes of paired differences. Across tasks with different
+objective units/scales, these magnitudes are not comparable: changing the units
+of one task can change the cross-task statistic without changing any within-task
+performance ordering. Raw cross-task means have the same problem. This does not
+invalidate the within-task paired tests or their correctly implemented Holm
+adjustment; the finding concerns the macro aggregation.
+
+Evidence:
+The loader selects trial_value__cost_inc before trial_value__cost_inc_norm.
+The orchestration performs no intervening normalization before analyze_1v1.
+For an in-memory example with eight task differences -1,...,-8 and four
++0.1,...,+0.4, the repository's macro calculation gave p=0.02099609 and
+rank-biserial effect=-0.74358974. Rescaling only the latter tasks by 10000 preserved
+all task winners but changed p to 0.85009766 and the effect to +0.07692308.
+Another script uses normalized costs, but it is a separate entry point and does
+not compensate for this default path.
+
+Research Impact:
+Claims of cross-benchmark superiority can depend on units and the particular
+mix of objective scales, rather than a defensible aggregate performance estimand.
+
+Recommended Remediation:
+Require a justified task-normalized performance measure for macro signed-rank
+analysis, or use an explicitly rank-based cross-task design. Preserve seed pairing
+within tasks. Expose and record the selected metric and normalization, and verify
+invariance to independent positive rescaling and offsets of task objectives where
+that invariance is intended.
+
+
+[MEDIUM-007] Expanded proximity grid names break experiment aggregation
+
+Severity: MEDIUM
+Confidence: CONFIRMED
+Category: Experiment lifecycle; statistical input alignment
+File: Uncertainty_Quantification.py; config_schema.py
+Location: Uncertainty_Quantification.py:538-575, 755-766, 978-982, 1058-1062,
+          1110-1111, 1130-1131, 1190-1193, 276-298;
+          config_schema.py:116-126
+Function/Class: run_single_test; run_statistical_tests;
+                print_comprehensive_summary; module entry point
+
+Observation:
+The experiment expands proximity methods into parameterized result keys, but
+statistical consumers continue to use original method names with empty lists.
+Mixed baseline/grid runs can fail after all evaluations, and grid-only summaries
+can discard every valid comparison block.
+
+Technical Explanation:
+The outer accumulator is initialized using unexpanded approaches. run_single_test
+returns keys such as Proximity_Baseline_L0.5_K20, which are added later, while the
+unexpanded placeholder remains empty. run_statistical_tests receives the original
+approaches and attempts to reshape these empty lists using another method's item
+count. The final comprehensive summary uses all accumulator keys, including empty
+placeholders; its all-method valid mask then excludes every function block.
+
+Evidence:
+A read-only summary probe with three Standard values, an empty
+Proximity_Baseline placeholder, and a populated expanded proximity key raised:
+ValueError: cannot reshape array of size 0 into shape (1,3).
+This is the structure produced by the expansion code. The schema generates
+multi-lambda/multi-k proximity command lines, so expansion is an intended usage.
+The entry point calls the failing summary before save_results_to_file.
+
+Research Impact:
+Expensive completed evaluations can fail to reach the report-writing stage.
+Grid comparisons may have descriptive values but no valid inferential comparison
+because parameterized methods are not correctly represented in statistical input.
+
+Recommended Remediation:
+Resolve the expanded method set before accumulation and pass that same set to
+all consumers. Remove placeholder methods from the statistical design and align
+observations by actual function/seed identity. Validate mixed Standard/proximity
+grids and grid-only runs through aggregation and serialization.
+
+
+[MEDIUM-008] The Student-t branch does not evaluate a proper Student-t CDF
+
+Severity: MEDIUM
+Confidence: CONFIRMED
+Category: Distribution approximation; tail integration
+File: Credal_Regression_UQ.py; Uncertainty_Quantification.py
+Location: Credal_Regression_UQ.py:243-246, 294-301, 343-370;
+          Uncertainty_Quantification.py:509-518
+Function/Class: CredalRegressionUQ._compute_uq_batch; xp_log_t_cdf
+
+Observation:
+The Student-t likelihood branch uses a normal-CDF approximation that saturates
+below 1 in the positive tail, and then truncates integration at six scale units
+as if those tails were Gaussian. Small-leaf Student-t comparisons therefore do
+not implement the stated distribution accurately.
+
+Technical Explanation:
+The approximation uses w=x*(1-0.25/df)/sqrt(1+x^2/(2*df)). As x tends to infinity,
+w tends to the finite value (1-0.25/df)*sqrt(2*df). Therefore Phi(w) tends to a
+constant below 1, rather than the Student-t CDF limit 1. It similarly fails to
+approach 0 in the negative tail. This is particularly material at low degrees of
+freedom. A six-scale cutoff also omits considerably more Student-t mass than
+Gaussian mass. No approximation-error criterion selects the regime where these
+substitutions are acceptable.
+
+Evidence:
+At df=4, supported by a five-observation leaf, the approximation's positive-tail
+limit is 0.99599503. At x=6 it gives 0.99176899 versus the actual Student-t CDF
+0.99805873. At df=1, the limiting value is only 0.85557782. The solver calls this
+approximation in both Student-t variants. The corrected variant only adjusts
+scale by sqrt(1+1/count); it does not correct the CDF or tail integration.
+
+Research Impact:
+Normal-versus-Student-t comparisons mix intended distributional differences with
+uncontrolled CDF and truncation errors. Tail-sensitive uncertainty can depend on
+the integration interval rather than the intended distribution alone.
+
+Recommended Remediation:
+Use an accurate Student-t CDF/log-CDF on each backend, or validate and enforce an
+explicit approximation regime. Choose tail bounds and integration tolerances for
+the actual degrees of freedom. Address divergent integral/moment cases explicitly
+instead of manufacturing finite variance-like values through a fixed cutoff.
+Validate against an independent scalar Student-t reference.
+
+
+5. LOW FINDINGS
+---------------
+
+No additional LOW finding is included. Minor interface/style observations were
+not promoted into research-correctness findings.
+
+
+6. CROSS-COMPONENT / ARCHITECTURAL ISSUES
+------------------------------------------
+
+This section traces existing finding IDs; it does not add duplicate findings.
+
+A. Configuration -> data generation -> fitting -> result metadata
+HIGH-001: the CLI preset type changes the fitted forest, and min_samples_leaf also
+enters leaf-scaled sparse-data generation. The snapshot is assembled separately
+from execution settings. MEDIUM-007: parameter expansion then produces method
+identifiers that statistical consumers do not share.
+
+B. Forest statistics -> uncertainty -> registry -> acquisition
+MEDIUM-001 changes the component variances used by Shaker and credal methods.
+HIGH-002 and HIGH-003 introduce numerical/solver errors. HIGH-004 survives solver
+correction because the decomposition itself is wrong. The registry's ordinary
+variance-to-standard-deviation conversion, followed by the custom SMAC model's
+squaring, was traced and is internally consistent; it does not repair an incorrect
+underlying quantity and is not itself reported as a double-squaring defect.
+
+C. Bootstrap evidence -> residuals -> intervals/density -> evaluation
+MEDIUM-002 changes the reference OOB evidence. HIGH-005 corrupts weighted interval
+endpoints. MEDIUM-003 changes the density ratio's meaning in normalized mode.
+The empirical lower-bound acquisition consumes the resulting intervals directly;
+Gaussian-UQ consumers receive their normal-divisor rescaling. HIGH-007 then adds
+quantities whose units or noise content are incompatible.
+
+D. Native model construction -> uncertainty replacement -> optimizer comparison
+HIGH-006 originates before uncertainty extraction: default forest and log-target
+leaf aggregation differ between native and replacement models. The additive
+CARP-S optimizer also changes the search machinery. MEDIUM-005 is a further,
+separate implementation mismatch in the standalone noisy harness's base EI.
+
+E. Fit-time summaries -> global RNG -> the next sequential forest
+MEDIUM-004 is a state-management problem across iterations: deterministic UQ
+subsampling resets the RNG consumed by default subsequent forest construction.
+
+F. Per-run values -> per-task pairing -> cross-task inference
+MEDIUM-006 occurs after legitimate per-task pairing. Aggregating raw paired
+magnitudes across different objective units defeats cross-task comparability.
+Correct within-task p-value adjustment does not address that scale problem.
+
+Important interpretations checked and not reported as defects:
+- Current CARP-S ask/tell invokes the sliding-window update through one candidate
+  prediction call per BO decision. No additional current caller was found that
+  necessarily turns that window into repeated updates for the same decision.
+- Core cached UQ calls use the corresponding query set; credal batching slices
+  the supplied LeafCache. A generic stale-cache accusation is not established.
+- OOB sentinel leaf IDs have zero in-bag weights; their presence alone does not
+  contaminate the proximity matrix.
+- Minimization signs are consistent in the inspected EI/LCB/PI and empirical
+  lower-bound selection paths.
+- Data-generator target normalization uses training statistics for test targets.
+  The inspected code does not establish train/test target-normalization leakage.
+- The meta-HPO generator uses the development registry, while the held-out
+  evaluation generator uses the separate test registry. Their source definitions
+  do not establish test-set tuning leakage.
+
+
+7. ACADEMIC / RESEARCH-RIGOR ISSUES
+-----------------------------------
+
+The scientific claims requiring reassessment are concrete and tied to the IDs:
+
+- Epistemic/aleatoric separation: HIGH-004 and HIGH-007 demonstrate that persistent
+  noise can be labeled epistemic and counted twice. A quantity having target
+  units, or being squared into target-squared units, is not sufficient to make it
+  a calibrated variance or a valid uncertainty decomposition.
+- Numerical-method comparisons: HIGH-002, HIGH-003, and MEDIUM-008 undermine
+  interpretation of differences as properties of the proposed methods rather
+  than approximation failures. Solver and quadrature accuracy must be established
+  before method rankings are interpreted.
+- Causal attribution in optimizer comparisons: HIGH-006 requires matched
+  controls. Results may still describe whole optimizers, but do not independently
+  establish that an uncertainty replacement caused an improvement.
+- Reproducible experimental identity: HIGH-001, MEDIUM-004, and MEDIUM-007 show
+  that labels, snapshots, randomness, and actual computations can diverge.
+- Cross-task inference: MEDIUM-006 requires a common performance estimand rather
+  than aggregating arbitrary raw objective scales.
+
+The noisy telemetry's sampled_incumbent_regret was inspected: it explicitly
+tracks the best latent function value among sampled locations. This is an
+oracle best-sampled statistic, and the field names distinguish it from a noisy
+observation. The source inspected does not establish that it is improperly used
+as the optimizer's recommendation, so no finding asserts that misuse.
+
+No conclusions about historical significance, effect sizes, completed-run rates,
+or specific thesis tables are made from generated outputs. Affected experiments
+must be identified from effective configuration/provenance and rerun as needed.
+
+
+8. REMEDIATION PLAN
+-------------------
+
+Step 1. Establish a trustworthy effective experiment configuration
+- Issue IDs addressed: HIGH-001.
+- Affected files/components: config_schema.py; Uncertainty_Quantification.py;
+  generate_unified_sweep_params.py; schema-based sweep generation.
+- Required change: Normalize/validate preset identifiers; define explicit
+  CLI/config precedence; propagate all supported data/model/UQ parameters from
+  one resolved object; serialize actual effective settings.
+- Reason: Subsequent validation and reruns must unambiguously identify the model,
+  sampling conditions, and numerical estimator being executed.
+- Dependencies: None.
+- Validation afterward: Distinct numeric presets construct their intended
+  forests; file-driven and equivalent CLI-driven settings produce the same
+  effective run; snapshots round-trip accurately; sweep commands preserve
+  noise, sparse sampling, and solver controls. Check actual fitted parameters,
+  not just parser output.
+
+Step 2. Correct and define the credal decomposition and Gaussian solvers
+- Issue IDs addressed: HIGH-003, HIGH-004.
+- Affected files/components: Credal_Regression_UQ.py;
+  ep_extractors/likelihood_credal.py; credal consumers in evaluation.
+- Required change: Derive the event supremum and uncertainty decomposition;
+  correct the Newton root branches; enforce convergence checks; distinguish
+  total overlap from epistemic excess; justify the output scale.
+- Reason: Numerical agreement is insufficient if both implementations calculate
+  the wrong scientific quantity. The decomposition and solver require distinct
+  reference validations.
+- Dependencies: Step 1 for reliable configured solver selection. Can be developed
+  alongside Steps 3-4; final quantitative calibration also depends on Step 5.
+- Validation afterward: Independent scalar supremum agreement; reflection
+  symmetry; bisection/Newton agreement; known single-Gaussian and identical-tree
+  limits; vanishing epistemic uncertainty as evidence becomes precise; target
+  translation/scale behavior consistent with the chosen estimand.
+
+Step 3. Replace or control the Shaker numerical approximation
+- Issue IDs addressed: HIGH-002.
+- Affected files/components: Epistemic_Quantifier.py;
+  ep_extractors/shaker_entropy.py.
+- Required change: Use mode-resolving quadrature or a validated sampling
+  estimator with meaningful error/accuracy controls; validate both entropy
+  calculation and its downstream variance-proxy conversion.
+- Reason: The current grid can generate nonphysical MI and exponentially inflated
+  exploration values on ordinary fitted forests.
+- Dependencies: Step 1 for exposed accuracy settings; Step 5 for final component
+  variance semantics.
+- Validation afterward: Reproduce the two-mode counterexample accurately;
+  validate normalized mixture mass; compare independent high-accuracy references;
+  check MI bounds, equal-component MI=0, unequal widths, separated modes, and
+  backend agreement without merely clipping incorrect answers.
+
+Step 4. Correct weighted residual quantiles
+- Issue IDs addressed: HIGH-005.
+- Affected files/components: GPU_Proximity_Regression_UQ.py;
+  interval/UQ consumers including carps_integration/proximity_lcb.py.
+- Required change: Implement the selected weighted quantile over positive-mass
+  support with explicit handling of cumulative-weight plateaus.
+- Reason: Zero-mass observations must not move quantiles or candidate lower bounds.
+- Dependencies: None for the mathematical correction; Step 5 for valid residual
+  reference data.
+- Validation afterward: Point-mass distributions; zero-weight insertion and
+  movement; tied values; sparse/near-zero weights; lower/upper order; agreement
+  between CPU and GPU and between compute_uq and the intended interval width.
+
+Step 5. Make leaf and OOB evidence faithful to the fitted forest
+- Issue IDs addressed: MEDIUM-001, MEDIUM-002.
+- Affected files/components: LeafCache; EpistemicQuantifier leaf statistics;
+  CredalRegressionUQ leaf statistics; GPUProximityRegressionUQ.fit and all
+  residual calibration/tuning consumers.
+- Required change: Define bootstrap weighting and evidence-count semantics;
+  calculate consistent moments/corrections; reconstruct actual bootstrap samples;
+  exclude nonexistent OOB predictions; define insufficient-evidence behavior.
+- Reason: Higher-level UQ methods cannot be valid if their component distributions
+  and residual reference data disagree with the fitted model.
+- Dependencies: Configuration resolution in Step 1; mathematical estimator
+  choices from Step 2 where credal counts represent evidence.
+- Validation afterward: Unequal bootstrap multiplicities on stumps; cached versus
+  uncached statistics; max_samples integer/fractional/default cases; RF-GAP
+  prediction reproduction; no-OOB rows; target-offset invariance of valid OOB
+  residuals; coherent early-BO behavior.
+
+Step 6. Align uncertainty contracts and probability scoring
+- Issue IDs addressed: HIGH-007; consumes corrected outputs from HIGH-002,
+  HIGH-004, HIGH-005.
+- Affected files/components: Uncertainty_Quantification.py;
+  Hybrid_Proximity_Epistemic_UQ.py; extractor output interfaces; metrics consumers.
+- Required change: Specify units and estimands explicitly; construct compatible
+  predictive variances/distributions; stop combining entropy with variance or
+  residual total variance with another copy of noise variance. Use consistent
+  quantities for error correlation and NLPD.
+- Reason: A correctly computed raw score can still yield an invalid scientific
+  comparison when interpreted as a different statistical quantity.
+- Dependencies: Steps 2-5 establish estimator outputs and calibration semantics.
+- Validation afterward: Known Gaussian/pure-noise examples; scale transformations;
+  prediction-error versus mean-estimation-error targets as appropriate; consistent
+  numerical variance at the NLPD boundary; hybrid output unit checks; method
+  rankings evaluated using the declared common estimand.
+
+Step 7. Establish matched comparison controls and align additive runners
+- Issue IDs addressed: HIGH-006, MEDIUM-005.
+- Affected files/components: CustomUncertaintyRandomForest;
+  scripts/run_carps_patched.py; optimizer YAMLs and task generators;
+  CARPSDynamicRFOptimizer; noisy_benchmarks/runner.py; acquisitions.py.
+- Required change: Share or explicitly match native forest parameters and target
+  aggregation; isolate acquisition changes under the same optimizer machinery;
+  separate base uncertainty from the additive epistemic bonus in both runners;
+  align normalization and scheduling for equivalent method names. Record the
+  resolved dependency/model contracts used in experiments.
+- Reason: Remove baseline confounding and ensure that equivalent method labels
+  identify equivalent algorithms.
+- Dependencies: Step 1; corrected estimator/output contracts from Steps 2-6.
+- Validation afterward: Native and replacement controls give identical mean
+  predictions when only uncertainty changes; standard-disagreement controls
+  recover their intended reference; both additive implementations agree on a
+  fixed candidate pool; initial designs, trial budgets, and candidate optimization
+  are matched for component-level ablations. Inspect log-target and OOB semantics
+  together when changing log_y, rather than toggling that flag in isolation.
+
+Step 8. Unify depth-normalized proximity kernels
+- Issue IDs addressed: MEDIUM-003.
+- Affected files/components: proximity baseline density, query density, proximity
+  matrix computation, and OOB lambda tuning.
+- Required change: Reuse one kernel definition and effective decay convention.
+- Reason: A density ratio and tuned lambda must refer to the deployed kernel.
+- Dependencies: Step 5 for faithful sampling masks; Step 4 for final quantile UQ.
+- Validation afterward: Identical reference/query sets yield the independently
+  calculated training baseline; normalized and unnormalized paths use the stated
+  distances; tuning uses the same decay parameterization as prediction.
+
+Step 9. Isolate random streams
+- Issue IDs addressed: MEDIUM-004.
+- Affected files/components: GPUProximityRegressionUQ subsamplers;
+  CARPSDynamicRFOptimizer and DynamicRFSurrogate seed propagation.
+- Required change: Localize deterministic subsampling RNGs and supply an explicit
+  run/iteration-based model randomization policy.
+- Reason: UQ fit order must not silently redefine subsequent forest randomness.
+- Dependencies: Step 1 to carry the declared seed; Step 7 to retain matched controls.
+- Validation afterward: Global RNG state is unchanged by deterministic UQ
+  summaries; repeated declared seeds reproduce results; extractor ordering and
+  crossing the 250/500-row thresholds do not reset unrelated random streams.
+
+Step 10. Validate Student-t distributional calculations
+- Issue IDs addressed: MEDIUM-008.
+- Affected files/components: CredalRegressionUQ Student-t branches.
+- Required change: Accurate CDF/log-CDF and tail-aware integration with explicit
+  handling of low-degree-of-freedom integral or moment existence.
+- Reason: Heavy-tail variants must differ because of their intended distribution,
+  not an uncontrolled approximation or an artificial cutoff.
+- Dependencies: Steps 2 and 5 establish the decomposition and evidence count.
+- Validation afterward: Scalar CDF agreement over relevant degrees of freedom;
+  correct tail limits and symmetry; convergence under expanded integration bounds;
+  Student-t-to-normal limiting behavior; corrected-scale variant verification.
+
+Step 11. Repair grid aggregation and statistical comparability
+- Issue IDs addressed: MEDIUM-007, MEDIUM-006.
+- Affected files/components: Uncertainty_Quantification.py aggregation/summary;
+  scripts/run_1v1_wilcoxon_analysis.py.
+- Required change: Carry canonical expanded method identities through results and
+  summaries; align paired records explicitly; require an appropriate common metric
+  for cross-task inference and macro performance aggregation.
+- Reason: Correct experiment values must survive aggregation and be compared on
+  the statistical scale intended by the research question.
+- Dependencies: Step 1 for method/configuration identity; Step 6 for valid metrics;
+  Step 7 for interpretable comparisons.
+- Validation afterward: Mixed and grid-only runs complete summary generation;
+  no empty method placeholders suppress valid comparisons; known function/seed
+  pairs stay aligned; independent per-task unit changes do not alter an intended
+  scale-invariant macro conclusion; per-task inference remains correctly paired.
+
+Step 12. Re-establish the authoritative experimental evidence
+- Issue IDs addressed: HIGH-001 through HIGH-007 and MEDIUM-001 through MEDIUM-008.
+- Affected files/components: effective experiment definitions, affected UQ/BO
+  comparisons, and the statistical reporting path.
+- Required change: Identify affected method/configuration families using the
+  corrected effective configuration; rerun them under a recorded environment;
+  regenerate only conclusions supported by the corrected implementation and
+  matched design. Preserve a clear distinction between earlier and corrected
+  experimental definitions.
+- Reason: Repairing source alone cannot make previously calculated uncertainties
+  or confounded comparisons valid evidence for the revised method.
+- Dependencies: Relevant implementation and validation steps above.
+- Validation afterward: Independent numerical references pass; model/configuration
+  identity is reconstructible; component ablations use matched controls; budgets
+  and pairing are verified; reported uncertainty estimands and method names match
+  the code used to obtain the final thesis evidence.
+
+
+9. FINAL REVIEW CHECK
+---------------------
+
+- Major requested modules inspected: both rf_dynamic modules;
+  Uncertainty_Quantification.py; Epistemic_Quantifier.py; Credal_Regression_UQ.py;
+  GPU_Proximity_Regression_UQ.py; config_schema.py; all noisy_benchmarks modules.
+  Relevant extractor adapters, the hybrid implementation, acquisition/model/
+  optimizer integration, data generation, metrics, selected optimizer configs,
+  and experiment/statistical source paths were also inspected.
+- Important call chains were traced from configuration through construction,
+  fitting, prediction, UQ, acquisition, optimization, and evaluation.
+- Findings contain repository locations, relevant consumers, and either explicit
+  mathematical evidence or read-only reproduction. Scope conditions are stated.
+- Apparent cache, sign, sentinel-weight, and variance/std conversion issues were
+  checked against compensating code and not reported when unsupported.
+- Findings are counted once. Sections 6 and 7 refer back to those IDs.
+- Severity reflects impact and scope. No blanket invalidation or overall ranking
+  is asserted. Scientific attribution concerns are labeled ACADEMIC CONCERN.
+- Repository tests, fixtures, mocks, coverage, datasets, generated result contents,
+  diaries, and vendor/submodule implementations were not audited. The only
+  dependency-source inspection concerned necessary native integration contracts.
+  Cluster orchestration was not assessed; a likelihood invocation was consulted
+  solely to confirm the exposed experiment variant.
+- No full experiment or GPU run was performed; the report does not imply either.
+- Every HIGH finding, and every MEDIUM finding, has a specific remediation step
+  and downstream validation. There are no CRITICAL findings requiring a plan.
+- Existing repository files were not edited. The pre-existing untracked results
+  directory was left intact. This report is the sole newly created file.
