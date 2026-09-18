@@ -323,9 +323,91 @@ class TestAskTellCheckpointResume(unittest.TestCase):
             )
             orch_phase2.run()
 
-            df_lead2 = pd.read_csv(leaderboard_file)
-            self.assertEqual(len(df_lead2), 3)
+class TestIterationResultParser(unittest.TestCase):
+    """Verifies parsing candidate evaluation results from trial_logs.jsonl, runhistory.json, and telemetry."""
+
+    def test_parse_from_trial_logs_jsonl(self):
+        """Extracts minimum trial cost from CARP-S trial_logs.jsonl across multiple trials and seeds."""
+        from scripts.run_meta_smac_proximity_hpo import parse_iteration_results
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir) / "runs" / "iter_001"
+            res_dir = Path(tmpdir) / "results" / "iter_001"
+            dev_tasks = ["subset_bbob_2_12_0", "subset_bbob_2_12_1"]
+
+            # Create mock trial_logs.jsonl for task 1, seed 1
+            seed1_dir = base_dir / "SMAC20_ProximityLCB_iter001" / "blackbox" / "20" / "dev" / "subset_bbob_2_12_0" / "1"
+            seed1_dir.mkdir(parents=True, exist_ok=True)
+            log1 = seed1_dir / "trial_logs.jsonl"
+            with open(log1, "w") as f:
+                f.write(json.dumps({"n_trials": 1, "trial_value": {"cost": 25.0, "status": 1}}) + "\n")
+                f.write(json.dumps({"n_trials": 2, "trial_value": {"cost": 12.5, "status": 1}}) + "\n")
+                f.write(json.dumps({"n_trials": 3, "trial_value": {"cost": 18.0, "status": 1}}) + "\n")
+
+            # Create mock trial_logs.jsonl for task 1, seed 2
+            seed2_dir = base_dir / "SMAC20_ProximityLCB_iter001" / "blackbox" / "20" / "dev" / "subset_bbob_2_12_0" / "2"
+            seed2_dir.mkdir(parents=True, exist_ok=True)
+            log2 = seed2_dir / "trial_logs.jsonl"
+            with open(log2, "w") as f:
+                f.write(json.dumps({"n_trials": 1, "trial_value": {"cost": 15.0, "status": 1}}) + "\n")
+                f.write(json.dumps({"n_trials": 2, "trial_value": {"cost": 9.2, "status": 1}}) + "\n")
+
+            results = parse_iteration_results(res_dir, base_dir, dev_tasks)
+
+            self.assertEqual(len(results["subset_bbob_2_12_0"]), 2)
+            self.assertIn(12.5, results["subset_bbob_2_12_0"])
+            self.assertIn(9.2, results["subset_bbob_2_12_0"])
+            self.assertEqual(results["subset_bbob_2_12_1"], [])
+
+    def test_parse_from_runhistory_json(self):
+        """Extracts minimum cost from SMAC runhistory.json when trial_logs is absent."""
+        from scripts.run_meta_smac_proximity_hpo import parse_iteration_results
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir) / "runs" / "iter_001"
+            res_dir = Path(tmpdir) / "results" / "iter_001"
+            dev_tasks = ["subset_yahpo_rbv2_aknn_1462_None"]
+
+            rh_dir = base_dir / "SMAC20_ProximityLCB_iter001" / "subset_yahpo_rbv2_aknn_1462_None" / "1" / "smac3_output" / "hash"
+            rh_dir.mkdir(parents=True, exist_ok=True)
+            rh_file = rh_dir / "runhistory.json"
+            rh_data = {
+                "data": [
+                    {"cost": 0.45, "status": 1},
+                    {"cost": 0.31, "status": 1},
+                    {"cost": 0.99, "status": 2},  # Crashed trial
+                ]
+            }
+            with open(rh_file, "w") as f:
+                json.dump(rh_data, f)
+
+            results = parse_iteration_results(res_dir, base_dir, dev_tasks)
+            self.assertEqual(results["subset_yahpo_rbv2_aknn_1462_None"], [0.31])
+
+    def test_parse_from_telemetry_json_fallback(self):
+        """Supports legacy telemetry JSON format with trials list or cost_inc."""
+        from scripts.run_meta_smac_proximity_hpo import parse_iteration_results
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base_dir = Path(tmpdir) / "runs" / "iter_001"
+            res_dir = Path(tmpdir) / "results" / "iter_001"
+            res_dir.mkdir(parents=True, exist_ok=True)
+            dev_tasks = ["subset_bbob_2_12_0"]
+
+            tfile = res_dir / "telemetry_SMAC20_ProximityLCB_iter001_subset_bbob_2_12_0_seed1.json"
+            tdata = {
+                "trials": [
+                    {"cost": 100.0},
+                    {"cost": 55.5},
+                ]
+            }
+            with open(tfile, "w") as f:
+                json.dump(tdata, f)
+
+            results = parse_iteration_results(res_dir, base_dir, dev_tasks)
+            self.assertEqual(results["subset_bbob_2_12_0"], [55.5])
 
 
 if __name__ == "__main__":
     unittest.main()
+

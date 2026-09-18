@@ -45,6 +45,125 @@ from scripts.meta_smac_task_generator import generate_iteration_tasks
 from scripts.meta_smac_loss import compute_meta_loss, load_dev_reference_bounds
 
 
+def parse_iteration_results(
+    iter_dir: Path,
+    iter_base_dir: Path,
+    dev_tasks: List[str],
+) -> Dict[str, List[float]]:
+    """Gathers candidate evaluation results across all seeds for each dev task.
+
+    Supports:
+    1. CARP-S FileLogger: reads `trial_logs.jsonl` in `iter_base_dir/**`
+    2. SMAC3 runhistory: reads `runhistory.json` in `iter_base_dir/**`
+    3. Legacy telemetry JSON: reads `telemetry_*.json` in `iter_dir` or `iter_base_dir`
+    """
+    results: Dict[str, List[float]] = {t: [] for t in dev_tasks}
+
+    def _match_task(target_path: Path) -> Optional[str]:
+        path_str = str(target_path)
+        for dt in dev_tasks:
+            if dt in path_str:
+                return dt
+        hydra_cfg = target_path.parent / ".hydra" / "config.yaml"
+        if hydra_cfg.exists():
+            try:
+                content = hydra_cfg.read_text()
+                for dt in dev_tasks:
+                    if dt in content:
+                        return dt
+            except Exception:
+                pass
+        return None
+
+    found_runs: set = set()
+
+    # Strategy 1: Parse trial_logs.jsonl from iter_base_dir
+    if iter_base_dir.exists():
+        trial_log_files = sorted(list(iter_base_dir.glob("**/trial_logs.jsonl")))
+        for tfile in trial_log_files:
+            dt = _match_task(tfile)
+            if dt is None:
+                continue
+            costs = []
+            try:
+                with open(tfile, "r") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        row = json.loads(line)
+                        trial_val = row.get("trial_value", {})
+                        status = trial_val.get("status", 1)
+                        if status in (1, "SUCCESS", "StatusType.SUCCESS"):
+                            cost = trial_val.get("cost")
+                            if cost is not None and np.isfinite(float(cost)):
+                                costs.append(float(cost))
+                if costs:
+                    best_c = min(costs)
+                    results[dt].append(best_c)
+                    found_runs.add((dt, str(tfile.parent)))
+            except Exception as e:
+                print(f"Warning: Failed parsing {tfile}: {e}")
+
+        # Strategy 2: Fallback to runhistory.json in iter_base_dir
+        runhistory_files = sorted(list(iter_base_dir.glob("**/runhistory.json")))
+        for rh_file in runhistory_files:
+            dt = _match_task(rh_file)
+            if dt is None:
+                continue
+            run_key = (dt, str(rh_file.parent.parent))
+            run_key_direct = (dt, str(rh_file.parent))
+            if run_key in found_runs or run_key_direct in found_runs:
+                continue
+            try:
+                with open(rh_file, "r") as f:
+                    rh_data = json.load(f)
+                costs = [
+                    float(entry["cost"])
+                    for entry in rh_data.get("data", [])
+                    if entry.get("status") in (1, "SUCCESS", "StatusType.SUCCESS")
+                    and entry.get("cost") is not None
+                    and np.isfinite(float(entry["cost"]))
+                ]
+                if costs:
+                    best_c = min(costs)
+                    results[dt].append(best_c)
+                    found_runs.add(run_key_direct)
+            except Exception as e:
+                print(f"Warning: Failed parsing {rh_file}: {e}")
+
+    # Strategy 3: Fallback to telemetry_*.json files
+    telemetry_files = []
+    if iter_dir.exists():
+        telemetry_files.extend(list(iter_dir.glob("telemetry_*.json")))
+    if iter_base_dir.exists():
+        telemetry_files.extend(list(iter_base_dir.glob("**/telemetry_*.json")))
+
+    for tfile in sorted(telemetry_files):
+        dt = _match_task(tfile)
+        if dt is None:
+            continue
+        try:
+            with open(tfile, "r") as f:
+                tdata = json.load(f)
+            inc_cost = tdata.get("cost_inc", tdata.get("best_cost"))
+            if inc_cost is None and "trials" in tdata:
+                valid_costs = [
+                    float(tr.get("cost", tr.get("trial_value", {}).get("cost", np.nan)))
+                    for tr in tdata["trials"]
+                    if tr.get("cost", tr.get("trial_value", {}).get("cost")) is not None
+                ]
+                finite_costs = [c for c in valid_costs if np.isfinite(c)]
+                if finite_costs:
+                    inc_cost = min(finite_costs)
+            if inc_cost is not None and np.isfinite(float(inc_cost)):
+                results[dt].append(float(inc_cost))
+        except Exception as e:
+            print(f"Warning: Failed parsing {tfile}: {e}")
+
+    return results
+
+
 class MetaSmacOrchestrator:
     def __init__(
         self,
@@ -183,24 +302,15 @@ class MetaSmacOrchestrator:
         print(f"[Iter {iteration:03d}] Submitting SLURM array: {' '.join(sbatch_cmd)}")
         subprocess.run(sbatch_cmd, check=True)
 
-        # Parse telemetry files
-        opt_id = f"SMAC20_ProximityLCB_iter{iteration:03d}"
-        results: Dict[str, List[float]] = {t: [] for t in self.dev_tasks}
+        iter_base_dir = self.baserundir / f"iter_{iteration:03d}"
+        results = parse_iteration_results(iter_dir, iter_base_dir, self.dev_tasks)
 
-        telemetry_files = list(iter_dir.glob(f"telemetry_{opt_id}_*.json"))
-        for tfile in telemetry_files:
-            try:
-                with open(tfile, "r") as f:
-                    tdata = json.load(f)
-                # Find corresponding dev task
-                for dt in self.dev_tasks:
-                    if dt in tfile.name:
-                        inc_cost = float(tdata.get("cost_inc", tdata.get("best_cost", np.nan)))
-                        if np.isfinite(inc_cost):
-                            results[dt].append(inc_cost)
-                        break
-            except Exception as e:
-                print(f"Warning: Failed parsing {tfile}: {e}")
+        total_runs_found = sum(len(v) for v in results.values())
+        expected_runs = len(self.dev_tasks) * self.seeds
+        print(f"[Iter {iteration:03d}] Evaluation complete: gathered {total_runs_found}/{expected_runs} runs.")
+        for dt, costs in results.items():
+            if len(costs) < self.seeds:
+                print(f"[Iter {iteration:03d}] Warning: Task {dt} yielded {len(costs)}/{self.seeds} valid runs.")
 
         return results
 
