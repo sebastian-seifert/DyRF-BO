@@ -39,11 +39,18 @@ echo "Array Job ID: $SLURM_ARRAY_JOB_ID | Task Index: $SLURM_ARRAY_TASK_ID"
 echo "Running arguments: $TASK_ARGS"
 echo "=================================================="
 
-if [ -f ".venv/bin/python" ]; then
-    .venv/bin/python scripts/run_carps_patched.py $TASK_ARGS
+# Resolve Python interpreter (prioritize cluster conda dyrf, then active CONDA_PREFIX, then .venv, then python3)
+if [ -f "/bigwork/nhwpseis/.conda/envs/dyrf/bin/python" ]; then
+    PYTHON_BIN="/bigwork/nhwpseis/.conda/envs/dyrf/bin/python"
+elif [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/python" ]; then
+    PYTHON_BIN="$CONDA_PREFIX/bin/python"
+elif [ -f ".venv/bin/python" ]; then
+    PYTHON_BIN=".venv/bin/python"
 else
-    python3 scripts/run_carps_patched.py $TASK_ARGS
+    PYTHON_BIN="python3"
 fi
+
+$PYTHON_BIN scripts/run_carps_patched.py $TASK_ARGS
 
 echo "=================================================="
 echo "Array Task Index $SLURM_ARRAY_TASK_ID Finished"

@@ -17,7 +17,11 @@ if [ ! -f "results/meta_smac_proximity_hpo/reference_bounds.json" ]; then
     fi
 fi
 
-if [ -f ".venv/bin/python" ]; then
+if [ -f "/bigwork/nhwpseis/.conda/envs/dyrf/bin/python" ]; then
+    PYTHON_BIN="/bigwork/nhwpseis/.conda/envs/dyrf/bin/python"
+elif [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/python" ]; then
+    PYTHON_BIN="$CONDA_PREFIX/bin/python"
+elif [ -f ".venv/bin/python" ]; then
     PYTHON_BIN=".venv/bin/python"
 else
     PYTHON_BIN="python3"
