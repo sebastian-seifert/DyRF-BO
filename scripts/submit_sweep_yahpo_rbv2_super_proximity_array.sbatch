@@ -1,12 +1,11 @@
 #!/bin/bash
 #SBATCH -p ai
-#SBATCH --job-name=hpob_p3
-#SBATCH --output=results/sweep_hpobench_ml_proximity/slurm_logs/hpob_p3_%A_%a.log
-#SBATCH --error=results/sweep_hpobench_ml_proximity/slurm_logs/hpob_p3_%A_%a.err
+#SBATCH --job-name=supr_prox
+#SBATCH --output=results/sweep_yahpo_rbv2_super_proximity/slurm_logs/supr_prox_%A_%a.log
+#SBATCH --error=results/sweep_yahpo_rbv2_super_proximity/slurm_logs/supr_prox_%A_%a.err
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00
-#SBATCH --array=1-1760%64
 
 # Initialize conda / venv
 eval "$(conda shell.bash hook 2>/dev/null)" || true
@@ -18,9 +17,9 @@ export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
-mkdir -p results/sweep_hpobench_ml_proximity/slurm_logs
+mkdir -p results/sweep_yahpo_rbv2_super_proximity/slurm_logs
 
-TASK_FILE="results/sweep_hpobench_ml_proximity/tasks_part3.txt"
+TASK_FILE="results/sweep_yahpo_rbv2_super_proximity/tasks.txt"
 
 if [ ! -f "$TASK_FILE" ] || [ ! -s "$TASK_FILE" ]; then
     echo "ERROR: $TASK_FILE does not exist or is empty." >&2
@@ -35,7 +34,7 @@ if [ -z "$TASK_ARGS" ]; then
 fi
 
 echo "=================================================="
-echo "Suite: hpobench_ml | Part: 3"
+echo "Suite: yahpo_rbv2_super"
 echo "Array Job ID: $SLURM_ARRAY_JOB_ID | Task Index: $SLURM_ARRAY_TASK_ID"
 echo "Running arguments: $TASK_ARGS"
 echo "=================================================="

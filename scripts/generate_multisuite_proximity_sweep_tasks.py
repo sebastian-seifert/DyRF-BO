@@ -169,16 +169,13 @@ def chunk_tasks(tasks: List[str], max_chunk_size: int = 2500) -> List[List[str]]
 
 def generate_sbatch_content(
     suite: str,
-    part: int,
-    total_tasks: int,
     task_file: str,
     log_dir: str,
     partition: str = "ai",
-    concurrency: int = 64,
 ) -> str:
-    """Generates the SLURM sbatch script content for a specific chunk/part."""
+    """Generates the SLURM sbatch script content without hardcoded array limits."""
     prefix = SUITE_JOB_PREFIXES.get(suite, suite[:4])
-    job_name = f"{prefix}_p{part}"
+    job_name = f"{prefix}_prox"
     
     return f"""#!/bin/bash
 #SBATCH -p {partition}
@@ -188,7 +185,6 @@ def generate_sbatch_content(
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00
-#SBATCH --array=1-{total_tasks}%{concurrency}
 
 # Initialize conda / venv
 eval "$(conda shell.bash hook 2>/dev/null)" || true
@@ -217,7 +213,7 @@ if [ -z "$TASK_ARGS" ]; then
 fi
 
 echo "=================================================="
-echo "Suite: {suite} | Part: {part}"
+echo "Suite: {suite}"
 echo "Array Job ID: $SLURM_ARRAY_JOB_ID | Task Index: $SLURM_ARRAY_TASK_ID"
 echo "Running arguments: $TASK_ARGS"
 echo "=================================================="
@@ -234,11 +230,61 @@ echo "=================================================="
 """
 
 
+def generate_launcher_sh_content(
+    suite: str,
+    task_file: str,
+    sbatch_file: str,
+    chunk_size: int = 200,
+    concurrency: int = 25,
+) -> str:
+    """Generates the master chunked submission shell script adhering to LUIS MaxArraySize <= 300."""
+    return f"""#!/bin/bash
+set -e
+
+TASK_FILE="{task_file}"
+SBATCH_FILE="{sbatch_file}"
+
+if [ ! -f "$TASK_FILE" ] || [ ! -s "$TASK_FILE" ]; then
+    echo "ERROR: $TASK_FILE does not exist or is empty." >&2
+    exit 1
+fi
+
+TOTAL_TASKS=$(wc -l < "$TASK_FILE" | tr -d ' ')
+CHUNK_SIZE={chunk_size}
+CONCURRENCY={concurrency}
+
+echo "=================================================="
+echo "Submitting $TOTAL_TASKS tasks for {suite}"
+echo "Chunk Size: $CHUNK_SIZE (LUIS MaxArraySize <= 300, %$CONCURRENCY concurrency)"
+echo "=================================================="
+
+# Optional range overrides from CLI: e.g. ./script.sh [START_TASK] [END_TASK]
+REQ_START=${{1:-1}}
+REQ_END=${{2:-$TOTAL_TASKS}}
+
+if [ "$REQ_START" -lt 1 ]; then REQ_START=1; fi
+if [ "$REQ_END" -gt "$TOTAL_TASKS" ]; then REQ_END=$TOTAL_TASKS; fi
+
+for (( start=REQ_START; start<=REQ_END; start+=CHUNK_SIZE )); do
+    end=$(( start + CHUNK_SIZE - 1 ))
+    if [ $end -gt $REQ_END ]; then
+        end=$REQ_END
+    fi
+    JOB_ID=$(sbatch --parsable --array=${{start}}-${{end}}%${{CONCURRENCY}} "$SBATCH_FILE")
+    echo "Submitted Chunk (${{start}}-${{end}} / ${{TOTAL_TASKS}}) -> Job ID: ${{JOB_ID}}"
+done
+
+echo "=================================================="
+echo "{suite} successfully scheduled on LUIS cluster!"
+echo "=================================================="
+"""
+
+
 def generate_all_suite_artifacts(
     suites: Sequence[str] = ("yahpo_rbv2_ranger", "yahpo_rbv2_super", "hpobench_ml"),
     seeds: int = 30,
     trials: int = 100,
-    max_chunk_size: int = 2500,
+    chunk_size: int = 200,
     meta_json_path: str | None = None,
     k: int = 25,
     decay_lambda: float = 1.345,
@@ -246,9 +292,9 @@ def generate_all_suite_artifacts(
     level: float = 0.95,
     uncertainty_func: str = "proximity_b",
     partition: str = "ai",
-    concurrency: int = 64,
+    concurrency: int = 25,
 ) -> Dict[str, Dict[str, Any]]:
-    """Generates tasks, chunks, sbatch scripts, and launcher .sh for all requested suites."""
+    """Generates tasks, LUIS-compliant sbatch scripts, and launcher .sh for all requested suites."""
     params = load_proximity_params(
         meta_json_path=meta_json_path,
         k=k,
@@ -273,72 +319,59 @@ def generate_all_suite_artifacts(
         suite_dir = Path(f"results/sweep_{suite}_proximity")
         log_dir = suite_dir / "slurm_logs"
         runs_dir = Path(f"runs/sweep_{suite}_proximity")
+        scripts_dir = Path("scripts")
 
         suite_dir.mkdir(parents=True, exist_ok=True)
         log_dir.mkdir(parents=True, exist_ok=True)
         runs_dir.mkdir(parents=True, exist_ok=True)
+        scripts_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Master task file (all seeds combined)
+        # 1. Master task file
         master_task_file = suite_dir / "tasks.txt"
         with open(master_task_file, "w", encoding="utf-8") as f:
             f.write("\n".join(cmds) + "\n")
 
-        # Clean up any legacy .sbatch or .sh scripts inside results suite_dir
+        # Clean up any legacy chunk files and scripts
+        for part_file in suite_dir.glob("tasks_part*.txt"):
+            part_file.unlink()
         for legacy_file in suite_dir.glob("*.sbatch"):
             legacy_file.unlink()
         for legacy_file in suite_dir.glob("*.sh"):
             legacy_file.unlink()
+        for obsolete_p in scripts_dir.glob(f"submit_sweep_{suite}_proximity_p*.sbatch"):
+            obsolete_p.unlink()
 
-        # 2. Chunking to guarantee <= 5,000 tasks per array
-        chunks = chunk_tasks(cmds, max_chunk_size=max_chunk_size)
-        part_sbatch_files = []
-        scripts_dir = Path("scripts")
-        scripts_dir.mkdir(parents=True, exist_ok=True)
+        # 2. Single clean array sbatch script
+        sbatch_path = scripts_dir / f"submit_sweep_{suite}_proximity_array.sbatch"
+        sbatch_content = generate_sbatch_content(
+            suite=suite,
+            task_file=str(master_task_file),
+            log_dir=str(log_dir),
+            partition=partition,
+        )
+        with open(sbatch_path, "w", encoding="utf-8") as f:
+            f.write(sbatch_content)
 
-        for p_idx, chunk in enumerate(chunks, 1):
-            part_task_file = suite_dir / f"tasks_part{p_idx}.txt"
-            with open(part_task_file, "w", encoding="utf-8") as f:
-                f.write("\n".join(chunk) + "\n")
-
-            sbatch_path = scripts_dir / f"submit_sweep_{suite}_proximity_p{p_idx}.sbatch"
-            sbatch_content = generate_sbatch_content(
-                suite=suite,
-                part=p_idx,
-                total_tasks=len(chunk),
-                task_file=str(part_task_file),
-                log_dir=str(log_dir),
-                partition=partition,
-                concurrency=concurrency,
-            )
-            with open(sbatch_path, "w", encoding="utf-8") as f:
-                f.write(sbatch_content)
-            part_sbatch_files.append(sbatch_path)
-
-        # 3. Master submission shell script in scripts/
-        submit_all_sh = scripts_dir / f"submit_sweep_{suite}_proximity.sh"
-        sh_lines = [
-            "#!/bin/bash",
-            f"# Master submission script for {suite}",
-            f"# Total Tasks: {len(cmds)} across {len(chunks)} chunked array jobs",
-            "set -e",
-            "",
-        ]
-        for sbatch_file in part_sbatch_files:
-            sh_lines.append(f"echo 'Submitting {sbatch_file.name}...'")
-            sh_lines.append(f"sbatch {sbatch_file}")
-            sh_lines.append("")
-        with open(submit_all_sh, "w", encoding="utf-8") as f:
-            f.write("\n".join(sh_lines) + "\n")
-        os.chmod(submit_all_sh, 0o755)
+        # 3. Master chunked submission shell script (chunk_size <= 300)
+        submit_sh = scripts_dir / f"submit_sweep_{suite}_proximity.sh"
+        sh_content = generate_launcher_sh_content(
+            suite=suite,
+            task_file=str(master_task_file),
+            sbatch_file=str(sbatch_path),
+            chunk_size=chunk_size,
+            concurrency=concurrency,
+        )
+        with open(submit_sh, "w", encoding="utf-8") as f:
+            f.write(sh_content)
+        os.chmod(submit_sh, 0o755)
 
         results_summary[suite] = {
             "tasks_count": len(task_list),
             "total_runs": len(cmds),
-            "num_chunks": len(chunks),
-            "chunk_sizes": [len(c) for c in chunks],
+            "chunk_size": chunk_size,
             "master_file": str(master_task_file),
-            "sbatch_files": [str(p) for p in part_sbatch_files],
-            "submit_all_sh": str(submit_all_sh),
+            "sbatch_file": str(sbatch_path),
+            "submit_sh": str(submit_sh),
         }
 
     return results_summary
@@ -367,10 +400,10 @@ def main() -> None:
         help="Number of trials per run (default: 100).",
     )
     parser.add_argument(
-        "--max-chunk-size",
+        "--chunk-size",
         type=int,
-        default=2500,
-        help="Maximum tasks per chunked array to never overshoot 5000 (default: 2500).",
+        default=200,
+        help="Chunk size per SLURM array submission to strictly obey LUIS MaxArraySize <= 300 (default: 200).",
     )
     parser.add_argument(
         "--from-meta-json",
@@ -384,7 +417,7 @@ def main() -> None:
     parser.add_argument("--level", type=float, default=0.95, help="Proximity confidence level.")
     parser.add_argument("--uncertainty-func", type=str, default="proximity_b", help="Uncertainty func.")
     parser.add_argument("--partition", type=str, default="ai", help="SLURM partition.")
-    parser.add_argument("--concurrency", type=int, default=64, help="SLURM array concurrency limit %%N.")
+    parser.add_argument("--concurrency", type=int, default=25, help="SLURM array concurrency limit %%N (default: 25).")
 
     args = parser.parse_args()
 
@@ -398,7 +431,7 @@ def main() -> None:
         suites=suites,
         seeds=args.seeds,
         trials=args.trials,
-        max_chunk_size=args.max_chunk_size,
+        chunk_size=args.chunk_size,
         meta_json_path=args.from_meta_json,
         k=args.k,
         decay_lambda=args.decay_lambda,
@@ -416,8 +449,8 @@ def main() -> None:
         print(f"[{s}]")
         print(f"  Distinct Tasks: {info['tasks_count']}")
         print(f"  Total Runs (30 seeds * 2 algs): {info['total_runs']}")
-        print(f"  SLURM Chunks: {info['num_chunks']} parts -> {info['chunk_sizes']}")
-        print(f"  Submit Script: {info['submit_all_sh']}")
+        print(f"  Array Sbatch Script: {info['sbatch_file']}")
+        print(f"  Launcher Script (Chunk Size: {info['chunk_size']}): {info['submit_sh']}")
     print("=======================================================\n")
 
 

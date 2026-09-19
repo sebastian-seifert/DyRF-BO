@@ -138,23 +138,21 @@ class TestMultiSuiteProximitySweepGenerator:
         flat = [item for c in chunks for item in c]
         assert flat == items
 
-    def test_generate_sbatch_content(self):
+    def test_generate_sbatch_content_luis_compliant(self):
         content = generate_sbatch_content(
             suite="yahpo_rbv2_ranger",
-            part=1,
-            total_tasks=2380,
-            task_file="results/sweep_yahpo_rbv2_ranger_proximity/tasks_part1.txt",
+            task_file="results/sweep_yahpo_rbv2_ranger_proximity/tasks.txt",
             log_dir="results/sweep_yahpo_rbv2_ranger_proximity/slurm_logs",
             partition="ai",
-            concurrency=64,
         )
-        assert "#SBATCH --job-name=rngr_p1" in content
-        assert "#SBATCH --array=1-2380%64" in content
-        assert "TASK_FILE=\"results/sweep_yahpo_rbv2_ranger_proximity/tasks_part1.txt\"" in content
+        assert "#SBATCH --job-name=rngr_prox" in content
+        # Crucial: Must NOT contain any hardcoded --array > 300
+        assert "--array" not in content or "%" not in content or int(content.split("--array=")[1].split("-")[1].split("%")[0]) <= 300
+        assert "TASK_FILE=\"results/sweep_yahpo_rbv2_ranger_proximity/tasks.txt\"" in content
         assert "scripts/run_carps_patched.py" in content
         assert "results/sweep_yahpo_rbv2_ranger_proximity/slurm_logs" in content
 
-    def test_generate_all_suite_artifacts_scripts_location(self):
+    def test_generate_all_suite_artifacts_luis_compliant(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             orig_cwd = os.getcwd()
             try:
@@ -163,15 +161,20 @@ class TestMultiSuiteProximitySweepGenerator:
                     suites=["hpobench_ml"],
                     seeds=1,
                     trials=10,
-                    max_chunk_size=50,
+                    chunk_size=200,
                 )
                 info = summary["hpobench_ml"]
                 # Submit scripts should be in scripts/
-                assert info["submit_all_sh"].startswith("scripts/")
-                for sbatch_file in info["sbatch_files"]:
-                    assert sbatch_file.startswith("scripts/")
-                    assert os.path.isfile(sbatch_file)
-                assert os.path.isfile(info["submit_all_sh"])
+                assert info["submit_sh"].startswith("scripts/")
+                assert info["sbatch_file"].startswith("scripts/")
+                assert os.path.isfile(info["submit_sh"])
+                assert os.path.isfile(info["sbatch_file"])
+
+                # Verify launcher script adheres to LUIS <= 300 chunking
+                with open(info["submit_sh"], "r", encoding="utf-8") as f:
+                    sh_content = f.read()
+                assert "CHUNK_SIZE=200" in sh_content or "CHUNK_SIZE=250" in sh_content
+                assert "sbatch --parsable --array=" in sh_content
 
                 # Tasks should be in results/
                 assert info["master_file"].startswith("results/")
@@ -183,4 +186,5 @@ class TestMultiSuiteProximitySweepGenerator:
                 assert not list(suite_results_dir.glob("*.sh"))
             finally:
                 os.chdir(orig_cwd)
+
 
