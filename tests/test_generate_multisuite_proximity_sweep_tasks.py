@@ -184,6 +184,24 @@ class TestMultiSuiteProximitySweepGenerator:
                 suite_results_dir = Path("results/sweep_hpobench_ml_proximity")
                 assert not list(suite_results_dir.glob("*.sbatch"))
                 assert not list(suite_results_dir.glob("*.sh"))
+
+                # Standalone batch scripts should be created and <= 4000 tasks
+                assert "batch_scripts" in info
+                assert len(info["batch_scripts"]) >= 1
+                for b_script in info["batch_scripts"]:
+                    assert os.path.isfile(b_script)
+                    with open(b_script, "r") as f:
+                        content = f.read()
+                    assert "CHUNK_SIZE=200" in content
+                    assert "sbatch --parsable --array=" in content
+
+                # Orchestrator script should exist in scripts/
+                orchestrator_sh = Path("scripts/orchestrate_all_sweeps.sh")
+                assert orchestrator_sh.is_file()
+                with open(orchestrator_sh, "r") as f:
+                    orch_content = f.read()
+                assert "squeue" in orch_content
+                assert "wait_for_queue_empty" in orch_content
             finally:
                 os.chdir(orig_cwd)
 

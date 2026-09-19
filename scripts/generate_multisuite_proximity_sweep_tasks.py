@@ -280,11 +280,117 @@ echo "=================================================="
 """
 
 
+def generate_batch_sh_content(
+    suite: str,
+    batch_num: int,
+    start_task: int,
+    end_task: int,
+    total_tasks: int,
+    task_file: str,
+    sbatch_file: str,
+    chunk_size: int = 200,
+    concurrency: int = 25,
+) -> str:
+    """Generates a standalone batch runner script bounded below the 5,000 QOS limit."""
+    return f"""#!/bin/bash
+set -e
+
+TASK_FILE="{task_file}"
+SBATCH_FILE="{sbatch_file}"
+
+if [ ! -f "$TASK_FILE" ] || [ ! -s "$TASK_FILE" ]; then
+    echo "ERROR: $TASK_FILE does not exist or is empty." >&2
+    exit 1
+fi
+
+TOTAL_TASKS=$(wc -l < "$TASK_FILE" | tr -d ' ')
+START_TASK={start_task}
+END_TASK={end_task}
+CHUNK_SIZE={chunk_size}
+CONCURRENCY={concurrency}
+
+echo "=================================================="
+echo "Submitting {suite} - BATCH {batch_num} (Tasks $START_TASK to $END_TASK of $TOTAL_TASKS)"
+echo "Chunk Size: $CHUNK_SIZE (LUIS MaxArraySize <= 300, %$CONCURRENCY concurrency)"
+echo "=================================================="
+
+for (( start=START_TASK; start<=END_TASK; start+=CHUNK_SIZE )); do
+    end=$(( start + CHUNK_SIZE - 1 ))
+    if [ $end -gt $END_TASK ]; then
+        end=$END_TASK
+    fi
+    JOB_ID=$(sbatch --parsable --array=${{start}}-${{end}}%${{CONCURRENCY}} "$SBATCH_FILE")
+    echo "Submitted Chunk (${{start}}-${{end}} / ${{TOTAL_TASKS}}) -> Job ID: ${{JOB_ID}}"
+done
+
+echo "=================================================="
+echo "Batch {batch_num} for {suite} successfully submitted!"
+echo "=================================================="
+"""
+
+
+def generate_orchestrator_sh_content(all_batch_scripts: List[str]) -> str:
+    """Generates the master orchestrator shell script that polls the SLURM queue."""
+    script_lines = "\n".join(f'    "{s}"' for s in all_batch_scripts)
+    return f"""#!/bin/bash
+# Master Multi-Suite Proximity LCB Sweep Orchestrator
+# Automatically executes sweep batches sequentially, waiting for queue to empty between batches.
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${{BASH_SOURCE[0]}}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+
+BATCHES=(
+{script_lines}
+)
+
+wait_for_queue_empty() {{
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Monitoring SLURM queue for user $USER..."
+    while true; do
+        PENDING_OR_RUNNING=$(squeue -u "$USER" -h -t R,PD | wc -l)
+        if [ "$PENDING_OR_RUNNING" -eq 0 ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Queue is clear (0 active jobs)."
+            break
+        fi
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Active jobs in queue: $PENDING_OR_RUNNING. Checking again in 60s..."
+        sleep 60
+    done
+}}
+
+echo "=================================================="
+echo "Starting Automated Multi-Suite Sweep Orchestrator"
+echo "Total Batches to execute: ${{#BATCHES[@]}}"
+echo "=================================================="
+
+for idx in "${{!BATCHES[@]}}"; do
+    batch_script="${{BATCHES[$idx]}}"
+    batch_num=$(( idx + 1 ))
+    echo ""
+    echo "=================================================="
+    echo "Executing Batch $batch_num / ${{#BATCHES[@]}}: $batch_script"
+    echo "=================================================="
+    bash "$batch_script"
+
+    echo "Batch $batch_num submitted. Waiting 15s for SLURM scheduler to update..."
+    sleep 15
+
+    wait_for_queue_empty
+    echo "Batch $batch_num completed!"
+done
+
+echo ""
+echo "=================================================="
+echo "ALL MULTI-SUITE SWEEPS COMPLETED SUCCESSFULLY!"
+echo "=================================================="
+"""
+
+
 def generate_all_suite_artifacts(
     suites: Sequence[str] = ("yahpo_rbv2_ranger", "yahpo_rbv2_super", "hpobench_ml"),
     seeds: int = 30,
     trials: int = 100,
     chunk_size: int = 200,
+    max_batch_size: int = 4000,
     meta_json_path: str | None = None,
     k: int = 25,
     decay_lambda: float = 1.345,
@@ -294,7 +400,7 @@ def generate_all_suite_artifacts(
     partition: str = "ai",
     concurrency: int = 25,
 ) -> Dict[str, Dict[str, Any]]:
-    """Generates tasks, LUIS-compliant sbatch scripts, and launcher .sh for all requested suites."""
+    """Generates tasks, LUIS-compliant sbatch scripts, batches, and orchestrator."""
     params = load_proximity_params(
         meta_json_path=meta_json_path,
         k=k,
@@ -305,6 +411,9 @@ def generate_all_suite_artifacts(
     )
 
     results_summary = {}
+    all_batch_scripts = []
+    scripts_dir = Path("scripts")
+    scripts_dir.mkdir(parents=True, exist_ok=True)
 
     for suite in suites:
         task_list = CarpsRealworldRegistry.get_tasks_for_suite(suite)
@@ -319,12 +428,10 @@ def generate_all_suite_artifacts(
         suite_dir = Path(f"results/sweep_{suite}_proximity")
         log_dir = suite_dir / "slurm_logs"
         runs_dir = Path(f"runs/sweep_{suite}_proximity")
-        scripts_dir = Path("scripts")
 
         suite_dir.mkdir(parents=True, exist_ok=True)
         log_dir.mkdir(parents=True, exist_ok=True)
         runs_dir.mkdir(parents=True, exist_ok=True)
-        scripts_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Master task file
         master_task_file = suite_dir / "tasks.txt"
@@ -352,7 +459,7 @@ def generate_all_suite_artifacts(
         with open(sbatch_path, "w", encoding="utf-8") as f:
             f.write(sbatch_content)
 
-        # 3. Master chunked submission shell script (chunk_size <= 300)
+        # 3. Master full sweep launcher
         submit_sh = scripts_dir / f"submit_sweep_{suite}_proximity.sh"
         sh_content = generate_launcher_sh_content(
             suite=suite,
@@ -365,6 +472,39 @@ def generate_all_suite_artifacts(
             f.write(sh_content)
         os.chmod(submit_sh, 0o755)
 
+        # 4. Standalone bounded batch scripts (strictly <= max_batch_size to never exceed QOS limit)
+        suite_batch_scripts = []
+        total_runs = len(cmds)
+        if total_runs <= max_batch_size:
+            batch_ranges = [(1, 1, total_runs)]
+        else:
+            mid = ((total_runs // 2) // chunk_size) * chunk_size
+            if mid == 0:
+                mid = total_runs // 2
+            batch_ranges = [
+                (1, 1, mid),
+                (2, mid + 1, total_runs),
+            ]
+
+        for b_num, b_start, b_end in batch_ranges:
+            b_script_path = scripts_dir / f"submit_sweep_{suite}_proximity_batch{b_num}.sh"
+            b_content = generate_batch_sh_content(
+                suite=suite,
+                batch_num=b_num,
+                start_task=b_start,
+                end_task=b_end,
+                total_tasks=total_runs,
+                task_file=str(master_task_file),
+                sbatch_file=str(sbatch_path),
+                chunk_size=chunk_size,
+                concurrency=concurrency,
+            )
+            with open(b_script_path, "w", encoding="utf-8") as f:
+                f.write(b_content)
+            os.chmod(b_script_path, 0o755)
+            suite_batch_scripts.append(str(b_script_path))
+            all_batch_scripts.append(str(b_script_path))
+
         results_summary[suite] = {
             "tasks_count": len(task_list),
             "total_runs": len(cmds),
@@ -372,7 +512,15 @@ def generate_all_suite_artifacts(
             "master_file": str(master_task_file),
             "sbatch_file": str(sbatch_path),
             "submit_sh": str(submit_sh),
+            "batch_scripts": suite_batch_scripts,
         }
+
+    # 5. Master Orchestrator script for all batches
+    orchestrator_path = scripts_dir / "orchestrate_all_sweeps.sh"
+    orchestrator_content = generate_orchestrator_sh_content(all_batch_scripts)
+    with open(orchestrator_path, "w", encoding="utf-8") as f:
+        f.write(orchestrator_content)
+    os.chmod(orchestrator_path, 0o755)
 
     return results_summary
 

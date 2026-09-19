@@ -1,0 +1,34 @@
+#!/bin/bash
+set -e
+
+TASK_FILE="results/sweep_hpobench_ml_proximity/tasks.txt"
+SBATCH_FILE="scripts/submit_sweep_hpobench_ml_proximity_array.sbatch"
+
+if [ ! -f "$TASK_FILE" ] || [ ! -s "$TASK_FILE" ]; then
+    echo "ERROR: $TASK_FILE does not exist or is empty." >&2
+    exit 1
+fi
+
+TOTAL_TASKS=$(wc -l < "$TASK_FILE" | tr -d ' ')
+START_TASK=1
+END_TASK=2600
+CHUNK_SIZE=200
+CONCURRENCY=25
+
+echo "=================================================="
+echo "Submitting hpobench_ml - BATCH 1 (Tasks $START_TASK to $END_TASK of $TOTAL_TASKS)"
+echo "Chunk Size: $CHUNK_SIZE (LUIS MaxArraySize <= 300, %$CONCURRENCY concurrency)"
+echo "=================================================="
+
+for (( start=START_TASK; start<=END_TASK; start+=CHUNK_SIZE )); do
+    end=$(( start + CHUNK_SIZE - 1 ))
+    if [ $end -gt $END_TASK ]; then
+        end=$END_TASK
+    fi
+    JOB_ID=$(sbatch --parsable --array=${start}-${end}%${CONCURRENCY} "$SBATCH_FILE")
+    echo "Submitted Chunk (${start}-${end} / ${TOTAL_TASKS}) -> Job ID: ${JOB_ID}"
+done
+
+echo "=================================================="
+echo "Batch 1 for hpobench_ml successfully submitted!"
+echo "=================================================="
