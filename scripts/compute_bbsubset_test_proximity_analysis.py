@@ -462,7 +462,7 @@ def compute_bbsubset_test_proximity_analysis(
         "",
         "## Executive Summary",
         "",
-        f"- **Proposed Method**: `{proposed_id}` (Tuned Proximity LCB: k=25, decay_lambda=1.345, eps=0.1678, level=0.95)",
+        f"- **Proposed Method**: `{proposed_id}` (Proximity LCB, level=0.95)",
         f"- **Baseline Method**: `{baseline_id}` (SMAC3 native LCB: kappa=1.96 / beta=3.8416)",
         f"- **Benchmark Suite**: CARP-S BBsubset Held-Out Test Set ({len(unique_tasks)} tasks, 30 seeds, T=100 budget)",
         f"- **Total Paired Runs**: {len(p_all_val)}",

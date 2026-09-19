@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-- **Proposed Method**: `SMAC20_ProximityLCB_tuned` (Tuned Proximity LCB: k=25, decay_lambda=1.345, eps=0.1678, level=0.95)
+- **Proposed Method**: `SMAC20_ProximityLCB_tuned` (Meta-Optimized Proximity LCB: k=28, decay_lambda=0.20486, eps=0.080791, level=0.95)
 - **Baseline Method**: `SMAC3_HPOFacade_lcb` (SMAC3 native LCB: kappa=1.96 / beta=3.8416)
 - **Benchmark Suite**: CARP-S BBsubset Held-Out Test Set (20 tasks, 30 seeds, T=100 budget)
 - **Total Paired Runs**: 600
