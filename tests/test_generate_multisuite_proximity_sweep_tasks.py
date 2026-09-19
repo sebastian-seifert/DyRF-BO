@@ -202,6 +202,8 @@ class TestMultiSuiteProximitySweepGenerator:
                     orch_content = f.read()
                 assert "squeue" in orch_content
                 assert "wait_for_queue_empty" in orch_content
+                assert "-le 1" in orch_content
+                assert "START_BATCH" in orch_content
             finally:
                 os.chdir(orig_cwd)
 

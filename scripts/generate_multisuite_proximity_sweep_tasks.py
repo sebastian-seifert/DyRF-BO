@@ -347,9 +347,13 @@ BATCHES=(
 wait_for_queue_empty() {{
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Monitoring SLURM queue for user $USER..."
     while true; do
-        PENDING_OR_RUNNING=$(squeue -u "$USER" -h -t R,PD | wc -l)
-        if [ "$PENDING_OR_RUNNING" -eq 0 ]; then
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Queue is clear (0 active jobs)."
+        if [ -n "$SLURM_JOB_ID" ]; then
+            PENDING_OR_RUNNING=$(squeue -u "$USER" -h -t R,PD | grep -v "^ *$SLURM_JOB_ID " | wc -l)
+        else
+            PENDING_OR_RUNNING=$(squeue -u "$USER" -h -t R,PD | wc -l)
+        fi
+        if [ "$PENDING_OR_RUNNING" -le 1 ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Queue is clear ($PENDING_OR_RUNNING active job(s) remaining, proceeding to next batch)."
             break
         fi
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Active jobs in queue: $PENDING_OR_RUNNING. Checking again in 60s..."
@@ -357,14 +361,22 @@ wait_for_queue_empty() {{
     done
 }}
 
+# Allow starting from a specific batch (default: 2, skipping already completed batch 1)
+START_BATCH="${{1:-2}}"
+
 echo "=================================================="
 echo "Starting Automated Multi-Suite Sweep Orchestrator"
-echo "Total Batches to execute: ${{#BATCHES[@]}}"
+echo "Total Batches available: ${{#BATCHES[@]}}"
+echo "Starting from Batch: $START_BATCH"
 echo "=================================================="
 
 for idx in "${{!BATCHES[@]}}"; do
     batch_script="${{BATCHES[$idx]}}"
     batch_num=$(( idx + 1 ))
+    if [ "$batch_num" -lt "$START_BATCH" ]; then
+        echo "Skipping Batch $batch_num (already completed): $batch_script"
+        continue
+    fi
     echo ""
     echo "=================================================="
     echo "Executing Batch $batch_num / ${{#BATCHES[@]}}: $batch_script"
