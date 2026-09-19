@@ -1,0 +1,416 @@
+#!/usr/bin/env python3
+"""Unified Multi-Suite Generator for Large-Scale Realworld Proximity LCB Benchmark Sweeps.
+
+Generates paired Hydra task commands and SLURM array submit scripts for:
+1. Suite 1: YAHPO rbv2_ranger (119 tasks * 2 optimizers * 30 seeds = 7,140 runs)
+2. Suite 2: YAHPO rbv2_super (103 tasks * 2 optimizers * 30 seeds = 6,180 runs)
+3. Suite 3: HPOBench Tabular ML (88 tasks * 2 optimizers * 30 seeds = 5,280 runs)
+
+Grand Total: 310 tasks, 18,600 runs across all 3 suites.
+
+To strictly adhere to SLURM cluster array limits (<= 5,000 tasks per job array),
+each suite is automatically partitioned into manageable chunks (default <= 2,500 tasks),
+producing dedicated `tasks_part*.txt`, `submit_array_part*.sbatch`, and a master
+`submit_all_parts.sh` per suite.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Sequence, Union
+
+# Ensure project root is in sys.path
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from scripts.carps_realworld_registry import CarpsRealworldRegistry
+
+
+SUITE_DISPLAY_NAMES = {
+    "yahpo_rbv2_ranger": "YAHPO rbv2_ranger (119 tasks)",
+    "yahpo_rbv2_super": "YAHPO rbv2_super (103 tasks)",
+    "hpobench_ml": "HPOBench Tabular ML (88 tasks)",
+}
+
+SUITE_JOB_PREFIXES = {
+    "yahpo_rbv2_ranger": "rngr",
+    "yahpo_rbv2_super": "supr",
+    "hpobench_ml": "hpob",
+}
+
+
+def load_proximity_params(
+    meta_json_path: str | None = None,
+    k: int = 25,
+    decay_lambda: float = 1.345,
+    eps: float = 0.16,
+    level: float = 0.95,
+    uncertainty_func: str = "proximity_b",
+) -> Dict[str, Any]:
+    """Loads proximity parameters from SMAC4HPO meta-tuning json or falls back to defaults."""
+    params = {
+        "k": k,
+        "decay_lambda": decay_lambda,
+        "eps": eps,
+        "level": level,
+        "uncertainty_func": uncertainty_func,
+    }
+    if meta_json_path and os.path.isfile(meta_json_path):
+        try:
+            with open(meta_json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # Support both direct flat keys and nested config structures
+            cfg = data.get("best_config", data.get("config", data))
+            if "k" in cfg:
+                params["k"] = int(cfg["k"])
+            if "decay_lambda" in cfg:
+                params["decay_lambda"] = float(cfg["decay_lambda"])
+            if "eps" in cfg:
+                params["eps"] = float(cfg["eps"])
+            if "level" in cfg:
+                params["level"] = float(cfg["level"])
+            if "uncertainty_func" in cfg:
+                params["uncertainty_func"] = str(cfg["uncertainty_func"])
+            print(f"[INFO] Successfully loaded tuned hyperparameters from {meta_json_path}: {params}")
+        except Exception as e:
+            print(f"[WARN] Failed loading from {meta_json_path} ({e}). Using provided defaults.")
+    return params
+
+
+def generate_suite_tasks(
+    suite: str,
+    task_list: List[str],
+    seeds: Union[int, Sequence[int]] = 30,
+    trials: int = 100,
+    proximity_params: Dict[str, Any] | None = None,
+    kappa_baseline: float = 1.96,
+) -> List[str]:
+    """Generates all paired Hydra command lines for a given suite."""
+    if proximity_params is None:
+        proximity_params = load_proximity_params()
+
+    if isinstance(seeds, int):
+        seeds_list = list(range(1, seeds + 1))
+    else:
+        seeds_list = [int(s) for s in seeds]
+
+    beta_baseline = round(float(kappa_baseline) ** 2, 4)  # 1.96^2 = 3.8416
+    runs_dir = f"results/sweep_{suite}_proximity"
+    baserundir = f"runs/sweep_{suite}_proximity"
+
+    k_val = proximity_params["k"]
+    level_val = proximity_params["level"]
+    eps_val = proximity_params["eps"]
+    decay_val = proximity_params["decay_lambda"]
+    unc_func = proximity_params["uncertainty_func"]
+
+    lines: List[str] = []
+
+    # 1. Proposed Method: SMAC20_ProximityLCB
+    for task_arg in task_list:
+        task_id = task_arg.split("/")[-1]
+        task_cmd = f"+{task_arg}" if not task_arg.startswith("+") else task_arg
+        for seed in seeds_list:
+            telemetry = f"{runs_dir}/telemetry_SMAC20_ProximityLCB_{task_id}_seed{seed}.json"
+            cmd = (
+                f"--config-dir carps_integration/configs "
+                f"+optimizer=smac20_proximity_lcb "
+                f"++optimizer.acq_func_kwargs.k={k_val} "
+                f"++optimizer.acq_func_kwargs.level={level_val} "
+                f"++optimizer.acq_func_kwargs.eps={eps_val} "
+                f"++optimizer.smac_cfg.model_kwargs.uncertainty_func={unc_func} "
+                f"++optimizer.smac_cfg.model_kwargs.extractor_kwargs.decay_lambda={decay_val} "
+                f"{task_cmd} task.optimization_resources.n_trials={trials} "
+                f"seed={seed} ++optimizer.telemetry_path={telemetry} "
+                f"baserundir={baserundir} "
+                f"optimizer_id=SMAC20_ProximityLCB optimizer_container_id=SMAC20_ProximityLCB"
+            )
+            lines.append(cmd)
+
+    # 2. Baseline Method: SMAC3_HPOFacade_lcb (kappa=1.96, beta=3.8416)
+    for task_arg in task_list:
+        task_id = task_arg.split("/")[-1]
+        task_cmd = f"+{task_arg}" if not task_arg.startswith("+") else task_arg
+        for seed in seeds_list:
+            telemetry = f"{runs_dir}/telemetry_SMAC3_HPOFacade_lcb_{task_id}_seed{seed}.json"
+            cmd = (
+                f"--config-dir carps_integration/configs "
+                f"+optimizer/smac20=hpo "
+                f"++optimizer.acq_func_name=lcb "
+                f"++optimizer.acq_func_kwargs.beta={beta_baseline} "
+                f"++optimizer.acq_func_kwargs.update_beta=false "
+                f"{task_cmd} task.optimization_resources.n_trials={trials} "
+                f"seed={seed} ++optimizer.telemetry_path={telemetry} "
+                f"baserundir={baserundir} "
+                f"optimizer_id=SMAC3_HPOFacade_lcb optimizer_container_id=SMAC3_HPOFacade"
+            )
+            lines.append(cmd)
+
+    return lines
+
+
+def chunk_tasks(tasks: List[str], max_chunk_size: int = 2500) -> List[List[str]]:
+    """Splits a list of tasks into chunks strictly bounded by max_chunk_size (<= 5,000)."""
+    if not tasks:
+        return []
+    n_chunks = math.ceil(len(tasks) / max_chunk_size)
+    chunk_size = math.ceil(len(tasks) / n_chunks)
+    chunks = []
+    for i in range(0, len(tasks), chunk_size):
+        chunks.append(tasks[i : i + chunk_size])
+    return chunks
+
+
+def generate_sbatch_content(
+    suite: str,
+    part: int,
+    total_tasks: int,
+    task_file: str,
+    log_dir: str,
+    partition: str = "ai",
+    concurrency: int = 64,
+) -> str:
+    """Generates the SLURM sbatch script content for a specific chunk/part."""
+    prefix = SUITE_JOB_PREFIXES.get(suite, suite[:4])
+    job_name = f"{prefix}_p{part}"
+    
+    return f"""#!/bin/bash
+#SBATCH -p {partition}
+#SBATCH --job-name={job_name}
+#SBATCH --output={log_dir}/{job_name}_%A_%a.log
+#SBATCH --error={log_dir}/{job_name}_%A_%a.err
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=16G
+#SBATCH --time=04:00:00
+#SBATCH --array=1-{total_tasks}%{concurrency}
+
+# Initialize conda / venv
+eval "$(conda shell.bash hook 2>/dev/null)" || true
+conda activate dyrf 2>/dev/null || true
+
+export PYTHONPATH=.
+export OPENBLAS_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
+mkdir -p {log_dir}
+
+TASK_FILE="{task_file}"
+
+if [ ! -f "$TASK_FILE" ] || [ ! -s "$TASK_FILE" ]; then
+    echo "ERROR: $TASK_FILE does not exist or is empty." >&2
+    exit 1
+fi
+
+TASK_ARGS=$(sed -n "${{SLURM_ARRAY_TASK_ID}}p" "$TASK_FILE")
+
+if [ -z "$TASK_ARGS" ]; then
+    echo "ERROR: SLURM_ARRAY_TASK_ID $SLURM_ARRAY_TASK_ID returned empty task args!" >&2
+    exit 1
+fi
+
+echo "=================================================="
+echo "Suite: {suite} | Part: {part}"
+echo "Array Job ID: $SLURM_ARRAY_JOB_ID | Task Index: $SLURM_ARRAY_TASK_ID"
+echo "Running arguments: $TASK_ARGS"
+echo "=================================================="
+
+if [ -f ".venv/bin/python" ]; then
+    .venv/bin/python scripts/run_carps_patched.py $TASK_ARGS
+else
+    python3 scripts/run_carps_patched.py $TASK_ARGS
+fi
+
+echo "=================================================="
+echo "Array Task Index $SLURM_ARRAY_TASK_ID Finished"
+echo "=================================================="
+"""
+
+
+def generate_all_suite_artifacts(
+    suites: Sequence[str] = ("yahpo_rbv2_ranger", "yahpo_rbv2_super", "hpobench_ml"),
+    seeds: int = 30,
+    trials: int = 100,
+    max_chunk_size: int = 2500,
+    meta_json_path: str | None = None,
+    k: int = 25,
+    decay_lambda: float = 1.345,
+    eps: float = 0.16,
+    level: float = 0.95,
+    uncertainty_func: str = "proximity_b",
+    partition: str = "ai",
+    concurrency: int = 64,
+) -> Dict[str, Dict[str, Any]]:
+    """Generates tasks, chunks, sbatch scripts, and launcher .sh for all requested suites."""
+    params = load_proximity_params(
+        meta_json_path=meta_json_path,
+        k=k,
+        decay_lambda=decay_lambda,
+        eps=eps,
+        level=level,
+        uncertainty_func=uncertainty_func,
+    )
+
+    results_summary = {}
+
+    for suite in suites:
+        task_list = CarpsRealworldRegistry.get_tasks_for_suite(suite)
+        cmds = generate_suite_tasks(
+            suite=suite,
+            task_list=task_list,
+            seeds=seeds,
+            trials=trials,
+            proximity_params=params,
+        )
+
+        suite_dir = Path(f"results/sweep_{suite}_proximity")
+        log_dir = suite_dir / "slurm_logs"
+        runs_dir = Path(f"runs/sweep_{suite}_proximity")
+
+        suite_dir.mkdir(parents=True, exist_ok=True)
+        log_dir.mkdir(parents=True, exist_ok=True)
+        runs_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Master task file (all seeds combined)
+        master_task_file = suite_dir / "tasks.txt"
+        with open(master_task_file, "w", encoding="utf-8") as f:
+            f.write("\n".join(cmds) + "\n")
+
+        # 2. Chunking to guarantee <= 5,000 tasks per array
+        chunks = chunk_tasks(cmds, max_chunk_size=max_chunk_size)
+        part_sbatch_files = []
+
+        for p_idx, chunk in enumerate(chunks, 1):
+            part_task_file = suite_dir / f"tasks_part{p_idx}.txt"
+            with open(part_task_file, "w", encoding="utf-8") as f:
+                f.write("\n".join(chunk) + "\n")
+
+            sbatch_path = suite_dir / f"submit_array_part{p_idx}.sbatch"
+            sbatch_content = generate_sbatch_content(
+                suite=suite,
+                part=p_idx,
+                total_tasks=len(chunk),
+                task_file=str(part_task_file),
+                log_dir=str(log_dir),
+                partition=partition,
+                concurrency=concurrency,
+            )
+            with open(sbatch_path, "w", encoding="utf-8") as f:
+                f.write(sbatch_content)
+            part_sbatch_files.append(sbatch_path)
+
+        # 3. Master submission shell script
+        submit_all_sh = suite_dir / "submit_all_parts.sh"
+        sh_lines = [
+            "#!/bin/bash",
+            f"# Master submission script for {suite}",
+            f"# Total Tasks: {len(cmds)} across {len(chunks)} chunked array jobs",
+            "set -e",
+            "",
+        ]
+        for sbatch_file in part_sbatch_files:
+            sh_lines.append(f"echo 'Submitting {sbatch_file.name}...'")
+            sh_lines.append(f"sbatch {sbatch_file}")
+            sh_lines.append("")
+        with open(submit_all_sh, "w", encoding="utf-8") as f:
+            f.write("\n".join(sh_lines) + "\n")
+        os.chmod(submit_all_sh, 0o755)
+
+        results_summary[suite] = {
+            "tasks_count": len(task_list),
+            "total_runs": len(cmds),
+            "num_chunks": len(chunks),
+            "chunk_sizes": [len(c) for c in chunks],
+            "master_file": str(master_task_file),
+            "submit_all_sh": str(submit_all_sh),
+        }
+
+    return results_summary
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Unified Multi-Suite Generator for Large-Scale Realworld Proximity LCB Benchmark Sweeps."
+    )
+    parser.add_argument(
+        "--suite",
+        choices=["yahpo_rbv2_ranger", "yahpo_rbv2_super", "hpobench_ml", "all"],
+        default="all",
+        help="Which benchmark suite to generate (default: all 3 suites).",
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        default=30,
+        help="Number of seeds to run per task (default: 30).",
+    )
+    parser.add_argument(
+        "--trials",
+        type=int,
+        default=100,
+        help="Number of trials per run (default: 100).",
+    )
+    parser.add_argument(
+        "--max-chunk-size",
+        type=int,
+        default=2500,
+        help="Maximum tasks per chunked array to never overshoot 5000 (default: 2500).",
+    )
+    parser.add_argument(
+        "--from-meta-json",
+        type=str,
+        default="results/meta_smac_proximity_hpo/best_config.json",
+        help="Path to best_config.json from meta-tuning (if exists).",
+    )
+    parser.add_argument("--k", type=int, default=25, help="Proximity k-neighbors.")
+    parser.add_argument("--decay-lambda", type=float, default=1.345, help="Proximity decay lambda.")
+    parser.add_argument("--eps", type=float, default=0.16, help="Proximity epsilon floor.")
+    parser.add_argument("--level", type=float, default=0.95, help="Proximity confidence level.")
+    parser.add_argument("--uncertainty-func", type=str, default="proximity_b", help="Uncertainty func.")
+    parser.add_argument("--partition", type=str, default="ai", help="SLURM partition.")
+    parser.add_argument("--concurrency", type=int, default=64, help="SLURM array concurrency limit %%N.")
+
+    args = parser.parse_args()
+
+    suites = (
+        ["yahpo_rbv2_ranger", "yahpo_rbv2_super", "hpobench_ml"]
+        if args.suite == "all"
+        else [args.suite]
+    )
+
+    summary = generate_all_suite_artifacts(
+        suites=suites,
+        seeds=args.seeds,
+        trials=args.trials,
+        max_chunk_size=args.max_chunk_size,
+        meta_json_path=args.from_meta_json,
+        k=args.k,
+        decay_lambda=args.decay_lambda,
+        eps=args.eps,
+        level=args.level,
+        uncertainty_func=args.uncertainty_func,
+        partition=args.partition,
+        concurrency=args.concurrency,
+    )
+
+    print("\n=======================================================")
+    print("Multi-Suite Proximity LCB Benchmark Generation Summary:")
+    print("=======================================================")
+    for s, info in summary.items():
+        print(f"[{s}]")
+        print(f"  Distinct Tasks: {info['tasks_count']}")
+        print(f"  Total Runs (30 seeds * 2 algs): {info['total_runs']}")
+        print(f"  SLURM Chunks: {info['num_chunks']} parts -> {info['chunk_sizes']}")
+        print(f"  Submit Script: {info['submit_all_sh']}")
+    print("=======================================================\n")
+
+
+if __name__ == "__main__":
+    main()
