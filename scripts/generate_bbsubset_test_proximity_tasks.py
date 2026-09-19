@@ -3,7 +3,7 @@
 
 Generates 1,200 task command lines pairing:
 1. Proposed: SMAC20_ProximityLCB_tuned (Tuned Proximity Lower Bound Acquisition:
-   k=25, decay_lambda=1.345, eps=0.1678, level=0.95, uncertainty_func=proximity_b)
+   k=28, decay_lambda=0.20486, eps=0.080791, level=0.95, uncertainty_func=proximity_b)
 2. Baseline: SMAC3_HPOFacade_lcb (Standard SMAC3 Random Forest with native LCB, kappa=1.96 / beta=3.8416)
 
 Across:
@@ -35,10 +35,10 @@ def generate_bbsubset_test_proximity_tasks(
     baserundir: str = "runs/sweep_bbsubset_test_proximity",
     seeds: Union[int, Sequence[int]] = 30,
     trials: int = 100,
-    k_neighbors: int = 25,
+    k_neighbors: int = 28,
     level: float = 0.95,
-    eps_floor: float = 0.1678,
-    decay_lambda: float = 1.345,
+    eps_floor: float = 0.080791,
+    decay_lambda: float = 0.20486,
     uncertainty_func: str = "proximity_b",
     kappa_baseline: float = 1.96,
 ) -> List[str]:
@@ -143,8 +143,8 @@ def main() -> None:
     parser.add_argument(
         "--k",
         type=int,
-        default=25,
-        help="k nearest neighbors for proximity UQ (default: 25)",
+        default=28,
+        help="k nearest neighbors for proximity UQ (default: 28)",
     )
     parser.add_argument(
         "--level",
@@ -155,14 +155,14 @@ def main() -> None:
     parser.add_argument(
         "--eps",
         type=float,
-        default=0.1678,
-        help="Epsilon regularizer floor (default: 0.1678)",
+        default=0.080791,
+        help="Epsilon regularizer floor (default: 0.080791)",
     )
     parser.add_argument(
         "--decay-lambda",
         type=float,
-        default=1.345,
-        help="Exponential distance decay factor (default: 1.345)",
+        default=0.20486,
+        help="Exponential distance decay factor (default: 0.20486)",
     )
     parser.add_argument(
         "--uncertainty-func",

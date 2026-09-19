@@ -156,11 +156,11 @@ class TestGenerateBBSUBSETTestProximityTasks(unittest.TestCase):
 
         for l in tuned_lines:
             self.assertIn("+optimizer=smac20_proximity_lcb", l)
-            self.assertIn("++optimizer.acq_func_kwargs.k=25", l)
+            self.assertIn("++optimizer.acq_func_kwargs.k=28", l)
             self.assertIn("++optimizer.acq_func_kwargs.level=0.95", l)
-            self.assertIn("++optimizer.acq_func_kwargs.eps=0.1678", l)
+            self.assertIn("++optimizer.acq_func_kwargs.eps=0.080791", l)
             self.assertIn("++optimizer.smac_cfg.model_kwargs.uncertainty_func=proximity_b", l)
-            self.assertIn("++optimizer.smac_cfg.model_kwargs.extractor_kwargs.decay_lambda=1.345", l)
+            self.assertIn("++optimizer.smac_cfg.model_kwargs.extractor_kwargs.decay_lambda=0.20486", l)
             self.assertIn("optimizer_id=SMAC20_ProximityLCB_tuned", l)
             self.assertIn("optimizer_container_id=SMAC20_ProximityLCB", l)
 
