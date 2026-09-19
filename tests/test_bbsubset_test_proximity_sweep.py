@@ -191,6 +191,22 @@ class TestSlurmSubmissionScripts(unittest.TestCase):
         self.assertIn("sbatch", all_sh_content)
         self.assertIn("submit_bbsubset_test_proximity_array.sbatch", all_sh_content)
 
+    def test_meta_opt_slurm_scripts(self):
+        """Dedicated meta_opt submission scripts must exist and target sweep_bbsubset_test_proximity_meta_opt."""
+        sbatch_path = Path(PROJECT_ROOT) / "scripts/submit_bbsubset_test_proximity_meta_opt_array.sbatch"
+        all_sh_path = Path(PROJECT_ROOT) / "scripts/submit_bbsubset_test_proximity_meta_opt_all.sh"
+
+        self.assertTrue(sbatch_path.exists(), f"Missing: {sbatch_path}")
+        self.assertTrue(all_sh_path.exists(), f"Missing: {all_sh_path}")
+
+        sbatch_content = sbatch_path.read_text()
+        all_sh_content = all_sh_path.read_text()
+
+        self.assertIn("sweep_bbsubset_test_proximity_meta_opt", sbatch_content)
+        self.assertIn("sweep_bbsubset_test_proximity_meta_opt", all_sh_content)
+        self.assertIn("CHUNK_SIZE=200", all_sh_content)
+        self.assertIn("%25", all_sh_content)
+
 
 class TestGatherBBSUBSETTestProximity(unittest.TestCase):
     def test_gather_script_exists_and_callable(self):
