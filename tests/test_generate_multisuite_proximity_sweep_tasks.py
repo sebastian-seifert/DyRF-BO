@@ -153,3 +153,34 @@ class TestMultiSuiteProximitySweepGenerator:
         assert "TASK_FILE=\"results/sweep_yahpo_rbv2_ranger_proximity/tasks_part1.txt\"" in content
         assert "scripts/run_carps_patched.py" in content
         assert "results/sweep_yahpo_rbv2_ranger_proximity/slurm_logs" in content
+
+    def test_generate_all_suite_artifacts_scripts_location(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orig_cwd = os.getcwd()
+            try:
+                os.chdir(tmpdir)
+                summary = generate_all_suite_artifacts(
+                    suites=["hpobench_ml"],
+                    seeds=1,
+                    trials=10,
+                    max_chunk_size=50,
+                )
+                info = summary["hpobench_ml"]
+                # Submit scripts should be in scripts/
+                assert info["submit_all_sh"].startswith("scripts/")
+                for sbatch_file in info["sbatch_files"]:
+                    assert sbatch_file.startswith("scripts/")
+                    assert os.path.isfile(sbatch_file)
+                assert os.path.isfile(info["submit_all_sh"])
+
+                # Tasks should be in results/
+                assert info["master_file"].startswith("results/")
+                assert os.path.isfile(info["master_file"])
+
+                # Results dir should NOT contain any .sbatch or .sh
+                suite_results_dir = Path("results/sweep_hpobench_ml_proximity")
+                assert not list(suite_results_dir.glob("*.sbatch"))
+                assert not list(suite_results_dir.glob("*.sh"))
+            finally:
+                os.chdir(orig_cwd)
+

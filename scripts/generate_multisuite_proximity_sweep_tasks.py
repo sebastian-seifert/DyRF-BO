@@ -283,16 +283,24 @@ def generate_all_suite_artifacts(
         with open(master_task_file, "w", encoding="utf-8") as f:
             f.write("\n".join(cmds) + "\n")
 
+        # Clean up any legacy .sbatch or .sh scripts inside results suite_dir
+        for legacy_file in suite_dir.glob("*.sbatch"):
+            legacy_file.unlink()
+        for legacy_file in suite_dir.glob("*.sh"):
+            legacy_file.unlink()
+
         # 2. Chunking to guarantee <= 5,000 tasks per array
         chunks = chunk_tasks(cmds, max_chunk_size=max_chunk_size)
         part_sbatch_files = []
+        scripts_dir = Path("scripts")
+        scripts_dir.mkdir(parents=True, exist_ok=True)
 
         for p_idx, chunk in enumerate(chunks, 1):
             part_task_file = suite_dir / f"tasks_part{p_idx}.txt"
             with open(part_task_file, "w", encoding="utf-8") as f:
                 f.write("\n".join(chunk) + "\n")
 
-            sbatch_path = suite_dir / f"submit_array_part{p_idx}.sbatch"
+            sbatch_path = scripts_dir / f"submit_sweep_{suite}_proximity_p{p_idx}.sbatch"
             sbatch_content = generate_sbatch_content(
                 suite=suite,
                 part=p_idx,
@@ -306,8 +314,8 @@ def generate_all_suite_artifacts(
                 f.write(sbatch_content)
             part_sbatch_files.append(sbatch_path)
 
-        # 3. Master submission shell script
-        submit_all_sh = suite_dir / "submit_all_parts.sh"
+        # 3. Master submission shell script in scripts/
+        submit_all_sh = scripts_dir / f"submit_sweep_{suite}_proximity.sh"
         sh_lines = [
             "#!/bin/bash",
             f"# Master submission script for {suite}",
@@ -329,6 +337,7 @@ def generate_all_suite_artifacts(
             "num_chunks": len(chunks),
             "chunk_sizes": [len(c) for c in chunks],
             "master_file": str(master_task_file),
+            "sbatch_files": [str(p) for p in part_sbatch_files],
             "submit_all_sh": str(submit_all_sh),
         }
 
