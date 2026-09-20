@@ -125,3 +125,24 @@ def test_audit_batch_and_rerun_generation(tmp_path):
     rerun_lines = rerun_files["rerun_tasks_file"].read_text().strip().split("\n")
     assert len(rerun_lines) == 4
     assert "seed=2" in rerun_lines[0]
+
+
+def test_build_suite_runs_index(tmp_path):
+    from scripts.audit_sweep_batches import build_suite_runs_index
+
+    runs_dir = tmp_path / "runs"
+    # Create two run logs
+    log1 = runs_dir / "opt1" / "task1" / "1" / "trial_logs.jsonl"
+    log1.parent.mkdir(parents=True, exist_ok=True)
+    log1.write_text("\n".join(json.dumps({"c": i}) for i in range(100)) + "\n")
+
+    log2 = runs_dir / "opt1" / "task1" / "2" / "trial_logs.jsonl"
+    log2.parent.mkdir(parents=True, exist_ok=True)
+    log2.write_text("\n".join(json.dumps({"c": i}) for i in range(30)) + "\n")
+
+    index = build_suite_runs_index(runs_dir)
+    assert len(index) == 2
+    assert index[("opt1", "task1", 1)] == 100
+    assert index[("opt1", "task1", 2)] == 30
+    assert ("opt1", "task1", 3) not in index
+

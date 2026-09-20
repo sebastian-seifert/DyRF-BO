@@ -60,55 +60,93 @@ def parse_task_line(line: str) -> Dict[str, Any]:
     return meta
 
 
-def evaluate_task_status(parsed: Dict[str, Any], runs_dir: Path) -> Tuple[str, int]:
-    """Determines whether a task is COMPLETE (>= 100 trials), TRUNCATED, or MISSING."""
+def build_suite_runs_index(runs_dir: Path) -> Dict[Tuple[str, str, int], int]:
+    """Scans runs_dir ONCE with glob.iglob, indexing (opt_id, task_identifier, seed) -> trial_count."""
+    index: Dict[Tuple[str, str, int], int] = {}
+    if not runs_dir.is_dir():
+        return index
+
+    search_pattern = str(runs_dir / "**" / "trial_logs.jsonl")
+    for file_str in glob.iglob(search_pattern, recursive=True):
+        log_path = Path(file_str)
+        try:
+            seed = int(log_path.parent.name)
+        except ValueError:
+            continue
+
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                n_trials = sum(1 for line in f if line.strip())
+        except Exception:
+            continue
+
+        try:
+            rel_parts = log_path.relative_to(runs_dir).parts
+            opt_id = rel_parts[0]
+            # Index all candidate task names from intermediate directory components
+            for part in rel_parts[1:-2]:
+                if part and part != "None":
+                    index[(opt_id, part, seed)] = n_trials
+            # Also index immediate parent of seed if valid
+            parent_name = log_path.parent.parent.name
+            if parent_name and parent_name != "None":
+                index[(opt_id, parent_name, seed)] = n_trials
+        except Exception:
+            pass
+
+    return index
+
+
+def evaluate_task_status(
+    parsed: Dict[str, Any],
+    runs_dir: Path,
+    runs_index: Optional[Dict[Tuple[str, str, int], int]] = None,
+) -> Tuple[str, int]:
+    """Determines whether a task is COMPLETE (>= 100 trials), TRUNCATED, or MISSING in O(1) time."""
     opt_id = parsed["optimizer_id"]
-    seed = str(parsed["seed"])
+    seed = int(parsed["seed"])
     task_raw = parsed["task"]
-    # Clean task name: strip prefixes like 'YAHPO/blackbox/' or 'HPOBench/blackbox/tabular/ml/'
     task_clean = Path(task_raw).name
-
-    # 1. Fast deterministic path check (O(1) filesystem check)
-    direct_candidates = [
-        runs_dir / opt_id / task_raw / seed / "trial_logs.jsonl",
-        runs_dir / opt_id / "blackbox" / task_clean / seed / "trial_logs.jsonl",
-        runs_dir / opt_id / task_clean / seed / "trial_logs.jsonl",
-    ]
-    matches = [str(p) for p in direct_candidates if p.is_file()]
-
-    # 2. Fallback glob search if not found at deterministic locations
-    if not matches:
-        pattern = str(runs_dir / opt_id / "**" / task_clean / seed / "trial_logs.jsonl")
-        matches = glob.glob(pattern, recursive=True)
-    if not matches:
-        fallback_pattern = str(runs_dir / opt_id / "**" / seed / "trial_logs.jsonl")
-        fallback_matches = glob.glob(fallback_pattern, recursive=True)
-        matches = [m for m in fallback_matches if task_clean in m]
-
-    if not matches:
-        return "MISSING", 0
-
-    log_path = Path(matches[0])
-    if not log_path.is_file() or log_path.stat().st_size == 0:
-        return "MISSING", 0
-
-    try:
-        with open(log_path, "r", encoding="utf-8") as f:
-            n_trials = sum(1 for line in f if line.strip())
-    except Exception:
-        return "MISSING", 0
-
     expected = parsed.get("n_trials", 100)
-    if n_trials >= expected:
-        return "COMPLETE", n_trials
-    else:
-        return "TRUNCATED", n_trials
+
+    # 1. Fast index lookup (O(1) in-memory dictionary)
+    if runs_index is not None:
+        candidate_keys = [
+            (opt_id, task_clean, seed),
+            (opt_id, task_raw, seed),
+            (opt_id, task_clean.split("_")[-1] if "_" in task_clean else task_clean, seed),
+        ]
+        for key in candidate_keys:
+            if key in runs_index:
+                n_trials = runs_index[key]
+                return ("COMPLETE" if n_trials >= expected else "TRUNCATED"), n_trials
+        return "MISSING", 0
+
+    # 2. Fast direct deterministic path check if index not provided
+    direct_candidates = [
+        runs_dir / opt_id / task_raw / str(seed) / "trial_logs.jsonl",
+        runs_dir / opt_id / "blackbox" / task_clean / str(seed) / "trial_logs.jsonl",
+        runs_dir / opt_id / task_clean / str(seed) / "trial_logs.jsonl",
+    ]
+    for p in direct_candidates:
+        if p.is_file():
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    n_trials = sum(1 for line in f if line.strip())
+                return ("COMPLETE" if n_trials >= expected else "TRUNCATED"), n_trials
+            except Exception:
+                return "MISSING", 0
+
+    # 3. Fallback: build index on the fly and look up
+    cached_index = build_suite_runs_index(runs_dir)
+    return evaluate_task_status(parsed, runs_dir, runs_index=cached_index)
 
 
 def audit_batch(
     batch_def: Dict[str, Any],
     results_base: Path = Path("results"),
     runs_base: Path = Path("runs"),
+    runs_index: Optional[Dict[Tuple[str, str, int], int]] = None,
 ) -> Dict[str, Any]:
     """Audits task completeness for a specific batch definition."""
     suite = batch_def["suite"]
@@ -140,6 +178,10 @@ def audit_batch(
     actual_end = min(end, len(all_lines))
     total_in_batch = actual_end - start + 1 if actual_end >= start else 0
 
+    # Build suite runs index once if not provided
+    if runs_index is None:
+        runs_index = build_suite_runs_index(suite_runs_dir)
+
     complete_count = 0
     truncated_count = 0
     missing_count = 0
@@ -148,7 +190,7 @@ def audit_batch(
     for idx in range(start, actual_end + 1):
         raw_cmd = all_lines[idx - 1]
         parsed = parse_task_line(raw_cmd)
-        status, n_found = evaluate_task_status(parsed, suite_runs_dir)
+        status, n_found = evaluate_task_status(parsed, suite_runs_dir, runs_index=runs_index)
 
         if status == "COMPLETE":
             complete_count += 1
@@ -256,12 +298,23 @@ def audit_all_batches(
     runs_base: Path = Path("runs"),
     suite_filter: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Audits all batches defined in DEFAULT_BATCHES."""
+    """Audits all batches defined in DEFAULT_BATCHES with single-pass suite indexing."""
+    suite_indices: Dict[str, Dict[Tuple[str, str, int], int]] = {}
     reports = []
     for b_def in DEFAULT_BATCHES:
-        if suite_filter and suite_filter != "all" and b_def["suite"] != suite_filter:
+        suite = b_def["suite"]
+        if suite_filter and suite_filter != "all" and suite != suite_filter:
             continue
-        rep = audit_batch(b_def, results_base=results_base, runs_base=runs_base)
+        if suite not in suite_indices:
+            suite_runs_dir = runs_base / f"sweep_{suite}_proximity"
+            suite_indices[suite] = build_suite_runs_index(suite_runs_dir)
+
+        rep = audit_batch(
+            b_def,
+            results_base=results_base,
+            runs_base=runs_base,
+            runs_index=suite_indices[suite],
+        )
         reports.append(rep)
     return reports
 
