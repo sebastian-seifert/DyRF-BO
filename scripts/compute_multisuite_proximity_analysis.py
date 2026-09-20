@@ -94,18 +94,57 @@ def compute_paired_statistics(
     }
 
 
+def load_suite_records(suite_dir: Path) -> List[Dict[str, Any]]:
+    """Loads run records from logs.parquet, logs.csv, or gathered_results.jsonl."""
+    parquet_path = suite_dir / "logs.parquet"
+    csv_path = suite_dir / "logs.csv"
+    jsonl_path = suite_dir / "gathered_results.jsonl"
+
+    if parquet_path.is_file() or csv_path.is_file():
+        import pandas as pd
+        if parquet_path.is_file():
+            df = pd.read_parquet(parquet_path)
+        else:
+            df = pd.read_csv(csv_path)
+
+        task_col = "task_id" if "task_id" in df.columns else ("task" if "task" in df.columns else None)
+        opt_col = "optimizer_id" if "optimizer_id" in df.columns else None
+        seed_col = "seed" if "seed" in df.columns else None
+        cost_inc_col = "trial_value__cost_inc" if "trial_value__cost_inc" in df.columns else (
+            "trial_value__cost" if "trial_value__cost" in df.columns else "final_loss"
+        )
+
+        if not (task_col and opt_col and seed_col and cost_inc_col in df.columns):
+            return []
+
+        grouped = df.groupby([task_col, opt_col, seed_col])[cost_inc_col].min().reset_index()
+        records = []
+        for _, row in grouped.iterrows():
+            records.append({
+                "task": str(row[task_col]),
+                "optimizer_id": str(row[opt_col]),
+                "seed": int(row[seed_col]),
+                "final_loss": float(row[cost_inc_col]),
+            })
+        return records
+
+    elif jsonl_path.is_file():
+        records = []
+        with open(jsonl_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    records.append(json.loads(line.strip()))
+        return records
+
+    return []
+
+
 def analyze_suite(suite: str, results_base: str = "results") -> None:
     suite_dir = Path(results_base) / f"sweep_{suite}_proximity"
-    jsonl_path = suite_dir / "gathered_results.jsonl"
-    if not jsonl_path.is_file():
-        print(f"[WARN] No gathered results found for {suite} at {jsonl_path}")
+    records = load_suite_records(suite_dir)
+    if not records:
+        print(f"[WARN] No gathered results found for {suite} at {suite_dir}")
         return
-
-    records = []
-    with open(jsonl_path, "r", encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                records.append(json.loads(line.strip()))
 
     stats = compute_paired_statistics(records)
     analysis_dir = suite_dir / "analysis"
