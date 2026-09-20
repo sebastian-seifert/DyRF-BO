@@ -35,6 +35,8 @@ class TestMultiSuiteAnalysis:
         assert stats["wins_baseline"] == 0
         assert stats["ties"] == 1
         assert stats["win_rate_proposed"] == pytest.approx(2 / 3, 0.01)
+        assert "cliffs_delta" in stats
+        assert stats["cliffs_delta"] < 0  # Proposed has lower losses
 
     def test_compute_paired_statistics_empty(self):
         stats = compute_paired_statistics([])
@@ -44,6 +46,8 @@ class TestMultiSuiteAnalysis:
         assert stats["mean_loss_proposed"] == 0.0
         assert stats["mean_loss_baseline"] == 0.0
         assert stats["wilcoxon_p"] == 1.0
+        assert stats["cliffs_delta"] == 0.0
+
 
 
     def test_load_suite_records_parquet(self, tmp_path):

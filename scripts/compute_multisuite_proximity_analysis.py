@@ -14,6 +14,38 @@ import numpy as np
 from scipy.stats import wilcoxon
 
 
+def calculate_cliffs_delta(x: Sequence[float], y: Sequence[float]) -> float:
+    """Computes Cliff's delta non-parametric effect size.
+    Negative delta means x is systematically lower (better for minimization).
+    """
+    arr_x = np.asarray(x).ravel()
+    arr_y = np.asarray(y).ravel()
+    n_x, n_y = len(arr_x), len(arr_y)
+    if n_x == 0 or n_y == 0:
+        return 0.0
+    greater = 0
+    less = 0
+    for val_x in arr_x:
+        greater += int(np.sum(val_x > arr_y))
+        less += int(np.sum(val_x < arr_y))
+    return float((greater - less) / (n_x * n_y))
+
+
+def interpret_cliffs_delta(d: float) -> str:
+    """Provides Romano et al. qualitative interpretation of Cliff's delta."""
+    abs_d = abs(d)
+    if abs_d < 0.147:
+        qual = "Negligible"
+    elif abs_d < 0.33:
+        qual = "Small"
+    elif abs_d < 0.474:
+        qual = "Medium"
+    else:
+        qual = "Large"
+    direction = "in favor of Proposed" if d < 0 else ("in favor of Baseline" if d > 0 else "Neutral")
+    return f"{qual} ({direction})"
+
+
 def compute_paired_statistics(
     records: List[Dict[str, Any]],
     proposed_id: str = "SMAC20_ProximityLCB",
@@ -82,6 +114,7 @@ def compute_paired_statistics(
             "mean_diff": 0.0,
             "wilcoxon_stat": 0.0,
             "wilcoxon_p": 1.0,
+            "cliffs_delta": 0.0,
             "found_optimizers": found_opts,
         }
 
@@ -95,6 +128,8 @@ def compute_paired_statistics(
     except Exception:
         wilc_stat, wilc_p = 0.0, 1.0
 
+    cliffs_d = calculate_cliffs_delta(proposed_losses, baseline_losses)
+
     return {
         "total_pairs": total_pairs,
         "wins_proposed": wins_prop,
@@ -107,6 +142,7 @@ def compute_paired_statistics(
         "mean_diff": float(np.mean(diffs)),
         "wilcoxon_stat": wilc_stat,
         "wilcoxon_p": wilc_p,
+        "cliffs_delta": cliffs_d,
     }
 
 
@@ -166,6 +202,9 @@ def analyze_suite(suite: str, results_base: str = "results") -> None:
     analysis_dir = suite_dir / "analysis"
     analysis_dir.mkdir(parents=True, exist_ok=True)
 
+    cliffs_d = stats.get("cliffs_delta", 0.0)
+    cliffs_desc = interpret_cliffs_delta(cliffs_d)
+
     scorecard_md = analysis_dir / f"{suite}_scorecard.md"
     content = f"""# Benchmark Scorecard: {suite}
 
@@ -181,6 +220,7 @@ def analyze_suite(suite: str, results_base: str = "results") -> None:
 | **Ties** | {stats['ties']} | {stats['ties']} |
 | **Mean Loss** | {stats.get('mean_loss_proposed', 0.0):.6f} | {stats.get('mean_loss_baseline', 0.0):.6f} |
 | **Wilcoxon $p$-value** | **{stats['wilcoxon_p']:.4e}** | - |
+| **Cliff's Delta** | **{cliffs_d:+.4f}** ({cliffs_desc}) | - |
 
 *(Generated automatically from gathered results)*
 """
