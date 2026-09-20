@@ -36,6 +36,16 @@ class TestMultiSuiteAnalysis:
         assert stats["ties"] == 1
         assert stats["win_rate_proposed"] == pytest.approx(2 / 3, 0.01)
 
+    def test_compute_paired_statistics_empty(self):
+        stats = compute_paired_statistics([])
+        assert stats["total_pairs"] == 0
+        assert stats["win_rate_proposed"] == 0.0
+        assert stats["win_rate_baseline"] == 0.0
+        assert stats["mean_loss_proposed"] == 0.0
+        assert stats["mean_loss_baseline"] == 0.0
+        assert stats["wilcoxon_p"] == 1.0
+
+
     def test_load_suite_records_parquet(self, tmp_path):
         import pandas as pd
         from scripts.compute_multisuite_proximity_analysis import load_suite_records

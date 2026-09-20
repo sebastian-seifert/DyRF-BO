@@ -22,16 +22,26 @@ def compute_paired_statistics(
     """Computes paired win rates, mean differences, and Wilcoxon signed-rank test."""
     pairs: Dict[Tuple[str, int], Dict[str, float]] = {}
 
+    # Flexible matching to tolerate hyphen/underscore variants
+    def match_optimizer(opt_name: str) -> Optional[str]:
+        opt_lower = opt_name.lower()
+        if "proximity" in opt_lower:
+            return proposed_id
+        if "hpofacade" in opt_lower or "smac3" in opt_lower or "baseline" in opt_lower:
+            return baseline_id
+        return None
+
     for r in records:
-        opt = r.get("optimizer_id")
+        raw_opt = str(r.get("optimizer_id", ""))
+        matched_opt = match_optimizer(raw_opt)
         task = r.get("task")
         seed = r.get("seed")
         loss = r.get("final_loss")
-        if opt in (proposed_id, baseline_id) and task is not None and seed is not None and loss is not None:
+        if matched_opt and task is not None and seed is not None and loss is not None:
             key = (str(task), int(seed))
             if key not in pairs:
                 pairs[key] = {}
-            pairs[key][opt] = float(loss)
+            pairs[key][matched_opt] = float(loss)
 
     diffs = []
     proposed_losses = []
@@ -59,14 +69,20 @@ def compute_paired_statistics(
 
     total_pairs = len(diffs)
     if total_pairs == 0:
+        found_opts = sorted(list({str(r.get("optimizer_id")) for r in records}))
         return {
             "total_pairs": 0,
             "wins_proposed": 0,
             "wins_baseline": 0,
             "ties": 0,
             "win_rate_proposed": 0.0,
+            "win_rate_baseline": 0.0,
+            "mean_loss_proposed": 0.0,
+            "mean_loss_baseline": 0.0,
             "mean_diff": 0.0,
+            "wilcoxon_stat": 0.0,
             "wilcoxon_p": 1.0,
+            "found_optimizers": found_opts,
         }
 
     # Wilcoxon signed-rank test (two-sided)
