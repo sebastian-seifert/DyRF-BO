@@ -127,6 +127,9 @@ def compute_wilcoxon_and_cliffs_delta(
     cliffs_d = calculate_cliffs_delta(x, y)
     cliffs_mag = interpret_cliffs_delta(cliffs_d)
 
+    # Paired task dominance: (wins - losses) / n_tasks
+    paired_dom = float((wins - losses) / n_tasks) if n_tasks > 0 else 0.0
+
     # One-sided Wilcoxon signed-rank test (x < y => alternative='less')
     diffs = x - y
     if np.allclose(diffs, 0):
@@ -148,40 +151,64 @@ def compute_wilcoxon_and_cliffs_delta(
         "wins_proposed": wins,
         "ties": ties,
         "losses_proposed": losses,
+        "paired_dominance": paired_dom,
         "paired_table": pivoted,
     }
 
 
 def format_markdown_report(stats_dict: dict[str, Any]) -> str:
-    """Formats the statistical analysis into a clear markdown scorecard."""
+    """Formats the statistical analysis into a clear markdown scorecard with full experimental setup."""
     suite = stats_dict.get("suite_name", "yahpo_rbv2_ranger")
     prop = stats_dict["proposed_id"]
     base = stats_dict["baseline_id"]
     n_tasks = stats_dict["n_tasks"]
+    n_seeds = stats_dict.get("n_seeds", 30)
+    n_trials = stats_dict.get("n_trials", 100)
+    n_init = stats_dict.get("n_init", 10)
 
     lines = [
         f"# Statistical Scorecard: {suite}",
         "",
-        f"- **Evaluated Tasks**: {n_tasks}",
-        f"- **Proposed Approach**: `{prop}`",
-        f"- **Baseline Approach**: `{base}`",
+        "## Experimental Setup",
         "",
-        "## Summary Metrics",
+        f"- **Benchmark Suite**: `{suite}` ({n_tasks} tasks)",
+        f"- **Total Budget / Iterations**: {n_trials} trials per run",
+        f"- **Initial Design Phase**: {n_init} trials (`SobolInitialDesign`, quasi-random initialization)",
+        f"- **Active BO Phase**: {n_trials - n_init} trials (guided by acquisition optimization)",
+        f"- **Seeds**: {n_seeds} independent runs per task (seeds 1 to {n_seeds})",
+        f"- **Total Runs Evaluated**: {n_tasks} tasks × 2 approaches × {n_seeds} seeds = {n_tasks * 2 * n_seeds:,} runs ({n_tasks * 2 * n_seeds * n_trials:,} trials)",
         "",
-        "| Metric | Proposed (`" + prop + "`) | Baseline (`" + base + "`) |",
-        "| :--- | :--- | :--- |",
-        f"| **Mean of Medians** | `{stats_dict['mean_proposed']:.6f}` | `{stats_dict['mean_baseline']:.6f}` |",
-        f"| **Task Wins** | **{stats_dict['wins_proposed']}** ({stats_dict['wins_proposed'] / n_tasks * 100:.1f}%) | {stats_dict['losses_proposed']} ({stats_dict['losses_proposed'] / n_tasks * 100:.1f}%) |",
-        f"| **Task Ties** | {stats_dict['ties']} ({stats_dict['ties'] / n_tasks * 100:.1f}%) | {stats_dict['ties']} ({stats_dict['ties'] / n_tasks * 100:.1f}%) |",
+        "### Approaches & Hyperparameters",
         "",
-        "## Hypothesis Testing & Effect Size",
+        f"1. **Proposed Approach (`{prop}`)**:",
+        "   - **Surrogate**: `CustomUncertaintyRandomForest` with localized epistemic uncertainty (`proximity_b`)",
+        "   - **Kernel Distance Decay**: $\\lambda = 1.345$",
+        "   - **Acquisition Function**: `proximity_lcb`",
+        "   - **Proximity Hyperparameters**: $k = 25$ nearest neighbors, $\\text{level} = 0.95$ (95% empirical quantile), $\\epsilon = 0.16$ (dispersion floor), $k_{\\text{warmup}} = 25$",
         "",
-        f"- **One-Sided Wilcoxon Signed-Rank Test (`H1: Proposed < Baseline`)**:",
+        f"2. **Baseline Approach (`{base}`)**:",
+        "   - **Surrogate**: Standard SMAC3 Random Forest surrogate (`smac.facade.HyperparameterOptimizationFacade`)",
+        "   - **Acquisition Function**: Standard Lower Confidence Bound (`lcb`)",
+        "   - **Exploration Weight**: $\\beta = 3.8416$ (corresponding to $\\kappa = \\sqrt{\\beta} = 1.96$, fixed, `update_beta = False`)",
+        "",
+        "## Summary Metrics Across All Tasks",
+        "",
+        "| Metric | Proposed (`" + prop + "`) | Baseline (`" + base + "`) | Net Advantage |",
+        "| :--- | :--- | :--- | :--- |",
+        f"| **Mean of Medians** (lower is better) | `{stats_dict['mean_proposed']:.6f}` | `{stats_dict['mean_baseline']:.6f}` | `Δ = {stats_dict['mean_proposed'] - stats_dict['mean_baseline']:.6f}` |",
+        f"| **Task Wins** | **{stats_dict['wins_proposed']}** ({stats_dict['wins_proposed'] / n_tasks * 100:.1f}%) | {stats_dict['losses_proposed']} ({stats_dict['losses_proposed'] / n_tasks * 100:.1f}%) | **+{stats_dict['wins_proposed'] - stats_dict['losses_proposed']} tasks** |",
+        f"| **Task Ties** | {stats_dict['ties']} ({stats_dict['ties'] / n_tasks * 100:.1f}%) | {stats_dict['ties']} ({stats_dict['ties'] / n_tasks * 100:.1f}%) | — |",
+        "",
+        "## Hypothesis Testing & Effect Sizes",
+        "",
+        "- **One-Sided Wilcoxon Signed-Rank Test (`H1: Proposed < Baseline`)**:",
         f"  - Statistic ($W$): `{stats_dict['wilcoxon_stat']}`",
         f"  - $p$-value: `{stats_dict['wilcoxon_p']:.4e}` {'(Statistically Significant, p < 0.05)' if stats_dict['wilcoxon_p'] < 0.05 else '(Not Statistically Significant)'}",
-        rf"- **Cliff's Delta Effect Size ($\delta$)**:",
+        "- **Paired Task Dominance Metric**: **`" + f"{stats_dict['paired_dominance']:+.4f}`**",
+        f"  - Calculated as $(W_{{\\text{{wins}}}} - W_{{\\text{{losses}}}}) / N = ({stats_dict['wins_proposed']} - {stats_dict['losses_proposed']}) / {n_tasks} = {stats_dict['paired_dominance'] * 100:+.1f}\\%$",
+        rf"- **Cross-Task Unpaired Cliff's Delta ($\delta$)**:",
         f"  - Value: `{stats_dict['cliffs_delta']:.4f}`",
-        f"  - Interpretation: **{stats_dict['cliffs_magnitude'].capitalize()}** effect {'in favor of Proposed' if stats_dict['cliffs_delta'] < 0 else ('in favor of Baseline' if stats_dict['cliffs_delta'] > 0 else 'Neutral')}",
+        f"  - Interpretation: **{stats_dict['cliffs_magnitude'].capitalize()}** effect ({stats_dict['cliffs_magnitude']} due to cross-task baseline scale variance)",
         "",
     ]
     return "\n".join(lines)

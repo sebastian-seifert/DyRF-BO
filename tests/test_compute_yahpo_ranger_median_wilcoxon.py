@@ -130,6 +130,8 @@ def test_compute_wilcoxon_and_cliffs_delta(synthetic_logs_df):
     assert res["cliffs_magnitude"] == "negligible"
     assert "wilcoxon_p" in res
     assert "wilcoxon_stat" in res
+    assert "paired_dominance" in res
+    assert np.isclose(res["paired_dominance"], 0.0)
 
 
 def test_load_data_parquet_and_csv(tmp_path, synthetic_logs_df):
@@ -150,6 +152,9 @@ def test_format_markdown_report():
     stats = {
         "suite_name": "yahpo_rbv2_ranger",
         "n_tasks": 119,
+        "n_seeds": 30,
+        "n_trials": 100,
+        "n_init": 10,
         "proposed_id": "SMAC20_ProximityLCB",
         "baseline_id": "SMAC3_HPOFacade_lcb",
         "mean_proposed": 0.12345,
@@ -161,9 +166,15 @@ def test_format_markdown_report():
         "wins_proposed": 70,
         "ties": 5,
         "losses_proposed": 44,
+        "paired_dominance": (70 - 44) / 119,
     }
     report = format_markdown_report(stats)
     assert "# Statistical Scorecard: yahpo_rbv2_ranger" in report
+    assert "Experimental Setup" in report
+    assert "**Initial Design Phase**: 10" in report
+    assert "**Total Budget / Iterations**: 100" in report
+    assert "**Seeds**: 30" in report
     assert "Mean of Medians" in report
     assert "SMAC20_ProximityLCB" in report
     assert "Cliff's Delta" in report
+    assert "Paired Task Dominance" in report

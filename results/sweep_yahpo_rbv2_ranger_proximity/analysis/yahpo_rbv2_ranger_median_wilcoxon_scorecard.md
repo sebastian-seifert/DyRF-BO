@@ -1,22 +1,42 @@
 # Statistical Scorecard: yahpo_rbv2_ranger
 
-- **Evaluated Tasks**: 119
-- **Proposed Approach**: `SMAC20_ProximityLCB`
-- **Baseline Approach**: `SMAC3_HPOFacade_lcb`
+## Experimental Setup
 
-## Summary Metrics
+- **Benchmark Suite**: `yahpo_rbv2_ranger` (119 tasks)
+- **Total Budget / Iterations**: 100 trials per run
+- **Initial Design Phase**: 10 trials (`SobolInitialDesign`, quasi-random initialization)
+- **Active BO Phase**: 90 trials (guided by acquisition optimization)
+- **Seeds**: 30 independent runs per task (seeds 1 to 30)
+- **Total Runs Evaluated**: 119 tasks × 2 approaches × 30 seeds = 7,140 runs (714,000 trials)
 
-| Metric | Proposed (`SMAC20_ProximityLCB`) | Baseline (`SMAC3_HPOFacade_lcb`) |
-| :--- | :--- | :--- |
-| **Mean of Medians** | `-0.897284` | `-0.892880` |
-| **Task Wins** | **108** (90.8%) | 2 (1.7%) |
-| **Task Ties** | 9 (7.6%) | 9 (7.6%) |
+### Approaches & Hyperparameters
 
-## Hypothesis Testing & Effect Size
+1. **Proposed Approach (`SMAC20_ProximityLCB`)**:
+   - **Surrogate**: `CustomUncertaintyRandomForest` with localized epistemic uncertainty (`proximity_b`)
+   - **Kernel Distance Decay**: $\lambda = 1.345$
+   - **Acquisition Function**: `proximity_lcb`
+   - **Proximity Hyperparameters**: $k = 25$ nearest neighbors, $\text{level} = 0.95$ (95% empirical quantile), $\epsilon = 0.16$ (dispersion floor), $k_{\text{warmup}} = 25$
+
+2. **Baseline Approach (`SMAC3_HPOFacade_lcb`)**:
+   - **Surrogate**: Standard SMAC3 Random Forest surrogate (`smac.facade.HyperparameterOptimizationFacade`)
+   - **Acquisition Function**: Standard Lower Confidence Bound (`lcb`)
+   - **Exploration Weight**: $\beta = 3.8416$ (corresponding to $\kappa = \sqrt{\beta} = 1.96$, fixed, `update_beta = False`)
+
+## Summary Metrics Across All Tasks
+
+| Metric | Proposed (`SMAC20_ProximityLCB`) | Baseline (`SMAC3_HPOFacade_lcb`) | Net Advantage |
+| :--- | :--- | :--- | :--- |
+| **Mean of Medians** (lower is better) | `-0.897284` | `-0.892880` | `Δ = -0.004404` |
+| **Task Wins** | **108** (90.8%) | 2 (1.7%) | **+106 tasks** |
+| **Task Ties** | 9 (7.6%) | 9 (7.6%) | — |
+
+## Hypothesis Testing & Effect Sizes
 
 - **One-Sided Wilcoxon Signed-Rank Test (`H1: Proposed < Baseline`)**:
   - Statistic ($W$): `115.0`
   - $p$-value: `9.7182e-19` (Statistically Significant, p < 0.05)
-- **Cliff's Delta Effect Size ($\delta$)**:
+- **Paired Task Dominance Metric**: **`+0.8908`**
+  - Calculated as $(W_{\text{wins}} - W_{\text{losses}}) / N = (108 - 2) / 119 = +89.1\%$
+- **Cross-Task Unpaired Cliff's Delta ($\delta$)**:
   - Value: `-0.0380`
-  - Interpretation: **Negligible** effect in favor of Proposed
+  - Interpretation: **Negligible** effect (negligible due to cross-task baseline scale variance)
