@@ -5,18 +5,19 @@
 - **Benchmark Suite**: `yahpo_rbv2_ranger` (119 tasks)
 - **Total Budget / Iterations**: 100 trials per run
 - **Stage 1 (Initial Design Phase, Trials 1–10)**: 10 trials (`SobolInitialDesign`, quasi-random initialization, **100% identical configurations across both methods**)
-- **Stage 2 (LCB Warmup Phase, Trials 11–25)**: 15 trials (Standard RF LCB with $\beta=3.8416$ to accumulate $N > k=25$ observations for neighbor graphs)
-- **Stage 3 (Active Proximity BO Phase, Trials 26–100)**: 75 trials (Floored Proximity Lower Bound acquisition diverges and guides search)
+- **Stage 2 (LCB Warmup Phase, Trials 11–25)**: Standard RF LCB with $\beta=3.8416$ to accumulate observations for neighbor graphs
+- **Stage 3 (Active Proximity BO Phase, Trials 26–100)**: Meta-optimized Proximity-LCB acquisition diverges and guides search
 - **Seeds**: 30 independent runs per task (seeds 1 to 30)
 - **Total Runs Evaluated**: 119 tasks × 2 approaches × 30 seeds = 7,140 runs (714,000 trials)
 
 ### Approaches & Hyperparameters
 
-1. **Proposed Approach (`SMAC20_ProximityLCB`)**:
+1. **Proposed Approach (`SMAC20_ProximityLCB`) — Meta-Optimized via SMAC4HPO**:
+   - **Source**: Meta-tuned on independent dev benchmark tasks (`results/meta_smac_proximity_hpo/best_config.json`)
    - **Surrogate**: `CustomUncertaintyRandomForest` with localized epistemic uncertainty (`proximity_b`)
-   - **Kernel Distance Decay**: $\lambda = 1.345$
+   - **Kernel Distance Decay**: $\lambda = 0.20486$
    - **Acquisition Function**: `proximity_lcb`
-   - **Proximity Hyperparameters**: $k = 25$ nearest neighbors, $\text{level} = 0.95$ (95% empirical quantile), $\epsilon = 0.16$ (dispersion floor), $k_{\text{warmup}} = 25$
+   - **Proximity Hyperparameters**: $k = 28$ nearest neighbors, $\text{level} = 0.95$ (95% empirical quantile), $\epsilon = 0.080791$ (dispersion floor buffer)
 
 2. **Baseline Approach (`SMAC3_HPOFacade_lcb`)**:
    - **Surrogate**: Standard SMAC3 Random Forest surrogate (`smac.facade.HyperparameterOptimizationFacade`)
