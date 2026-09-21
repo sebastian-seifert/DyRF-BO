@@ -171,7 +171,7 @@ def test_format_markdown_report():
     report = format_markdown_report(stats)
     assert "# Statistical Scorecard: yahpo_rbv2_ranger" in report
     assert "Experimental Setup" in report
-    assert "**Initial Design Phase**: 10" in report
+    assert "Stage 1 (Initial Design Phase, Trials 1–10)" in report
     assert "**Total Budget / Iterations**: 100" in report
     assert "**Seeds**: 30" in report
     assert "Mean of Medians" in report
