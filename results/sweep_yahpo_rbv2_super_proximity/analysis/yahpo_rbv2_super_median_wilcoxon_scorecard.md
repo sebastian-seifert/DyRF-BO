@@ -1,14 +1,14 @@
-# Statistical Scorecard: yahpo_rbv2_ranger
+# Statistical Scorecard: yahpo_rbv2_super
 
 ## Experimental Setup
 
-- **Benchmark Suite**: `yahpo_rbv2_ranger` (119 tasks)
+- **Benchmark Suite**: `yahpo_rbv2_super` (103 tasks)
 - **Total Budget / Iterations**: 100 trials per run
 - **Stage 1 (Initial Design Phase, Trials 1–10)**: 10 trials (`SobolInitialDesign`, quasi-random initialization, **100% identical configurations across both methods**)
 - **Stage 2 (LCB Warmup Phase, Trials 11–28)**: 18 trials of Standard RF LCB with $\beta=3.8416$ (to accumulate observations until $N > k=28$ for topological neighbor graphs)
 - **Stage 3 (Active Proximity BO Phase, Trials 29–100)**: 72 trials where meta-optimized Proximity-LCB acquisition diverges and guides search
 - **Seeds**: 30 independent runs per task (seeds 1 to 30)
-- **Total Runs Evaluated**: 119 tasks × 2 approaches × 30 seeds = 7,140 runs (714,000 trials)
+- **Total Runs Evaluated**: 103 tasks × 2 approaches × 30 seeds = 6,180 runs (618,000 trials)
 
 ### Approaches & Hyperparameters
 
@@ -28,17 +28,17 @@
 
 | Metric | Proposed (`SMAC20_ProximityLCB`) | Baseline (`SMAC3_HPOFacade_lcb`) | Net Advantage |
 | :--- | :--- | :--- | :--- |
-| **Mean of Medians** (lower is better) | `-0.897284` | `-0.892880` | `Δ = -0.004404` |
-| **Task Wins** | **108** (90.8%) | 2 (1.7%) | **+106 tasks** |
-| **Task Ties** | 9 (7.6%) | 9 (7.6%) | — |
+| **Mean of Medians** (lower is better) | `-0.914606` | `-0.915145` | `Δ = 0.000539` |
+| **Task Wins** | **70** (68.0%) | 33 (32.0%) | **+37 tasks** |
+| **Task Ties** | 0 (0.0%) | 0 (0.0%) | — |
 
 ## Hypothesis Testing & Effect Sizes
 
 - **One-Sided Wilcoxon Signed-Rank Test (`H1: Proposed < Baseline`)**:
-  - Statistic ($W$): `115.0`
-  - $p$-value: `9.7182e-19` (Statistically Significant, p < 0.05)
-- **Paired Task Dominance Metric**: **`+0.8908`**
-  - Calculated as $(W_{\text{wins}} - W_{\text{losses}}) / N = (108 - 2) / 119 = +89.1\%$
+  - Statistic ($W$): `1904.0`
+  - $p$-value: `5.4421e-03` (Statistically Significant, p < 0.05)
+- **Paired Task Dominance Metric**: **`+0.3592`**
+  - Calculated as $(W_{\text{wins}} - W_{\text{losses}}) / N = (70 - 33) / 103 = +35.9\%$
 - **Cross-Task Unpaired Cliff's Delta ($\delta$)**:
-  - Value: `-0.0380`
+  - Value: `-0.0033`
   - Interpretation: **Negligible** effect (negligible due to cross-task baseline scale variance)

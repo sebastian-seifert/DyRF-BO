@@ -174,8 +174,8 @@ def format_markdown_report(stats_dict: dict[str, Any]) -> str:
         f"- **Benchmark Suite**: `{suite}` ({n_tasks} tasks)",
         f"- **Total Budget / Iterations**: {n_trials} trials per run",
         f"- **Stage 1 (Initial Design Phase, Trials 1–10)**: {n_init} trials (`SobolInitialDesign`, quasi-random initialization, **100% identical configurations across both methods**)",
-        f"- **Stage 2 (LCB Warmup Phase, Trials 11–25)**: Standard RF LCB with $\\beta=3.8416$ to accumulate observations for neighbor graphs",
-        f"- **Stage 3 (Active Proximity BO Phase, Trials 26–100)**: Meta-optimized Proximity-LCB acquisition diverges and guides search",
+        f"- **Stage 2 (LCB Warmup Phase, Trials 11–28)**: 18 trials of Standard RF LCB with $\\beta=3.8416$ (to accumulate observations until $N > k=28$ for topological neighbor graphs)",
+        f"- **Stage 3 (Active Proximity BO Phase, Trials 29–100)**: 72 trials where meta-optimized Proximity-LCB acquisition diverges and guides search",
         f"- **Seeds**: {n_seeds} independent runs per task (seeds 1 to {n_seeds})",
         f"- **Total Runs Evaluated**: {n_tasks} tasks × 2 approaches × {n_seeds} seeds = {n_tasks * 2 * n_seeds:,} runs ({n_tasks * 2 * n_seeds * n_trials:,} trials)",
         "",
@@ -216,6 +216,18 @@ def format_markdown_report(stats_dict: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def infer_suite_name(input_path: Path | str, explicit_suite: str | None = None) -> str:
+    """Infers the benchmark suite name from CLI override or input file path."""
+    if explicit_suite:
+        return explicit_suite
+    path_str = str(input_path).lower()
+    if "super" in path_str:
+        return "yahpo_rbv2_super"
+    elif "ranger" in path_str:
+        return "yahpo_rbv2_ranger"
+    return "yahpo_benchmark"
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Compute median incumbents, mean of medians, Wilcoxon p-value, and Cliff's delta."
@@ -225,6 +237,12 @@ def main():
         type=str,
         default="results/sweep_yahpo_rbv2_ranger_proximity/logs.parquet",
         help="Path to logs.parquet or logs.csv",
+    )
+    parser.add_argument(
+        "--suite",
+        type=str,
+        default=None,
+        help="Optional benchmark suite name (e.g. yahpo_rbv2_super). Inferred from input path if not provided.",
     )
     parser.add_argument(
         "--proposed",
@@ -262,7 +280,7 @@ def main():
         proposed_id=args.proposed,
         baseline_id=args.baseline,
     )
-    stats_res["suite_name"] = "yahpo_rbv2_ranger"
+    stats_res["suite_name"] = infer_suite_name(args.input, explicit_suite=args.suite)
 
     report = format_markdown_report(stats_res)
     print("\n" + report)

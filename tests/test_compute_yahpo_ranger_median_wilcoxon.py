@@ -172,9 +172,21 @@ def test_format_markdown_report():
     assert "# Statistical Scorecard: yahpo_rbv2_ranger" in report
     assert "Experimental Setup" in report
     assert "Stage 1 (Initial Design Phase, Trials 1–10)" in report
+    assert "Stage 2 (LCB Warmup Phase, Trials 11–28)" in report
+    assert "Stage 3 (Active Proximity BO Phase, Trials 29–100)" in report
     assert "**Total Budget / Iterations**: 100" in report
     assert "**Seeds**: 30" in report
     assert "Mean of Medians" in report
     assert "SMAC20_ProximityLCB" in report
     assert "Cliff's Delta" in report
     assert "Paired Task Dominance" in report
+
+
+def test_infer_suite_name():
+    from scripts.compute_yahpo_ranger_median_wilcoxon import infer_suite_name
+
+    assert infer_suite_name("results/sweep_yahpo_rbv2_super_proximity/logs.parquet") == "yahpo_rbv2_super"
+    assert infer_suite_name("results/sweep_yahpo_rbv2_ranger_proximity/logs.parquet") == "yahpo_rbv2_ranger"
+    assert infer_suite_name("custom/path/logs.parquet", explicit_suite="my_custom_suite") == "my_custom_suite"
+    assert infer_suite_name("arbitrary/path/logs.parquet") == "yahpo_benchmark"
+
