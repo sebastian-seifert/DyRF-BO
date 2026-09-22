@@ -87,13 +87,33 @@ In our experimental setup, $M = 10,000$ test queries must be evaluated per confi
 * **Solver Warm-Starts**: The constant Hessian structure across all $M$ queries allows solver factorization reuse (e.g., in OSQP or QP interior-point solvers), reducing per-point projection solve times to sub-millisecond scale.
 
 ### 3.4 Distance Extraction & Dimension Normalization
+
 Once the optimal weights $w^* \in \Delta^{N-1}$ are obtained:
 * **Projection**: $x_{\text{proj}} = X_{\text{train}}^T w^*$
-* **Euclidean Distance**: $d(x, \text{Conv}) = \| x - x_{\text{proj}} \|_2$
+* **Raw Euclidean Distance**: $d(x, \text{Conv}) = \| x - x_{\text{proj}} \|_2$
 * **Interpolation Criterion**: $x \in \text{Conv}(X_{\text{train}}) \iff d(x, \text{Conv}) < 10^{-7}$
-* **Dimension-Normalized Distance**:
-  $$d_{\text{norm}}(x) = \frac{d(x, \text{Conv})}{\sqrt{D}}$$
-  *(Ensures that extrapolation distance metrics remain directly comparable across dimensions $D \in \{2, \dots, 32\}$).*
+
+#### Why Dimension Normalization is Mandatory
+In Euclidean space $\mathbb{R}^D$, distances scale as $\sqrt{D}$. For a domain $\mathcal{X} = [-1, 1]^D$:
+* In $D = 2$, the maximum distance between corners is $\sqrt{2^2 + 2^2} = \sqrt{8} \approx 2.83$.
+* In $D = 32$, the maximum distance between corners is $\sqrt{32 \times 2^2} = \sqrt{128} \approx 11.31$.
+If raw Euclidean distance is used, a cutoff threshold (e.g. $d = 0.5$) represents significant extrapolation in $D=2$, but a negligible fraction of the space in $D=32$.
+
+#### Dimension-Normalized Metrics Recorded in the Study
+1. **Root-Mean-Square (RMS) Distance ($d_{\text{norm}}$ - Primary Metric)**:
+   $$d_{\text{norm}}(x) = \frac{\| x - x_{\text{proj}} \|_2}{\sqrt{D}} = \sqrt{\frac{1}{D} \sum_{j=1}^D \left( x_j - x_{\text{proj}, j} \right)^2}$$
+   - **Interpretation**: The average Euclidean displacement per coordinate axis.
+   - **Domain Invariance**: Under this metric, the hypercube's maximum diagonal length is normalized to $\frac{2\sqrt{D}}{\sqrt{D}} = 2.0$ for all dimensions $D \in \{2, \dots, 32\}$.
+   - **Stratification Stability**: Enables consistent stratification thresholds across all dimensions (e.g. near: $\le 0.15$, medium: $0.15 - 0.40$, far: $> 0.40$).
+
+2. **Domain-Diameter Relative Metric ($d_{\text{rel}}$)**:
+   $$d_{\text{rel}}(x) = \frac{d(x, \text{Conv})}{\text{diam}(\mathcal{X})} = \frac{\| x - x_{\text{proj}} \|_2}{2\sqrt{D}} \in [0, 1]$$
+   - Directly expresses distance as a percentage of the maximum possible span of the space.
+
+3. **Chebyshev ($L_\infty$) Coordinate Distance ($d_\infty$)**:
+   $$d_\infty(x) = \| x - x_{\text{proj}} \|_\infty = \max_{1 \le j \le D} |x_j - x_{\text{proj}, j}|$$
+   - **Relevance to Tree Models**: Because Random Forest splits are axis-aligned orthogonal cuts, $d_\infty$ captures the maximum extrapolation distance along any single decision feature.
+
 
 
 ---
