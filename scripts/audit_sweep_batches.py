@@ -36,6 +36,7 @@ def parse_task_line(line: str) -> Dict[str, Any]:
         "seed": 1,
         "n_trials": 100,
         "baserundir": "runs",
+        "telemetry_path": "",
     }
     for tok in tokens:
         if "=" in tok:
@@ -57,6 +58,8 @@ def parse_task_line(line: str) -> Dict[str, Any]:
                     pass
             elif k_clean == "baserundir":
                 meta["baserundir"] = v
+            elif k_clean == "optimizer.telemetry_path":
+                meta["telemetry_path"] = v
     return meta
 
 
@@ -278,7 +281,7 @@ echo "=================================================="
 for (( start=1; start<=TOTAL_TASKS; start+=CHUNK_SIZE )); do
     end=$(( start + CHUNK_SIZE - 1 ))
     [ $end -gt $TOTAL_TASKS ] && end=$TOTAL_TASKS
-    JOB_ID=$(sbatch --parsable --array=${{start}}-${{end}}%${{CONCURRENCY}} "$SBATCH_FILE")
+    JOB_ID=$(sbatch --parsable --export=ALL,TASK_FILE="$TASK_FILE" --array=${{start}}-${{end}}%${{CONCURRENCY}} "$SBATCH_FILE")
     echo "Submitted Rerun Chunk (${{start}}-${{end}} / ${{TOTAL_TASKS}}) -> Job ID: ${{JOB_ID}}"
 done
 """
@@ -319,7 +322,44 @@ def audit_all_batches(
     return reports
 
 
-def print_audit_summary(reports: List[Dict[str, Any]]) -> None:
+def diagnose_slurm_logs(slurm_logs_dir: Path) -> Dict[str, int]:
+    """Scans slurm_logs directory for errors such as OOM, time limit, node failures, and exceptions."""
+    summary = {
+        "OUT_OF_MEMORY": 0,
+        "TIME_LIMIT": 0,
+        "NODE_FAILURE": 0,
+        "PYTHON_EXCEPTION": 0,
+        "OTHER_ERROR": 0,
+        "TOTAL_LOGS_SCANNED": 0,
+    }
+    if not slurm_logs_dir.is_dir():
+        return summary
+
+    for log_path in slurm_logs_dir.glob("*"):
+        if not log_path.is_file():
+            continue
+        summary["TOTAL_LOGS_SCANNED"] += 1
+        try:
+            content = log_path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+
+        c_lower = content.lower()
+        if "oom-kill" in c_lower or "out of memory" in c_lower or "out-of-memory" in c_lower:
+            summary["OUT_OF_MEMORY"] += 1
+        elif "due to time limit" in c_lower or "time limit" in c_lower:
+            summary["TIME_LIMIT"] += 1
+        elif "node failure" in c_lower or "socket timed out" in c_lower or "communication error" in c_lower:
+            summary["NODE_FAILURE"] += 1
+        elif "traceback (most recent call last)" in c_lower:
+            summary["PYTHON_EXCEPTION"] += 1
+        elif log_path.suffix == ".err" and len(content.strip()) > 0:
+            summary["OTHER_ERROR"] += 1
+
+    return summary
+
+
+def print_audit_summary(reports: List[Dict[str, Any]], results_base: Path = Path("results")) -> None:
     """Prints a structured ASCII report of batch statuses."""
     print("\n" + "=" * 90)
     print(f"{'BATCH AUDIT REPORT: MULTI-SUITE PROXIMITY SWEEPS':^90}")
@@ -353,6 +393,22 @@ def print_audit_summary(reports: List[Dict[str, Any]]) -> None:
     overall_pct = (grand_complete / grand_total * 100) if grand_total > 0 else 0.0
     print(f"{'TOTAL':<7} | {'All 3 Suites':<20} | {'18,600':<11} | {'-':<12} | {f'{grand_complete}/{grand_total}':<10} | {grand_trunc:<6} | {grand_miss:<6} | {overall_pct:5.1f}%")
     print("=" * 90 + "\n")
+
+    # Print slurm logs diagnostic summary for checked suites
+    suites_checked = sorted(list(set(r["suite"] for r in reports)))
+    for suite in suites_checked:
+        slurm_dir = results_base / f"sweep_{suite}_proximity" / "slurm_logs"
+        if slurm_dir.is_dir():
+            diag = diagnose_slurm_logs(slurm_dir)
+            if diag["TOTAL_LOGS_SCANNED"] > 0:
+                print(f"SLURM LOGS DIAGNOSTIC: {suite} (in {slurm_dir})")
+                print(f"  Scanned Log Files:       {diag['TOTAL_LOGS_SCANNED']}")
+                print(f"  Out of Memory (OOM):     {diag['OUT_OF_MEMORY']}")
+                print(f"  Time Limit Exceeded:     {diag['TIME_LIMIT']}")
+                print(f"  Node Failures:           {diag['NODE_FAILURE']}")
+                print(f"  Python Exceptions:       {diag['PYTHON_EXCEPTION']}")
+                print(f"  Other Non-Empty Stderr:  {diag['OTHER_ERROR']}")
+                print("-" * 60 + "\n")
 
 
 def main() -> None:

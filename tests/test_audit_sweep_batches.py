@@ -1,9 +1,14 @@
 import json
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
 import pytest
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.audit_sweep_batches import (
     parse_task_line,
@@ -145,4 +150,27 @@ def test_build_suite_runs_index(tmp_path):
     assert index[("opt1", "task1", 1)] == 100
     assert index[("opt1", "task1", 2)] == 30
     assert ("opt1", "task1", 3) not in index
+
+
+def test_diagnose_slurm_logs(tmp_path):
+    from scripts.audit_sweep_batches import diagnose_slurm_logs
+
+    slurm_dir = tmp_path / "slurm_logs"
+    slurm_dir.mkdir()
+
+    # OOM error log
+    (slurm_dir / "job_1_1.err").write_text("slurmstepd: error: Detected 1 oom-kill event(s) in step 100.batch")
+    # Timeout error log
+    (slurm_dir / "job_1_2.err").write_text("slurmstepd: error: *** JOB CANCELLED DUE TO TIME LIMIT ***")
+    # Node failure log
+    (slurm_dir / "job_1_3.err").write_text("slurmstepd: error: Node failure on node12")
+    # Clean output log
+    (slurm_dir / "job_1_4.log").write_text("Finished trial 100\nArray Task Index 4 Finished\n")
+
+    summary = diagnose_slurm_logs(slurm_dir)
+    assert summary["OUT_OF_MEMORY"] == 1
+    assert summary["TIME_LIMIT"] == 1
+    assert summary["NODE_FAILURE"] == 1
+    assert summary["TOTAL_LOGS_SCANNED"] == 4
+
 

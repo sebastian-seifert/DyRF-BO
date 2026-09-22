@@ -19,7 +19,7 @@ export NUMEXPR_NUM_THREADS=1
 
 mkdir -p results/sweep_hpobench_ml_proximity/slurm_logs
 
-TASK_FILE="results/sweep_hpobench_ml_proximity/tasks.txt"
+TASK_FILE="${TASK_FILE:-results/sweep_hpobench_ml_proximity/tasks.txt}"
 
 if [ ! -f "$TASK_FILE" ] || [ ! -s "$TASK_FILE" ]; then
     echo "ERROR: $TASK_FILE does not exist or is empty." >&2
