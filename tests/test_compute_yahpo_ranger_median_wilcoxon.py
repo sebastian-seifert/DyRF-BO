@@ -187,6 +187,8 @@ def test_infer_suite_name():
 
     assert infer_suite_name("results/sweep_yahpo_rbv2_super_proximity/logs.parquet") == "yahpo_rbv2_super"
     assert infer_suite_name("results/sweep_yahpo_rbv2_ranger_proximity/logs.parquet") == "yahpo_rbv2_ranger"
+    assert infer_suite_name("results/sweep_hpobench_ml_proximity/logs.parquet") == "hpobench_tabular_ml"
     assert infer_suite_name("custom/path/logs.parquet", explicit_suite="my_custom_suite") == "my_custom_suite"
     assert infer_suite_name("arbitrary/path/logs.parquet") == "yahpo_benchmark"
+
 

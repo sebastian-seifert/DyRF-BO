@@ -225,7 +225,10 @@ def infer_suite_name(input_path: Path | str, explicit_suite: str | None = None) 
         return "yahpo_rbv2_super"
     elif "ranger" in path_str:
         return "yahpo_rbv2_ranger"
+    elif "hpobench" in path_str:
+        return "hpobench_tabular_ml"
     return "yahpo_benchmark"
+
 
 
 def main():
