@@ -67,17 +67,34 @@ A query point $x \in \mathbb{R}^D$ is defined as:
 * **Interpolating** iff $x \in \text{Conv}(X_{\text{train}})$
 * **Extrapolating** iff $x \notin \text{Conv}(X_{\text{train}})$
 
-### 3.2 Quadratic Program (QP) Distance Solver
+### 3.2 Quadratic Program (QP) Distance Solver & Standard Form
 Rather than constructing geometric facet representations (which fails in $D > 8$ with $\mathcal{O}(N^{\lfloor D/2 \rfloor})$ complexity), the exact Euclidean projection onto $\text{Conv}(X_{\text{train}})$ is formulated as a convex Quadratic Program:
 
-$$\min_{w \in \mathbb{R}^N} \frac{1}{2} \left\| x - X_{\text{train}}^T w \right\|_2^2 \quad \text{s.t.} \quad \sum_{i=1}^N w_i = 1, \quad w_i \ge 0 \; \forall i$$
+$$\min_{w \in \mathbb{R}^N} \frac{1}{2} \left\| X_{\text{train}}^T w - x \right\|_2^2 \quad \text{s.t.} \quad \sum_{i=1}^N w_i = 1, \quad w_i \ge 0 \; \forall i$$
 
+Expanding the squared Euclidean objective:
+$$\frac{1}{2} \left\| X_{\text{train}}^T w - x \right\|_2^2 = \frac{1}{2} w^T \left( X_{\text{train}} X_{\text{train}}^T \right) w - \left( X_{\text{train}} x \right)^T w + \frac{1}{2} \| x \|_2^2$$
+
+Dropping the constant term $\frac{1}{2} \| x \|_2^2$ yields the canonical QP formulation ($\min_w \frac{1}{2} w^T P w + q^T w$):
+* **Hessian Matrix**: $P = X_{\text{train}} X_{\text{train}}^T \in \mathbb{R}^{N \times N}$
+* **Linear Cost Vector**: $q = - X_{\text{train}} x \in \mathbb{R}^N$
+* **Constraints**: $\mathbf{1}^T w = 1, \quad 0 \le w_i \le 1 \; \forall i$
+
+### 3.3 High-Throughput Gram Matrix Precomputation
+In our experimental setup, $M = 10,000$ test queries must be evaluated per configuration:
+* **One-Time Precomputation**: The Gram matrix $P = X_{\text{train}} X_{\text{train}}^T$ is symmetric positive semidefinite and **depends exclusively on the training points**. It is precomputed once per seed in $\mathcal{O}(N^2 D)$.
+* **Per-Query Efficiency**: For each of the $10,000$ test points $x_j$, only the linear cost vector $q_j = - X_{\text{train}} x_j$ needs to be evaluated via a fast matrix-vector product ($\mathcal{O}(ND)$).
+* **Solver Warm-Starts**: The constant Hessian structure across all $M$ queries allows solver factorization reuse (e.g., in OSQP or QP interior-point solvers), reducing per-point projection solve times to sub-millisecond scale.
+
+### 3.4 Distance Extraction & Dimension Normalization
+Once the optimal weights $w^* \in \Delta^{N-1}$ are obtained:
 * **Projection**: $x_{\text{proj}} = X_{\text{train}}^T w^*$
 * **Euclidean Distance**: $d(x, \text{Conv}) = \| x - x_{\text{proj}} \|_2$
 * **Interpolation Criterion**: $x \in \text{Conv}(X_{\text{train}}) \iff d(x, \text{Conv}) < 10^{-7}$
 * **Dimension-Normalized Distance**:
   $$d_{\text{norm}}(x) = \frac{d(x, \text{Conv})}{\sqrt{D}}$$
   *(Ensures that extrapolation distance metrics remain directly comparable across dimensions $D \in \{2, \dots, 32\}$).*
+
 
 ---
 
