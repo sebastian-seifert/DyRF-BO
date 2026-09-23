@@ -114,28 +114,32 @@ def run_single_experiment(
     else:
         raise TypeError(f"Invalid function_name type: {type(config.function_name)}")
 
-    # 2. Training sample generation in sub-domain [-0.5, 0.5]^D
+    # 2. Seed decoupling via SeedSequence to prevent cross-stream correlation
+    ss = np.random.SeedSequence(config.seed)
+    seed_train, seed_test, seed_model = [int(s.generate_state(1)[0]) for s in ss.spawn(3)]
+
+    # 3. Training sample generation in sub-domain [-0.5, 0.5]^D
     X_train = sample_subdomain_training(
         n_samples=config.n_train,
         dimension=config.dimension,
         domain_half_width=0.5,
-        seed=config.seed,
+        seed=seed_train,
     )
 
-    # 3. Fit objective and standardize training targets
+    # 4. Fit objective and standardize training targets
     objective.fit(X_train)
     y_train_tilde = objective.evaluate(X_train, standardized=True)
 
-    # 4. Convex Hull projection solver
+    # 5. Convex Hull projection solver
     solver = ConvexHullProjectionSolver(X_train)
 
-    # 5. Test set generation
+    # 6. Test set generation
     if config.sampling_strategy == "natural":
         X_test, proj_res, _ = sample_natural_test(
             n_samples=config.n_test,
             dimension=config.dimension,
             solver=solver,
-            seed=config.seed,
+            seed=seed_test,
         )
         # Assign strata labels based on normalized distance bands
         strata_labels = np.zeros(len(proj_res.d_norm), dtype=np.int64)
@@ -149,15 +153,15 @@ def run_single_experiment(
             dimension=config.dimension,
             X_train=X_train,
             solver=solver,
-            seed=config.seed,
+            seed=seed_test,
         )
 
-    # 6. Evaluate ground truth test values
+    # 7. Evaluate ground truth test values
     y_true = objective.evaluate(X_test, standardized=True)
 
-    # 7. Dual UQ Inference Engine
+    # 8. Dual UQ Inference Engine
     evaluator = DualUQEvaluator(
-        seed=config.seed,
+        seed=seed_model,
         n_trees=config.n_trees,
         k=config.k,
         epsilon=config.eps,

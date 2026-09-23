@@ -95,7 +95,7 @@ class DualUQResult:
     u_slcb : np.ndarray
         Standard SMAC3 LCB uncertainty (1.96 * \\sqrt{\\sigma^2_{total}}) of shape (M,).
     u_plcb : np.ndarray
-        Proximity LCB exploration term max(\\delta_{floor}, |q_{0.025}|) of shape (M,).
+        Proximity LCB exploration term max(\\delta_{floor}, -q_{0.025}) of shape (M,).
     var_between : np.ndarray
         Between-tree prediction variance \\sigma^2_{between}(x) of shape (M,).
     var_within : np.ndarray
@@ -217,6 +217,7 @@ class DualUQEvaluator:
     ) -> None:
         self.seed = seed
         self.n_trees = n_trees
+        self.n_estimators = n_trees
         self.k = k
         self.epsilon = epsilon
         self.topological_decay_lambda = topological_decay_lambda
@@ -340,8 +341,13 @@ class DualUQEvaluator:
         tree_preds = np.column_stack([t.predict(X_test_2d) for t in estimators])
         y_hat = np.mean(tree_preds, axis=1)
 
-        # Between-tree variance: \sigma^2_{between}(x) = 1/B \sum (T_b(x) - \hat{\mu}(x))^2
-        var_between = np.mean((tree_preds - y_hat[:, None]) ** 2, axis=1)
+        # Between-tree variance (unbiased sample variance ddof=1):
+        # \sigma^2_{between}(x) = 1/(B - 1) \sum (T_b(x) - \hat{\mu}(x))^2
+        var_between = (
+            np.var(tree_preds, axis=1, ddof=1)
+            if self.n_estimators > 1
+            else np.zeros_like(y_hat)
+        )
 
         # Within-tree leaf variance: \sigma^2_{within}(x) = 1/B \sum tree_b.tree_.impurity[leaf]
         tree_impurities = np.column_stack([
@@ -371,8 +377,8 @@ class DualUQEvaluator:
         # Floor: \delta_{floor}(x) = \epsilon * \kappa * local_mae(x)
         delta_floor = self.epsilon * self.kappa * local_mae_f64
 
-        # Extracted Exploration Uncertainty: U_{PLCB}(x) = max(\delta_{floor}(x), |q_{0.025}^{(k)}(x)|)
-        u_plcb = np.maximum(delta_floor, np.abs(q_lower))
+        # Extracted Exploration Uncertainty: U_{PLCB}(x) = max(\delta_{floor}(x), -q_{0.025}^{(k)}(x))
+        u_plcb = np.maximum(delta_floor, -q_lower)
 
         return DualUQResult(
             y_hat=y_hat,

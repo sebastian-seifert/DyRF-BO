@@ -114,7 +114,7 @@ class TestHutterLTV:
         B = len(trees)
         manual_tree_preds = np.column_stack([t.predict(X_test) for t in trees])
         manual_y_hat = np.mean(manual_tree_preds, axis=1)
-        manual_var_between = np.mean((manual_tree_preds - manual_y_hat[:, None]) ** 2, axis=1)
+        manual_var_between = np.var(manual_tree_preds, axis=1, ddof=1)
 
         manual_tree_impurities = np.column_stack([
             np.maximum(0.0, t.tree_.impurity[t.apply(X_test)]) for t in trees
@@ -152,9 +152,35 @@ class TestPLCBExploration:
         np.random.seed(201)
         X_test = np.random.uniform(-1.0, 1.0, size=(25, 4))
         res = fitted_evaluator.evaluate(X_test)
-
-        expected_plcb = np.maximum(res.delta_floor, np.abs(res.q_lower))
+        expected_plcb = np.maximum(res.delta_floor, -res.q_lower)
         assert np.allclose(res.u_plcb, expected_plcb, atol=1e-7)
+
+    def test_plcb_exploration_positive_quantile_edge_case(self):
+        """Verify that when q_lower > 0, u_plcb safely defaults to delta_floor without hallucinating uncertainty."""
+        evaluator = DualUQEvaluator(seed=42)
+        evaluator._is_fitted = True
+        evaluator.X_train_ = np.zeros((30, 4))
+        evaluator.n_estimators = 10
+
+        # Mock uq_model returning positive lower bound deviation
+        class MockUQModel:
+            def predict_with_intervals(self, X, **kwargs):
+                n = len(X)
+                # y_pred_lwr is above mean (q_lower = +0.2 > 0)
+                y_pred = np.full(n, 1.0)
+                y_pred_lwr = np.full(n, 1.2)
+                y_pred_upr = np.full(n, 2.0)
+                local_mae = np.full(n, 0.5)
+                return y_pred_lwr, y_pred, y_pred_upr, local_mae
+
+        evaluator.uq_model = MockUQModel()
+        evaluator.model = create_smac_default_rf(seed=42)
+        evaluator.model.fit(np.random.randn(30, 4), np.random.randn(30))
+
+        res = evaluator.evaluate(np.random.randn(5, 4))
+        # Since q_lower = +0.2, -q_lower = -0.2 < delta_floor
+        assert np.all(res.q_lower > 0)
+        assert np.allclose(res.u_plcb, res.delta_floor)
 
     def test_delta_floor_calculation(self, fitted_evaluator):
         np.random.seed(202)

@@ -108,6 +108,7 @@ def sample_stratified_test(
     X_train: np.ndarray,
     solver: ConvexHullProjectionSolver,
     seed: int | None = None,
+    clip_domain: bool = True,
 ) -> Tuple[np.ndarray, ProjectionResult, np.ndarray]:
     """Generate test points partitioned into 4 strata via Dirichlet & ray-casting.
 
@@ -129,6 +130,9 @@ def sample_stratified_test(
         Convex hull projection solver.
     seed : int | None, default=None
         Random number generator seed.
+    clip_domain : bool, default=True
+        Whether to clamp extrapolation points to domain [-1, 1]^D. Default is True to keep
+        all test points strictly within the domain bounds.
 
     Returns
     -------
@@ -199,9 +203,11 @@ def sample_stratified_test(
             norm_z = np.maximum(norm_z, 1e-12)
             v = z / norm_z
 
-            # Offset by target distance and clip to domain [-1, 1]^D
+            # Offset by target distance and optionally clip to domain [-1, 1]^D
             d_target = rng.uniform(t_low, t_high, size=batch_size)
-            cand = np.clip(x0 + d_target[:, None] * sqrt_D * v, -1.0, 1.0)
+            cand = x0 + d_target[:, None] * sqrt_D * v
+            if clip_domain:
+                cand = np.clip(cand, -1.0, 1.0)
 
             # Evaluate true normalized distance
             d_norm = solver.distance(cand)
