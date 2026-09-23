@@ -40,23 +40,32 @@ In high dimensions ($D \ge 16$):
 
 ## 2. Formal Uncertainty Quantification Definitions
 
-To compare apples-to-apples at an exact **nominal 95% confidence level**, we formalize:
+To evaluate the exact uncertainty terms that drive acquisition decisions at a **nominal 95% confidence level** ($\alpha = 0.05$):
 
-### 2.1 Standard SMAC3 LCB Uncertainty ($U_{\text{SLCB}}$)
-Assuming Gaussian predictive distribution around ensemble mean $\hat{\mu}(x) = \frac{1}{B}\sum_{b=1}^B T_b(x)$:
-* **Ensemble Variance**: $\sigma_{\text{RF}}^2(x) = \frac{1}{B}\sum_{b=1}^B \left( T_b(x) - \hat{\mu}(x) \right)^2$
-* **95% Half-Width**:
-  $$U_{\text{SLCB}}(x) = 1.96 \cdot \sigma_{\text{RF}}(x)$$
-* **95% Prediction Interval**:
-  $$\mathcal{I}_{\text{SLCB}}(x) = \left[ \hat{\mu}(x) - 1.96 \cdot \sigma_{\text{RF}}(x), \; \hat{\mu}(x) + 1.96 \cdot \sigma_{\text{RF}}(x) \right]$$
+### 2.1 Standard SMAC3 LCB Uncertainty ($U_{\text{SLCB}}$ via Hutter Law of Total Variance)
+In accordance with Hutter et al. (2014) (*Algorithm Runtime Prediction: Methods & Evaluation*), SMAC's Random Forest predictive distribution accounts for both within-tree leaf noise and between-tree ensemble disagreement via the **Law of Total Variance**:
 
-### 2.2 Proximity LCB Uncertainty ($U_{\text{PLCB}}$ via RF-FIRE / RFGAP)
-For query point $x$, compute ensemble proximity weights $W(x, x_i)$ to training samples $x_i \in X_{\text{train}}$, extract the $k$-nearest neighbors $\mathcal{N}_k(x)$, and evaluate their Out-Of-Bag (OOB) residuals $r_i^{\text{OOB}} = y_i - \hat{\mu}_{-i}(x_i)$:
-* **Empirical Quantiles**: Let $q_{\alpha/2}^{(k)}(x)$ and $q_{1 - \alpha/2}^{(k)}(x)$ be the empirical $\alpha/2 = 0.025$ and $1 - \alpha/2 = 0.975$ quantiles of $\{r_i^{\text{OOB}} \mid i \in \mathcal{N}_k(x)\}$.
-* **95% Prediction Interval**:
-  $$\mathcal{I}_{\text{PLCB}}(x) = \left[ \hat{\mu}(x) + q_{0.025}^{(k)}(x), \; \hat{\mu}(x) + q_{0.975}^{(k)}(x) \right] = \left[ \hat{y}_{\text{lwr}}(x), \; \hat{y}_{\text{upr}}(x) \right]$$
-* **Symmetric Half-Width Metric**:
-  $$U_{\text{PLCB}}(x) = \frac{\hat{y}_{\text{upr}}(x) - \hat{y}_{\text{lwr}}(x)}{2}$$
+$$\sigma^2_{\text{total}}(x) = \underbrace{\frac{1}{B} \sum_{b=1}^B \sigma_{b, \text{within}}^2(x)}_{\text{Within-Tree Variance (Leaf Impurity)}} + \underbrace{\frac{1}{B} \sum_{b=1}^B \left( T_b(x) - \hat{\mu}(x) \right)^2}_{\text{Between-Tree Variance (Disagreement)}}$$
+
+where:
+* $T_b(x)$ is the prediction of tree $b$, and $\hat{\mu}(x) = \frac{1}{B}\sum_{b=1}^B T_b(x)$ is the ensemble mean.
+* $\sigma_{b, \text{within}}^2(x)$ is the empirical sample variance of training observations in the leaf of tree $b$ containing $x$ (extracted directly from `tree_.impurity[leaf]`).
+* **SMAC Uncertainty Metric**:
+  $$U_{\text{SLCB}}(x) = 1.96 \cdot \sqrt{\sigma^2_{\text{total}}(x)}$$
+
+### 2.2 Proximity LCB Uncertainty ($U_{\text{PLCB}}$: Pure Extracted Exploration Term)
+In Bayesian Optimization, Proximity LCB minimizes the floored lower bound:
+$$\alpha_{\text{PLCB}}(x) = - y_{\text{pred\_lwr\_floored}}(x) = - \left( \hat{\mu}(x) - U_{\text{PLCB}}(x) \right)$$
+where $y_{\text{pred\_lwr\_floored}}(x) = \min\left( \hat{\mu}(x) + q_{0.025}^{(k)}(x), \; \hat{\mu}(x) - \delta_{\text{floor}}(x) \right)$.
+
+Extracting the **pure exploration / uncertainty term** yields:
+$$U_{\text{PLCB}}(x) = \max\left( \delta_{\text{floor}}(x), \; \left| q_{0.025}^{(k)}(x) \right| \right) = \max\left( \delta_{\text{floor}}(x), \; -q_{0.025}^{(k)}(x) \right)$$
+
+where:
+* $q_{0.025}^{(k)}(x)$ is the lower $2.5\%$ quantile of the Out-Of-Bag (OOB) residuals $\{r_i^{\text{OOB}} = y_i - \hat{\mu}_{-i}(x_i)\}$ from the $k$-nearest neighbors $\mathcal{N}_k(x)$ under the ensemble Laplacian tree-path metric (computed via `GPUProximityRegressionUQ` / `np.quantile(..., 0.025)`). Because lower residuals are negative, $-q_{0.025}^{(k)}(x) = |q_{0.025}^{(k)}(x)| > 0$.
+* $\delta_{\text{floor}}(x) = \epsilon \cdot 1.96 \cdot \text{MAE}_{\text{loc}}(x)$ is the point-adaptive exploration floor.
+* **Tuned Meta-HPO Parameters**: $k = 28$, $\epsilon = 0.080791$, $\lambda = 0.20486$, $\text{level} = 0.95$.
+
 
 ---
 
@@ -122,10 +131,24 @@ If raw Euclidean distance is used, a cutoff threshold (e.g. $d = 0.5$) represent
 
 ### 4.1 Factors & Parameter Grid
 * **Dimensions ($D$)**: $\{2, 3, 5, 8, 16, 32\}$
-* **Hyperparameter $k$**: $k = 10$ (primary default in `DyRF-BO`), with validation on $k = 25$.
+* **Champion Proximity LCB Hyperparameters**:
+  - $k = 28$ (optimal configuration from meta-HPO sweep)
+  - Exploration floor: $\epsilon = 0.080791$
+  - Topological decay: $\lambda = 0.20486$
+  - Confidence level: $1 - \alpha = 0.95$ ($\kappa = 1.96$)
 * **Training Sample Multipliers ($N/k$)**: $N/k \in \{4, 8, 16, 32\}$
-  * For $k = 10 \implies N \in \{40, 80, 160, 320\}$
-  * For $k = 25 \implies N \in \{100, 200, 400, 800\}$
+  - For $k = 28 \implies N \in \{112, 224, 448, 896\}$
+* **Underlying Random Forest Architecture (Standard SMAC3 Parameters)**:
+  - Both SLCB and PLCB evaluate the exact same tree structure configured with native SMAC3 defaults:
+    - `n_trees`: 10 (standard SMAC HPO facade default; with 100 evaluated as mature forest setting)
+    - `ratio_features`: $5/6 \approx 0.8333$
+    - `min_samples_split`: 3
+    - `min_samples_leaf`: 3
+    - `splitter`: `'random'` (Extremely Randomized Trees)
+    - `criterion`: `'squared_error'`
+    - `bootstrapping`: `True`
+    - `min_impurity_decrease`: `1e-8`
+    - `oob_score`: `True`
 * **Replications**: $10$ independent pseudo-random seeds per configuration tuple.
 * **Test Points Budget**: $M = 10,000$ points per seed.
 
@@ -159,13 +182,21 @@ To prevent the convex hull from dominating the entire volume in low dimensions (
 * Solve QP for each point to compute $d_{\text{norm}}(x)$.
 * Compute empirical interpolation probability $\hat{P}_D(\text{interp}) = \frac{1}{M} \sum_{i=1}^M \mathbb{I}(d(x_i) = 0)$.
 
-#### Strategy 2: Controlled / Distance-Stratified Sampling ($2,500$ points per stratum)
+#### Strategy 2: Controlled / Distance-Stratified Sampling via Ray-Casting ($2,500$ points per stratum)
+Due to measure concentration in high dimensions ($D \ge 16$), uniform sampling yields nearly zero points in near extrapolation ($d_{\text{norm}} \le 0.15$). We therefore use geometric ray-casting:
 * **Stratum 0 (Pure Interpolation, $d = 0$)**:
   Generated directly via random convex combinations of training samples:
   $$x = \sum_{i=1}^N w_i x_i, \quad w \sim \text{Dirichlet}(\mathbf{1}_N)$$
-* **Stratum 1 (Near Extrapolation)**: $0 < d_{\text{norm}}(x) \le 0.15$
-* **Stratum 2 (Medium Extrapolation)**: $0.15 < d_{\text{norm}}(x) \le 0.40$
-* **Stratum 3 (Far Extrapolation)**: $d_{\text{norm}}(x) > 0.40$ (points near the $[-1, 1]^D$ boundary).
+* **Strata 1–3 (Extrapolation Strata via Ray-Casting)**:
+  1. Pick a reference point $x_0 \in X_{\text{train}}$.
+  2. Generate a random isotropic unit direction $v = \frac{z}{\|z\|_2}$ with $z \sim \mathcal{N}(0, I_D)$.
+  3. Sample target distance $d_{\text{target}}$ uniformly within stratum band:
+     - **Stratum 1 (Near Extrapolation)**: $d_{\text{target}} \in (0.00, 0.15]$
+     - **Stratum 2 (Medium Extrapolation)**: $d_{\text{target}} \in (0.15, 0.40]$
+     - **Stratum 3 (Far Extrapolation)**: $d_{\text{target}} \in (0.40, 0.80]$
+  4. Project outward and clamp to domain:
+     $$x = \text{clip}\left( x_0 + d_{\text{target}} \cdot \sqrt{D} \cdot v, \; -1, \; 1 \right)$$
+  5. Verify exact $d_{\text{norm}}(x)$ via the QP solver and bin into stratum.
 
 ---
 
