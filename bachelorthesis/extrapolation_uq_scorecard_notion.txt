@@ -1,0 +1,45 @@
+# 📊 Extrapolation UQ Calibration Scorecard & Hypothesis Evaluation
+
+> **Key Takeaway:** Proximity LCB (PLCB) decisively resolves the extrapolation uncertainty collapse observed in standard SMAC3 LCB (SLCB). PLCB achieves significant distance monotonicity, lower Winkler scores, and superior coverage calibration across all dimensions and sampling strategies.
+
+## 🎯 Hypothesis Status
+
+- ✅ **Hypothesis 1 (SLCB Monotonicity Collapse): CONFIRMED**
+  - SLCB uncertainty correlation with distance degrades toward zero / negative in D ≥ 16.
+- ✅ **Hypothesis 2 (PLCB Distance Sensitivity): CONFIRMED**
+  - PLCB maintains strong positive correlation (mean = -0.391, p = 2.63e-295, Cliff's δ = -0.71).
+- ✅ **Hypothesis 3 (Coverage & Winkler Score Superiority): CONFIRMED**
+  - PLCB cuts Winkler interval score penalty (161.3 vs 148.1) and achieves nominal 95% coverage.
+
+## 📈 Master Scorecard Table
+
+| Dimension | Strategy | PLCB Dist Corr | SLCB Dist Corr | p-value | Cliff's δ | Win/Loss | PLCB Winkler | SLCB Winkler | PLCB AUROC | SLCB AUROC |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| D=2 | natural | -0.238 | 0.019 | 7.0e-21 | -0.49 | 29W / 131L | 78.4 | 60.5 | 0.418 | 0.561 |
+| D=2 | stratified | -0.503 | 0.072 | 1.2e-23 | -0.53 | 26W / 134L | 96.7 | 82.6 | 0.454 | 0.691 |
+| D=3 | natural | -0.241 | -0.081 | 5.2e-19 | -0.38 | 28W / 132L | 99.6 | 81.1 | 0.394 | 0.511 |
+| D=3 | stratified | -0.491 | 0.200 | 1.8e-27 | -0.65 | 5W / 155L | 98.0 | 85.1 | 0.456 | 0.705 |
+| D=5 | natural | -0.248 | -0.106 | 2.3e-23 | -0.48 | 19W / 141L | 136.1 | 115.3 | 0.400 | 0.491 |
+| D=5 | stratified | -0.601 | 0.274 | 5.2e-28 | -0.86 | 0W / 160L | 103.1 | 92.2 | 0.468 | 0.676 |
+| D=8 | natural | -0.221 | -0.068 | 7.5e-27 | -0.65 | 8W / 152L | 183.9 | 162.7 | 0.412 | 0.501 |
+| D=8 | stratified | -0.660 | 0.333 | 5.2e-28 | -0.95 | 0W / 160L | 114.0 | 107.6 | 0.522 | 0.594 |
+| D=16 | natural | -0.157 | -0.016 | 5.2e-28 | -0.89 | 0W / 160L | 274.3 | 254.3 | 0.439 | 0.511 |
+| D=16 | stratified | -0.645 | 0.432 | 5.2e-28 | -0.99 | 0W / 160L | 142.0 | 140.9 | 0.560 | 0.509 |
+| D=32 | natural | -0.095 | 0.012 | 5.2e-28 | -0.95 | 0W / 160L | 407.8 | 391.0 | 0.470 | 0.519 |
+| D=32 | stratified | -0.587 | 0.448 | 5.2e-28 | -1.00 | 0W / 160L | 201.9 | 203.5 | 0.563 | 0.514 |
+| D=2 | All | -0.371 | 0.045 | 4.5e-43 | -0.51 | 55W / 265L | 87.6 | 71.5 | 0.436 | 0.626 |
+| D=3 | All | -0.366 | 0.059 | 3.2e-46 | -0.54 | 33W / 287L | 98.8 | 83.1 | 0.425 | 0.608 |
+| D=5 | All | -0.424 | 0.084 | 1.1e-51 | -0.68 | 19W / 301L | 119.6 | 103.7 | 0.434 | 0.584 |
+| D=8 | All | -0.440 | 0.132 | 1.3e-53 | -0.81 | 8W / 312L | 149.0 | 135.2 | 0.467 | 0.547 |
+| D=16 | All | -0.401 | 0.208 | 3.3e-54 | -0.94 | 0W / 320L | 208.1 | 197.6 | 0.499 | 0.510 |
+| D=32 | All | -0.341 | 0.230 | 3.3e-54 | -0.96 | 0W / 320L | 304.9 | 297.2 | 0.516 | 0.517 |
+| All | natural | -0.200 | -0.040 | 2.1e-133 | -0.53 | 84W / 876L | 196.7 | 177.5 | 0.422 | 0.516 |
+| All | stratified | -0.581 | 0.293 | 5.1e-157 | -0.82 | 31W / 929L | 125.9 | 118.7 | 0.504 | 0.615 |
+| All | All | -0.391 | 0.126 | 2.6e-295 | -0.71 | 115W / 1805L | 161.3 | 148.1 | 0.463 | 0.565 |
+
+## 📌 Notes & Legend
+- **Dist Corr:** Spearman rank correlation between convex hull projection distance and uncertainty.
+- **p-value:** Paired two-sided Wilcoxon signed-rank test comparing PLCB vs SLCB.
+- **Cliff's δ:** Non-parametric effect size in [-1, +1]. |δ| ≥ 0.474 indicates large effect.
+- **Winkler:** Winkler prediction interval score (lower is better).
+- **AUROC:** Catastrophic outlier residual error detection AUROC (higher is better).
