@@ -11,6 +11,11 @@ Exports:
 - ExtrapolationRunConfig, run_single_experiment: Sweep runner pipeline
 """
 
+from .distance_ablation import (
+    aggregate_distance_ablation,
+    compute_run_distance_ablation,
+    parse_parquet_metadata,
+)
 from .metrics_suite import (
     compute_comprehensive_metrics,
     mean_prediction_interval_width,
@@ -83,4 +88,8 @@ __all__ = [
     # Runner Pipeline
     "ExtrapolationRunConfig",
     "run_single_experiment",
+    # Distance Metric Ablation
+    "parse_parquet_metadata",
+    "compute_run_distance_ablation",
+    "aggregate_distance_ablation",
 ]
