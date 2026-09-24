@@ -2,14 +2,14 @@
 
 ## Executive Summary & Core Comparison
 
-This ablation study investigates whether axis-aligned **Chebyshev distance ($d_{\text{inf}}$)** provides superior alignment with Random Forest surrogate uncertainty compared to standard **Euclidean normalized distance ($d_{\text{norm}}$)**. A total of **4** experimental runs were evaluated across varying dimensions, sampling strategies, and distance strata.
+This ablation study investigates whether axis-aligned **Chebyshev distance ($d_{\text{inf}}$)** provides superior alignment with Random Forest surrogate uncertainty compared to standard **Euclidean normalized distance ($d_{\text{norm}}$)**. A total of **1920** experimental runs were evaluated across varying dimensions, sampling strategies, and distance strata.
 
 ### Overall Statistical Hypothesis Testing
 
 | Surrogate Method | Euclidean $\rho(d_{\text{norm}}, U)$ | Chebyshev $\rho(d_{\text{inf}}, U)$ | Paired Diff (Mean) | Wilcoxon p-value | Cliff's δ | Win / Tie / Loss |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **SLCB** (SMAC3 Standard) | 0.2404 ± 0.1364 | 0.2539 ± 0.1331 | +0.0135 | 6.25e-01 | +0.000 | 2W / 0T / 2L |
-| **PLCB** (Proximity Augmented) | -0.3820 ± 0.1334 | -0.3669 ± 0.1398 | +0.0151 | 1.25e-01 | +0.250 | 4W / 0T / 0L |
+| **SLCB** (SMAC3 Standard) | 0.1265 ± 0.0089 | 0.1354 ± 0.0086 | +0.0089 | 3.47e-33 | +0.011 | 1130W / 0T / 790L |
+| **PLCB** (Proximity Augmented) | -0.3906 ± 0.0064 | -0.3622 ± 0.0067 | +0.0284 | 5.61e-278 | +0.078 | 1798W / 0T / 122L |
 
 *(Note: 'Win' indicates Chebyshev correlation > Euclidean correlation).* 
 
@@ -21,8 +21,12 @@ Comparison of distance metric rank correlation across dimensionality regimes:
 
 | Dimension | SLCB Euclidean | SLCB Chebyshev | SLCB Diff | SLCB p-val | PLCB Euclidean | PLCB Chebyshev | PLCB Diff | PLCB p-val |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| D=2 | 0.146 | 0.181 | +0.035 | 5.0e-01 | -0.413 | -0.401 | +0.013 | 5.0e-01 |
-| D=16 | 0.335 | 0.327 | -0.008 | 5.0e-01 | -0.351 | -0.333 | +0.017 | 5.0e-01 |
+| D=2 | 0.045 | 0.052 | +0.007 | 5.9e-08 | -0.371 | -0.361 | +0.010 | 2.0e-28 |
+| D=3 | 0.059 | 0.077 | +0.018 | 3.5e-19 | -0.366 | -0.344 | +0.022 | 1.2e-41 |
+| D=5 | 0.084 | 0.103 | +0.019 | 7.8e-18 | -0.424 | -0.386 | +0.038 | 4.4e-54 |
+| D=8 | 0.132 | 0.143 | +0.011 | 2.3e-09 | -0.440 | -0.401 | +0.040 | 3.4e-53 |
+| D=16 | 0.208 | 0.211 | +0.003 | 1.2e-02 | -0.401 | -0.366 | +0.034 | 4.5e-54 |
+| D=32 | 0.230 | 0.226 | -0.004 | 2.6e-08 | -0.341 | -0.315 | +0.026 | 9.8e-53 |
 
 ---
 
@@ -32,8 +36,8 @@ Comparison across test sampling distribution strategies:
 
 | Strategy | Runs | SLCB Euclidean | SLCB Chebyshev | SLCB Diff | PLCB Euclidean | PLCB Chebyshev | PLCB Diff |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **natural** | 2 | 0.065 | 0.077 | +0.013 | -0.160 | -0.134 | +0.025 |
-| **stratified** | 2 | 0.416 | 0.431 | +0.014 | -0.604 | -0.599 | +0.005 |
+| **natural** | 960 | -0.040 | -0.024 | +0.016 | -0.200 | -0.151 | +0.049 |
+| **stratified** | 960 | 0.293 | 0.295 | +0.002 | -0.581 | -0.573 | +0.008 |
 
 ---
 
@@ -47,10 +51,10 @@ Analysis across extrapolation depth strata:
 
 | Stratum | SLCB Euclidean | SLCB Chebyshev | SLCB Diff | PLCB Euclidean | PLCB Chebyshev | PLCB Diff |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| Stratum 0 | 0.013 ± 0.048 | 0.011 ± 0.050 | -0.002 | -0.025 ± 0.033 | -0.028 ± 0.032 | -0.002 |
-| Stratum 1 | 0.170 ± 0.065 | 0.173 ± 0.066 | +0.002 | -0.091 ± 0.043 | -0.087 ± 0.042 | +0.003 |
-| Stratum 2 | -0.009 ± 0.030 | 0.019 ± 0.014 | +0.028 | -0.067 ± 0.013 | -0.017 ± 0.015 | +0.050 |
-| Stratum 3 | -0.015 ± 0.023 | 0.098 ± 0.053 | +0.113 | -0.046 ± 0.018 | -0.001 ± 0.020 | +0.045 |
+| Stratum 0 | 0.009 ± 0.004 | 0.009 ± 0.004 | +0.000 | 0.002 ± 0.004 | 0.003 ± 0.004 | +0.000 |
+| Stratum 1 | 0.081 ± 0.005 | 0.075 ± 0.005 | -0.006 | -0.149 ± 0.005 | -0.113 ± 0.005 | +0.036 |
+| Stratum 2 | -0.026 ± 0.002 | 0.004 ± 0.001 | +0.030 | -0.101 ± 0.002 | -0.019 ± 0.001 | +0.082 |
+| Stratum 3 | -0.029 ± 0.002 | -0.029 ± 0.002 | -0.000 | -0.058 ± 0.001 | -0.010 ± 0.002 | +0.049 |
 
 ---
 
