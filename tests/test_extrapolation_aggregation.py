@@ -18,6 +18,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.aggregate_extrapolation_results import (
+    build_dimension_strata_matrix,
+    build_objective_scorecard_dataframe,
     build_parser,
     build_scorecard_dataframe,
     compute_cliffs_delta,
@@ -350,6 +352,78 @@ class TestScorecardGeneration:
                 assert row["spearman_dist_pvalue"] <= 0.125
             assert row["spearman_dist_wins"] > row["spearman_dist_losses"]
 
+    def test_build_objective_scorecard_dataframe(self, mock_summaries_dir: Path):
+        df = load_summary_records(mock_summaries_dir)
+        obj_scorecard = build_objective_scorecard_dataframe(df)
+
+        assert isinstance(obj_scorecard, pd.DataFrame)
+        assert not obj_scorecard.empty
+        assert "function_name" in obj_scorecard.columns
+        assert "n_experiments" in obj_scorecard.columns
+
+        # Verify target metrics columns
+        for m in ["spearman_dist", "spearman_err", "picp_error", "winkler", "outlier_auroc"]:
+            assert f"{m}_plcb_mean" in obj_scorecard.columns
+            assert f"{m}_slcb_mean" in obj_scorecard.columns
+            assert f"{m}_diff_mean" in obj_scorecard.columns
+            assert f"{m}_pvalue" in obj_scorecard.columns
+            assert f"{m}_cliffs_delta" in obj_scorecard.columns
+            assert f"{m}_wins" in obj_scorecard.columns
+            assert f"{m}_ties" in obj_scorecard.columns
+            assert f"{m}_losses" in obj_scorecard.columns
+
+        # Check function names present: sphere, rastrigin, All
+        funcs = obj_scorecard["function_name"].tolist()
+        assert "sphere" in funcs
+        assert "rastrigin" in funcs
+        assert "All" in funcs
+
+        # Total experiments in 'All' row should equal total records
+        all_row = obj_scorecard[obj_scorecard["function_name"] == "All"]
+        assert all_row.iloc[0]["n_experiments"] == len(df)
+
+    def test_build_dimension_strata_matrix(self, mock_summaries_dir: Path):
+        df = load_summary_records(mock_summaries_dir)
+        matrix = build_dimension_strata_matrix(df)
+
+        assert isinstance(matrix, pd.DataFrame)
+        assert not matrix.empty
+
+        expected_cols = [
+            "dimension",
+            "stratum",
+            "n_experiments",
+            "winkler_plcb_mean",
+            "winkler_plcb_sem",
+            "winkler_slcb_mean",
+            "winkler_slcb_sem",
+            "winkler_ratio",
+            "picp_plcb_mean",
+            "picp_plcb_sem",
+            "picp_slcb_mean",
+            "picp_slcb_sem",
+            "auroc_plcb_mean",
+            "auroc_plcb_sem",
+            "auroc_slcb_mean",
+            "auroc_slcb_sem",
+        ]
+        for col in expected_cols:
+            assert col in matrix.columns, f"Missing column: {col}"
+
+        # Dimensions should include 2, 16, 32, and 'All'
+        dims = set(matrix["dimension"].dropna().astype(str).unique())
+        assert {"2", "16", "32", "All"}.issubset(dims)
+
+        # Strata should include 0, 1, 2, 3, and 'All'
+        strata = set(matrix["stratum"].dropna().astype(str).unique())
+        assert {"0", "1", "2", "3", "All"}.issubset(strata)
+
+        # Check winkler_ratio is approximately log(winkler_plcb_mean / winkler_slcb_mean)
+        for _, r in matrix.iterrows():
+            if not np.isnan(r["winkler_ratio"]):
+                expected_ratio = np.log(r["winkler_plcb_mean"] / r["winkler_slcb_mean"])
+                assert pytest.approx(r["winkler_ratio"]) == expected_ratio
+
 
 class TestReportGeneration:
     """Tests for Markdown report and Notion text generation."""
@@ -376,6 +450,10 @@ class TestReportGeneration:
 
         # Verify markdown table syntax
         assert "| Dimension |" in report or "| Stratum |" in report or "|" in report
+
+        # Verify Objective Breakdown and Dimension x Strata matrix sections
+        assert "Objective Function Breakdown" in report or "Objective Breakdown" in report
+        assert "Dimension x Strata Matrix" in report or "Strata Matrix" in report
 
     def test_generate_notion_scorecard(self, mock_summaries_dir: Path):
         df = load_summary_records(mock_summaries_dir)
@@ -419,6 +497,8 @@ class TestCLIExecution:
         assert out_csv.is_file()
         assert out_report.is_file()
         assert out_notion.is_file()
+        assert (out_csv.parent / "extrapolation_objective_scorecard.csv").is_file()
+        assert (out_csv.parent / "extrapolation_dimension_strata_matrix.csv").is_file()
 
     def test_cli_full_execution(self, mock_summaries_dir: Path, tmp_path: Path):
         out_csv = tmp_path / "analysis" / "extrapolation_calibration_scorecard.csv"
@@ -440,7 +520,23 @@ class TestCLIExecution:
         assert out_notion.is_file()
         assert out_notion.stat().st_size > 0
 
+        # Verify additional CSV scorecards were created
+        obj_csv = out_csv.parent / "extrapolation_objective_scorecard.csv"
+        matrix_csv = out_csv.parent / "extrapolation_dimension_strata_matrix.csv"
+        assert obj_csv.is_file()
+        assert obj_csv.stat().st_size > 0
+        assert matrix_csv.is_file()
+        assert matrix_csv.stat().st_size > 0
+
         # Verify CSV can be parsed by pandas
         scorecard_df = pd.read_csv(out_csv)
         assert not scorecard_df.empty
         assert "spearman_dist_plcb_mean" in scorecard_df.columns
+
+        obj_df = pd.read_csv(obj_csv)
+        assert not obj_df.empty
+        assert "function_name" in obj_df.columns
+
+        matrix_df = pd.read_csv(matrix_csv)
+        assert not matrix_df.empty
+        assert "winkler_ratio" in matrix_df.columns

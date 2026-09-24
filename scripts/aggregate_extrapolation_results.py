@@ -484,7 +484,251 @@ def build_scorecard_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return scorecard_df[ordered_cols]
 
 
-def generate_markdown_report(df: pd.DataFrame, scorecard: pd.DataFrame) -> str:
+def build_objective_scorecard_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Build aggregated scorecard grouped by objective function name.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Loaded summary records DataFrame.
+
+    Returns
+    -------
+    pd.DataFrame
+        Tabular scorecard grouped by function_name with paired comparisons.
+    """
+    obj_schema = [
+        "function_name",
+        "n_experiments",
+        # spearman_dist
+        "spearman_dist_plcb_mean", "spearman_dist_plcb_sem",
+        "spearman_dist_slcb_mean", "spearman_dist_slcb_sem",
+        "spearman_dist_diff_mean", "spearman_dist_pvalue",
+        "spearman_dist_cliffs_delta", "spearman_dist_wins",
+        "spearman_dist_ties", "spearman_dist_losses",
+        # spearman_err
+        "spearman_err_plcb_mean", "spearman_err_plcb_sem",
+        "spearman_err_slcb_mean", "spearman_err_slcb_sem",
+        "spearman_err_diff_mean", "spearman_err_pvalue",
+        "spearman_err_cliffs_delta", "spearman_err_wins",
+        "spearman_err_ties", "spearman_err_losses",
+        # picp_error
+        "picp_error_plcb_mean", "picp_error_plcb_sem",
+        "picp_error_slcb_mean", "picp_error_slcb_sem",
+        "picp_error_diff_mean", "picp_error_pvalue",
+        "picp_error_cliffs_delta", "picp_error_wins",
+        "picp_error_ties", "picp_error_losses",
+        # winkler
+        "winkler_plcb_mean", "winkler_plcb_sem",
+        "winkler_slcb_mean", "winkler_slcb_sem",
+        "winkler_diff_mean", "winkler_pvalue",
+        "winkler_cliffs_delta", "winkler_wins",
+        "winkler_ties", "winkler_losses",
+        # outlier_auroc
+        "outlier_auroc_plcb_mean", "outlier_auroc_plcb_sem",
+        "outlier_auroc_slcb_mean", "outlier_auroc_slcb_sem",
+        "outlier_auroc_diff_mean", "outlier_auroc_pvalue",
+        "outlier_auroc_cliffs_delta", "outlier_auroc_wins",
+        "outlier_auroc_ties", "outlier_auroc_losses",
+    ]
+
+    if df.empty or "function_name" not in df.columns:
+        return pd.DataFrame(columns=obj_schema)
+
+    metrics_config = [
+        ("spearman_dist", "spearman_dist_plcb", "spearman_dist_slcb", True),
+        ("spearman_err", "spearman_err_plcb", "spearman_err_slcb", True),
+        ("picp_error", "picp_error_plcb", "picp_error_slcb", False),
+        ("winkler", "winkler_plcb", "winkler_slcb", False),
+        ("outlier_auroc", "outlier_auroc_plcb", "outlier_auroc_slcb", True),
+    ]
+
+    def _process_obj_group(sub_df: pd.DataFrame, func_val: str) -> Dict[str, Any]:
+        row_dict: Dict[str, Any] = {
+            "function_name": func_val,
+            "n_experiments": len(sub_df),
+        }
+        for prefix, p_col, s_col, higher_is_better in metrics_config:
+            comp = compute_paired_comparison(
+                sub_df, plcb_col=p_col, slcb_col=s_col, higher_is_better=higher_is_better
+            )
+            row_dict[f"{prefix}_plcb_mean"] = comp["plcb_mean"]
+            row_dict[f"{prefix}_plcb_sem"] = comp["plcb_sem"]
+            row_dict[f"{prefix}_slcb_mean"] = comp["slcb_mean"]
+            row_dict[f"{prefix}_slcb_sem"] = comp["slcb_sem"]
+            row_dict[f"{prefix}_diff_mean"] = comp["diff_mean"]
+            row_dict[f"{prefix}_pvalue"] = comp["pvalue"]
+            row_dict[f"{prefix}_cliffs_delta"] = comp["cliffs_delta"]
+            row_dict[f"{prefix}_wins"] = comp["wins"]
+            row_dict[f"{prefix}_ties"] = comp["ties"]
+            row_dict[f"{prefix}_losses"] = comp["losses"]
+        return row_dict
+
+    rows: List[Dict[str, Any]] = []
+    funcs = sorted(list(df["function_name"].dropna().astype(str).str.lower().unique()))
+    func_col_lower = df["function_name"].astype(str).str.lower()
+
+    for fn in funcs:
+        sub = df[func_col_lower == fn]
+        if not sub.empty:
+            rows.append(_process_obj_group(sub, fn))
+
+    rows.append(_process_obj_group(df, "All"))
+
+    obj_df = pd.DataFrame(rows)
+    ordered_cols = [c for c in obj_schema if c in obj_df.columns]
+    return obj_df[ordered_cols]
+
+
+def build_dimension_strata_matrix(df: pd.DataFrame) -> pd.DataFrame:
+    """Build tidy 2D matrix across dimension and stratum.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Loaded summary records DataFrame.
+
+    Returns
+    -------
+    pd.DataFrame
+        Matrix DataFrame with means, SEMs, and log-ratios for Winkler, PICP, AUROC.
+    """
+    matrix_schema = [
+        "dimension",
+        "stratum",
+        "n_experiments",
+        "winkler_plcb_mean", "winkler_plcb_sem",
+        "winkler_slcb_mean", "winkler_slcb_sem",
+        "winkler_ratio",
+        "picp_plcb_mean", "picp_plcb_sem",
+        "picp_slcb_mean", "picp_slcb_sem",
+        "auroc_plcb_mean", "auroc_plcb_sem",
+        "auroc_slcb_mean", "auroc_slcb_sem",
+    ]
+
+    if df.empty:
+        return pd.DataFrame(columns=matrix_schema)
+
+    unique_dims: List[int] = []
+    if "dimension" in df.columns:
+        for d in df["dimension"].dropna().unique():
+            try:
+                unique_dims.append(int(d))
+            except (ValueError, TypeError):
+                continue
+    dimensions: List[Any] = sorted(list(set(unique_dims)))
+    numeric_dims = (
+        pd.to_numeric(df["dimension"], errors="coerce")
+        if "dimension" in df.columns
+        else pd.Series(dtype=float)
+    )
+
+    dims_to_iterate = dimensions + ["All"]
+    strata_to_iterate = [0, 1, 2, 3, "All"]
+
+    def _mean_and_sem(arr: Any) -> Tuple[float, float]:
+        v = np.asarray(arr, dtype=np.float64).ravel()
+        v = v[np.isfinite(v)]
+        if len(v) == 0:
+            return float("nan"), float("nan")
+        m = float(np.mean(v))
+        sem = float(np.std(v, ddof=1) / np.sqrt(len(v))) if len(v) > 1 else 0.0
+        return m, sem
+
+    rows: List[Dict[str, Any]] = []
+
+    for d in dims_to_iterate:
+        if d == "All":
+            sub_dim = df
+        else:
+            sub_dim = df[numeric_dims == d]
+
+        if sub_dim.empty:
+            continue
+
+        for s in strata_to_iterate:
+            if s == "All":
+                w_p_vals = sub_dim["winkler_plcb"] if "winkler_plcb" in sub_dim.columns else []
+                w_s_vals = sub_dim["winkler_slcb"] if "winkler_slcb" in sub_dim.columns else []
+                p_p_vals = sub_dim["picp_plcb"] if "picp_plcb" in sub_dim.columns else []
+                p_s_vals = sub_dim["picp_slcb"] if "picp_slcb" in sub_dim.columns else []
+                a_p_vals = (
+                    sub_dim["outlier_auroc_plcb"]
+                    if "outlier_auroc_plcb" in sub_dim.columns
+                    else sub_dim.get("auroc_plcb", [])
+                )
+                a_s_vals = (
+                    sub_dim["outlier_auroc_slcb"]
+                    if "outlier_auroc_slcb" in sub_dim.columns
+                    else sub_dim.get("auroc_slcb", [])
+                )
+            else:
+                w_p_col = f"stratum_{s}_winkler_plcb"
+                w_s_col = f"stratum_{s}_winkler_slcb"
+                p_p_col = f"stratum_{s}_picp_plcb"
+                p_s_col = f"stratum_{s}_picp_slcb"
+                a_p_col = (
+                    f"stratum_{s}_auroc_plcb"
+                    if f"stratum_{s}_auroc_plcb" in sub_dim.columns
+                    else f"stratum_{s}_outlier_auroc_plcb"
+                )
+                a_s_col = (
+                    f"stratum_{s}_auroc_slcb"
+                    if f"stratum_{s}_auroc_slcb" in sub_dim.columns
+                    else f"stratum_{s}_outlier_auroc_slcb"
+                )
+
+                w_p_vals = sub_dim[w_p_col] if w_p_col in sub_dim.columns else []
+                w_s_vals = sub_dim[w_s_col] if w_s_col in sub_dim.columns else []
+                p_p_vals = sub_dim[p_p_col] if p_p_col in sub_dim.columns else []
+                p_s_vals = sub_dim[p_s_col] if p_s_col in sub_dim.columns else []
+                a_p_vals = sub_dim[a_p_col] if a_p_col in sub_dim.columns else []
+                a_s_vals = sub_dim[a_s_col] if a_s_col in sub_dim.columns else []
+
+            w_p_m, w_p_sem = _mean_and_sem(w_p_vals)
+            w_s_m, w_s_sem = _mean_and_sem(w_s_vals)
+
+            if np.isfinite(w_p_m) and np.isfinite(w_s_m) and w_p_m > 0 and w_s_m > 0:
+                w_ratio = float(np.log(w_p_m / w_s_m))
+            else:
+                w_ratio = float("nan")
+
+            p_p_m, p_p_sem = _mean_and_sem(p_p_vals)
+            p_s_m, p_s_sem = _mean_and_sem(p_s_vals)
+
+            a_p_m, a_p_sem = _mean_and_sem(a_p_vals)
+            a_s_m, a_s_sem = _mean_and_sem(a_s_vals)
+
+            rows.append({
+                "dimension": d,
+                "stratum": s,
+                "n_experiments": len(sub_dim),
+                "winkler_plcb_mean": w_p_m,
+                "winkler_plcb_sem": w_p_sem,
+                "winkler_slcb_mean": w_s_m,
+                "winkler_slcb_sem": w_s_sem,
+                "winkler_ratio": w_ratio,
+                "picp_plcb_mean": p_p_m,
+                "picp_plcb_sem": p_p_sem,
+                "picp_slcb_mean": p_s_m,
+                "picp_slcb_sem": p_s_sem,
+                "auroc_plcb_mean": a_p_m,
+                "auroc_plcb_sem": a_p_sem,
+                "auroc_slcb_mean": a_s_m,
+                "auroc_slcb_sem": a_s_sem,
+            })
+
+    matrix_df = pd.DataFrame(rows)
+    ordered_cols = [c for c in matrix_schema if c in matrix_df.columns]
+    return matrix_df[ordered_cols]
+
+
+def generate_markdown_report(
+    df: pd.DataFrame,
+    scorecard: pd.DataFrame,
+    obj_scorecard: pd.DataFrame | None = None,
+    matrix_df: pd.DataFrame | None = None,
+) -> str:
     """Generate comprehensive scientific Markdown thesis evaluation report.
 
     Evaluates Hypotheses 1, 2, and 3 with formal verdicts, empirical metrics,
@@ -496,6 +740,10 @@ def generate_markdown_report(df: pd.DataFrame, scorecard: pd.DataFrame) -> str:
         Raw summary records DataFrame.
     scorecard : pd.DataFrame
         Aggregated master scorecard DataFrame.
+    obj_scorecard : pd.DataFrame | None, default=None
+        Aggregated objective scorecard DataFrame.
+    matrix_df : pd.DataFrame | None, default=None
+        Dimension x Strata matrix DataFrame.
 
     Returns
     -------
@@ -654,6 +902,57 @@ def generate_markdown_report(df: pd.DataFrame, scorecard: pd.DataFrame) -> str:
             auc_s = df[f"stratum_{s}_auroc_slcb"].mean() if f"stratum_{s}_auroc_slcb" in df.columns else float("nan")
             report_lines.append(f"| Stratum {s} | {w_p:.2f} | {w_s:.2f} | {auc_p:.3f} | {auc_s:.3f} |")
 
+    if obj_scorecard is None and not df.empty:
+        obj_scorecard = build_objective_scorecard_dataframe(df)
+    if matrix_df is None and not df.empty:
+        matrix_df = build_dimension_strata_matrix(df)
+
+    if obj_scorecard is not None and not obj_scorecard.empty:
+        report_lines.extend([
+            "",
+            "---",
+            "",
+            "## Objective Function Breakdown",
+            "",
+            "Evaluation across benchmark synthetic objective functions (Sphere, Rosenbrock, Rastrigin, Ackley):",
+            "",
+            "| Objective | Runs | PLCB Dist Corr | SLCB Dist Corr | p-val | Cliff's δ | Win/Loss | PLCB Winkler | SLCB Winkler | PLCB AUROC | SLCB AUROC |",
+            "| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
+        ])
+        for _, r in obj_scorecard.iterrows():
+            report_lines.append(
+                f"| **{r['function_name']}** | {r['n_experiments']} | "
+                f"{r['spearman_dist_plcb_mean']:.3f} | {r['spearman_dist_slcb_mean']:.3f} | "
+                f"{r['spearman_dist_pvalue']:.1e} | {r['spearman_dist_cliffs_delta']:+.2f} | "
+                f"{r['spearman_dist_wins']}W / {r['spearman_dist_losses']}L | "
+                f"{r['winkler_plcb_mean']:.1f} | {r['winkler_slcb_mean']:.1f} | "
+                f"{r['outlier_auroc_plcb_mean']:.3f} | {r['outlier_auroc_slcb_mean']:.3f} |"
+            )
+
+    if matrix_df is not None and not matrix_df.empty:
+        report_lines.extend([
+            "",
+            "---",
+            "",
+            "## Dimension x Strata Matrix",
+            "",
+            "Complete 2D breakdown across feature space dimensionality \\(D\\) and standardized extrapolation distance strata:",
+            "",
+            "| Dimension | Stratum | N | PLCB Winkler | SLCB Winkler | Winkler Ratio (log) | PLCB PICP | SLCB PICP | PLCB AUROC | SLCB AUROC |",
+            "| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |",
+        ])
+        for _, r in matrix_df.iterrows():
+            d_lbl = f"D={r['dimension']}" if str(r["dimension"]) != "All" else "All"
+            s_lbl = f"Stratum {r['stratum']}" if str(r["stratum"]) != "All" else "All"
+            w_rat = f"{r['winkler_ratio']:+.2f}" if not np.isnan(r['winkler_ratio']) else "N/A"
+            report_lines.append(
+                f"| {d_lbl} | {s_lbl} | {r['n_experiments']} | "
+                f"{r['winkler_plcb_mean']:.1f} | {r['winkler_slcb_mean']:.1f} | "
+                f"{w_rat} | "
+                f"{r['picp_plcb_mean']:.3f} | {r['picp_slcb_mean']:.3f} | "
+                f"{r['auroc_plcb_mean']:.3f} | {r['auroc_slcb_mean']:.3f} |"
+            )
+
     report_lines.extend([
         "",
         "---",
@@ -767,6 +1066,18 @@ def build_parser() -> argparse.ArgumentParser:
         default="bachelorthesis/extrapolation_uq_scorecard_notion.txt",
         help="Path for Notion-ready text file (default: bachelorthesis/extrapolation_uq_scorecard_notion.txt).",
     )
+    parser.add_argument(
+        "--output-objective-csv",
+        type=str,
+        default=None,
+        help="Path for objective function breakdown CSV (default: {output-dir}/extrapolation_objective_scorecard.csv).",
+    )
+    parser.add_argument(
+        "--output-strata-matrix-csv",
+        type=str,
+        default=None,
+        help="Path for dimension x strata matrix CSV (default: {output-dir}/extrapolation_dimension_strata_matrix.csv).",
+    )
     return parser
 
 
@@ -775,6 +1086,8 @@ def run_aggregation(
     output_csv: str | Path,
     output_report: str | Path,
     output_notion: str | Path,
+    output_objective_csv: str | Path | None = None,
+    output_strata_matrix_csv: str | Path | None = None,
 ) -> int:
     """Execute complete results aggregation and artifact generation workflow.
 
@@ -788,6 +1101,10 @@ def run_aggregation(
         Target Markdown report file path.
     output_notion : str | Path
         Target Notion text file path.
+    output_objective_csv : str | Path | None, default=None
+        Target objective function breakdown CSV file path.
+    output_strata_matrix_csv : str | Path | None, default=None
+        Target dimension x strata matrix CSV file path.
 
     Returns
     -------
@@ -799,33 +1116,68 @@ def run_aggregation(
     out_rep = Path(output_report)
     out_not = Path(output_notion)
 
+    out_obj_csv = (
+        Path(output_objective_csv)
+        if output_objective_csv
+        else out_csv.parent / "extrapolation_objective_scorecard.csv"
+    )
+    out_matrix_csv = (
+        Path(output_strata_matrix_csv)
+        if output_strata_matrix_csv
+        else out_csv.parent / "extrapolation_dimension_strata_matrix.csv"
+    )
+
     # Ensure parent output directories exist
     out_csv.parent.mkdir(parents=True, exist_ok=True)
     out_rep.parent.mkdir(parents=True, exist_ok=True)
     out_not.parent.mkdir(parents=True, exist_ok=True)
+    out_obj_csv.parent.mkdir(parents=True, exist_ok=True)
+    out_matrix_csv.parent.mkdir(parents=True, exist_ok=True)
 
     df = load_summary_records(sum_dir)
     if df.empty:
         print(f"[INFO] No valid summary JSON files found in '{sum_dir}'. Generating empty schemas.")
         empty_scorecard = build_scorecard_dataframe(df)
         empty_scorecard.to_csv(out_csv, index=False)
+
+        empty_obj = build_objective_scorecard_dataframe(df)
+        empty_obj.to_csv(out_obj_csv, index=False)
+
+        empty_matrix = build_dimension_strata_matrix(df)
+        empty_matrix.to_csv(out_matrix_csv, index=False)
+
         out_rep.write_text("# Extrapolation UQ Hypothesis Evaluation Report\n\nNo experimental summaries found.\n", encoding="utf-8")
         out_not.write_text("# 📊 Extrapolation UQ Scorecard\n\nNo experimental summaries found.\n", encoding="utf-8")
         return 0
 
-    print(f"[INFO] Loaded {len(df)} summary records from '{sum_dir}'. Building calibration scorecard...")
+    print(f"[INFO] Loaded {len(df)} summary records from '{sum_dir}'. Building calibration scorecards...")
     scorecard_df = build_scorecard_dataframe(df)
+    obj_scorecard_df = build_objective_scorecard_dataframe(df)
+    matrix_df = build_dimension_strata_matrix(df)
 
-    # 1. Save CSV
+    # 1. Save Master CSV
     scorecard_df.to_csv(out_csv, index=False)
     print(f"[SUCCESS] Saved master scorecard CSV: {out_csv}")
 
-    # 2. Save Markdown Report
-    report_text = generate_markdown_report(df, scorecard_df)
+    # 2. Save Objective Breakdown CSV
+    obj_scorecard_df.to_csv(out_obj_csv, index=False)
+    print(f"[SUCCESS] Saved objective scorecard CSV: {out_obj_csv}")
+
+    # 3. Save Dimension x Strata Matrix CSV
+    matrix_df.to_csv(out_matrix_csv, index=False)
+    print(f"[SUCCESS] Saved dimension x strata matrix CSV: {out_matrix_csv}")
+
+    # 4. Save Markdown Report
+    report_text = generate_markdown_report(
+        df=df,
+        scorecard=scorecard_df,
+        obj_scorecard=obj_scorecard_df,
+        matrix_df=matrix_df,
+    )
     out_rep.write_text(report_text, encoding="utf-8")
     print(f"[SUCCESS] Saved Markdown hypothesis report: {out_rep}")
 
-    # 3. Save Notion Text
+    # 5. Save Notion Text
     notion_text = generate_notion_scorecard(df, scorecard_df)
     out_not.write_text(notion_text, encoding="utf-8")
     print(f"[SUCCESS] Saved Notion scorecard text: {out_not}")
@@ -842,6 +1194,8 @@ def main(argv: list[str] | None = None) -> int:
         output_csv=args.output_csv,
         output_report=args.output_report,
         output_notion=args.output_notion,
+        output_objective_csv=args.output_objective_csv,
+        output_strata_matrix_csv=args.output_strata_matrix_csv,
     )
 
 
