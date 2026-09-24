@@ -1044,9 +1044,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--summaries-dir",
+        "--input-dir",
+        dest="summaries_dir",
         type=str,
         default="results/extrapolation_uq/summaries",
         help="Directory containing JSON summary files (default: results/extrapolation_uq/summaries).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Optional base output directory for all generated artifacts.",
     )
     parser.add_argument(
         "--output-csv",
@@ -1083,11 +1091,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run_aggregation(
     summaries_dir: str | Path,
-    output_csv: str | Path,
-    output_report: str | Path,
-    output_notion: str | Path,
+    output_csv: str | Path | None = None,
+    output_report: str | Path | None = None,
+    output_notion: str | Path | None = None,
     output_objective_csv: str | Path | None = None,
     output_strata_matrix_csv: str | Path | None = None,
+    output_dir: str | Path | None = None,
 ) -> int:
     """Execute complete results aggregation and artifact generation workflow.
 
@@ -1095,16 +1104,18 @@ def run_aggregation(
     ----------
     summaries_dir : str | Path
         Directory containing JSON summary files.
-    output_csv : str | Path
+    output_csv : str | Path | None, default=None
         Target CSV file path.
-    output_report : str | Path
+    output_report : str | Path | None, default=None
         Target Markdown report file path.
-    output_notion : str | Path
+    output_notion : str | Path | None, default=None
         Target Notion text file path.
     output_objective_csv : str | Path | None, default=None
         Target objective function breakdown CSV file path.
     output_strata_matrix_csv : str | Path | None, default=None
         Target dimension x strata matrix CSV file path.
+    output_dir : str | Path | None, default=None
+        Base output directory.
 
     Returns
     -------
@@ -1112,9 +1123,10 @@ def run_aggregation(
         Exit code (0 on success).
     """
     sum_dir = Path(summaries_dir)
-    out_csv = Path(output_csv)
-    out_rep = Path(output_report)
-    out_not = Path(output_notion)
+    base_out = Path(output_dir) if output_dir else Path("results/extrapolation_uq/analysis")
+    out_csv = Path(output_csv) if output_csv else base_out / "extrapolation_calibration_scorecard.csv"
+    out_rep = Path(output_report) if output_report else base_out / "HYPOTHESIS_EVALUATION_REPORT.md"
+    out_not = Path(output_notion) if output_notion else Path("bachelorthesis/extrapolation_uq_scorecard_notion.txt")
 
     out_obj_csv = (
         Path(output_objective_csv)
@@ -1189,6 +1201,16 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.output_dir:
+        out_base = Path(args.output_dir)
+        if args.output_csv == "results/extrapolation_uq/analysis/extrapolation_calibration_scorecard.csv":
+            args.output_csv = str(out_base / "extrapolation_calibration_scorecard.csv")
+        if args.output_report == "results/extrapolation_uq/analysis/HYPOTHESIS_EVALUATION_REPORT.md":
+            args.output_report = str(out_base / "HYPOTHESIS_EVALUATION_REPORT.md")
+        if args.output_objective_csv is None:
+            args.output_objective_csv = str(out_base / "extrapolation_objective_scorecard.csv")
+        if args.output_strata_matrix_csv is None:
+            args.output_strata_matrix_csv = str(out_base / "extrapolation_dimension_strata_matrix.csv")
     return run_aggregation(
         summaries_dir=args.summaries_dir,
         output_csv=args.output_csv,
@@ -1196,6 +1218,7 @@ def main(argv: list[str] | None = None) -> int:
         output_notion=args.output_notion,
         output_objective_csv=args.output_objective_csv,
         output_strata_matrix_csv=args.output_strata_matrix_csv,
+        output_dir=args.output_dir,
     )
 
 
