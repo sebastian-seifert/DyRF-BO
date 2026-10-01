@@ -2,6 +2,7 @@ import os
 import sys
 import numpy as np
 from scipy.special import logsumexp, roots_hermite
+from dyrf_bo.entropy import huber_entropy_1d
 
 try:
     import cupy as cp
@@ -263,16 +264,58 @@ class EpistemicQuantifier:
     # ==========================================
     # Approach 2: Shaker 2020 (Entropy-based)
     # ==========================================
-    def shaker_get_epistemic_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", n_quadrature_points=32, method="gauss_hermite"):
+    def shaker_get_epistemic_entropy(
+        self,
+        X_test,
+        num_samples=10000,
+        batch_size="auto",
+        random_state=None,
+        backend="auto",
+        n_quadrature_points=32,
+        method="huber",
+        enable_splitting=False,
+        return_bounds=False,
+    ):
         """
         Approach 2: Shaker 2020 (Epistemic Component)
         Calculated as: Total Uncertainty (GMM Entropy) - Aleatoric Uncertainty.
         
         Total Uncertainty is the entropy of the Gaussian Mixture Model formed by the trees.
         Aleatoric is the mean entropy of the individual tree distributions.
+
+        Parameters
+        ----------
+        X_test : array-like of shape (n_samples, n_features) or (n_features,)
+            Query points to evaluate.
+        num_samples : int, default=10000
+            Number of Monte Carlo samples if method="monte_carlo".
+        batch_size : int or "auto", default="auto"
+            Batch size for vectorization or chunking.
+        random_state : int, RandomState instance or None, default=None
+            Random state for sampling.
+        backend : str, default="auto"
+            Computation backend: "auto", "cpu", or "gpu".
+        n_quadrature_points : int, default=32
+            Number of Gauss-Hermite quadrature points if method="gauss_hermite".
+        method : {"huber", "gauss_hermite", "monte_carlo"}, default="huber"
+            Entropy evaluation method. Defaults to closed-form Huber (2008).
+        enable_splitting : bool, default=False
+            If True, applies Huber Table I standard normal 4-component splitting
+            (Option B) to shrink component variance by ~73.2% before Taylor expansion.
+        return_bounds : bool, default=False
+            If True and method="huber", returns the bounding triplet (MI_l, MI, MI_u)
+            as a tuple of arrays, clipped to [0, log2(n_trees)].
+
+        Returns
+        -------
+        mi : np.ndarray of shape (n_samples,) or tuple of 3 np.ndarrays
+            Mutual information in bits. If return_bounds=True, returns (mi_l, mi, mi_u).
         """
         X_test = np.atleast_2d(X_test)
-        all_test_leaf_ids = self.model.apply(X_test)
+        if self.leaf_cache is not None:
+            all_test_leaf_ids = self.leaf_cache.all_test_leaf_ids
+        else:
+            all_test_leaf_ids = self.model.apply(X_test)
         n_trees = len(self.model.estimators_)
         max_mi_bound = float(np.log2(n_trees))
         
@@ -284,24 +327,56 @@ class EpistemicQuantifier:
             backend=backend,
             all_test_leaf_ids=all_test_leaf_ids,
             n_quadrature_points=n_quadrature_points,
-            method=method
+            method=method,
+            enable_splitting=enable_splitting,
+            return_bounds=return_bounds,
         )
         aleatoric_unc = self._shaker_calc_aleatoric_entropy(X_test, all_test_leaf_ids=all_test_leaf_ids)
         
-        raw_mi = total_unc - aleatoric_unc
+        if return_bounds:
+            H_l, H_total, H_u = total_unc
+            raw_mi_l = H_l - aleatoric_unc
+            raw_mi = H_total - aleatoric_unc
+            raw_mi_u = H_u - aleatoric_unc
 
-        # Enforce theoretical bounds: 0 <= MI <= log2(n_trees)
-        if np.any(raw_mi > max_mi_bound + 1e-4):
-            import warnings
-            max_viol = float(np.max(raw_mi - max_mi_bound))
-            warnings.warn(
-                f"Numerical integration exceeded information-theoretic MI upper bound log2({n_trees})={max_mi_bound:.4f} by {max_viol:.4f} bits. Clamping to bound.",
-                RuntimeWarning
-            )
+            if np.any(raw_mi > max_mi_bound + 1e-4):
+                import warnings
+                max_viol = float(np.max(raw_mi - max_mi_bound))
+                warnings.warn(
+                    f"Numerical integration exceeded information-theoretic MI upper bound log2({n_trees})={max_mi_bound:.4f} by {max_viol:.4f} bits. Clamping to bound.",
+                    RuntimeWarning,
+                )
 
-        return np.clip(raw_mi, 0.0, max_mi_bound)
+            mi_l = np.clip(raw_mi_l, 0.0, max_mi_bound)
+            mi_u = np.clip(raw_mi_u, 0.0, max_mi_bound)
+            mi = np.clip(raw_mi, mi_l, mi_u)
+            return (mi_l, mi, mi_u)
+        else:
+            raw_mi = total_unc - aleatoric_unc
 
-    def shaker_get_epistemic_variance(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", n_quadrature_points=32, method="gauss_hermite"):
+            # Enforce theoretical bounds: 0 <= MI <= log2(n_trees)
+            if np.any(raw_mi > max_mi_bound + 1e-4):
+                import warnings
+                max_viol = float(np.max(raw_mi - max_mi_bound))
+                warnings.warn(
+                    f"Numerical integration exceeded information-theoretic MI upper bound log2({n_trees})={max_mi_bound:.4f} by {max_viol:.4f} bits. Clamping to bound.",
+                    RuntimeWarning,
+                )
+
+            return np.clip(raw_mi, 0.0, max_mi_bound)
+
+    def shaker_get_epistemic_variance(
+        self,
+        X_test,
+        num_samples=10000,
+        batch_size="auto",
+        random_state=None,
+        backend="auto",
+        n_quadrature_points=32,
+        method="huber",
+        enable_splitting=False,
+        return_bounds=False,
+    ):
         """
         Returns a Shaker-inspired epistemic proxy in variance units.
 
@@ -312,27 +387,112 @@ class EpistemicQuantifier:
 
             MI = 0.5 * log2(total_var / aleatoric_var)
             epistemic_var = aleatoric_var * (2 ** (2 * MI) - 1)
+
+        Parameters
+        ----------
+        X_test : array-like of shape (n_samples, n_features) or (n_features,)
+            Query points to evaluate.
+        num_samples : int, default=10000
+            Number of Monte Carlo samples if method="monte_carlo".
+        batch_size : int or "auto", default="auto"
+            Batch size for vectorization or chunking.
+        random_state : int, RandomState instance or None, default=None
+            Random state for sampling.
+        backend : str, default="auto"
+            Computation backend: "auto", "cpu", or "gpu".
+        n_quadrature_points : int, default=32
+            Number of Gauss-Hermite quadrature points if method="gauss_hermite".
+        method : {"huber", "gauss_hermite", "monte_carlo"}, default="huber"
+            Entropy evaluation method. Defaults to closed-form Huber (2008).
+        enable_splitting : bool, default=False
+            If True, applies Huber Table I standard normal 4-component splitting
+            (Option B) to shrink component variance by ~73.2% before Taylor expansion.
+        return_bounds : bool, default=False
+            If True and method="huber", returns the bounding triplet (var_l, var_2, var_u)
+            in variance units as a tuple of arrays.
+
+        Returns
+        -------
+        epistemic_var : np.ndarray of shape (n_samples,) or tuple of 3 np.ndarrays
+            Epistemic uncertainty proxy in variance units. If return_bounds=True, returns (var_l, var_2, var_u).
         """
         X_test = np.atleast_2d(X_test)
-        all_test_leaf_ids = self.model.apply(X_test)
+        if self.leaf_cache is not None:
+            all_test_leaf_ids = self.leaf_cache.all_test_leaf_ids
+        else:
+            all_test_leaf_ids = self.model.apply(X_test)
         
-        mi_bits = self.shaker_get_epistemic_entropy(
+        mi_result = self.shaker_get_epistemic_entropy(
             X_test,
             num_samples=num_samples,
             batch_size=batch_size,
             random_state=random_state,
             backend=backend,
             n_quadrature_points=n_quadrature_points,
-            method=method
+            method=method,
+            enable_splitting=enable_splitting,
+            return_bounds=return_bounds,
         )
         aleatoric_var = self.base_get_aleatoric_variance(X_test, all_test_leaf_ids=all_test_leaf_ids)
 
-        # Safe exponent clipping to prevent IEEE 754 float64 overflow even with large aleatoric variance
-        safe_exponent = np.clip(2.0 * mi_bits, 0.0, 50.0)
-        return aleatoric_var * np.maximum(2.0 ** safe_exponent - 1.0, 0.0)
+        def _convert_mi_to_var(mi_bits):
+            # Safe exponent clipping to prevent IEEE 754 float64 overflow even with large aleatoric variance
+            safe_exponent = np.clip(2.0 * mi_bits, 0.0, 50.0)
+            return aleatoric_var * np.maximum(2.0 ** safe_exponent - 1.0, 0.0)
 
-    def shaker_get_total_variance(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", n_quadrature_points=32, method="gauss_hermite"):
-        """Converts Shaker's total GMM entropy into entropy-power variance units."""
+        if return_bounds:
+            mi_l, mi, mi_u = mi_result
+            return (
+                _convert_mi_to_var(mi_l),
+                _convert_mi_to_var(mi),
+                _convert_mi_to_var(mi_u),
+            )
+
+        return _convert_mi_to_var(mi_result)
+
+    def shaker_get_total_variance(
+        self,
+        X_test,
+        num_samples=10000,
+        batch_size="auto",
+        random_state=None,
+        backend="auto",
+        n_quadrature_points=32,
+        method="huber",
+        enable_splitting=False,
+        return_bounds=False,
+    ):
+        """
+        Converts Shaker's total GMM entropy into entropy-power variance units.
+
+        Parameters
+        ----------
+        X_test : array-like of shape (n_samples, n_features) or (n_features,)
+            Query points to evaluate.
+        num_samples : int, default=10000
+            Number of Monte Carlo samples if method="monte_carlo".
+        batch_size : int or "auto", default="auto"
+            Batch size for vectorization or chunking.
+        random_state : int, RandomState instance or None, default=None
+            Random state for sampling.
+        backend : str, default="auto"
+            Computation backend: "auto", "cpu", or "gpu".
+        n_quadrature_points : int, default=32
+            Number of Gauss-Hermite quadrature points if method="gauss_hermite".
+        method : {"huber", "gauss_hermite", "monte_carlo"}, default="huber"
+            Entropy evaluation method. Defaults to closed-form Huber (2008).
+        enable_splitting : bool, default=False
+            If True, applies Huber Table I standard normal 4-component splitting
+            (Option B) to shrink component variance by ~73.2% before Taylor expansion.
+        return_bounds : bool, default=False
+            If True and method="huber", returns the bounding triplet (tot_var_l, tot_var_2, tot_var_u)
+            in entropy-power variance units as a tuple of arrays.
+
+        Returns
+        -------
+        total_var : np.ndarray of shape (n_samples,) or tuple of 3 np.ndarrays
+            Total uncertainty in entropy-power variance units. If return_bounds=True, returns (tot_var_l, tot_var_2, tot_var_u).
+        """
         total_entropy = self._shaker_calc_total_entropy(
             X_test,
             num_samples=num_samples,
@@ -340,8 +500,18 @@ class EpistemicQuantifier:
             random_state=random_state,
             backend=backend,
             n_quadrature_points=n_quadrature_points,
-            method=method
+            method=method,
+            enable_splitting=enable_splitting,
+            return_bounds=return_bounds,
         )
+        if return_bounds:
+            H_l, H_2, H_u = total_entropy
+            H_2_clamped = np.clip(H_2, H_l, H_u)
+            return (
+                self._shaker_convert_entropy_to_var(H_l),
+                self._shaker_convert_entropy_to_var(H_2_clamped),
+                self._shaker_convert_entropy_to_var(H_u),
+            )
         return self._shaker_convert_entropy_to_var(total_entropy)
 
     # --- Shaker Internals ---
@@ -367,10 +537,23 @@ class EpistemicQuantifier:
         """Converts variance of a Gaussian to differential entropy in bits."""
         return 0.5 * np.log2(2.0 * np.pi * np.e * var)
 
-    def _shaker_calc_total_entropy(self, X_test, num_samples=10000, batch_size="auto", random_state=None, backend="auto", all_test_leaf_ids=None, n_quadrature_points=32, method="gauss_hermite"):
+    def _shaker_calc_total_entropy(
+        self,
+        X_test,
+        num_samples=10000,
+        batch_size="auto",
+        random_state=None,
+        backend="auto",
+        all_test_leaf_ids=None,
+        n_quadrature_points=32,
+        method="huber",
+        enable_splitting=False,
+        return_bounds=False,
+    ):
         r"""
-        Calculates the Total Uncertainty (Entropy of the GMM) via component-resolving
-        Gauss-Hermite quadrature or Monte Carlo sampling over batches of test query points.
+        Calculates the Total Uncertainty (Entropy of the GMM) via closed-form Huber (2008)
+        entropy approximation, component-resolving Gauss-Hermite quadrature, or Monte Carlo
+        sampling over batches of test query points.
         
         Formula: H = \int -p(y) \log_2 p(y) dy
         """
@@ -401,6 +584,31 @@ class EpistemicQuantifier:
             
         vars_all = np.maximum(vars_all, 1e-6)
         sigmas_all = np.sqrt(vars_all)
+
+        if return_bounds and method != "huber":
+            raise ValueError(
+                f"return_bounds=True is only supported when method='huber', got method={method!r}"
+            )
+
+        if method == "huber":
+            means = mu_all.T
+            variances = sigmas_all.T ** 2
+            result = huber_entropy_1d(
+                means=means,
+                variances=variances,
+                weights=None,
+                enable_splitting=enable_splitting,
+                return_bounds=return_bounds,
+                backend=backend,
+                batch_size=batch_size,
+            )
+            if return_bounds:
+                h_l, h_2, h_u = result
+                h_2 = np.clip(h_2, h_l, h_u)
+                result = (h_l, h_2, h_u)
+            if debug_timing:
+                print(f"   [GMM Shaker Profile] Total total_entropy calculation took: {time.time() - t0:.6f}s")
+            return result
         
         total_entropy = np.zeros(n_samples)
         
@@ -512,8 +720,6 @@ class EpistemicQuantifier:
                         
         if debug_timing:
             print(f"   [GMM Shaker Profile] Total total_entropy calculation took: {time.time() - t0:.6f}s")
-            
-        return total_entropy
             
         return total_entropy
 
