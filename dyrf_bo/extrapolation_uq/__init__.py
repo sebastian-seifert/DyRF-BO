@@ -5,7 +5,7 @@ Exports:
 - sphere, rosenbrock, rastrigin, ackley: Vectorized synthetic benchmark objectives
 - BaseObjective, StandardizedObjective, get_objective, register_objective: Standardized objective wrappers
 - sample_subdomain_training, sample_natural_test, sample_stratified_test: Sampling engines
-- create_smac_default_rf, DualUQEvaluator, DualUQResult: Dual UQ evaluation engine
+- create_surrogate_rf, SURROGATE_CONFIGS, create_smac_default_rf, DualUQEvaluator, DualUQResult, MultiUQEvaluator, MultiUQResult: Multi-surrogate UQ evaluation engine
 - spearman_rank_correlation, prediction_interval_coverage_probability, mean_prediction_interval_width,
   winkler_interval_score, outlier_error_detection_auc, compute_comprehensive_metrics: Evaluation metrics
 - ExtrapolationRunConfig, run_single_experiment: Sweep runner pipeline
@@ -50,11 +50,13 @@ from .test_objectives import (
     sphere,
 )
 from .uq_evaluator import (
+    SURROGATE_CONFIGS,
     DualUQEvaluator,
     DualUQResult,
     MultiUQEvaluator,
     MultiUQResult,
     create_smac_default_rf,
+    create_surrogate_rf,
 )
 
 __all__ = [
@@ -77,6 +79,8 @@ __all__ = [
     "sample_natural_test",
     "sample_stratified_test",
     # Multi & Dual UQ Evaluator
+    "create_surrogate_rf",
+    "SURROGATE_CONFIGS",
     "create_smac_default_rf",
     "DualUQEvaluator",
     "DualUQResult",
