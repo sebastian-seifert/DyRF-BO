@@ -279,6 +279,7 @@ class TestLoadSummaryRecords:
             "function_name",
             "sampling_strategy",
             "seed",
+            "surrogate",
             "spearman_dist_plcb",
             "spearman_dist_slcb",
             "spearman_err_plcb",
@@ -307,6 +308,31 @@ class TestLoadSummaryRecords:
             assert f"stratum_{s}_spearman_dist_plcb" in df.columns
             assert f"stratum_{s}_spearman_dist_slcb" in df.columns
             assert f"stratum_{s}_winkler_plcb" in df.columns
+
+    def test_surrogate_column_extraction(self, tmp_path: Path):
+        summary_dir = tmp_path / "summaries"
+        summary_dir.mkdir(parents=True, exist_ok=True)
+        # 1. Summary with explicit surrogate key
+        s1 = _make_mock_summary(2, 112, "sphere", "natural", 0, 0.5, 0.8, 0.3, 0.7, 0.8, 0.95, 20.0, 10.0, 0.6, 0.9)
+        s1["surrogate"] = "mature"
+        s1["surrogate_type"] = "mature"
+        with open(summary_dir / "summary_sphere_d2_n112_natural_mature_s0.json", "w") as f:
+            json.dump(s1, f)
+
+        # 2. Summary with legacy schema (no surrogate key, fallback to smac_default)
+        s2 = _make_mock_summary(2, 112, "sphere", "natural", 1, 0.5, 0.8, 0.3, 0.7, 0.8, 0.95, 20.0, 10.0, 0.6, 0.9)
+        s2.pop("surrogate", None)
+        s2.pop("surrogate_type", None)
+        with open(summary_dir / "summary_sphere_d2_n112_natural_s1.json", "w") as f:
+            json.dump(s2, f)
+
+        df = load_summary_records(summary_dir)
+        assert len(df) == 2
+        assert "surrogate" in df.columns
+        row_mature = df[df["seed"] == 0].iloc[0]
+        row_legacy = df[df["seed"] == 1].iloc[0]
+        assert row_mature["surrogate"] == "mature"
+        assert row_legacy["surrogate"] == "smac_default"
 
 
 class TestScorecardGeneration:

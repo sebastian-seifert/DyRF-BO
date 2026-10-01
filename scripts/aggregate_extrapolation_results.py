@@ -272,6 +272,7 @@ def load_summary_records(summaries_dir: str | Path) -> pd.DataFrame:
             "function_name": data.get("function_name"),
             "sampling_strategy": data.get("sampling_strategy"),
             "seed": data.get("seed"),
+            "surrogate": data.get("surrogate", data.get("surrogate_type", "smac_default")),
             "n_test": data.get("n_test"),
             "elapsed_seconds": data.get("elapsed_seconds"),
         }
