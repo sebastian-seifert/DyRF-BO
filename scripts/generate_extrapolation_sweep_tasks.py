@@ -34,6 +34,27 @@ PILOT_FUNCTIONS = ["sphere"]
 PILOT_STRATEGIES = ["natural", "stratified"]
 PILOT_SEEDS = [0]
 
+STRESS_CONFIGURATIONS = [
+    # 16-run balanced orthogonal design:
+    # 4 dimensions (2, 5, 16, 32) x 4 functions x 2 sample sizes (112, 224) x 2 strategies
+    (2, 112, "sphere", "natural", 0),
+    (2, 112, "rosenbrock", "stratified", 0),
+    (2, 224, "rastrigin", "natural", 0),
+    (2, 224, "ackley", "stratified", 0),
+    (5, 112, "rosenbrock", "natural", 0),
+    (5, 112, "rastrigin", "stratified", 0),
+    (5, 224, "ackley", "natural", 0),
+    (5, 224, "sphere", "stratified", 0),
+    (16, 112, "rastrigin", "natural", 0),
+    (16, 112, "ackley", "stratified", 0),
+    (16, 224, "sphere", "natural", 0),
+    (16, 224, "rosenbrock", "stratified", 0),
+    (32, 112, "ackley", "natural", 0),
+    (32, 112, "sphere", "stratified", 0),
+    (32, 224, "rosenbrock", "natural", 0),
+    (32, 224, "rastrigin", "stratified", 0),
+]
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build argument parser for sweep task generation."""
@@ -51,6 +72,24 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Generate 4-run pilot suite: D in [2, 16], N=112, sphere, seed=0, natural & stratified.",
+    )
+    parser.add_argument(
+        "--stress",
+        action="store_true",
+        default=False,
+        help="Generate 16-run stress suite covering D in [2, 5, 16, 32], all 4 functions, N in [112, 224], and natural & stratified.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Optional directory to pass as --output-dir to each task.",
+    )
+    parser.add_argument(
+        "--summary-dir",
+        type=str,
+        default=None,
+        help="Optional directory to pass as --summary-dir to each task.",
     )
     parser.add_argument(
         "--dimensions",
@@ -105,6 +144,7 @@ def build_parser() -> argparse.ArgumentParser:
 def generate_tasks(
     output_file: str | Path = "results/extrapolation_sweep_tasks.txt",
     pilot: bool = False,
+    stress: bool = False,
     dimensions: Optional[List[int]] = None,
     n_trains: Optional[List[int]] = None,
     functions: Optional[List[str]] = None,
@@ -112,6 +152,8 @@ def generate_tasks(
     seeds: Optional[List[int]] = None,
     python_bin: str = "python",
     skip_if_exists: bool = True,
+    output_dir: Optional[str] = None,
+    summary_dir: Optional[str] = None,
 ) -> List[str]:
     """Generate experiment task commands and serialize to target file.
 
@@ -121,6 +163,8 @@ def generate_tasks(
         Path to output task text file.
     pilot : bool, default=False
         If True, overrides sweep parameters with the 4-run pilot suite.
+    stress : bool, default=False
+        If True, overrides sweep parameters with the 16-run stress test suite.
     dimensions : list[int], optional
         Feature space dimensions.
     n_trains : list[int], optional
@@ -135,18 +179,54 @@ def generate_tasks(
         Python interpreter binary for command lines.
     skip_if_exists : bool, default=True
         Whether to append --skip-if-exists to commands.
+    output_dir : str, optional
+        Target directory for raw parquet files.
+    summary_dir : str, optional
+        Target directory for summary json files.
 
     Returns
     -------
     list[str]
         List of generated task command lines.
     """
+    skip_suffix = " --skip-if-exists" if skip_if_exists else ""
+    out_dir_suffix = f" --output-dir {shlex.quote(output_dir)}" if output_dir else ""
+    sum_dir_suffix = f" --summary-dir {shlex.quote(summary_dir)}" if summary_dir else ""
+    py_bin = shlex.quote(python_bin)
+    tasks: List[str] = []
+
     if pilot:
-        dims = PILOT_DIMENSIONS
-        trains = PILOT_N_TRAINS
-        funcs = PILOT_FUNCTIONS
-        strats = PILOT_STRATEGIES
-        seed_list = PILOT_SEEDS
+        for dim in PILOT_DIMENSIONS:
+            for n_train in PILOT_N_TRAINS:
+                for func in PILOT_FUNCTIONS:
+                    for strat in PILOT_STRATEGIES:
+                        for seed in PILOT_SEEDS:
+                            cmd = (
+                                f"{py_bin} scripts/run_extrapolation_experiment.py "
+                                f"--dimension {dim} "
+                                f"--n-train {n_train} "
+                                f"--function {func} "
+                                f"--strategy {strat} "
+                                f"--seed {seed}"
+                                f"{out_dir_suffix}"
+                                f"{sum_dir_suffix}"
+                                f"{skip_suffix}"
+                            )
+                            tasks.append(cmd)
+    elif stress:
+        for dim, n_train, func, strat, seed in STRESS_CONFIGURATIONS:
+            cmd = (
+                f"{py_bin} scripts/run_extrapolation_experiment.py "
+                f"--dimension {dim} "
+                f"--n-train {n_train} "
+                f"--function {func} "
+                f"--strategy {strat} "
+                f"--seed {seed}"
+                f"{out_dir_suffix}"
+                f"{sum_dir_suffix}"
+                f"{skip_suffix}"
+            )
+            tasks.append(cmd)
     else:
         dims = dimensions if dimensions is not None else DEFAULT_DIMENSIONS
         trains = n_trains if n_trains is not None else DEFAULT_N_TRAINS
@@ -154,25 +234,23 @@ def generate_tasks(
         strats = strategies if strategies is not None else DEFAULT_STRATEGIES
         seed_list = seeds if seeds is not None else DEFAULT_SEEDS
 
-    skip_suffix = " --skip-if-exists" if skip_if_exists else ""
-    py_bin = shlex.quote(python_bin)
-    tasks: List[str] = []
-
-    for dim in dims:
-        for n_train in trains:
-            for func in funcs:
-                for strat in strats:
-                    for seed in seed_list:
-                        cmd = (
-                            f"{py_bin} scripts/run_extrapolation_experiment.py "
-                            f"--dimension {dim} "
-                            f"--n-train {n_train} "
-                            f"--function {func} "
-                            f"--strategy {strat} "
-                            f"--seed {seed}"
-                            f"{skip_suffix}"
-                        )
-                        tasks.append(cmd)
+        for dim in dims:
+            for n_train in trains:
+                for func in funcs:
+                    for strat in strats:
+                        for seed in seed_list:
+                            cmd = (
+                                f"{py_bin} scripts/run_extrapolation_experiment.py "
+                                f"--dimension {dim} "
+                                f"--n-train {n_train} "
+                                f"--function {func} "
+                                f"--strategy {strat} "
+                                f"--seed {seed}"
+                                f"{out_dir_suffix}"
+                                f"{sum_dir_suffix}"
+                                f"{skip_suffix}"
+                            )
+                            tasks.append(cmd)
 
     target_path = Path(output_file)
     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -191,6 +269,7 @@ def main(argv: list[str] | None = None) -> int:
     generate_tasks(
         output_file=args.output_file,
         pilot=args.pilot,
+        stress=args.stress,
         dimensions=args.dimensions,
         n_trains=args.n_trains,
         functions=args.functions,
@@ -198,6 +277,8 @@ def main(argv: list[str] | None = None) -> int:
         seeds=args.seeds,
         python_bin=args.python_bin,
         skip_if_exists=args.skip_if_exists,
+        output_dir=args.output_dir,
+        summary_dir=args.summary_dir,
     )
     return 0
 

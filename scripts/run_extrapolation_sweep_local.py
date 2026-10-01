@@ -175,6 +175,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Execute 4-task pilot sweep (generates pilot tasks if needed).",
     )
     parser.add_argument(
+        "--stress",
+        action="store_true",
+        default=False,
+        help="Execute 16-task stress sweep (generates stress tasks if needed).",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -196,6 +202,7 @@ def run_local_sweep(
     dry_run: bool = False,
     concurrency: Optional[int] = None,
     pilot: bool = False,
+    stress: bool = False,
 ) -> Dict[str, Any]:
     """Execute sweep tasks from file in parallel worker pool.
 
@@ -213,6 +220,8 @@ def run_local_sweep(
         Alias for workers (concurrency limit).
     pilot : bool, default=False
         If True, run 4-task pilot sweep.
+    stress : bool, default=False
+        If True, run 16-task stress sweep.
 
     Returns
     -------
@@ -230,6 +239,20 @@ def run_local_sweep(
         venv_py = REPO_ROOT / ".venv" / "bin" / "python"
         py_bin = str(venv_py) if venv_py.exists() else sys.executable
         generate_tasks(output_file=task_path, pilot=True, python_bin=py_bin)
+    elif stress:
+        if task_file is None or str(task_file) == "results/extrapolation_sweep_tasks.txt":
+            task_path = Path("results/stress_test_tasks.txt")
+        else:
+            task_path = Path(task_file)
+        venv_py = REPO_ROOT / ".venv" / "bin" / "python"
+        py_bin = str(venv_py) if venv_py.exists() else sys.executable
+        generate_tasks(
+            output_file=task_path,
+            stress=True,
+            python_bin=py_bin,
+            output_dir="results/extrapolation_uq/stress_raw",
+            summary_dir="results/extrapolation_uq/stress_summaries",
+        )
     else:
         task_path = Path(task_file if task_file is not None else "results/extrapolation_sweep_tasks.txt")
 
@@ -307,6 +330,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         limit=args.limit,
         dry_run=args.dry_run,
         pilot=args.pilot,
+        stress=args.stress,
     )
 
     return 0 if summary["failed_tasks"] == 0 else 1

@@ -536,3 +536,39 @@ class TestTaskGenerator:
         tokens = shlex.split(tasks[0])
         assert tokens[0] == "/path with spaces/bin/python"
         assert tasks[0].startswith("'/path with spaces/bin/python' scripts/run_extrapolation_experiment.py")
+
+    def test_stress_generates_exactly_16_tasks(self, tmp_path):
+        out_file = tmp_path / "stress_tasks.txt"
+        tasks = generate_tasks(
+            output_file=out_file,
+            stress=True,
+            output_dir="results/extrapolation_uq/stress_raw",
+            summary_dir="results/extrapolation_uq/stress_summaries",
+        )
+        assert len(tasks) == 16
+        assert out_file.exists()
+
+        lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
+        assert len(lines) == 16
+
+        parser = build_run_experiment_parser()
+        dims = set()
+        funcs = set()
+        trains = set()
+        strats = set()
+
+        for cmd in tasks:
+            tokens = shlex.split(cmd)
+            cli_args = parser.parse_args(tokens[2:])
+            dims.add(cli_args.dimension)
+            funcs.add(cli_args.function)
+            trains.add(cli_args.n_train)
+            strats.add(cli_args.strategy)
+            assert cli_args.output_dir == "results/extrapolation_uq/stress_raw"
+            assert cli_args.summary_dir == "results/extrapolation_uq/stress_summaries"
+            assert cli_args.skip_if_exists is True
+
+        assert dims == {2, 5, 16, 32}
+        assert funcs == {"sphere", "rosenbrock", "rastrigin", "ackley"}
+        assert trains == {112, 224}
+        assert strats == {"natural", "stratified"}
