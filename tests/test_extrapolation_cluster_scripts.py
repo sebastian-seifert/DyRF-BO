@@ -355,3 +355,67 @@ class TestLocalSweepRunner:
             "--task-file", str(task_file),
         ])
         assert ret != 0
+
+    def test_parser_concurrency_argument(self):
+        parser = build_parser()
+        args = parser.parse_args(["--concurrency", "8"])
+        assert args.workers == 8
+        assert getattr(args, "concurrency", None) == 8
+
+    def test_parser_pilot_argument(self):
+        parser = build_parser()
+        args = parser.parse_args(["--pilot"])
+        assert args.pilot is True
+
+    def test_local_sweep_concurrency_parameter(self, tmp_path):
+        task_file = tmp_path / "tasks.txt"
+        task_file.write_text("echo 'task a'\necho 'task b'\n")
+
+        summary = run_local_sweep(
+            task_file=task_file,
+            concurrency=3,
+            dry_run=True,
+        )
+        assert summary["total_tasks"] == 2
+        assert summary["executed_tasks"] == 2
+        assert summary["succeeded_tasks"] == 2
+
+    def test_local_sweep_pilot_mode(self, tmp_path):
+        # Pilot mode generates/runs 4 tasks
+        pilot_task_file = tmp_path / "custom_pilot_tasks.txt"
+        summary = run_local_sweep(
+            task_file=pilot_task_file,
+            pilot=True,
+            dry_run=True,
+        )
+        assert summary["total_tasks"] == 4
+        assert summary["executed_tasks"] == 4
+        assert summary["succeeded_tasks"] == 4
+        assert pilot_task_file.exists()
+        lines = [line.strip() for line in pilot_task_file.read_text().splitlines() if line.strip()]
+        assert len(lines) == 4
+
+    def test_local_sweep_uses_multiprocessing_pool(self, tmp_path):
+        task_file = tmp_path / "tasks.txt"
+        task_file.write_text("echo 'pool test'\n")
+
+        with patch("multiprocessing.Pool") as mock_pool_cls:
+            mock_pool = mock_pool_cls.return_value.__enter__.return_value
+            mock_pool.imap_unordered.return_value = [
+                {
+                    "task_id": 1,
+                    "cmd": "echo 'pool test'",
+                    "status": "success",
+                    "exit_code": 0,
+                    "elapsed_seconds": 0.01,
+                    "error": None,
+                }
+            ]
+            summary = run_local_sweep(
+                task_file=task_file,
+                workers=2,
+                dry_run=False,
+            )
+            mock_pool_cls.assert_called_once_with(processes=2)
+            assert summary["succeeded_tasks"] == 1
+

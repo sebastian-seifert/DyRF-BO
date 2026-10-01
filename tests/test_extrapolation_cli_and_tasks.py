@@ -342,6 +342,80 @@ class TestRunExperimentExecution:
         assert "Infinity" not in encoded
         assert "null" in encoded
 
+    def test_all_15_candidate_estimators_in_parquet_and_summary_json(self, tmp_path):
+        import pandas as pd
+        raw_dir = tmp_path / "raw"
+        sum_dir = tmp_path / "summaries"
+
+        argv = [
+            "--dimension", "2",
+            "--n-train", "28",
+            "--function", "sphere",
+            "--strategy", "stratified",
+            "--seed", "42",
+            "--n-test", "100",
+            "--k", "28",
+            "--n-trees", "5",
+            "--output-dir", str(raw_dir),
+            "--summary-dir", str(sum_dir),
+        ]
+        ret = main_run_experiment(argv)
+        assert ret == 0
+
+        parquet_path = raw_dir / "extrapolation_sphere_d2_n28_stratified_s42.parquet"
+        summary_path = sum_dir / "summary_sphere_d2_n28_stratified_s42.json"
+        assert parquet_path.exists() and parquet_path.stat().st_size > 0
+        assert summary_path.exists() and summary_path.stat().st_size > 0
+
+        # Lossless Parquet roundtrip
+        df = pd.read_parquet(parquet_path, engine="pyarrow")
+        assert len(df) == 100
+
+        expected_estimators = [
+            "u_hutter_total",
+            "u_hutter_between",
+            "u_hutter_within",
+            "u_shaker_epistemic",
+            "u_shaker_total",
+            "u_rf_fire_half",
+            "u_rf_fire_lower",
+            "u_prox_a_half",
+            "u_prox_a_lower",
+            "u_prox_b_half",
+            "u_prox_b_lower",
+            "u_prox_bc_half",
+            "u_prox_bc_lower",
+            "u_plcb_half",
+            "u_plcb_lower",
+        ]
+
+        for col in expected_estimators:
+            assert col in df.columns, f"Column '{col}' missing in Parquet."
+            assert not df[col].isna().any(), f"Column '{col}' contains NaNs in Parquet."
+            assert (df[col] >= 0.0).all(), f"Estimator '{col}' contains negative values in Parquet."
+
+        # Verify summary JSON validity and structure
+        raw_json_str = summary_path.read_text(encoding="utf-8")
+        assert "NaN" not in raw_json_str
+        assert "Infinity" not in raw_json_str
+
+        summary_data = json.loads(raw_json_str)
+        assert "global" in summary_data
+        assert "strata" in summary_data
+
+        expected_metrics = ["picp", "mpiw", "winkler", "spearman_dist", "spearman_err", "auroc", "auprc"]
+        for est in expected_estimators:
+            assert est in summary_data["global"], f"Estimator '{est}' missing from global summary."
+            for m in expected_metrics:
+                assert m in summary_data["global"][est], f"Metric '{m}' missing for '{est}' in global summary."
+
+        # Verify strata 0, 1, 2, 3 in summary
+        for s_key in ["0", "1", "2", "3"]:
+            assert s_key in summary_data["strata"], f"Stratum '{s_key}' missing from summary strata."
+            for est in expected_estimators:
+                assert est in summary_data["strata"][s_key], f"Estimator '{est}' missing from stratum {s_key}."
+
+
 
 class TestTaskGenerator:
     """Tests for generate_extrapolation_sweep_tasks script."""

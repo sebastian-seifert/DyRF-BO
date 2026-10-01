@@ -8,13 +8,20 @@ resource bounds (thread pinning, process count).
 from __future__ import annotations
 
 import argparse
-import concurrent.futures
+import multiprocessing as mp
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+# Ensure repository root is on sys.path
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.generate_extrapolation_sweep_tasks import generate_tasks
 
 
 def compute_chunks(total_tasks: int, chunk_size: int = 200) -> List[Tuple[int, int]]:
@@ -123,6 +130,18 @@ def execute_command(
         }
 
 
+def _worker_task(args: Tuple[int, str, bool]) -> Dict[str, Any]:
+    """Helper for multiprocessing.Pool worker execution."""
+    task_id, cmd, dry_run = args
+    return execute_command(task_id=task_id, cmd=cmd, dry_run=dry_run)
+
+
+class _ConcurrencyAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, "workers", values)
+        setattr(namespace, "concurrency", values)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build command-line parser for local multi-processing sweep runner."""
     parser = argparse.ArgumentParser(
@@ -134,11 +153,26 @@ def build_parser() -> argparse.ArgumentParser:
         default="results/extrapolation_sweep_tasks.txt",
         help="Path to task file (default: results/extrapolation_sweep_tasks.txt).",
     )
+    default_workers = max(1, (os.cpu_count() or 1) - 1)
     parser.add_argument(
         "--workers",
         type=int,
-        default=max(1, (os.cpu_count() or 1) - 1),
-        help=f"Number of parallel worker processes (default: {max(1, (os.cpu_count() or 1) - 1)}).",
+        default=default_workers,
+        help=f"Number of parallel worker processes (default: {default_workers}).",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        action=_ConcurrencyAction,
+        dest="concurrency",
+        default=None,
+        help="Concurrency limit (alias for --workers).",
+    )
+    parser.add_argument(
+        "--pilot",
+        action="store_true",
+        default=False,
+        help="Execute 4-task pilot sweep (generates pilot tasks if needed).",
     )
     parser.add_argument(
         "--limit",
@@ -156,16 +190,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run_local_sweep(
-    task_file: str | Path,
+    task_file: str | Path | None = None,
     workers: Optional[int] = None,
     limit: Optional[int] = None,
     dry_run: bool = False,
+    concurrency: Optional[int] = None,
+    pilot: bool = False,
 ) -> Dict[str, Any]:
     """Execute sweep tasks from file in parallel worker pool.
 
     Parameters
     ----------
-    task_file : str | Path
+    task_file : str | Path, optional
         Path to file containing newline-separated task commands.
     workers : int, optional
         Number of parallel processes (default: cpu_count - 1).
@@ -173,13 +209,30 @@ def run_local_sweep(
         Optional limit on number of tasks to run.
     dry_run : bool, default=False
         If True, log without running subprocesses.
+    concurrency : int, optional
+        Alias for workers (concurrency limit).
+    pilot : bool, default=False
+        If True, run 4-task pilot sweep.
 
     Returns
     -------
     dict[str, Any]
         Summary dictionary with execution metrics and individual results.
     """
-    task_path = Path(task_file)
+    if concurrency is not None:
+        workers = concurrency
+
+    if pilot:
+        if task_file is None or str(task_file) == "results/extrapolation_sweep_tasks.txt":
+            task_path = Path("results/pilot_tasks.txt")
+        else:
+            task_path = Path(task_file)
+        venv_py = REPO_ROOT / ".venv" / "bin" / "python"
+        py_bin = str(venv_py) if venv_py.exists() else sys.executable
+        generate_tasks(output_file=task_path, pilot=True, python_bin=py_bin)
+    else:
+        task_path = Path(task_file if task_file is not None else "results/extrapolation_sweep_tasks.txt")
+
     if not task_path.exists():
         raise FileNotFoundError(f"Task file '{task_path}' not found.")
 
@@ -207,14 +260,10 @@ def run_local_sweep(
     start_total = time.perf_counter()
     results: List[Dict[str, Any]] = []
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        future_map = {
-            executor.submit(execute_command, task_id, cmd, dry_run): task_id
-            for task_id, cmd in tasks_to_run
-        }
+    task_inputs = [(task_id, cmd, dry_run) for task_id, cmd in tasks_to_run]
+    with mp.Pool(processes=max_workers) as pool:
         completed = 0
-        for future in concurrent.futures.as_completed(future_map):
-            res = future.result()
+        for res in pool.imap_unordered(_worker_task, task_inputs):
             results.append(res)
             completed += 1
             if res["status"] == "failed":
@@ -249,11 +298,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    concurrency = getattr(args, "concurrency", None)
+    workers = concurrency if concurrency is not None else args.workers
+
     summary = run_local_sweep(
         task_file=args.task_file,
-        workers=args.workers,
+        workers=workers,
         limit=args.limit,
         dry_run=args.dry_run,
+        pilot=args.pilot,
     )
 
     return 0 if summary["failed_tasks"] == 0 else 1
@@ -261,3 +314,4 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
