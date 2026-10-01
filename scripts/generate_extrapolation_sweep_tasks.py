@@ -27,12 +27,14 @@ DEFAULT_N_TRAINS = [112, 224, 448, 896]
 DEFAULT_FUNCTIONS = ["sphere", "rosenbrock", "rastrigin", "ackley"]
 DEFAULT_STRATEGIES = ["natural", "stratified"]
 DEFAULT_SEEDS = list(range(10))
+DEFAULT_SURROGATES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
 
 PILOT_DIMENSIONS = [2, 16]
 PILOT_N_TRAINS = [112]
 PILOT_FUNCTIONS = ["sphere"]
 PILOT_STRATEGIES = ["natural", "stratified"]
 PILOT_SEEDS = [0]
+PILOT_SURROGATES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
 
 STRESS_CONFIGURATIONS = [
     # 16-run balanced orthogonal design:
@@ -71,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--pilot",
         action="store_true",
         default=False,
-        help="Generate 4-run pilot suite: D in [2, 16], N=112, sphere, seed=0, natural & stratified.",
+        help="Generate pilot suite: D in [2, 16], N=112, sphere, seed=0, natural & stratified, across surrogates.",
     )
     parser.add_argument(
         "--stress",
@@ -127,6 +129,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="List of random seeds (default: 0..9).",
     )
     parser.add_argument(
+        "--surrogates",
+        type=str,
+        nargs="+",
+        choices=DEFAULT_SURROGATES,
+        default=DEFAULT_SURROGATES,
+        help=f"List of surrogate model types (default: {DEFAULT_SURROGATES}).",
+    )
+    parser.add_argument(
         "--python-bin",
         type=str,
         default="python",
@@ -150,6 +160,7 @@ def generate_tasks(
     functions: Optional[List[str]] = None,
     strategies: Optional[List[str]] = None,
     seeds: Optional[List[int]] = None,
+    surrogates: Optional[List[str]] = None,
     python_bin: str = "python",
     skip_if_exists: bool = True,
     output_dir: Optional[str] = None,
@@ -162,7 +173,7 @@ def generate_tasks(
     output_file : str | Path
         Path to output task text file.
     pilot : bool, default=False
-        If True, overrides sweep parameters with the 4-run pilot suite.
+        If True, overrides sweep parameters with the pilot suite across surrogates.
     stress : bool, default=False
         If True, overrides sweep parameters with the 16-run stress test suite.
     dimensions : list[int], optional
@@ -175,6 +186,8 @@ def generate_tasks(
         Sampling strategies ('natural' or 'stratified').
     seeds : list[int], optional
         Random seeds.
+    surrogates : list[str], optional
+        Surrogate model types ('smac_default', 'mature', 'shallow', 'coarse', 'breiman').
     python_bin : str, default='python'
         Python interpreter binary for command lines.
     skip_if_exists : bool, default=True
@@ -196,23 +209,26 @@ def generate_tasks(
     tasks: List[str] = []
 
     if pilot:
+        surr_list = surrogates if surrogates is not None else PILOT_SURROGATES
         for dim in PILOT_DIMENSIONS:
             for n_train in PILOT_N_TRAINS:
                 for func in PILOT_FUNCTIONS:
                     for strat in PILOT_STRATEGIES:
                         for seed in PILOT_SEEDS:
-                            cmd = (
-                                f"{py_bin} scripts/run_extrapolation_experiment.py "
-                                f"--dimension {dim} "
-                                f"--n-train {n_train} "
-                                f"--function {func} "
-                                f"--strategy {strat} "
-                                f"--seed {seed}"
-                                f"{out_dir_suffix}"
-                                f"{sum_dir_suffix}"
-                                f"{skip_suffix}"
-                            )
-                            tasks.append(cmd)
+                            for surr in surr_list:
+                                cmd = (
+                                    f"{py_bin} scripts/run_extrapolation_experiment.py "
+                                    f"--dimension {dim} "
+                                    f"--n-train {n_train} "
+                                    f"--function {func} "
+                                    f"--strategy {strat} "
+                                    f"--seed {seed} "
+                                    f"--surrogate {surr}"
+                                    f"{out_dir_suffix}"
+                                    f"{sum_dir_suffix}"
+                                    f"{skip_suffix}"
+                                )
+                                tasks.append(cmd)
     elif stress:
         for dim, n_train, func, strat, seed in STRESS_CONFIGURATIONS:
             cmd = (
@@ -221,7 +237,8 @@ def generate_tasks(
                 f"--n-train {n_train} "
                 f"--function {func} "
                 f"--strategy {strat} "
-                f"--seed {seed}"
+                f"--seed {seed} "
+                f"--surrogate smac_default"
                 f"{out_dir_suffix}"
                 f"{sum_dir_suffix}"
                 f"{skip_suffix}"
@@ -233,24 +250,27 @@ def generate_tasks(
         funcs = functions if functions is not None else DEFAULT_FUNCTIONS
         strats = strategies if strategies is not None else DEFAULT_STRATEGIES
         seed_list = seeds if seeds is not None else DEFAULT_SEEDS
+        surr_list = surrogates if surrogates is not None else DEFAULT_SURROGATES
 
         for dim in dims:
             for n_train in trains:
                 for func in funcs:
                     for strat in strats:
                         for seed in seed_list:
-                            cmd = (
-                                f"{py_bin} scripts/run_extrapolation_experiment.py "
-                                f"--dimension {dim} "
-                                f"--n-train {n_train} "
-                                f"--function {func} "
-                                f"--strategy {strat} "
-                                f"--seed {seed}"
-                                f"{out_dir_suffix}"
-                                f"{sum_dir_suffix}"
-                                f"{skip_suffix}"
-                            )
-                            tasks.append(cmd)
+                            for surr in surr_list:
+                                cmd = (
+                                    f"{py_bin} scripts/run_extrapolation_experiment.py "
+                                    f"--dimension {dim} "
+                                    f"--n-train {n_train} "
+                                    f"--function {func} "
+                                    f"--strategy {strat} "
+                                    f"--seed {seed} "
+                                    f"--surrogate {surr}"
+                                    f"{out_dir_suffix}"
+                                    f"{sum_dir_suffix}"
+                                    f"{skip_suffix}"
+                                )
+                                tasks.append(cmd)
 
     target_path = Path(output_file)
     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -275,6 +295,7 @@ def main(argv: list[str] | None = None) -> int:
         functions=args.functions,
         strategies=args.strategies,
         seeds=args.seeds,
+        surrogates=args.surrogates,
         python_bin=args.python_bin,
         skip_if_exists=args.skip_if_exists,
         output_dir=args.output_dir,
@@ -285,3 +306,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

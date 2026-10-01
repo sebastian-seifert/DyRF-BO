@@ -62,6 +62,43 @@ class ExtrapolationRunConfig:
     eps: float = 0.080791
     decay_lambda: float = 0.20486
     n_trees: int = 10
+    surrogate_type: str = "smac_default"
+
+    def __init__(
+        self,
+        dimension: int,
+        n_train: int,
+        function_name: str,
+        sampling_strategy: str,
+        seed: int,
+        n_test: int = 10000,
+        k: int = 28,
+        eps: float = 0.080791,
+        decay_lambda: float = 0.20486,
+        n_trees: int = 10,
+        surrogate_type: str = "smac_default",
+        surrogate: str | None = None,
+    ):
+        self.dimension = dimension
+        self.n_train = n_train
+        self.function_name = function_name
+        self.sampling_strategy = sampling_strategy
+        self.seed = seed
+        self.n_test = n_test
+        self.k = k
+        self.eps = eps
+        self.decay_lambda = decay_lambda
+        self.n_trees = n_trees
+        self.surrogate_type = surrogate if surrogate is not None else surrogate_type
+
+    @property
+    def surrogate(self) -> str:
+        return self.surrogate_type
+
+    @surrogate.setter
+    def surrogate(self, val: str) -> None:
+        self.surrogate_type = val
+
 
 
 def run_single_experiment(
@@ -162,6 +199,7 @@ def run_single_experiment(
 
     # 8. Multi UQ Inference Engine
     evaluator = MultiUQEvaluator(
+        surrogate_type=config.surrogate_type,
         seed=seed_model,
         n_trees=config.n_trees,
         k=config.k,
@@ -181,6 +219,7 @@ def run_single_experiment(
     for d in range(config.dimension):
         data_dict[f"x_{d}"] = np.asarray(X_test[:, d], dtype=np.float64)
     data_dict.update({
+        "surrogate": config.surrogate_type,
         "stratum": strata_labels.astype(np.int64),
         "d_norm": np.asarray(proj_res.d_norm, dtype=np.float64),
         "d_rel": np.asarray(proj_res.d_rel, dtype=np.float64),
@@ -231,6 +270,7 @@ def run_single_experiment(
                 f"_d{config.dimension}"
                 f"_n{config.n_train}"
                 f"_{config.sampling_strategy}"
+                f"_{config.surrogate_type}"
                 f"_s{config.seed}.parquet"
             )
             parquet_path = out_p / filename
@@ -251,6 +291,8 @@ def run_single_experiment(
     summary_dict["function_name"] = str(config.function_name)
     summary_dict["sampling_strategy"] = config.sampling_strategy
     summary_dict["seed"] = config.seed
+    summary_dict["surrogate_type"] = config.surrogate_type
+    summary_dict["surrogate"] = config.surrogate_type
     summary_dict["n_test"] = len(point_df)
 
 

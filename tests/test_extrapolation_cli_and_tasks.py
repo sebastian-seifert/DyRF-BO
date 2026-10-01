@@ -52,6 +52,7 @@ class TestRunExperimentParser:
         assert pytest.approx(args.eps) == 0.080791
         assert pytest.approx(args.decay_lambda) == 0.20486
         assert args.n_trees == 10
+        assert args.surrogate == "smac_default"
         assert args.output_dir == "results/extrapolation_uq/raw"
         assert args.summary_dir == "results/extrapolation_uq/summaries"
         assert args.save_parquet is True
@@ -70,6 +71,7 @@ class TestRunExperimentParser:
             "--eps", "0.05",
             "--decay-lambda", "0.15",
             "--n-trees", "20",
+            "--surrogate", "mature",
             "--output-dir", "custom/raw",
             "--summary-dir", "custom/summaries",
             "--no-parquet",
@@ -85,10 +87,31 @@ class TestRunExperimentParser:
         assert pytest.approx(args.eps) == 0.05
         assert pytest.approx(args.decay_lambda) == 0.15
         assert args.n_trees == 20
+        assert args.surrogate == "mature"
         assert args.output_dir == "custom/raw"
         assert args.summary_dir == "custom/summaries"
         assert args.save_parquet is False
         assert args.skip_if_exists is True
+
+    def test_parser_surrogate_choices_and_aliases(self):
+        parser = build_run_experiment_parser()
+        base_cmd = [
+            "--dimension", "2",
+            "--n-train", "112",
+            "--function", "sphere",
+            "--strategy", "natural",
+            "--seed", "0",
+        ]
+        for surr in ["smac_default", "mature", "shallow", "coarse", "breiman"]:
+            # Test --surrogate
+            args1 = parser.parse_args(base_cmd + ["--surrogate", surr])
+            assert args1.surrogate == surr
+            # Test --surrogate-type alias
+            args2 = parser.parse_args(base_cmd + ["--surrogate-type", surr])
+            assert args2.surrogate == surr
+
+        with pytest.raises(SystemExit):
+            parser.parse_args(base_cmd + ["--surrogate", "invalid_surrogate"])
 
     def test_parser_missing_required_args(self):
         parser = build_run_experiment_parser()
@@ -151,15 +174,7 @@ class TestRunExperimentExecution:
         ret = main_run_experiment(argv)
         assert ret == 0
 
-        # Check parquet file
-        expected_parquet = raw_dir / "extrapolation_sphere_d2_n28_stratified_s42.parquet"
-        assert expected_parquet.exists()
-
-        # Check summary file
-        expected_summary = sum_dir / "summary_sphere_d2_n28_stratified_s42.json"
-        assert expected_summary.exists()
-
-        with open(expected_summary, "r", encoding="utf-8") as f:
+        with open(sum_dir / "summary_sphere_d2_n28_stratified_smac_default_s42.json", "r", encoding="utf-8") as f:
             summary_data = json.load(f)
 
         assert summary_data["dimension"] == 2
@@ -167,10 +182,19 @@ class TestRunExperimentExecution:
         assert summary_data["function_name"] == "sphere"
         assert summary_data["sampling_strategy"] == "stratified"
         assert summary_data["seed"] == 42
+        assert summary_data["surrogate_type"] == "smac_default"
         assert summary_data["n_test"] == 100
         assert "slcb_picp" in summary_data
         assert "plcb_picp" in summary_data
         assert "global" in summary_data
+
+        # Check parquet file
+        expected_parquet = raw_dir / "extrapolation_sphere_d2_n28_stratified_smac_default_s42.parquet"
+        assert expected_parquet.exists()
+
+        # Check summary file
+        expected_summary = sum_dir / "summary_sphere_d2_n28_stratified_smac_default_s42.json"
+        assert expected_summary.exists()
 
     def test_execution_no_parquet(self, tmp_path):
         raw_dir = tmp_path / "raw"
@@ -193,11 +217,11 @@ class TestRunExperimentExecution:
         assert ret == 0
 
         # Parquet should NOT exist
-        expected_parquet = raw_dir / "extrapolation_sphere_d2_n28_natural_s1.parquet"
+        expected_parquet = raw_dir / "extrapolation_sphere_d2_n28_natural_smac_default_s1.parquet"
         assert not expected_parquet.exists()
 
         # Summary JSON should exist
-        expected_summary = sum_dir / "summary_sphere_d2_n28_natural_s1.json"
+        expected_summary = sum_dir / "summary_sphere_d2_n28_natural_smac_default_s1.json"
         assert expected_summary.exists()
 
     def test_skip_if_exists_both_files_present(self, tmp_path):
@@ -206,8 +230,8 @@ class TestRunExperimentExecution:
         raw_dir.mkdir(parents=True)
         sum_dir.mkdir(parents=True)
 
-        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_natural_s0.parquet"
-        summary_file = sum_dir / "summary_sphere_d2_n112_natural_s0.json"
+        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_natural_smac_default_s0.parquet"
+        summary_file = sum_dir / "summary_sphere_d2_n112_natural_smac_default_s0.json"
         parquet_file.write_text("dummy parquet content")
         summary_file.write_text(json.dumps({"dummy": True}))
 
@@ -232,7 +256,7 @@ class TestRunExperimentExecution:
         sum_dir.mkdir(parents=True)
 
         # Only summary exists, parquet missing
-        summary_file = sum_dir / "summary_sphere_d2_n112_natural_s0.json"
+        summary_file = sum_dir / "summary_sphere_d2_n112_natural_smac_default_s0.json"
         summary_file.write_text(json.dumps({"dummy": True}))
 
         fake_summary = {"dimension": 2, "n_train": 112, "function_name": "sphere", "seed": 0}
@@ -260,8 +284,8 @@ class TestRunExperimentExecution:
         raw_dir.mkdir(parents=True)
         sum_dir.mkdir(parents=True)
 
-        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_natural_s0.parquet"
-        summary_file = sum_dir / "summary_sphere_d2_n112_natural_s0.json"
+        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_natural_smac_default_s0.parquet"
+        summary_file = sum_dir / "summary_sphere_d2_n112_natural_smac_default_s0.json"
         parquet_file.write_text("dummy")
         summary_file.write_text(json.dumps({"dummy": True}))
 
@@ -290,8 +314,8 @@ class TestRunExperimentExecution:
         sum_dir.mkdir(parents=True)
 
         # 0-byte parquet file and 0-byte summary file
-        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_natural_s0.parquet"
-        summary_file = sum_dir / "summary_sphere_d2_n112_natural_s0.json"
+        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_natural_smac_default_s0.parquet"
+        summary_file = sum_dir / "summary_sphere_d2_n112_natural_smac_default_s0.json"
         parquet_file.touch()
         summary_file.touch()
         assert parquet_file.stat().st_size == 0
@@ -362,14 +386,16 @@ class TestRunExperimentExecution:
         ret = main_run_experiment(argv)
         assert ret == 0
 
-        parquet_path = raw_dir / "extrapolation_sphere_d2_n28_stratified_s42.parquet"
-        summary_path = sum_dir / "summary_sphere_d2_n28_stratified_s42.json"
+        parquet_path = raw_dir / "extrapolation_sphere_d2_n28_stratified_smac_default_s42.parquet"
+        summary_path = sum_dir / "summary_sphere_d2_n28_stratified_smac_default_s42.json"
         assert parquet_path.exists() and parquet_path.stat().st_size > 0
         assert summary_path.exists() and summary_path.stat().st_size > 0
 
         # Lossless Parquet roundtrip
         df = pd.read_parquet(parquet_path, engine="pyarrow")
         assert len(df) == 100
+        assert "surrogate" in df.columns
+        assert (df["surrogate"] == "smac_default").all()
 
         expected_estimators = [
             "u_hutter_total",
@@ -415,6 +441,34 @@ class TestRunExperimentExecution:
             for est in expected_estimators:
                 assert est in summary_data["strata"][s_key], f"Estimator '{est}' missing from stratum {s_key}."
 
+    def test_custom_surrogate_cli_execution(self, tmp_path):
+        raw_dir = tmp_path / "raw"
+        sum_dir = tmp_path / "summaries"
+
+        argv = [
+            "--dimension", "2",
+            "--n-train", "28",
+            "--function", "sphere",
+            "--strategy", "stratified",
+            "--seed", "42",
+            "--n-test", "60",
+            "--k", "28",
+            "--n-trees", "5",
+            "--surrogate", "breiman",
+            "--output-dir", str(raw_dir),
+            "--summary-dir", str(sum_dir),
+        ]
+        ret = main_run_experiment(argv)
+        assert ret == 0
+
+        expected_parquet = raw_dir / "extrapolation_sphere_d2_n28_stratified_breiman_s42.parquet"
+        expected_summary = sum_dir / "summary_sphere_d2_n28_stratified_breiman_s42.json"
+        assert expected_parquet.exists()
+        assert expected_summary.exists()
+
+        with open(expected_summary, "r", encoding="utf-8") as f:
+            summary_data = json.load(f)
+        assert summary_data["surrogate_type"] == "breiman"
 
 
 class TestTaskGenerator:
@@ -430,24 +484,25 @@ class TestTaskGenerator:
         assert args.functions == ["sphere", "rosenbrock", "rastrigin", "ackley"]
         assert args.strategies == ["natural", "stratified"]
         assert args.seeds == list(range(10))
+        assert args.surrogates == ["smac_default", "mature", "shallow", "coarse", "breiman"]
         assert args.python_bin == "python"
         assert args.skip_if_exists is True
 
-    def test_pilot_generates_exactly_4_tasks(self, tmp_path):
+    def test_pilot_generates_multi_surrogate_tasks(self, tmp_path):
         out_file = tmp_path / "pilot_tasks.txt"
         tasks = generate_tasks(output_file=out_file, pilot=True)
-        assert len(tasks) == 4
+        assert len(tasks) in (10, 20)
         assert out_file.exists()
 
         lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
-        assert len(lines) == 4
+        assert len(lines) in (10, 20)
 
-        # Verify pilot grid: D in [2, 16], N=112, sphere, seed=0, natural & stratified
+        # Verify pilot grid: D in [2, 16], N=112, sphere, seed=0, natural & stratified, 5 surrogates
         expected_combinations = {
-            (2, 112, "sphere", "natural", 0),
-            (2, 112, "sphere", "stratified", 0),
-            (16, 112, "sphere", "natural", 0),
-            (16, 112, "sphere", "stratified", 0),
+            (dim, 112, "sphere", strat, 0, surr)
+            for dim in [2, 16]
+            for strat in ["natural", "stratified"]
+            for surr in ["smac_default", "mature", "shallow", "coarse", "breiman"]
         }
 
         parser = build_run_experiment_parser()
@@ -464,22 +519,23 @@ class TestTaskGenerator:
                 cli_args.function,
                 cli_args.strategy,
                 cli_args.seed,
+                cli_args.surrogate,
             ))
             assert cli_args.skip_if_exists is True
 
         assert actual_combinations == expected_combinations
 
-    def test_full_grid_generates_exactly_1920_tasks(self, tmp_path):
+    def test_full_grid_generates_exactly_9600_tasks(self, tmp_path):
         out_file = tmp_path / "tasks.txt"
         tasks = generate_tasks(output_file=out_file, pilot=False)
-        assert len(tasks) == 1920
+        assert len(tasks) == 9600
         assert out_file.exists()
 
         lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
-        assert len(lines) == 1920
+        assert len(lines) == 9600
 
         # Check unique tasks
-        assert len(set(tasks)) == 1920
+        assert len(set(tasks)) == 9600
 
         # Sample a few commands and check parseability
         parser = build_run_experiment_parser()
@@ -491,6 +547,7 @@ class TestTaskGenerator:
             assert cli_args.function in ["sphere", "rosenbrock", "rastrigin", "ackley"]
             assert cli_args.strategy in ["natural", "stratified"]
             assert cli_args.seed in list(range(10))
+            assert cli_args.surrogate in ["smac_default", "mature", "shallow", "coarse", "breiman"]
             assert cli_args.skip_if_exists is True
 
     def test_custom_subsets_and_skip_flag(self, tmp_path):
@@ -502,12 +559,14 @@ class TestTaskGenerator:
             functions=["ackley"],
             strategies=["natural"],
             seeds=[1, 2, 3],
+            surrogates=["shallow", "breiman"],
             python_bin=".venv/bin/python",
             skip_if_exists=False,
         )
-        assert len(tasks) == 2 * 1 * 1 * 1 * 3
+        assert len(tasks) == 2 * 1 * 1 * 1 * 3 * 2
         for cmd in tasks:
             assert cmd.startswith(".venv/bin/python scripts/run_extrapolation_experiment.py")
+            assert "--surrogate" in cmd
             assert "--skip-if-exists" not in cmd
 
     def test_main_cli_execution(self, tmp_path):
@@ -521,7 +580,7 @@ class TestTaskGenerator:
         assert ret == 0
         assert out_file.exists()
         lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
-        assert len(lines) == 4
+        assert len(lines) in (10, 20)
         assert lines[0].startswith("python3 scripts/run_extrapolation_experiment.py")
 
     def test_generator_quotes_python_bin_with_spaces(self, tmp_path):
@@ -531,7 +590,7 @@ class TestTaskGenerator:
             pilot=True,
             python_bin="/path with spaces/bin/python",
         )
-        assert len(tasks) == 4
+        assert len(tasks) in (10, 20)
         # First token when split by shlex must match the unquoted path
         tokens = shlex.split(tasks[0])
         assert tokens[0] == "/path with spaces/bin/python"

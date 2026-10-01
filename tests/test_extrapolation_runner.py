@@ -18,6 +18,7 @@ from dyrf_bo.extrapolation_uq.runner import (
 
 REQUIRED_DATAFRAME_COLUMNS = [
     "point_id",
+    "surrogate",
     "stratum",
     "d_norm",
     "d_rel",
@@ -75,6 +76,32 @@ class TestExtrapolationRunConfig:
         assert np.isclose(config.eps, 0.080791)
         assert np.isclose(config.decay_lambda, 0.20486)
         assert config.n_trees == 10
+        assert config.surrogate_type == "smac_default"
+        assert config.surrogate == "smac_default"
+
+    def test_custom_surrogate_types(self):
+        for s_type in ["mature", "shallow", "coarse", "breiman"]:
+            cfg1 = ExtrapolationRunConfig(
+                dimension=2,
+                n_train=28,
+                function_name="sphere",
+                sampling_strategy="stratified",
+                seed=42,
+                surrogate_type=s_type,
+            )
+            assert cfg1.surrogate_type == s_type
+            assert cfg1.surrogate == s_type
+
+            cfg2 = ExtrapolationRunConfig(
+                dimension=2,
+                n_train=28,
+                function_name="sphere",
+                sampling_strategy="stratified",
+                seed=42,
+                surrogate=s_type,
+            )
+            assert cfg2.surrogate_type == s_type
+            assert cfg2.surrogate == s_type
 
 
 class TestRunSingleExperiment:
@@ -129,15 +156,19 @@ class TestRunSingleExperiment:
         # 5. Verify Parquet output
         parquet_files = list(tmp_path.glob("*.parquet"))
         assert len(parquet_files) == 1
+        assert parquet_files[0].name == "extrapolation_sphere_d2_n28_stratified_smac_default_s42.parquet"
         loaded_df = pd.read_parquet(parquet_files[0])
         assert len(loaded_df) == 100
         assert list(loaded_df.columns) == list(df.columns)
+        assert "surrogate" in loaded_df.columns
+        assert (loaded_df["surrogate"] == "smac_default").all()
         assert np.allclose(loaded_df["y_true"], df["y_true"])
         for d in range(config.dimension):
             assert np.allclose(loaded_df[f"x_{d}"], df[f"x_{d}"])
 
         # 6. Verify summary metrics
         assert isinstance(summary, dict)
+        assert summary.get("surrogate_type") == "smac_default"
         for method in ["slcb", "plcb", "u_hutter_total", "u_shaker_epistemic"]:
             for metric in ["picp", "mpiw", "winkler", "spearman_dist", "spearman_err"]:
                 assert f"{method}_{metric}" in summary
@@ -165,6 +196,8 @@ class TestRunSingleExperiment:
         assert len(df) == 100
         for col in REQUIRED_DATAFRAME_COLUMNS:
             assert col in df.columns
+        assert (df["surrogate"] == "smac_default").all()
+        assert summary.get("surrogate_type") == "smac_default"
         for d in range(config.dimension):
             assert f"x_{d}" in df.columns, f"Missing coordinate column: x_{d}"
             assert np.issubdtype(df[f"x_{d}"].dtype, np.floating)
@@ -207,6 +240,7 @@ class TestRunSingleExperiment:
         # Check Parquet roundtrip
         parquet_files = list(tmp_path.glob("*.parquet"))
         assert len(parquet_files) == 1
+        assert parquet_files[0].name == "extrapolation_sphere_d3_n28_stratified_smac_default_s42.parquet"
         loaded_df = pd.read_parquet(parquet_files[0])
         assert list(loaded_df.columns) == list(df.columns)
         for col in coord_cols:
@@ -271,6 +305,7 @@ class TestRunSingleExperiment:
         )
         summary, df = run_single_experiment(config, output_dir=tmp_path, save_parquet=True)
         parquet_file = list(tmp_path.glob("*.parquet"))[0]
+        assert parquet_file.name == "extrapolation_sphere_d2_n28_stratified_smac_default_s42.parquet"
         reloaded = pd.read_parquet(parquet_file, engine="pyarrow")
 
         # 1. Exact column list and length
@@ -286,6 +321,8 @@ class TestRunSingleExperiment:
                 assert reloaded[col].dtype == np.int64
             elif col == "is_interpolating":
                 assert reloaded[col].dtype == bool
+            elif col == "surrogate":
+                assert reloaded[col].dtype == object or "string" in str(reloaded[col].dtype)
             else:
                 assert reloaded[col].dtype == np.float64
 
@@ -293,8 +330,32 @@ class TestRunSingleExperiment:
         for col in reloaded.columns:
             if col == "is_interpolating":
                 assert (reloaded[col] == df[col]).all()
-            elif col in ["point_id", "stratum"]:
+            elif col in ["point_id", "stratum", "surrogate"]:
                 assert (reloaded[col] == df[col]).all()
             else:
                 assert np.array_equal(reloaded[col].to_numpy(), df[col].to_numpy())
+
+    @pytest.mark.parametrize(
+        "surrogate_type",
+        ["smac_default", "mature", "shallow", "coarse", "breiman"],
+    )
+    def test_all_five_surrogate_types_run_single_experiment(self, tmp_path, surrogate_type):
+        config = ExtrapolationRunConfig(
+            dimension=2,
+            n_train=20,
+            function_name="sphere",
+            sampling_strategy="stratified",
+            seed=42,
+            n_test=20,
+            k=5,
+            n_trees=5,
+            surrogate_type=surrogate_type,
+        )
+        summary, df = run_single_experiment(config, output_dir=tmp_path, save_parquet=True)
+        assert df["surrogate"].iloc[0] == surrogate_type
+        assert (df["surrogate"] == surrogate_type).all()
+        assert summary["surrogate_type"] == surrogate_type
+        expected_parquet = tmp_path / f"extrapolation_sphere_d2_n20_stratified_{surrogate_type}_s42.parquet"
+        assert expected_parquet.exists()
+
 

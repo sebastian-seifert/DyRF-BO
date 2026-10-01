@@ -381,19 +381,19 @@ class TestLocalSweepRunner:
         assert summary["succeeded_tasks"] == 2
 
     def test_local_sweep_pilot_mode(self, tmp_path):
-        # Pilot mode generates/runs 4 tasks
+        # Pilot mode generates/runs 20 tasks across 5 surrogates
         pilot_task_file = tmp_path / "custom_pilot_tasks.txt"
         summary = run_local_sweep(
             task_file=pilot_task_file,
             pilot=True,
             dry_run=True,
         )
-        assert summary["total_tasks"] == 4
-        assert summary["executed_tasks"] == 4
-        assert summary["succeeded_tasks"] == 4
+        assert summary["total_tasks"] == 20
+        assert summary["executed_tasks"] == 20
+        assert summary["succeeded_tasks"] == 20
         assert pilot_task_file.exists()
         lines = [line.strip() for line in pilot_task_file.read_text().splitlines() if line.strip()]
-        assert len(lines) == 4
+        assert len(lines) == 20
 
     def test_local_sweep_uses_multiprocessing_pool(self, tmp_path):
         task_file = tmp_path / "tasks.txt"

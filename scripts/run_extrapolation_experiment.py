@@ -117,6 +117,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=10,
         help="Number of trees in ensemble surrogate (default: 10).",
     )
+    parser.add_argument(
+        "--surrogate",
+        "--surrogate-type",
+        dest="surrogate",
+        type=str.lower,
+        default="smac_default",
+        choices=["smac_default", "mature", "shallow", "coarse", "breiman"],
+        help="Surrogate model type (default: 'smac_default').",
+    )
 
     # Output paths
     parser.add_argument(
@@ -166,6 +175,7 @@ def run_experiment(args: argparse.Namespace) -> int:
         f"_d{args.dimension}"
         f"_n{args.n_train}"
         f"_{args.strategy}"
+        f"_{args.surrogate}"
         f"_s{args.seed}.parquet"
     )
     summary_filename = (
@@ -173,6 +183,7 @@ def run_experiment(args: argparse.Namespace) -> int:
         f"_d{args.dimension}"
         f"_n{args.n_train}"
         f"_{args.strategy}"
+        f"_{args.surrogate}"
         f"_s{args.seed}.json"
     )
 
@@ -194,7 +205,7 @@ def run_experiment(args: argparse.Namespace) -> int:
         if both_exist:
             print(
                 f"[SKIP] Experiment {func} (d={args.dimension}, n={args.n_train}, "
-                f"{args.strategy}, s={args.seed}) target outputs already exist."
+                f"{args.strategy}, {args.surrogate}, s={args.seed}) target outputs already exist."
             )
             if args.save_parquet:
                 print(f"       Parquet: {parquet_path}")
@@ -213,6 +224,7 @@ def run_experiment(args: argparse.Namespace) -> int:
         eps=args.eps,
         decay_lambda=args.decay_lambda,
         n_trees=args.n_trees,
+        surrogate_type=args.surrogate,
     )
 
     start_time = time.perf_counter()
@@ -234,7 +246,7 @@ def run_experiment(args: argparse.Namespace) -> int:
     plcb_picp = summary_dict.get("plcb_picp", float("nan"))
     print(
         f"[DONE] Completed {func} (d={args.dimension}, n={args.n_train}, "
-        f"{args.strategy}, s={args.seed}) in {elapsed_time:.2f}s | "
+        f"{args.strategy}, {args.surrogate}, s={args.seed}) in {elapsed_time:.2f}s | "
         f"SLCB PICP={slcb_picp:.4f}, PLCB PICP={plcb_picp:.4f}"
     )
     if args.save_parquet:
