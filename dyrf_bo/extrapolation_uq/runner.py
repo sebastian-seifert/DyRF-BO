@@ -174,21 +174,24 @@ def run_single_experiment(
 
     # 9. Build per-point DataFrame
     abs_error = np.abs(y_true - uq_res.y_hat)
-    point_df = pd.DataFrame(
-        {
-            "point_id": np.arange(len(X_test), dtype=np.int64),
-            "stratum": strata_labels.astype(np.int64),
-            "d_norm": np.asarray(proj_res.d_norm, dtype=np.float64),
-            "d_rel": np.asarray(proj_res.d_rel, dtype=np.float64),
-            "d_inf": np.asarray(proj_res.d_inf, dtype=np.float64),
-            "is_interpolating": np.asarray(proj_res.is_interpolating, dtype=bool),
-            "y_true": np.asarray(y_true, dtype=np.float64),
-            "y_hat": np.asarray(uq_res.y_hat, dtype=np.float64),
-            "abs_error": np.asarray(abs_error, dtype=np.float64),
-            "u_slcb": np.asarray(uq_res.u_slcb, dtype=np.float64),
-            "u_plcb": np.asarray(uq_res.u_plcb, dtype=np.float64),
-        }
-    )
+    data_dict: Dict[str, Any] = {
+        "point_id": np.arange(len(X_test), dtype=np.int64),
+    }
+    for d in range(config.dimension):
+        data_dict[f"x_{d}"] = np.asarray(X_test[:, d], dtype=np.float64)
+    data_dict.update({
+        "stratum": strata_labels.astype(np.int64),
+        "d_norm": np.asarray(proj_res.d_norm, dtype=np.float64),
+        "d_rel": np.asarray(proj_res.d_rel, dtype=np.float64),
+        "d_inf": np.asarray(proj_res.d_inf, dtype=np.float64),
+        "is_interpolating": np.asarray(proj_res.is_interpolating, dtype=bool),
+        "y_true": np.asarray(y_true, dtype=np.float64),
+        "y_hat": np.asarray(uq_res.y_hat, dtype=np.float64),
+        "abs_error": np.asarray(abs_error, dtype=np.float64),
+        "u_slcb": np.asarray(uq_res.u_slcb, dtype=np.float64),
+        "u_plcb": np.asarray(uq_res.u_plcb, dtype=np.float64),
+    })
+    point_df = pd.DataFrame(data_dict)
 
     # 10. Write to Parquet if requested
     if save_parquet and output_dir is not None:

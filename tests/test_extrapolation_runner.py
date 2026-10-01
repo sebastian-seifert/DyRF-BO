@@ -76,6 +76,12 @@ class TestRunSingleExperiment:
         assert len(df) == 100
         for col in REQUIRED_DATAFRAME_COLUMNS:
             assert col in df.columns, f"Missing required column: {col}"
+        for d in range(config.dimension):
+            assert f"x_{d}" in df.columns, f"Missing coordinate column: x_{d}"
+            assert np.issubdtype(df[f"x_{d}"].dtype, np.floating)
+            assert np.all(df[f"x_{d}"] >= -1.0 - 1e-7)
+            assert np.all(df[f"x_{d}"] <= 1.0 + 1e-7)
+        assert list(df.columns)[: 1 + config.dimension] == ["point_id", "x_0", "x_1"]
 
         # 2. Check no null values
         assert df.isna().sum().sum() == 0
@@ -101,6 +107,8 @@ class TestRunSingleExperiment:
         assert len(loaded_df) == 100
         assert list(loaded_df.columns) == list(df.columns)
         assert np.allclose(loaded_df["y_true"], df["y_true"])
+        for d in range(config.dimension):
+            assert np.allclose(loaded_df[f"x_{d}"], df[f"x_{d}"])
 
         # 6. Verify summary metrics
         assert isinstance(summary, dict)
@@ -130,6 +138,12 @@ class TestRunSingleExperiment:
         assert len(df) == 100
         for col in REQUIRED_DATAFRAME_COLUMNS:
             assert col in df.columns
+        for d in range(config.dimension):
+            assert f"x_{d}" in df.columns, f"Missing coordinate column: x_{d}"
+            assert np.issubdtype(df[f"x_{d}"].dtype, np.floating)
+            assert np.all(df[f"x_{d}"] >= -1.0 - 1e-7)
+            assert np.all(df[f"x_{d}"] <= 1.0 + 1e-7)
+        assert list(df.columns)[: 1 + config.dimension] == ["point_id", "x_0", "x_1"]
 
         # Verify no parquet was saved when save_parquet=False
         parquet_files = list(tmp_path.glob("*.parquet"))
@@ -138,6 +152,60 @@ class TestRunSingleExperiment:
         # Summary checks
         assert "slcb_picp" in summary
         assert "plcb_picp" in summary
+
+    def test_point_coordinates_stored_and_bounded(self, tmp_path):
+        config = ExtrapolationRunConfig(
+            dimension=3,
+            n_train=28,
+            function_name="sphere",
+            sampling_strategy="stratified",
+            seed=42,
+            n_test=60,
+            k=28,
+            n_trees=5,
+        )
+        summary, df = run_single_experiment(config, output_dir=tmp_path, save_parquet=True)
+        assert len(df) == 60
+        coord_cols = [f"x_{d}" for d in range(3)]
+        for col in coord_cols:
+            assert col in df.columns, f"Missing coordinate column: {col}"
+            assert np.issubdtype(df[col].dtype, np.floating)
+            assert np.all(df[col] >= -1.0 - 1e-7)
+            assert np.all(df[col] <= 1.0 + 1e-7)
+
+        # Check column ordering: point_id followed immediately by x_0, x_1, x_2
+        cols = list(df.columns)
+        assert cols[:4] == ["point_id", "x_0", "x_1", "x_2"]
+
+        # Check Parquet roundtrip
+        parquet_files = list(tmp_path.glob("*.parquet"))
+        assert len(parquet_files) == 1
+        loaded_df = pd.read_parquet(parquet_files[0])
+        assert list(loaded_df.columns) == list(df.columns)
+        for col in coord_cols:
+            assert np.allclose(loaded_df[col], df[col])
+
+    def test_higher_dimensional_coordinates(self, tmp_path):
+        config = ExtrapolationRunConfig(
+            dimension=5,
+            n_train=28,
+            function_name="sphere",
+            sampling_strategy="natural",
+            seed=999,
+            n_test=40,
+            k=28,
+            n_trees=5,
+        )
+        summary, df = run_single_experiment(config, output_dir=tmp_path, save_parquet=False)
+        assert len(df) == 40
+        coord_cols = [f"x_{d}" for d in range(5)]
+        for col in coord_cols:
+            assert col in df.columns, f"Missing coordinate column: {col}"
+            assert np.issubdtype(df[col].dtype, np.floating)
+            assert np.all(df[col] >= -1.0 - 1e-7)
+            assert np.all(df[col] <= 1.0 + 1e-7)
+        cols = list(df.columns)
+        assert cols[:6] == ["point_id", "x_0", "x_1", "x_2", "x_3", "x_4"]
 
     def test_invalid_sampling_strategy(self):
         config = ExtrapolationRunConfig(
