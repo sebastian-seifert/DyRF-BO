@@ -15,6 +15,20 @@ fi
 eval "$(conda shell.bash hook 2>/dev/null)" || true
 conda activate dyrf 2>/dev/null || true
 
+# Explicitly resolve Python interpreter (prioritizing cluster conda dyrf, then active CONDA_PREFIX, then .venv, then python3)
+if [ -f "/bigwork/nhwpseis/.conda/envs/dyrf/bin/python" ]; then
+    PYTHON_BIN="/bigwork/nhwpseis/.conda/envs/dyrf/bin/python"
+elif [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/python" ]; then
+    PYTHON_BIN="$CONDA_PREFIX/bin/python"
+elif [ -f "$HOME/.conda/envs/dyrf/bin/python" ]; then
+    PYTHON_BIN="$HOME/.conda/envs/dyrf/bin/python"
+elif [ -f ".venv/bin/python" ]; then
+    PYTHON_BIN=".venv/bin/python"
+else
+    PYTHON_BIN="$(which python3 || which python)"
+fi
+
+export PATH="$(dirname "$PYTHON_BIN"):$PATH"
 export PYTHONPATH="$PWD:$PYTHONPATH"
 export PYTHONUNBUFFERED=1
 
@@ -27,23 +41,29 @@ export NUMEXPR_NUM_THREADS=1
 TASK_FILE="results/extrapolation_sweep_tasks.txt"
 if [ ! -f "$TASK_FILE" ]; then
     echo "Task file ${TASK_FILE} missing. Generating tasks..."
-    if [ -f ".venv/bin/python" ]; then
-        .venv/bin/python scripts/generate_extrapolation_sweep_tasks.py
-    else
-        python3 scripts/generate_extrapolation_sweep_tasks.py
-    fi
+    "$PYTHON_BIN" scripts/generate_extrapolation_sweep_tasks.py
 fi
 
 mkdir -p results/extrapolation_uq/logs
 
 TASK_CMD=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$TASK_FILE")
 
+# Explicitly substitute leading python/python3 with the resolved $PYTHON_BIN
+if [[ "$TASK_CMD" == python\ * ]]; then
+    EXEC_CMD="\"$PYTHON_BIN\" ${TASK_CMD#python }"
+elif [[ "$TASK_CMD" == python3\ * ]]; then
+    EXEC_CMD="\"$PYTHON_BIN\" ${TASK_CMD#python3 }"
+else
+    EXEC_CMD="$TASK_CMD"
+fi
+
 echo "=================================================="
 echo "Array Job ID: $SLURM_ARRAY_JOB_ID | Task Index: $SLURM_ARRAY_TASK_ID"
-echo "Running Command: $TASK_CMD"
+echo "Resolved Python: $PYTHON_BIN"
+echo "Running Command: $EXEC_CMD"
 echo "=================================================="
 
-eval "$TASK_CMD"
+eval "$EXEC_CMD"
 
 EXIT_CODE=$?
 echo "=================================================="

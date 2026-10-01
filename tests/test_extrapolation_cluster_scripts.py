@@ -124,6 +124,8 @@ class TestSbatchScriptDirectives:
         # Python / Conda / Directory setup
         assert 'cd "$SLURM_SUBMIT_DIR"' in content
         assert "conda activate dyrf" in content
+        assert "/bigwork/nhwpseis/.conda/envs/dyrf/bin/python" in content
+        assert "PYTHON_BIN" in content
         assert "results/extrapolation_sweep_tasks.txt" in content
         assert "SLURM_ARRAY_TASK_ID" in content
         assert 'sed -n "${SLURM_ARRAY_TASK_ID}p"' in content or 'sed -n "$SLURM_ARRAY_TASK_ID' in content
