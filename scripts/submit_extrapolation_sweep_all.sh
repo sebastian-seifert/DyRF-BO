@@ -32,17 +32,24 @@ mkdir -p results/extrapolation_uq/logs
 CHUNK_SIZE=200
 CONCURRENCY=25
 
-echo "Submitting ${TOTAL_TASKS} tasks in chunks of ${CHUNK_SIZE} (concurrency %${CONCURRENCY})..."
+START_TASK="${START_TASK:-1}"
+END_TASK="${END_TASK:-$TOTAL_TASKS}"
 
-for (( start=1; start<=TOTAL_TASKS; start+=CHUNK_SIZE )); do
+if [ "$END_TASK" -gt "$TOTAL_TASKS" ]; then
+    END_TASK=$TOTAL_TASKS
+fi
+
+echo "Submitting tasks ${START_TASK} to ${END_TASK} (out of ${TOTAL_TASKS}) in chunks of ${CHUNK_SIZE} (concurrency %${CONCURRENCY})..."
+
+for (( start=START_TASK; start<=END_TASK; start+=CHUNK_SIZE )); do
     end=$(( start + CHUNK_SIZE - 1 ))
-    if [ $end -gt $TOTAL_TASKS ]; then
-        end=$TOTAL_TASKS
+    if [ $end -gt $END_TASK ]; then
+        end=$END_TASK
     fi
     JOB_ID=$(sbatch --parsable --array=${start}-${end}%${CONCURRENCY} scripts/submit_extrapolation_sweep_array.sbatch)
     echo "Submitted Chunk (${start}-${end}) -> Job ID: ${JOB_ID}"
 done
 
 echo "=================================================="
-echo "All ${TOTAL_TASKS} tasks successfully scheduled on cluster!"
+echo "Tasks ${START_TASK} to ${END_TASK} successfully scheduled on cluster!"
 echo "=================================================="

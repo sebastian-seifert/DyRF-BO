@@ -28,12 +28,14 @@ from scripts.run_extrapolation_sweep_local import (
 
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 SBATCH_SCRIPT = SCRIPTS_DIR / "submit_extrapolation_sweep_array.sbatch"
+MASTER_SBATCH_SCRIPT = SCRIPTS_DIR / "submit_extrapolation_sweep_master.sbatch"
 SUBMIT_ALL_SCRIPT = SCRIPTS_DIR / "submit_extrapolation_sweep_all.sh"
 SUBMIT_SLURM_SCRIPT = SCRIPTS_DIR / "submit_extrapolation_sweep_slurm.sh"
 LOCAL_RUNNER_SCRIPT = SCRIPTS_DIR / "run_extrapolation_sweep_local.py"
 
 TARGET_SCRIPTS = [
     SBATCH_SCRIPT,
+    MASTER_SBATCH_SCRIPT,
     SUBMIT_ALL_SCRIPT,
     SUBMIT_SLURM_SCRIPT,
     LOCAL_RUNNER_SCRIPT,
@@ -56,7 +58,7 @@ class TestScriptFilesIntegrity:
 
     @pytest.mark.parametrize(
         "script_path",
-        [SBATCH_SCRIPT, SUBMIT_ALL_SCRIPT, SUBMIT_SLURM_SCRIPT],
+        [SBATCH_SCRIPT, MASTER_SBATCH_SCRIPT, SUBMIT_ALL_SCRIPT, SUBMIT_SLURM_SCRIPT],
     )
     def test_bash_syntax_check(self, script_path: Path):
         """Ensure shell scripts pass syntax validation via bash -n."""
@@ -66,6 +68,32 @@ class TestScriptFilesIntegrity:
             text=True,
         )
         assert proc.returncode == 0, f"Bash syntax error in {script_path.name}:\n{proc.stderr}"
+
+
+class TestMasterSbatchOrchestrator:
+    """Verify Master Slurm Orchestrator script directives, resource limits, and stage handling."""
+
+    def test_master_sbatch_directives(self):
+        content = MASTER_SBATCH_SCRIPT.read_text(encoding="utf-8")
+
+        # Partition, job name, resource limits
+        assert "#SBATCH -p ai" in content
+        assert "#SBATCH --job-name=uq_sweep_master" in content or "#SBATCH -J uq_sweep_master" in content
+        assert "#SBATCH --cpus-per-task=2" in content
+        assert "#SBATCH --mem=8G" in content
+        assert "#SBATCH --time=48:00:00" in content
+
+        # Log files
+        assert "master_orchestrator" in content
+
+        # Stage 1 and Stage 2 range handling (1..4800 and 4801..9600)
+        assert "4800" in content
+        assert "4801" in content
+        assert "9600" in content
+
+        # Queue monitoring (squeue check ignoring master job itself)
+        assert "squeue" in content
+        assert "SLURM_JOB_ID" in content
 
 
 class TestSbatchScriptDirectives:
