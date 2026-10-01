@@ -52,6 +52,8 @@ from .test_objectives import (
 from .uq_evaluator import (
     DualUQEvaluator,
     DualUQResult,
+    MultiUQEvaluator,
+    MultiUQResult,
     create_smac_default_rf,
 )
 
@@ -74,10 +76,12 @@ __all__ = [
     "sample_subdomain_training",
     "sample_natural_test",
     "sample_stratified_test",
-    # Dual UQ Evaluator
+    # Multi & Dual UQ Evaluator
     "create_smac_default_rf",
     "DualUQEvaluator",
     "DualUQResult",
+    "MultiUQEvaluator",
+    "MultiUQResult",
     # Metrics Suite
     "spearman_rank_correlation",
     "prediction_interval_coverage_probability",

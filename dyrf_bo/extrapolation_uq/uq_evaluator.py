@@ -1,19 +1,28 @@
-"""Dual Uncertainty Quantification Inference Engine.
+"""Multi-UQ and Dual Uncertainty Quantification Inference Engine.
 
-Evaluates both Standard SMAC3 LCB (via Hutter Law of Total Variance) and
-Proximity LCB (Pure Extracted Exploration Term via k-NN OOB residuals) over
-the exact same underlying tree ensemble.
+Evaluates 10 candidate uncertainty quantification methods across tree ensembles:
+1. Hutter Total: 1.96 * sqrt(var_between + var_within) [Alias: u_slcb]
+2. Hutter Between: 1.96 * sqrt(var_between) (ddof=1)
+3. Hutter Within: 1.96 * sqrt(var_within)
+4. Shaker Epistemic: 1.96 * sigma_aleatoric * sqrt(4^MI - 1) via Huber closed-form entropy
+5. Shaker Total: 1.96 * sqrt( 2^(2*H_total) / (2*pi*e) ) via Huber GMM entropy-power
+6. RF-FIRE: Standard Proximity (k=28, lambda=0, eps=0) -> (half, lower)
+7. Proximity A: Topological Path Distance (k=28, lambda=0.20486, eps=0) -> (half, lower)
+8. Proximity B: Topological Continuous Distance (k="auto", lambda=0.20486, eps=0) -> (half, lower)
+9. Proximity B+C: Topological Continuous + Density Scaling (k="auto", lambda=0.20486, alpha=1.0) -> (half, lower)
+10. Proximity LCB: Pure Extracted Exploration Term (k=28, lambda=0.20486, eps=0.080791) -> (half, lower) [Alias: u_plcb]
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from dataclasses import dataclass, fields
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 from sklearn.base import clone
 from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor
 
+from Epistemic_Quantifier import EpistemicQuantifier
 from GPU_Proximity_Regression_UQ import GPUProximityRegressionUQ
 
 
@@ -82,32 +91,66 @@ def create_smac_default_rf(
 
 
 @dataclass
-class DualUQResult:
-    """Container for predictions and dual uncertainty quantifications.
+class MultiUQResult:
+    """Container for predictions and multi-method uncertainty quantifications.
 
-    Supports both dataclass attribute access (e.g. `res.u_slcb`) and
-    dictionary-style mapping access (e.g. `res['u_slcb']`).
+    Supports both dataclass attribute access (e.g. `res.u_hutter_total`, `res.u_slcb`)
+    and dictionary-style mapping access (e.g. `res['u_plcb_lower']`).
 
     Attributes
     ----------
     y_hat : np.ndarray
-        Ensemble mean prediction \\hat{\\mu}(x) of shape (M,).
+        Ensemble mean prediction of shape (M,).
     u_slcb : np.ndarray
-        Standard SMAC3 LCB uncertainty (1.96 * \\sqrt{\\sigma^2_{total}}) of shape (M,).
+        Backwards compatibility alias for u_hutter_total of shape (M,).
     u_plcb : np.ndarray
-        Proximity LCB exploration term max(\\delta_{floor}, -q_{0.025}) of shape (M,).
+        Backwards compatibility alias for u_plcb_lower of shape (M,).
     var_between : np.ndarray
-        Between-tree prediction variance \\sigma^2_{between}(x) of shape (M,).
+        Between-tree prediction variance of shape (M,).
     var_within : np.ndarray
-        Mean within-tree leaf impurity variance \\sigma^2_{within}(x) of shape (M,).
+        Mean within-tree leaf impurity variance of shape (M,).
     var_total : np.ndarray
-        Total variance \\sigma^2_{total}(x) = var_between + var_within of shape (M,).
+        Total variance (var_between + var_within) of shape (M,).
     q_lower : np.ndarray
-        Lower residual quantile q_{0.025}^{(k)}(x) of shape (M,).
+        Lower residual quantile from topological proximity of shape (M,).
     delta_floor : np.ndarray
-        Point-adaptive exploration floor \\epsilon * 1.96 * local_mae of shape (M,).
+        Adaptive exploration floor epsilon * kappa * local_mae of shape (M,).
     local_mae : np.ndarray
         Local Mean Absolute Error from proximity neighborhood of shape (M,).
+    u_hutter_total : np.ndarray
+        SMAC3 LCB total uncertainty: 1.96 * sqrt(var_total) of shape (M,).
+    u_hutter_between : np.ndarray
+        SMAC3 between-tree disagreement uncertainty: 1.96 * sqrt(var_between) of shape (M,).
+    u_hutter_within : np.ndarray
+        SMAC3 within-tree leaf impurity uncertainty: 1.96 * sqrt(var_within) of shape (M,).
+    u_shaker_epistemic : np.ndarray
+        Shaker epistemic uncertainty via Huber MI: 1.96 * sigma_aleatoric * sqrt(4^MI - 1) of shape (M,).
+    u_shaker_total : np.ndarray
+        Shaker total uncertainty via Huber GMM entropy power of shape (M,).
+    shaker_mi : np.ndarray
+        Mutual information in bits of shape (M,).
+    shaker_total_entropy : np.ndarray
+        GMM total differential entropy in bits of shape (M,).
+    u_rf_fire_half : np.ndarray
+        RF-FIRE prediction interval half-width of shape (M,).
+    u_rf_fire_lower : np.ndarray
+        RF-FIRE lower quantile exploration term of shape (M,).
+    u_prox_a_half : np.ndarray
+        Proximity A prediction interval half-width of shape (M,).
+    u_prox_a_lower : np.ndarray
+        Proximity A lower quantile exploration term of shape (M,).
+    u_prox_b_half : np.ndarray
+        Proximity B prediction interval half-width of shape (M,).
+    u_prox_b_lower : np.ndarray
+        Proximity B lower quantile exploration term of shape (M,).
+    u_prox_bc_half : np.ndarray
+        Proximity B+C density-scaled interval half-width of shape (M,).
+    u_prox_bc_lower : np.ndarray
+        Proximity B+C density-scaled lower quantile exploration term of shape (M,).
+    u_plcb_half : np.ndarray
+        Proximity LCB prediction interval half-width of shape (M,).
+    u_plcb_lower : np.ndarray
+        Proximity LCB lower quantile exploration term with floor of shape (M,).
     """
 
     y_hat: np.ndarray
@@ -119,17 +162,34 @@ class DualUQResult:
     q_lower: np.ndarray
     delta_floor: np.ndarray
     local_mae: np.ndarray
+    u_hutter_total: np.ndarray
+    u_hutter_between: np.ndarray
+    u_hutter_within: np.ndarray
+    u_shaker_epistemic: np.ndarray
+    u_shaker_total: np.ndarray
+    shaker_mi: np.ndarray
+    shaker_total_entropy: np.ndarray
+    u_rf_fire_half: np.ndarray
+    u_rf_fire_lower: np.ndarray
+    u_prox_a_half: np.ndarray
+    u_prox_a_lower: np.ndarray
+    u_prox_b_half: np.ndarray
+    u_prox_b_lower: np.ndarray
+    u_prox_bc_half: np.ndarray
+    u_prox_bc_lower: np.ndarray
+    u_plcb_half: np.ndarray
+    u_plcb_lower: np.ndarray
 
     def __getitem__(self, key: str) -> np.ndarray:
         if hasattr(self, key) and not key.startswith("_"):
             return getattr(self, key)
-        raise KeyError(f"Key '{key}' not found in DualUQResult.")
+        raise KeyError(f"Key '{key}' not found in {self.__class__.__name__}.")
 
     def __setitem__(self, key: str, value: np.ndarray) -> None:
         if hasattr(self, key) and not key.startswith("_"):
             setattr(self, key, value)
         else:
-            raise KeyError(f"Cannot set unknown field '{key}' in DualUQResult.")
+            raise KeyError(f"Cannot set unknown field '{key}' in {self.__class__.__name__}.")
 
     def __contains__(self, key: object) -> bool:
         return isinstance(key, str) and hasattr(self, key) and not key.startswith("_")
@@ -143,6 +203,23 @@ class DualUQResult:
     def keys(self) -> Tuple[str, ...]:
         return (
             "y_hat",
+            "u_hutter_total",
+            "u_hutter_between",
+            "u_hutter_within",
+            "u_shaker_epistemic",
+            "u_shaker_total",
+            "shaker_mi",
+            "shaker_total_entropy",
+            "u_rf_fire_half",
+            "u_rf_fire_lower",
+            "u_prox_a_half",
+            "u_prox_a_lower",
+            "u_prox_b_half",
+            "u_prox_b_lower",
+            "u_prox_bc_half",
+            "u_prox_bc_lower",
+            "u_plcb_half",
+            "u_plcb_lower",
             "u_slcb",
             "u_plcb",
             "var_between",
@@ -167,36 +244,80 @@ class DualUQResult:
     def to_dict(self) -> Dict[str, np.ndarray]:
         return {k: getattr(self, k) for k in self.keys()}
 
+    def get_uncertainties_dict(self) -> Dict[str, np.ndarray]:
+        """Returns dictionary mapping all 15 estimator metric names and aliases to arrays."""
+        return {
+            "u_hutter_total": self.u_hutter_total,
+            "u_hutter_between": self.u_hutter_between,
+            "u_hutter_within": self.u_hutter_within,
+            "u_shaker_epistemic": self.u_shaker_epistemic,
+            "u_shaker_total": self.u_shaker_total,
+            "u_rf_fire_half": self.u_rf_fire_half,
+            "u_rf_fire_lower": self.u_rf_fire_lower,
+            "u_prox_a_half": self.u_prox_a_half,
+            "u_prox_a_lower": self.u_prox_a_lower,
+            "u_prox_b_half": self.u_prox_b_half,
+            "u_prox_b_lower": self.u_prox_b_lower,
+            "u_prox_bc_half": self.u_prox_bc_half,
+            "u_prox_bc_lower": self.u_prox_bc_lower,
+            "u_plcb_half": self.u_plcb_half,
+            "u_plcb_lower": self.u_plcb_lower,
+            "u_slcb": self.u_slcb,
+            "u_plcb": self.u_plcb,
+        }
 
-class DualUQEvaluator:
-    """Dual Uncertainty Quantification Inference Engine.
 
-    Unifies Standard SMAC3 LCB (Hutter Law of Total Variance) and Proximity LCB
-    (Pure Extracted Exploration Term) on the identical underlying random forest.
+@dataclass
+class DualUQResult(MultiUQResult):
+    """Backwards-compatible subclass of MultiUQResult preserving legacy 9-key mapping interface."""
+
+    def keys(self) -> Tuple[str, ...]:
+        return (
+            "y_hat",
+            "u_slcb",
+            "u_plcb",
+            "var_between",
+            "var_within",
+            "var_total",
+            "q_lower",
+            "delta_floor",
+            "local_mae",
+        )
+
+
+class MultiUQEvaluator:
+    """Unified Multi-UQ Inference Engine.
+
+    Evaluates 10 candidate uncertainty quantification methods across tree ensembles
+    over the identical underlying forest and test query sample points.
 
     Parameters
     ----------
     model : Optional[Any], default=None
         Pre-configured or pre-fitted ensemble model. If None, instantiates
-        a model with SMAC3 defaults.
+        ExtraTreesRegressor with native SMAC3 defaults.
     seed : Optional[int], default=None
         Random state seed.
     n_trees : int, default=10
         Number of trees in ensemble.
     k : int, default=28
-        Number of nearest neighbors under ensemble Laplacian tree-path metric.
+        Number of nearest neighbors under proximity metric.
     epsilon : float, default=0.080791
         Exploration floor scaling coefficient.
     topological_decay_lambda : float, default=0.20486
         Exponential decay lambda for topological tree path distance.
+    density_scaling_alpha : float, default=1.0
+        Power exponent for topological density scaling in Proximity B+C.
     level : float, default=0.95
         Confidence level for quantile estimation (0.95 corresponds to kappa=1.96).
     kappa : float, default=1.96
         Standard deviation / error multiplier for LCB exploration bounds.
     device : str, default='cpu'
-        Computation backend for proximity engine ('cpu', 'gpu', or 'auto').
+        Computation backend ('cpu', 'gpu', or 'auto').
     use_extra_trees : bool, default=True
         Whether to use ExtraTreesRegressor for random splitting.
+    batch_size : Union[int, str], default=512
+        Chunk size for query batching.
     **kwargs : Any
         Additional parameters passed to model creation.
     """
@@ -209,10 +330,12 @@ class DualUQEvaluator:
         k: int = 28,
         epsilon: float = 0.080791,
         topological_decay_lambda: float = 0.20486,
+        density_scaling_alpha: float = 1.0,
         level: float = 0.95,
         kappa: float = 1.96,
         device: str = "cpu",
         use_extra_trees: bool = True,
+        batch_size: Union[int, str] = 512,
         **kwargs: Any,
     ) -> None:
         self.seed = seed
@@ -221,10 +344,12 @@ class DualUQEvaluator:
         self.k = k
         self.epsilon = epsilon
         self.topological_decay_lambda = topological_decay_lambda
+        self.density_scaling_alpha = density_scaling_alpha
         self.level = level
         self.kappa = kappa
         self.device = device
         self.use_extra_trees = use_extra_trees
+        self.batch_size = batch_size
 
         if model is not None:
             self.model = create_smac_default_rf(
@@ -243,6 +368,7 @@ class DualUQEvaluator:
             )
 
         self.uq_model: Optional[GPUProximityRegressionUQ] = None
+        self.shaker: Optional[EpistemicQuantifier] = None
         self.X_train_: Optional[np.ndarray] = None
         self.y_train_: Optional[np.ndarray] = None
         self._is_fitted: bool = False
@@ -252,8 +378,8 @@ class DualUQEvaluator:
         X_train: np.ndarray,
         y_train: np.ndarray,
         refit: bool = False,
-    ) -> "DualUQEvaluator":
-        """Fit the underlying forest and initialize the proximity UQ engine.
+    ) -> "MultiUQEvaluator":
+        """Fit the underlying forest and initialize proximity and Shaker engines.
 
         Parameters
         ----------
@@ -289,23 +415,32 @@ class DualUQEvaluator:
         if not hasattr(self.model, "estimators_") or refit:
             self.model.fit(X_arr, y_arr)
 
-        # Build proximity UQ engine wrapping the identical forest
+        # 1. Proximity UQ engine wrapping identical forest with precomputed distances and baseline density
         self.uq_model = GPUProximityRegressionUQ(
             model=self.model,
             X_train=X_arr,
             y_train=y_arr,
             device=self.device,
             topological_decay_lambda=self.topological_decay_lambda,
+            density_scaling_alpha=self.density_scaling_alpha,
+            use_density_scaling=True,
         )
         self.uq_model.fit()
+
+        # 2. EpistemicQuantifier for Shaker GMM entropy family
+        self.shaker = EpistemicQuantifier(
+            model=self.model,
+            X_train=X_arr,
+            y_train=y_arr,
+        )
 
         self.X_train_ = X_arr
         self.y_train_ = y_arr
         self._is_fitted = True
         return self
 
-    def evaluate(self, X_test: np.ndarray) -> DualUQResult:
-        """Evaluate both Standard SMAC3 LCB and Proximity LCB.
+    def evaluate(self, X_test: np.ndarray) -> MultiUQResult:
+        """Evaluate all 10 uncertainty quantification methods.
 
         Parameters
         ----------
@@ -314,11 +449,11 @@ class DualUQEvaluator:
 
         Returns
         -------
-        DualUQResult
-            Container with predictions, variances, quantiles, and uncertainties.
+        MultiUQResult
+            Container with predictions, variances, and 15 uncertainty estimators.
         """
-        if not self._is_fitted or self.uq_model is None or self.X_train_ is None:
-            raise RuntimeError("DualUQEvaluator must be fitted before calling evaluate().")
+        if not self._is_fitted or self.X_train_ is None:
+            raise RuntimeError("MultiUQEvaluator must be fitted before calling evaluate().")
 
         X_test_arr = np.asarray(X_test, dtype=np.float64)
         if X_test_arr.ndim == 1:
@@ -336,51 +471,257 @@ class DualUQEvaluator:
                 f"but training data had {self.X_train_.shape[1]} features."
             )
 
-        # 1. Standard SMAC3 LCB Quantification via Hutter Law of Total Variance
+        M = X_test_2d.shape[0]
+        N_train = len(self.X_train_)
         estimators = self.model.estimators_
-        tree_preds = np.column_stack([t.predict(X_test_2d) for t in estimators])
-        y_hat = np.mean(tree_preds, axis=1)
+        B = len(estimators)
 
-        # Between-tree variance (unbiased sample variance ddof=1):
-        # \sigma^2_{between}(x) = 1/(B - 1) \sum (T_b(x) - \hat{\mu}(x))^2
+        # =========================================================================
+        # Group 1: Hutter Law of Total Variance Family
+        # =========================================================================
+        tree_preds = np.column_stack([t.predict(X_test_2d) for t in estimators])
+        y_hat = np.mean(tree_preds, axis=1).astype(np.float64)
+
         var_between = (
-            np.var(tree_preds, axis=1, ddof=1)
-            if self.n_estimators > 1
+            np.var(tree_preds, axis=1, ddof=1).astype(np.float64)
+            if B > 1
             else np.zeros_like(y_hat)
         )
 
-        # Within-tree leaf variance: \sigma^2_{within}(x) = 1/B \sum tree_b.tree_.impurity[leaf]
         tree_impurities = np.column_stack([
             np.maximum(0.0, t.tree_.impurity[t.apply(X_test_2d)]) for t in estimators
         ])
-        var_within = np.mean(tree_impurities, axis=1)
+        var_within = np.mean(tree_impurities, axis=1).astype(np.float64)
 
-        # Total variance: \sigma^2_{total}(x) = var_between + var_within
         var_total = np.maximum(0.0, var_between + var_within)
 
-        # U_{SLCB}(x) = kappa * \sqrt{\sigma^2_{total}(x)}
-        u_slcb = self.kappa * np.sqrt(var_total)
+        u_hutter_between = (self.kappa * np.sqrt(np.maximum(0.0, var_between))).astype(np.float64)
+        u_hutter_within = (self.kappa * np.sqrt(np.maximum(0.0, var_within))).astype(np.float64)
+        u_hutter_total = (self.kappa * np.sqrt(var_total)).astype(np.float64)
+        u_slcb = u_hutter_total
 
-        # 2. Proximity LCB Quantification (Pure Extracted Exploration Term)
-        k_eff = min(self.k, len(self.X_train_))
-        y_pred_lwr, _, _, local_mae = self.uq_model.predict_with_intervals(
-            X_test_2d,
-            n_neighbors=k_eff,
-            level=self.level,
-            return_mae=True,
+        # =========================================================================
+        # Group 2: Shaker Information-Theoretic Entropy Family
+        # =========================================================================
+        if self.shaker is None:
+            self.shaker = EpistemicQuantifier(
+                model=self.model,
+                X_train=self.X_train_,
+                y_train=self.y_train_,
+            )
+
+        shaker_mi = np.asarray(
+            self.shaker.shaker_get_epistemic_entropy(
+                X_test_2d,
+                method="huber",
+                backend=self.device,
+            ),
+            dtype=np.float64,
         )
 
-        # Lower residual quantile: q_{0.025}^{(k)}(x) = y_{pred_lwr}(x) - \hat{\mu}(x) <= 0
-        q_lower = (y_pred_lwr - y_hat).astype(np.float64)
-        local_mae_f64 = np.asarray(local_mae, dtype=np.float64)
+        shaker_total_entropy = np.asarray(
+            self.shaker._shaker_calc_total_entropy(
+                X_test_2d,
+                method="huber",
+                backend=self.device,
+            ),
+            dtype=np.float64,
+        )
 
-        # Floor: \delta_{floor}(x) = \epsilon * \kappa * local_mae(x)
-        delta_floor = self.epsilon * self.kappa * local_mae_f64
+        aleatoric_var = np.asarray(
+            self.shaker.base_get_aleatoric_variance(X_test_2d),
+            dtype=np.float64,
+        )
+        sigma_aleatoric = np.sqrt(np.maximum(aleatoric_var, 1e-6))
 
-        # Extracted Exploration Uncertainty: U_{PLCB}(x) = max(\delta_{floor}(x), -q_{0.025}^{(k)}(x))
-        u_plcb = np.maximum(delta_floor, -q_lower)
+        safe_mi_exp = np.clip(2.0 * shaker_mi, 0.0, 50.0)
+        u_shaker_epistemic = (
+            self.kappa * sigma_aleatoric * np.sqrt(np.maximum(2.0 ** safe_mi_exp - 1.0, 0.0))
+        ).astype(np.float64)
 
-        return DualUQResult(
+        safe_tot_exp = np.clip(2.0 * shaker_total_entropy, -50.0, 50.0)
+        entropy_power_var = (2.0 ** safe_tot_exp) / (2.0 * np.pi * np.e)
+        u_shaker_total = (
+            self.kappa * np.sqrt(np.maximum(entropy_power_var, 0.0))
+        ).astype(np.float64)
+
+        # =========================================================================
+        # Group 3: Proximity / RF-FIRE / RF-GAP Family
+        # =========================================================================
+        k_eff = min(self.k, N_train)
+        alpha_lwr = (1.0 - self.level) / 2.0
+        alpha_upr = 1.0 - alpha_lwr
+
+        has_precomputed_topo = (
+            self.uq_model is not None
+            and hasattr(self.uq_model, "tree_leaf_distances")
+            and self.uq_model.tree_leaf_distances is not None
+            and len(self.uq_model.tree_leaf_distances) > 0
+        )
+
+        if has_precomputed_topo:
+            u_rf_fire_half = np.zeros(M, dtype=np.float64)
+            u_rf_fire_lower = np.zeros(M, dtype=np.float64)
+            u_prox_a_half = np.zeros(M, dtype=np.float64)
+            u_prox_a_lower = np.zeros(M, dtype=np.float64)
+            u_prox_b_half = np.zeros(M, dtype=np.float64)
+            u_prox_b_lower = np.zeros(M, dtype=np.float64)
+            u_prox_bc_half = np.zeros(M, dtype=np.float64)
+            u_prox_bc_lower = np.zeros(M, dtype=np.float64)
+            u_plcb_half = np.zeros(M, dtype=np.float64)
+            u_plcb_lower = np.zeros(M, dtype=np.float64)
+            q_lower = np.zeros(M, dtype=np.float64)
+            delta_floor = np.zeros(M, dtype=np.float64)
+            local_mae = np.zeros(M, dtype=np.float64)
+
+            oob_res = np.asarray(self.uq_model.oob_residuals, dtype=np.float64)
+            valid_oob_mask = (
+                np.asarray(self.uq_model.valid_oob_mask)
+                if hasattr(self.uq_model, "valid_oob_mask") and self.uq_model.valid_oob_mask is not None
+                else None
+            )
+            n_baseline = float(getattr(self.uq_model, "N_baseline", 1.0))
+
+            chunk_size = 512 if isinstance(self.batch_size, str) else int(self.batch_size)
+
+            for start in range(0, M, chunk_size):
+                end = min(start + chunk_size, M)
+                b_len = end - start
+                X_chunk = X_test_2d[start:end, :]
+                leaf_batch = self.model.apply(X_chunk)
+
+                prox_topo = np.zeros((b_len, N_train), dtype=np.float32)
+                density_chunk = np.zeros(b_len, dtype=np.float32)
+                prox_fire = np.zeros((b_len, N_train), dtype=np.float32)
+
+                for t in range(B):
+                    id_to_dense = self.uq_model.tree_leaf_id_to_dense[t]
+                    if hasattr(id_to_dense, "get"):
+                        id_to_dense = id_to_dense.get()
+                    dense_test = id_to_dense[leaf_batch[:, t]]
+                    dense_train = id_to_dense[self.uq_model.in_bag_leaves[:, t]]
+
+                    tree_dists = self.uq_model.tree_leaf_distances[t]
+                    if hasattr(tree_dists, "get"):
+                        tree_dists = tree_dists.get()
+                    d_t = tree_dists[dense_test[:, None], dense_train[None, :]]
+                    decay_t = np.exp(-self.topological_decay_lambda * d_t)
+
+                    train_w = self.uq_model.train_weights[:, t]
+                    in_bag_c = self.uq_model.in_bag_counts[:, t]
+
+                    prox_topo += decay_t * train_w[None, :]
+                    density_chunk += np.sum(decay_t * in_bag_c[None, :], axis=1)
+
+                    matches_t = (leaf_batch[:, t, None] == self.uq_model.in_bag_leaves[None, :, t])
+                    prox_fire += matches_t * train_w[None, :]
+
+                prox_topo /= B
+                prox_fire /= B
+
+                if valid_oob_mask is not None:
+                    prox_topo[:, ~valid_oob_mask] = 0.0
+                    prox_fire[:, ~valid_oob_mask] = 0.0
+
+                # 1. Topological fixed-k (proximity_a and proximity_lcb)
+                if k_eff < N_train:
+                    partition_idx_topo = np.flip(np.argsort(prox_topo, axis=1), axis=1)[:, :k_eff]
+                    k_residuals_topo = oob_res[partition_idx_topo]
+                else:
+                    k_residuals_topo = np.broadcast_to(oob_res[None, :], (b_len, N_train))
+
+                q_lwr_topo = np.quantile(k_residuals_topo, alpha_lwr, axis=1)
+                q_upr_topo = np.quantile(k_residuals_topo, alpha_upr, axis=1)
+
+                in_int_topo = (k_residuals_topo >= q_lwr_topo[:, None]) & (k_residuals_topo <= q_upr_topo[:, None])
+                cnt_topo = np.sum(in_int_topo, axis=1)
+                sum_abs_topo = np.sum(np.abs(k_residuals_topo) * in_int_topo, axis=1)
+                b_local_mae = np.where(
+                    cnt_topo > 0,
+                    sum_abs_topo / np.maximum(cnt_topo, 1),
+                    float(self.uq_model.oob_mae),
+                )
+                b_delta_floor = self.epsilon * self.kappa * b_local_mae
+
+                b_u_prox_a_half = (q_upr_topo - q_lwr_topo) / 2.0
+                b_u_prox_a_lower = np.maximum(0.0, -q_lwr_topo)
+
+                b_u_plcb_half = b_u_prox_a_half
+                b_u_plcb_lower = np.maximum(b_delta_floor, -q_lwr_topo)
+
+                # 2. Continuous weighted quantiles (proximity_b and proximity_bc)
+                q_lwr_b = self.uq_model._compute_weighted_quantile(oob_res, prox_topo, alpha_lwr)
+                q_upr_b = self.uq_model._compute_weighted_quantile(oob_res, prox_topo, alpha_upr)
+                if hasattr(q_lwr_b, "get"):
+                    q_lwr_b = q_lwr_b.get()
+                if hasattr(q_upr_b, "get"):
+                    q_upr_b = q_upr_b.get()
+
+                b_u_prox_b_half = (q_upr_b - q_lwr_b) / 2.0
+                b_u_prox_b_lower = np.maximum(0.0, -q_lwr_b)
+
+                avg_test_leaf_sizes = density_chunk / B
+                avg_test_leaf_sizes = np.maximum(avg_test_leaf_sizes, 1e-5)
+                gamma = (n_baseline / avg_test_leaf_sizes) ** self.density_scaling_alpha
+
+                b_u_prox_bc_half = gamma * b_u_prox_b_half
+                b_u_prox_bc_lower = gamma * b_u_prox_b_lower
+
+                # 3. RF-FIRE co-occurrence
+                if k_eff < N_train:
+                    partition_idx_fire = np.flip(np.argsort(prox_fire, axis=1), axis=1)[:, :k_eff]
+                    k_residuals_fire = oob_res[partition_idx_fire]
+                else:
+                    k_residuals_fire = np.broadcast_to(oob_res[None, :], (b_len, N_train))
+
+                q_lwr_fire = np.quantile(k_residuals_fire, alpha_lwr, axis=1)
+                q_upr_fire = np.quantile(k_residuals_fire, alpha_upr, axis=1)
+
+                b_u_rf_fire_half = (q_upr_fire - q_lwr_fire) / 2.0
+                b_u_rf_fire_lower = np.maximum(0.0, -q_lwr_fire)
+
+                # Store into output arrays
+                u_prox_a_half[start:end] = b_u_prox_a_half
+                u_prox_a_lower[start:end] = b_u_prox_a_lower
+                u_plcb_half[start:end] = b_u_plcb_half
+                u_plcb_lower[start:end] = b_u_plcb_lower
+                u_prox_b_half[start:end] = b_u_prox_b_half
+                u_prox_b_lower[start:end] = b_u_prox_b_lower
+                u_prox_bc_half[start:end] = b_u_prox_bc_half
+                u_prox_bc_lower[start:end] = b_u_prox_bc_lower
+                u_rf_fire_half[start:end] = b_u_rf_fire_half
+                u_rf_fire_lower[start:end] = b_u_rf_fire_lower
+
+                q_lower[start:end] = q_lwr_topo
+                delta_floor[start:end] = b_delta_floor
+                local_mae[start:end] = b_local_mae
+        else:
+            # Fallback for mocked or non-topological UQ model
+            y_pred_lwr, _, y_pred_upr, b_local_mae = self.uq_model.predict_with_intervals(
+                X_test_2d,
+                n_neighbors=k_eff,
+                level=self.level,
+                return_mae=True,
+            )
+            q_lower = (y_pred_lwr - y_hat).astype(np.float64)
+            q_upr = (y_pred_upr - y_hat).astype(np.float64)
+            local_mae = np.asarray(b_local_mae, dtype=np.float64)
+            delta_floor = self.epsilon * self.kappa * local_mae
+
+            u_plcb_lower = np.maximum(delta_floor, -q_lower)
+            u_plcb_half = (q_upr - q_lower) / 2.0
+            u_prox_a_half = u_plcb_half
+            u_prox_a_lower = np.maximum(0.0, -q_lower)
+            u_prox_b_half = u_plcb_half
+            u_prox_b_lower = u_prox_a_lower
+            u_prox_bc_half = u_plcb_half
+            u_prox_bc_lower = u_prox_a_lower
+            u_rf_fire_half = u_plcb_half
+            u_rf_fire_lower = u_prox_a_lower
+
+        u_plcb = u_plcb_lower
+
+        return MultiUQResult(
             y_hat=y_hat,
             u_slcb=u_slcb,
             u_plcb=u_plcb,
@@ -389,5 +730,69 @@ class DualUQEvaluator:
             var_total=var_total,
             q_lower=q_lower,
             delta_floor=delta_floor,
-            local_mae=local_mae_f64,
+            local_mae=local_mae,
+            u_hutter_total=u_hutter_total,
+            u_hutter_between=u_hutter_between,
+            u_hutter_within=u_hutter_within,
+            u_shaker_epistemic=u_shaker_epistemic,
+            u_shaker_total=u_shaker_total,
+            shaker_mi=shaker_mi,
+            shaker_total_entropy=shaker_total_entropy,
+            u_rf_fire_half=u_rf_fire_half,
+            u_rf_fire_lower=u_rf_fire_lower,
+            u_prox_a_half=u_prox_a_half,
+            u_prox_a_lower=u_prox_a_lower,
+            u_prox_b_half=u_prox_b_half,
+            u_prox_b_lower=u_prox_b_lower,
+            u_prox_bc_half=u_prox_bc_half,
+            u_prox_bc_lower=u_prox_bc_lower,
+            u_plcb_half=u_plcb_half,
+            u_plcb_lower=u_plcb_lower,
+        )
+
+
+class DualUQEvaluator(MultiUQEvaluator):
+    """Dual Uncertainty Quantification Inference Engine.
+
+    Unifies Standard SMAC3 LCB (Hutter Law of Total Variance) and Proximity LCB
+    (Pure Extracted Exploration Term) on the identical underlying random forest.
+    Maintains 100% backwards compatibility with legacy callers and test assertions.
+    """
+
+    def evaluate(self, X_test: np.ndarray) -> DualUQResult:
+        """Evaluate both Standard SMAC3 LCB and Proximity LCB.
+
+        Returns
+        -------
+        DualUQResult
+            Container with predictions, variances, quantiles, and uncertainties.
+        """
+        multi_res = super().evaluate(X_test)
+        return DualUQResult(
+            y_hat=multi_res.y_hat,
+            u_slcb=multi_res.u_slcb,
+            u_plcb=multi_res.u_plcb,
+            var_between=multi_res.var_between,
+            var_within=multi_res.var_within,
+            var_total=multi_res.var_total,
+            q_lower=multi_res.q_lower,
+            delta_floor=multi_res.delta_floor,
+            local_mae=multi_res.local_mae,
+            u_hutter_total=multi_res.u_hutter_total,
+            u_hutter_between=multi_res.u_hutter_between,
+            u_hutter_within=multi_res.u_hutter_within,
+            u_shaker_epistemic=multi_res.u_shaker_epistemic,
+            u_shaker_total=multi_res.u_shaker_total,
+            shaker_mi=multi_res.shaker_mi,
+            shaker_total_entropy=multi_res.shaker_total_entropy,
+            u_rf_fire_half=multi_res.u_rf_fire_half,
+            u_rf_fire_lower=multi_res.u_rf_fire_lower,
+            u_prox_a_half=multi_res.u_prox_a_half,
+            u_prox_a_lower=multi_res.u_prox_a_lower,
+            u_prox_b_half=multi_res.u_prox_b_half,
+            u_prox_b_lower=multi_res.u_prox_b_lower,
+            u_prox_bc_half=multi_res.u_prox_bc_half,
+            u_prox_bc_lower=multi_res.u_prox_bc_lower,
+            u_plcb_half=multi_res.u_plcb_half,
+            u_plcb_lower=multi_res.u_plcb_lower,
         )
