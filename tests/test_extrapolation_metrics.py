@@ -202,3 +202,181 @@ class TestComputeComprehensiveMetrics:
             y_true[mask_0], y_hat[mask_0], u_slcb[mask_0]
         )
         assert np.isclose(metrics["stratum_0_slcb_picp"], expected_s0_slcb_picp)
+
+    def test_comprehensive_metrics_with_multi_uq_result(self, synthetic_data):
+        from dyrf_bo.extrapolation_uq.uq_evaluator import MultiUQResult
+
+        y_true, y_hat, u_slcb, u_plcb, d_norm, strata = synthetic_data
+        n = len(y_true)
+
+        multi_res = MultiUQResult(
+            y_hat=y_hat,
+            u_slcb=u_slcb,
+            u_plcb=u_plcb,
+            var_between=np.full(n, 0.25),
+            var_within=np.full(n, 0.25),
+            var_total=np.full(n, 0.50),
+            q_lower=np.full(n, 0.8),
+            delta_floor=np.full(n, 0.05),
+            local_mae=np.full(n, 0.3),
+            u_hutter_total=u_slcb,
+            u_hutter_between=np.full(n, 0.98),
+            u_hutter_within=np.full(n, 0.98),
+            u_shaker_epistemic=np.full(n, 1.2),
+            u_shaker_total=np.full(n, 1.5),
+            shaker_mi=np.full(n, 0.4),
+            shaker_total_entropy=np.full(n, 1.1),
+            u_rf_fire_half=np.full(n, 1.05),
+            u_rf_fire_lower=np.full(n, 0.95),
+            u_prox_a_half=np.full(n, 1.10),
+            u_prox_a_lower=np.full(n, 1.00),
+            u_prox_b_half=np.full(n, 1.15),
+            u_prox_b_lower=np.full(n, 1.05),
+            u_prox_bc_half=np.full(n, 1.20),
+            u_prox_bc_lower=np.full(n, 1.10),
+            u_plcb_half=np.full(n, 1.25),
+            u_plcb_lower=u_plcb,
+        )
+
+        metrics = compute_comprehensive_metrics(
+            y_true=y_true,
+            y_hat=y_hat,
+            d_norm=d_norm,
+            strata_labels=strata,
+            uq_result=multi_res,
+        )
+
+        # 1. Backwards compatibility keys present
+        assert "slcb_picp" in metrics
+        assert "plcb_picp" in metrics
+        assert "picp_slcb" in metrics
+        assert "picp_plcb" in metrics
+        assert "global" in metrics
+        assert "slcb" in metrics["global"]
+        assert "plcb" in metrics["global"]
+
+        # 2. Candidate estimators present in global metrics
+        candidate_estimators = [
+            "u_hutter_total",
+            "u_hutter_between",
+            "u_hutter_within",
+            "u_shaker_epistemic",
+            "u_shaker_total",
+            "u_rf_fire_half",
+            "u_rf_fire_lower",
+            "u_prox_a_half",
+            "u_prox_a_lower",
+            "u_prox_b_half",
+            "u_prox_b_lower",
+            "u_prox_bc_half",
+            "u_prox_bc_lower",
+            "u_plcb_half",
+            "u_plcb_lower",
+        ]
+        scorecard_metrics = [
+            "spearman_dist",
+            "spearman_err",
+            "picp",
+            "mpiw",
+            "winkler",
+            "auroc",
+            "auprc",
+        ]
+
+        for est in candidate_estimators:
+            assert est in metrics["global"], f"Missing {est} in global metrics"
+            for m in scorecard_metrics:
+                assert m in metrics["global"][est], f"Missing metric {m} for {est}"
+                # Root level key checks
+                assert f"{est}_{m}" in metrics, f"Missing root key {est}_{m}"
+                assert f"{m}_{est}" in metrics, f"Missing root key {m}_{est}"
+
+        # 3. Strata breakdown present for all estimators
+        assert "strata" in metrics
+        for s in [0, 1, 2, 3]:
+            assert s in metrics["strata"]
+            for est in candidate_estimators:
+                assert est in metrics["strata"][s]
+                for m in scorecard_metrics:
+                    assert m in metrics["strata"][s][est]
+                    assert f"stratum_{s}_{est}_{m}" in metrics
+                    assert f"stratum_{s}_{m}_{est}" in metrics
+
+            # Check legacy strata keys
+            assert f"stratum_{s}_slcb_picp" in metrics
+            assert f"stratum_{s}_plcb_picp" in metrics
+
+    def test_comprehensive_metrics_with_dict_uncertainties(self, synthetic_data):
+        y_true, y_hat, _, _, d_norm, strata = synthetic_data
+        n = len(y_true)
+
+        uq_dict = {
+            "custom_est_a": np.full(n, 1.2),
+            "custom_est_b": np.full(n, 0.8),
+            "u_slcb": np.full(n, 1.0),
+            "u_plcb": np.full(n, 1.1),
+        }
+
+        metrics = compute_comprehensive_metrics(
+            y_true=y_true,
+            y_hat=y_hat,
+            d_norm=d_norm,
+            strata_labels=strata,
+            uq_result=uq_dict,
+        )
+
+        assert "custom_est_a" in metrics["global"]
+        assert "custom_est_b" in metrics["global"]
+        assert "custom_est_a_picp" in metrics
+        assert "custom_est_b_winkler" in metrics
+        assert "slcb_picp" in metrics
+        assert "plcb_picp" in metrics
+        assert "stratum_1_custom_est_a_picp" in metrics
+
+    def test_comprehensive_metrics_with_dual_uq_result(self, synthetic_data):
+        from dyrf_bo.extrapolation_uq.uq_evaluator import DualUQResult
+
+        y_true, y_hat, u_slcb, u_plcb, d_norm, strata = synthetic_data
+        n = len(y_true)
+
+        dual_res = DualUQResult(
+            y_hat=y_hat,
+            u_slcb=u_slcb,
+            u_plcb=u_plcb,
+            var_between=np.full(n, 0.25),
+            var_within=np.full(n, 0.25),
+            var_total=np.full(n, 0.50),
+            q_lower=np.full(n, 0.8),
+            delta_floor=np.full(n, 0.05),
+            local_mae=np.full(n, 0.3),
+            u_hutter_total=u_slcb,
+            u_hutter_between=np.full(n, 0.98),
+            u_hutter_within=np.full(n, 0.98),
+            u_shaker_epistemic=np.full(n, 1.2),
+            u_shaker_total=np.full(n, 1.5),
+            shaker_mi=np.full(n, 0.4),
+            shaker_total_entropy=np.full(n, 1.1),
+            u_rf_fire_half=np.full(n, 1.05),
+            u_rf_fire_lower=np.full(n, 0.95),
+            u_prox_a_half=np.full(n, 1.10),
+            u_prox_a_lower=np.full(n, 1.00),
+            u_prox_b_half=np.full(n, 1.15),
+            u_prox_b_lower=np.full(n, 1.05),
+            u_prox_bc_half=np.full(n, 1.20),
+            u_prox_bc_lower=np.full(n, 1.10),
+            u_plcb_half=np.full(n, 1.25),
+            u_plcb_lower=u_plcb,
+        )
+
+        metrics = compute_comprehensive_metrics(
+            y_true=y_true,
+            y_hat=y_hat,
+            d_norm=d_norm,
+            strata_labels=strata,
+            uq_result=dual_res,
+        )
+
+        assert "slcb_picp" in metrics
+        assert "plcb_picp" in metrics
+        assert "u_hutter_total_picp" in metrics
+

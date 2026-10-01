@@ -20,7 +20,8 @@ from .samplers import (
     sample_subdomain_training,
 )
 from .test_objectives import StandardizedObjective, get_objective
-from .uq_evaluator import DualUQEvaluator
+from .uq_evaluator import DualUQEvaluator, MultiUQEvaluator
+
 
 
 @dataclass
@@ -159,8 +160,8 @@ def run_single_experiment(
     # 7. Evaluate ground truth test values
     y_true = objective.evaluate(X_test, standardized=True)
 
-    # 8. Dual UQ Inference Engine
-    evaluator = DualUQEvaluator(
+    # 8. Multi UQ Inference Engine
+    evaluator = MultiUQEvaluator(
         seed=seed_model,
         n_trees=config.n_trees,
         k=config.k,
@@ -169,10 +170,10 @@ def run_single_experiment(
     )
     evaluator.fit(X_train, y_train_tilde)
 
-    # 8. Evaluate test set
+    # 9. Evaluate test set
     uq_res = evaluator.evaluate(X_test)
 
-    # 9. Build per-point DataFrame
+    # 10. Build per-point DataFrame
     abs_error = np.abs(y_true - uq_res.y_hat)
     data_dict: Dict[str, Any] = {
         "point_id": np.arange(len(X_test), dtype=np.int64),
@@ -188,12 +189,35 @@ def run_single_experiment(
         "y_true": np.asarray(y_true, dtype=np.float64),
         "y_hat": np.asarray(uq_res.y_hat, dtype=np.float64),
         "abs_error": np.asarray(abs_error, dtype=np.float64),
+        # Candidate estimators (15 signals + mi + entropy)
+        "u_hutter_total": np.asarray(uq_res.u_hutter_total, dtype=np.float64),
+        "u_hutter_between": np.asarray(uq_res.u_hutter_between, dtype=np.float64),
+        "u_hutter_within": np.asarray(uq_res.u_hutter_within, dtype=np.float64),
+        "u_shaker_epistemic": np.asarray(uq_res.u_shaker_epistemic, dtype=np.float64),
+        "u_shaker_total": np.asarray(uq_res.u_shaker_total, dtype=np.float64),
+        "shaker_mi": np.asarray(uq_res.shaker_mi, dtype=np.float64),
+        "shaker_total_entropy": np.asarray(uq_res.shaker_total_entropy, dtype=np.float64),
+        "u_rf_fire_half": np.asarray(uq_res.u_rf_fire_half, dtype=np.float64),
+        "u_rf_fire_lower": np.asarray(uq_res.u_rf_fire_lower, dtype=np.float64),
+        "u_prox_a_half": np.asarray(uq_res.u_prox_a_half, dtype=np.float64),
+        "u_prox_a_lower": np.asarray(uq_res.u_prox_a_lower, dtype=np.float64),
+        "u_prox_b_half": np.asarray(uq_res.u_prox_b_half, dtype=np.float64),
+        "u_prox_b_lower": np.asarray(uq_res.u_prox_b_lower, dtype=np.float64),
+        "u_prox_bc_half": np.asarray(uq_res.u_prox_bc_half, dtype=np.float64),
+        "u_prox_bc_lower": np.asarray(uq_res.u_prox_bc_lower, dtype=np.float64),
+        "u_plcb_half": np.asarray(uq_res.u_plcb_half, dtype=np.float64),
+        "u_plcb_lower": np.asarray(uq_res.u_plcb_lower, dtype=np.float64),
+        # Legacy aliases
         "u_slcb": np.asarray(uq_res.u_slcb, dtype=np.float64),
         "u_plcb": np.asarray(uq_res.u_plcb, dtype=np.float64),
+        # Diagnostics
+        "delta_floor": np.asarray(uq_res.delta_floor, dtype=np.float64),
+        "local_mae": np.asarray(uq_res.local_mae, dtype=np.float64),
+        "q_lower": np.asarray(uq_res.q_lower, dtype=np.float64),
     })
     point_df = pd.DataFrame(data_dict)
 
-    # 10. Write to Parquet if requested
+    # 11. Write to Parquet if requested
     if save_parquet and output_dir is not None:
         out_p = Path(output_dir)
         if out_p.suffix == ".parquet":
@@ -210,9 +234,9 @@ def run_single_experiment(
                 f"_s{config.seed}.parquet"
             )
             parquet_path = out_p / filename
-        point_df.to_parquet(parquet_path, index=False)
+        point_df.to_parquet(parquet_path, index=False, engine="pyarrow")
 
-    # 11. Comprehensive calibration scorecard
+    # 12. Comprehensive calibration scorecard
     summary_dict = compute_comprehensive_metrics(
         y_true=y_true,
         y_hat=uq_res.y_hat,
@@ -220,6 +244,7 @@ def run_single_experiment(
         u_plcb=uq_res.u_plcb,
         d_norm=proj_res.d_norm,
         strata_labels=strata_labels,
+        uq_result=uq_res,
     )
     summary_dict["dimension"] = config.dimension
     summary_dict["n_train"] = config.n_train
@@ -227,6 +252,7 @@ def run_single_experiment(
     summary_dict["sampling_strategy"] = config.sampling_strategy
     summary_dict["seed"] = config.seed
     summary_dict["n_test"] = len(point_df)
+
 
     # 12. Return
     return summary_dict, point_df

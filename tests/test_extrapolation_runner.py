@@ -26,8 +26,31 @@ REQUIRED_DATAFRAME_COLUMNS = [
     "y_true",
     "y_hat",
     "abs_error",
+    # Candidate estimators (15 signals + mi + entropy)
+    "u_hutter_total",
+    "u_hutter_between",
+    "u_hutter_within",
+    "u_shaker_epistemic",
+    "u_shaker_total",
+    "shaker_mi",
+    "shaker_total_entropy",
+    "u_rf_fire_half",
+    "u_rf_fire_lower",
+    "u_prox_a_half",
+    "u_prox_a_lower",
+    "u_prox_b_half",
+    "u_prox_b_lower",
+    "u_prox_bc_half",
+    "u_prox_bc_lower",
+    "u_plcb_half",
+    "u_plcb_lower",
+    # Legacy aliases
     "u_slcb",
     "u_plcb",
+    # Diagnostics
+    "delta_floor",
+    "local_mae",
+    "q_lower",
 ]
 
 
@@ -93,6 +116,9 @@ class TestRunSingleExperiment:
         assert np.all(df["d_norm"] >= 0.0)
         assert np.all(df["u_slcb"] > 0.0)
         assert np.all(df["u_plcb"] > 0.0)
+        assert np.all(df["u_hutter_total"] > 0.0)
+        assert np.all(df["u_shaker_epistemic"] >= 0.0)
+        assert np.all(df["u_rf_fire_half"] >= 0.0)
         assert np.allclose(df["abs_error"], np.abs(df["y_true"] - df["y_hat"]))
 
         # 4. Stratified specific checks: 4 strata evenly split
@@ -112,13 +138,14 @@ class TestRunSingleExperiment:
 
         # 6. Verify summary metrics
         assert isinstance(summary, dict)
-        for method in ["slcb", "plcb"]:
+        for method in ["slcb", "plcb", "u_hutter_total", "u_shaker_epistemic"]:
             for metric in ["picp", "mpiw", "winkler", "spearman_dist", "spearman_err"]:
                 assert f"{method}_{metric}" in summary
 
         for s in [0, 1, 2, 3]:
             assert f"stratum_{s}_slcb_picp" in summary
             assert f"stratum_{s}_plcb_picp" in summary
+            assert f"stratum_{s}_u_hutter_total_picp" in summary
 
     def test_natural_pilot_experiment(self, tmp_path):
         config = ExtrapolationRunConfig(
@@ -230,3 +257,44 @@ class TestRunSingleExperiment:
         )
         with pytest.raises(KeyError):
             run_single_experiment(config)
+
+    def test_lossless_pyarrow_parquet_roundtrip_all_candidate_dtypes(self, tmp_path):
+        config = ExtrapolationRunConfig(
+            dimension=2,
+            n_train=28,
+            function_name="sphere",
+            sampling_strategy="stratified",
+            seed=42,
+            n_test=40,
+            k=28,
+            n_trees=5,
+        )
+        summary, df = run_single_experiment(config, output_dir=tmp_path, save_parquet=True)
+        parquet_file = list(tmp_path.glob("*.parquet"))[0]
+        reloaded = pd.read_parquet(parquet_file, engine="pyarrow")
+
+        # 1. Exact column list and length
+        assert list(reloaded.columns) == list(df.columns)
+        assert len(reloaded) == len(df)
+
+        # 2. Strict dtypes
+        assert reloaded["point_id"].dtype == np.int64
+        assert reloaded["stratum"].dtype == np.int64
+        assert reloaded["is_interpolating"].dtype == bool
+        for col in reloaded.columns:
+            if col in ["point_id", "stratum"]:
+                assert reloaded[col].dtype == np.int64
+            elif col == "is_interpolating":
+                assert reloaded[col].dtype == bool
+            else:
+                assert reloaded[col].dtype == np.float64
+
+        # 3. Value equality with zero precision loss
+        for col in reloaded.columns:
+            if col == "is_interpolating":
+                assert (reloaded[col] == df[col]).all()
+            elif col in ["point_id", "stratum"]:
+                assert (reloaded[col] == df[col]).all()
+            else:
+                assert np.array_equal(reloaded[col].to_numpy(), df[col].to_numpy())
+

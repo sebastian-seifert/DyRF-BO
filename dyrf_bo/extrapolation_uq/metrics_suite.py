@@ -7,10 +7,15 @@ Winkler Interval Score, and Catastrophic Outlier Error Discrimination (AUROC / A
 
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Tuple, Union
+
 import numpy as np
 from scipy.stats import spearmanr
 from sklearn.metrics import average_precision_score, roc_auc_score
+
+if TYPE_CHECKING:
+    from .uq_evaluator import DualUQResult, MultiUQResult
+
 
 
 def spearman_rank_correlation(x: np.ndarray, y: np.ndarray) -> float:
@@ -208,15 +213,21 @@ def _compute_single_method_metrics(
 def compute_comprehensive_metrics(
     y_true: np.ndarray,
     y_hat: np.ndarray,
-    u_slcb: np.ndarray,
-    u_plcb: np.ndarray,
-    d_norm: np.ndarray,
+    u_slcb: np.ndarray | Any | None = None,
+    u_plcb: np.ndarray | None = None,
+    d_norm: np.ndarray | None = None,
     strata_labels: np.ndarray | None = None,
+    *,
+    uq_result: MultiUQResult | DualUQResult | Dict[str, np.ndarray] | None = None,
 ) -> Dict[str, Any]:
-    """Compute calibration and ranking metrics for both SLCB and PLCB.
+    """Compute calibration and ranking metrics for all candidate UQ methods.
 
-    Computes all metrics globally and, if strata_labels is provided, partitioned
-    per stratum (0, 1, 2, 3).
+    Evaluates the complete 7-metric scorecard (spearman_dist, spearman_err,
+    picp, mpiw, winkler, auroc, auprc) across all uncertainty signals present,
+    both globally and partitioned per stratum (0, 1, 2, 3).
+
+    Supports both legacy calls with (u_slcb, u_plcb) and new MultiUQResult /
+    dictionary interfaces via the uq_result parameter.
 
     Parameters
     ----------
@@ -224,14 +235,16 @@ def compute_comprehensive_metrics(
         True target values of shape (M,).
     y_hat : np.ndarray
         Model point predictions of shape (M,).
-    u_slcb : np.ndarray
-        Standard SMAC3 LCB uncertainties of shape (M,).
-    u_plcb : np.ndarray
-        Proximity LCB uncertainties of shape (M,).
-    d_norm : np.ndarray
+    u_slcb : np.ndarray | Any | None, default=None
+        Standard SMAC3 LCB uncertainties or positional uq_result container.
+    u_plcb : np.ndarray | None, default=None
+        Proximity LCB uncertainties of shape (M,) or d_norm if uq_result was 3rd arg.
+    d_norm : np.ndarray | None, default=None
         Normalized convex hull distances of shape (M,).
     strata_labels : np.ndarray | None, default=None
         Optional integer strata labels in {0, 1, 2, 3} of shape (M,).
+    uq_result : MultiUQResult | DualUQResult | Dict[str, np.ndarray] | None, default=None
+        Evaluator container or mapping of candidate uncertainty signals.
 
     Returns
     -------
@@ -240,31 +253,105 @@ def compute_comprehensive_metrics(
     """
     y_t = np.asarray(y_true, dtype=np.float64).ravel()
     y_h = np.asarray(y_hat, dtype=np.float64).ravel()
-    u_s = np.asarray(u_slcb, dtype=np.float64).ravel()
-    u_p = np.asarray(u_plcb, dtype=np.float64).ravel()
-    d_n = np.asarray(d_norm, dtype=np.float64).ravel()
+    d_n = np.asarray(d_norm, dtype=np.float64).ravel() if d_norm is not None else np.zeros_like(y_t)
     abs_e = np.abs(y_t - y_h)
 
-    # 1. Global Metrics
-    slcb_global = _compute_single_method_metrics(y_t, y_h, u_s, d_n, abs_e)
-    plcb_global = _compute_single_method_metrics(y_t, y_h, u_p, d_n, abs_e)
+    # 1. Resolve uncertainties dictionary
+    resolved_uq = uq_result
+    if resolved_uq is None:
+        if u_slcb is not None and (
+            hasattr(u_slcb, "get_uncertainties_dict")
+            or (isinstance(u_slcb, dict) and not isinstance(u_slcb, np.ndarray))
+        ):
+            resolved_uq = u_slcb
+            if d_norm is None and u_plcb is not None:
+                d_n = np.asarray(u_plcb, dtype=np.float64).ravel()
 
-    result: Dict[str, Any] = {
-        "global": {
-            "slcb": slcb_global,
-            "plcb": plcb_global,
-        }
-    }
+    uncertainties_map: Dict[str, np.ndarray] = {}
+    if resolved_uq is not None:
+        if hasattr(resolved_uq, "get_uncertainties_dict"):
+            uncertainties_map = dict(resolved_uq.get_uncertainties_dict())
+        elif isinstance(resolved_uq, dict):
+            excluded = {
+                "y_hat",
+                "y_true",
+                "abs_error",
+                "d_norm",
+                "d_rel",
+                "d_inf",
+                "is_interpolating",
+                "stratum",
+                "strata",
+                "point_id",
+                "var_between",
+                "var_within",
+                "var_total",
+                "delta_floor",
+                "local_mae",
+                "q_lower",
+                "global",
+            }
+            uncertainties_map = {
+                k: np.asarray(v, dtype=np.float64).ravel()
+                for k, v in resolved_uq.items()
+                if k not in excluded and hasattr(v, "__len__")
+            }
+        elif hasattr(resolved_uq, "__dict__"):
+            uncertainties_map = {
+                k: np.asarray(getattr(resolved_uq, k), dtype=np.float64).ravel()
+                for k in dir(resolved_uq)
+                if (k.startswith("u_") or k in {"slcb", "plcb"})
+                and isinstance(getattr(resolved_uq, k), np.ndarray)
+            }
 
-    # Flatten global keys for convenient root access
-    for k, v in slcb_global.items():
-        result[f"slcb_{k}"] = v
-        result[f"{k}_slcb"] = v
-    for k, v in plcb_global.items():
-        result[f"plcb_{k}"] = v
-        result[f"{k}_plcb"] = v
+    # Fallback to legacy positional arguments if not in uncertainties_map
+    if u_slcb is not None and isinstance(u_slcb, np.ndarray):
+        arr_slcb = np.asarray(u_slcb, dtype=np.float64).ravel()
+        if "u_slcb" not in uncertainties_map:
+            uncertainties_map["u_slcb"] = arr_slcb
+        if "slcb" not in uncertainties_map:
+            uncertainties_map["slcb"] = arr_slcb
 
-    # 2. Strata Breakdown
+    if u_plcb is not None and isinstance(u_plcb, np.ndarray):
+        arr_plcb = np.asarray(u_plcb, dtype=np.float64).ravel()
+        if "u_plcb" not in uncertainties_map:
+            uncertainties_map["u_plcb"] = arr_plcb
+        if "plcb" not in uncertainties_map:
+            uncertainties_map["plcb"] = arr_plcb
+
+    # Synchronize legacy aliases
+    if "u_slcb" in uncertainties_map and "slcb" not in uncertainties_map:
+        uncertainties_map["slcb"] = uncertainties_map["u_slcb"]
+    elif "slcb" in uncertainties_map and "u_slcb" not in uncertainties_map:
+        uncertainties_map["u_slcb"] = uncertainties_map["slcb"]
+
+    if "u_plcb" in uncertainties_map and "plcb" not in uncertainties_map:
+        uncertainties_map["plcb"] = uncertainties_map["u_plcb"]
+    elif "plcb" in uncertainties_map and "u_plcb" not in uncertainties_map:
+        uncertainties_map["u_plcb"] = uncertainties_map["plcb"]
+
+    # 2. Global Metrics
+    global_metrics: Dict[str, Dict[str, float]] = {}
+    result: Dict[str, Any] = {"global": global_metrics}
+
+    for method_name, u_arr in uncertainties_map.items():
+        m_dict = _compute_single_method_metrics(y_t, y_h, u_arr, d_n, abs_e)
+        global_metrics[method_name] = m_dict
+        if method_name.startswith("u_"):
+            stripped = method_name[2:]
+            if stripped not in global_metrics:
+                global_metrics[stripped] = m_dict
+
+        # Flatten global keys for convenient root access
+        for k, v in m_dict.items():
+            result[f"{method_name}_{k}"] = v
+            result[f"{k}_{method_name}"] = v
+            if method_name.startswith("u_"):
+                stripped = method_name[2:]
+                result[f"{stripped}_{k}"] = v
+                result[f"{k}_{stripped}"] = v
+
+    # 3. Strata Breakdown
     if strata_labels is not None:
         s_arr = np.asarray(strata_labels, dtype=np.int64).ravel()
         unique_strata = np.unique(s_arr)
@@ -276,25 +363,27 @@ def compute_comprehensive_metrics(
             if not np.any(mask):
                 continue
 
-            slcb_s = _compute_single_method_metrics(
-                y_t[mask], y_h[mask], u_s[mask], d_n[mask], abs_e[mask]
-            )
-            plcb_s = _compute_single_method_metrics(
-                y_t[mask], y_h[mask], u_p[mask], d_n[mask], abs_e[mask]
-            )
+            strata_dict[s_int] = {}
+            for method_name, u_arr in uncertainties_map.items():
+                m_s = _compute_single_method_metrics(
+                    y_t[mask], y_h[mask], u_arr[mask], d_n[mask], abs_e[mask]
+                )
+                strata_dict[s_int][method_name] = m_s
+                if method_name.startswith("u_"):
+                    stripped = method_name[2:]
+                    if stripped not in strata_dict[s_int]:
+                        strata_dict[s_int][stripped] = m_s
 
-            strata_dict[s_int] = {
-                "slcb": slcb_s,
-                "plcb": plcb_s,
-            }
-
-            for k, v in slcb_s.items():
-                result[f"stratum_{s_int}_slcb_{k}"] = v
-                result[f"stratum_{s_int}_{k}_slcb"] = v
-            for k, v in plcb_s.items():
-                result[f"stratum_{s_int}_plcb_{k}"] = v
-                result[f"stratum_{s_int}_{k}_plcb"] = v
+                # Root level flattened keys for strata
+                for k, v in m_s.items():
+                    result[f"stratum_{s_int}_{method_name}_{k}"] = v
+                    result[f"stratum_{s_int}_{k}_{method_name}"] = v
+                    if method_name.startswith("u_"):
+                        stripped = method_name[2:]
+                        result[f"stratum_{s_int}_{stripped}_{k}"] = v
+                        result[f"stratum_{s_int}_{k}_{stripped}"] = v
 
         result["strata"] = strata_dict
 
     return result
+
