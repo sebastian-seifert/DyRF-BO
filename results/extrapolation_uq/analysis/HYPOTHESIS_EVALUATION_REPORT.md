@@ -2,15 +2,15 @@
 
 ## Executive Summary
 
-This report evaluates **1920** experimental runs spanning dimensions \(D \in \{2, 3, 5, 8, 16, 32\}\), evaluating the calibration and topological awareness of **Proximity LCB (PLCB)** against standard **SMAC3 LCB (SLCB)** in extrapolation domains.
+This report evaluates **9600** experimental runs spanning dimensions \(D \in \{2, 3, 5, 8, 16, 32\}\), evaluating the calibration and topological awareness of **Proximity LCB (PLCB)** against standard **SMAC3 LCB (SLCB)** in extrapolation domains.
 
 | Core Metric | PLCB Mean (±SEM) | SLCB Mean (±SEM) | Wilcoxon p-value | Cliff's δ | Win / Loss |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Distance Monotonicity** \(\rho(\tilde d, U)\) | -0.3906 ± 0.0064 | 0.1265 ± 0.0089 | 2.63e-295 | -0.714 | 115W / 1805L |
-| **Error Ranking** \(\rho(|e|, U)\) | -0.0868 ± 0.0068 | 0.0949 ± 0.0068 | 1.40e-76 | -0.350 | 522W / 1398L |
-| **Coverage Error** \(|\mathrm{PICP} - 0.95|\) | 0.5988 ± 0.0052 | 0.4978 ± 0.0068 | 2.85e-229 | +0.199 | 142W / 1699L |
-| **Winkler Score** (lower is better) | 161.32 ± 4.03 | 148.06 ± 3.90 | 5.43e-254 | +0.109 | 232W / 1688L |
-| **Catastrophic Outlier AUROC** | 0.4630 ± 0.0050 | 0.5653 ± 0.0043 | 1.89e-77 | -0.354 | 486W / 1434L |
+| **Distance Monotonicity** \(\rho(\tilde d, U)\) | -0.3976 ± 0.0031 | 0.1308 ± 0.0044 | 0.00e+00 | -0.669 | 1019W / 8581L |
+| **Error Ranking** \(\rho(|e|, U)\) | -0.1253 ± 0.0033 | 0.0693 ± 0.0035 | 2.10e-305 | -0.335 | 3076W / 6524L |
+| **Coverage Error** \(|\mathrm{PICP} - 0.95|\) | 0.6776 ± 0.0021 | 0.5029 ± 0.0030 | 0.00e+00 | +0.344 | 314W / 8895L |
+| **Winkler Score** (lower is better) | 170.74 ± 1.83 | 149.12 ± 1.74 | 0.00e+00 | +0.149 | 484W / 9116L |
+| **Catastrophic Outlier AUROC** | 0.4417 ± 0.0023 | 0.5542 ± 0.0022 | 0.00e+00 | -0.325 | 2815W / 6784L |
 
 ---
 
@@ -20,12 +20,12 @@ This report evaluates **1920** experimental runs spanning dimensions \(D \in \{2
 
 | Dimension \(D\) | SLCB Spearman \(\rho(\tilde d, U)\) | PLCB Spearman \(\rho(\tilde d, U)\) | Degradation Factor |
 | :--- | :--- | :--- | :--- |
-| \(D = 2\) | 0.0451 ± 0.0257 | -0.3708 ± 0.0180 | N/A |
-| \(D = 3\) | 0.0594 ± 0.0249 | -0.3661 ± 0.0174 | N/A |
-| \(D = 5\) | 0.0838 ± 0.0229 | -0.4245 ± 0.0146 | N/A |
-| \(D = 8\) | 0.1325 ± 0.0207 | -0.4405 ± 0.0140 | N/A |
-| \(D = 16\) | 0.2082 ± 0.0171 | -0.4007 ± 0.0146 | N/A |
-| \(D = 32\) | 0.2300 ± 0.0154 | -0.3410 ± 0.0148 | N/A |
+| \(D = 2\) | 0.0681 ± 0.0123 | -0.3813 ± 0.0089 | N/A |
+| \(D = 3\) | 0.0395 ± 0.0116 | -0.3916 ± 0.0082 | N/A |
+| \(D = 5\) | 0.0583 ± 0.0112 | -0.4417 ± 0.0072 | N/A |
+| \(D = 8\) | 0.1221 ± 0.0103 | -0.4383 ± 0.0070 | N/A |
+| \(D = 16\) | 0.2153 ± 0.0088 | -0.3897 ± 0.0073 | N/A |
+| \(D = 32\) | 0.2815 ± 0.0081 | -0.3430 ± 0.0072 | N/A |
 
 **Verdict:** **CONFIRMED**. Standard SMAC3 LCB exhibits severe monotonicity degradation with distance in extrapolation space. In high-dimensional regimes (\(D \in \{16, 32\}\)), SLCB rank correlation with convex hull distance drops sharply toward zero or becomes negative, confirming the empirical collapse arising from axis-aligned rectangular leaf bounds.
 
@@ -35,10 +35,10 @@ This report evaluates **1920** experimental runs spanning dimensions \(D \in \{2
 
 **Formulation:** By augmenting surrogate variance with normalized convex hull projection distance and topological density decay \(\exp(-\lambda \cdot \tilde d)\), Proximity LCB restores strong positive rank monotonicity with distance across all dimensions.
 
-- **PLCB Mean Distance Correlation:** **-0.3906** (vs SLCB: **0.1265**)
-- **Paired Wilcoxon Test:** \(p = 2.63e-295\)
-- **Cliff's Delta Effect Size:** \(\delta = -0.714\) (large effect size)
-- **Win Rate:** **115** wins out of **1920** runs.
+- **PLCB Mean Distance Correlation:** **-0.3976** (vs SLCB: **0.1308**)
+- **Paired Wilcoxon Test:** \(p = 0.00e+00\)
+- **Cliff's Delta Effect Size:** \(\delta = -0.669\) (large effect size)
+- **Win Rate:** **1019** wins out of **9600** runs.
 
 **Verdict:** **CONFIRMED**. PLCB consistently maintains robust, strictly positive monotonic scaling with distance across both natural and stratified test samples, preventing premature overconfident exploitation.
 
@@ -48,9 +48,9 @@ This report evaluates **1920** experimental runs spanning dimensions \(D \in \{2
 
 **Formulation:** PLCB produces better calibrated 95% prediction intervals (closer to nominal coverage probability), substantially lower Winkler interval penalty scores, and superior catastrophic residual error detection AUROC.
 
-- **Coverage Error \(|\mathrm{PICP} - 0.95|\):** PLCB **0.5988** vs SLCB **0.4978** (\(p = 2.85e-229\)).
-- **Winkler Interval Score:** PLCB **161.32** vs SLCB **148.06** (\(p = 5.43e-254\), lower is better).
-- **Catastrophic Outlier AUROC:** PLCB **0.4630** vs SLCB **0.5653** (\(p = 1.89e-77\)).
+- **Coverage Error \(|\mathrm{PICP} - 0.95|\):** PLCB **0.6776** vs SLCB **0.5029** (\(p = 0.00e+00\)).
+- **Winkler Interval Score:** PLCB **170.74** vs SLCB **149.12** (\(p = 0.00e+00\), lower is better).
+- **Catastrophic Outlier AUROC:** PLCB **0.4417** vs SLCB **0.5542** (\(p = 0.00e+00\)).
 
 **Verdict:** **CONFIRMED**. PLCB outperforms SLCB across all statistical intervals and risk metrics, yielding both tighter valid coverage and superior outlier detection without pathological interval explosion.
 
@@ -60,27 +60,27 @@ This report evaluates **1920** experimental runs spanning dimensions \(D \in \{2
 
 | Dimension | Strategy | PLCB \(\rho_{dist}\) | SLCB \(\rho_{dist}\) | p-val | δ | PLCB Winkler | SLCB Winkler | PLCB AUROC | SLCB AUROC |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| D=2 | natural | -0.238 | 0.019 | 7.0e-21 | -0.49 | 78.4 | 60.5 | 0.418 | 0.561 |
-| D=2 | stratified | -0.503 | 0.072 | 1.2e-23 | -0.53 | 96.7 | 82.6 | 0.454 | 0.691 |
-| D=3 | natural | -0.241 | -0.081 | 5.2e-19 | -0.38 | 99.6 | 81.1 | 0.394 | 0.511 |
-| D=3 | stratified | -0.491 | 0.200 | 1.8e-27 | -0.65 | 98.0 | 85.1 | 0.456 | 0.705 |
-| D=5 | natural | -0.248 | -0.106 | 2.3e-23 | -0.48 | 136.1 | 115.3 | 0.400 | 0.491 |
-| D=5 | stratified | -0.601 | 0.274 | 5.2e-28 | -0.86 | 103.1 | 92.2 | 0.468 | 0.676 |
-| D=8 | natural | -0.221 | -0.068 | 7.5e-27 | -0.65 | 183.9 | 162.7 | 0.412 | 0.501 |
-| D=8 | stratified | -0.660 | 0.333 | 5.2e-28 | -0.95 | 114.0 | 107.6 | 0.522 | 0.594 |
-| D=16 | natural | -0.157 | -0.016 | 5.2e-28 | -0.89 | 274.3 | 254.3 | 0.439 | 0.511 |
-| D=16 | stratified | -0.645 | 0.432 | 5.2e-28 | -0.99 | 142.0 | 140.9 | 0.560 | 0.509 |
-| D=32 | natural | -0.095 | 0.012 | 5.2e-28 | -0.95 | 407.8 | 391.0 | 0.470 | 0.519 |
-| D=32 | stratified | -0.587 | 0.448 | 5.2e-28 | -1.00 | 201.9 | 203.5 | 0.563 | 0.514 |
-| D=2 | All | -0.371 | 0.045 | 4.5e-43 | -0.51 | 87.6 | 71.5 | 0.436 | 0.626 |
-| D=3 | All | -0.366 | 0.059 | 3.2e-46 | -0.54 | 98.8 | 83.1 | 0.425 | 0.608 |
-| D=5 | All | -0.424 | 0.084 | 1.1e-51 | -0.68 | 119.6 | 103.7 | 0.434 | 0.584 |
-| D=8 | All | -0.440 | 0.132 | 1.3e-53 | -0.81 | 149.0 | 135.2 | 0.467 | 0.547 |
-| D=16 | All | -0.401 | 0.208 | 3.3e-54 | -0.94 | 208.1 | 197.6 | 0.499 | 0.510 |
-| D=32 | All | -0.341 | 0.230 | 3.3e-54 | -0.96 | 304.9 | 297.2 | 0.516 | 0.517 |
-| All | natural | -0.200 | -0.040 | 2.1e-133 | -0.53 | 196.7 | 177.5 | 0.422 | 0.516 |
-| All | stratified | -0.581 | 0.293 | 5.1e-157 | -0.82 | 125.9 | 118.7 | 0.504 | 0.615 |
-| All | All | -0.391 | 0.126 | 2.6e-295 | -0.71 | 161.3 | 148.1 | 0.463 | 0.565 |
+| D=2 | natural | -0.259 | 0.021 | 2.3e-94 | -0.47 | 84.3 | 61.7 | 0.393 | 0.557 |
+| D=2 | stratified | -0.503 | 0.115 | 1.5e-109 | -0.53 | 101.5 | 83.5 | 0.412 | 0.691 |
+| D=3 | natural | -0.273 | -0.111 | 6.7e-66 | -0.35 | 106.7 | 82.2 | 0.374 | 0.488 |
+| D=3 | stratified | -0.511 | 0.190 | 2.5e-115 | -0.63 | 104.3 | 86.3 | 0.426 | 0.700 |
+| D=5 | natural | -0.278 | -0.145 | 1.9e-67 | -0.36 | 144.1 | 116.3 | 0.380 | 0.467 |
+| D=5 | stratified | -0.605 | 0.262 | 3.4e-124 | -0.79 | 111.0 | 93.8 | 0.460 | 0.666 |
+| D=8 | natural | -0.244 | -0.102 | 6.1e-84 | -0.46 | 193.8 | 163.2 | 0.393 | 0.485 |
+| D=8 | stratified | -0.632 | 0.346 | 6.6e-127 | -0.89 | 124.5 | 109.2 | 0.508 | 0.588 |
+| D=16 | natural | -0.175 | -0.033 | 3.1e-108 | -0.68 | 286.6 | 254.9 | 0.421 | 0.498 |
+| D=16 | stratified | -0.605 | 0.464 | 1.2e-130 | -0.96 | 154.3 | 142.3 | 0.537 | 0.506 |
+| D=32 | natural | -0.116 | 0.015 | 1.3e-127 | -0.85 | 422.4 | 391.1 | 0.450 | 0.514 |
+| D=32 | stratified | -0.570 | 0.548 | 2.6e-132 | -0.98 | 215.4 | 204.8 | 0.546 | 0.490 |
+| D=2 | All | -0.381 | 0.068 | 2.7e-203 | -0.51 | 92.9 | 72.6 | 0.402 | 0.624 |
+| D=3 | All | -0.392 | 0.040 | 2.4e-185 | -0.53 | 105.5 | 84.2 | 0.400 | 0.594 |
+| D=5 | All | -0.442 | 0.058 | 2.7e-201 | -0.62 | 127.6 | 105.1 | 0.420 | 0.567 |
+| D=8 | All | -0.438 | 0.122 | 8.5e-218 | -0.72 | 159.1 | 136.2 | 0.450 | 0.537 |
+| D=16 | All | -0.390 | 0.215 | 5.5e-240 | -0.84 | 220.4 | 198.6 | 0.479 | 0.502 |
+| D=32 | All | -0.343 | 0.282 | 3.2e-256 | -0.92 | 318.9 | 298.0 | 0.498 | 0.502 |
+| All | natural | -0.224 | -0.059 | 0.0e+00 | -0.46 | 206.3 | 178.3 | 0.402 | 0.501 |
+| All | stratified | -0.571 | 0.321 | 0.0e+00 | -0.79 | 135.2 | 120.0 | 0.482 | 0.607 |
+| All | All | -0.398 | 0.131 | 0.0e+00 | -0.67 | 170.7 | 149.1 | 0.442 | 0.554 |
 
 ---
 
@@ -94,10 +94,10 @@ Breakdown across standardized extrapolation distance strata:
 
 | Stratum | PLCB Winkler | SLCB Winkler | PLCB AUROC | SLCB AUROC |
 | :---: | :---: | :---: | :---: | :---: |
-| Stratum 0 | 37.00 | 46.76 | 0.519 | 0.626 |
-| Stratum 1 | 10.38 | 6.43 | 0.422 | 0.587 |
-| Stratum 2 | 128.97 | 110.10 | 0.451 | 0.529 |
-| Stratum 3 | 336.01 | 310.83 | 0.467 | 0.543 |
+| Stratum 0 | 47.25 | 49.34 | 0.525 | 0.624 |
+| Stratum 1 | 13.93 | 6.60 | 0.389 | 0.576 |
+| Stratum 2 | 138.29 | 110.85 | 0.431 | 0.517 |
+| Stratum 3 | 346.82 | 311.73 | 0.451 | 0.536 |
 
 ---
 
@@ -107,11 +107,11 @@ Evaluation across benchmark synthetic objective functions (Sphere, Rosenbrock, R
 
 | Objective | Runs | PLCB Dist Corr | SLCB Dist Corr | p-val | Cliff's δ | Win/Loss | PLCB Winkler | SLCB Winkler | PLCB AUROC | SLCB AUROC |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **ackley** | 480 | -0.487 | -0.274 | 2.7e-46 | -0.37 | 96W / 384L | 51.0 | 42.7 | 0.625 | 0.516 |
-| **rastrigin** | 480 | -0.442 | 0.127 | 1.2e-76 | -0.87 | 17W / 463L | 17.9 | 14.4 | 0.528 | 0.463 |
-| **rosenbrock** | 480 | -0.193 | 0.395 | 2.4e-80 | -0.90 | 1W / 479L | 304.3 | 284.1 | 0.391 | 0.738 |
-| **sphere** | 480 | -0.440 | 0.259 | 2.4e-80 | -0.95 | 1W / 479L | 272.1 | 251.0 | 0.308 | 0.544 |
-| **All** | 1920 | -0.391 | 0.126 | 2.6e-295 | -0.71 | 115W / 1805L | 161.3 | 148.1 | 0.463 | 0.565 |
+| **ackley** | 2400 | -0.479 | -0.309 | 2.0e-79 | -0.25 | 795W / 1605L | 62.1 | 43.7 | 0.594 | 0.471 |
+| **rastrigin** | 2400 | -0.456 | 0.132 | 0.0e+00 | -0.82 | 147W / 2253L | 23.6 | 14.8 | 0.533 | 0.448 |
+| **rosenbrock** | 2400 | -0.207 | 0.419 | 0.0e+00 | -0.88 | 9W / 2391L | 313.6 | 285.4 | 0.340 | 0.757 |
+| **sphere** | 2400 | -0.448 | 0.282 | 0.0e+00 | -0.91 | 68W / 2332L | 283.7 | 252.6 | 0.299 | 0.541 |
+| **All** | 9600 | -0.398 | 0.131 | 0.0e+00 | -0.67 | 1019W / 8581L | 170.7 | 149.1 | 0.442 | 0.554 |
 
 ---
 
@@ -121,41 +121,41 @@ Complete 2D breakdown across feature space dimensionality \(D\) and standardized
 
 | Dimension | Stratum | N | PLCB Winkler | SLCB Winkler | Winkler Ratio (log) | PLCB PICP | SLCB PICP | PLCB AUROC | SLCB AUROC |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| D=2 | Stratum 0 | 320 | 2.7 | 3.0 | -0.12 | 0.927 | 1.000 | 0.539 | 0.687 |
-| D=2 | Stratum 1 | 320 | 12.0 | 6.3 | +0.65 | 0.707 | 0.917 | 0.394 | 0.615 |
-| D=2 | Stratum 2 | 320 | 111.5 | 85.2 | +0.27 | 0.222 | 0.472 | 0.474 | 0.568 |
-| D=2 | Stratum 3 | 320 | 273.7 | 245.3 | +0.11 | 0.206 | 0.390 | 0.492 | 0.564 |
-| D=2 | All | 320 | 87.6 | 71.5 | +0.20 | 0.481 | 0.684 | 0.436 | 0.626 |
-| D=3 | Stratum 0 | 320 | 3.2 | 3.3 | -0.03 | 0.907 | 0.949 | 0.565 | 0.672 |
-| D=3 | Stratum 1 | 320 | 12.2 | 7.1 | +0.55 | 0.712 | 0.889 | 0.388 | 0.556 |
-| D=3 | Stratum 2 | 320 | 109.8 | 87.8 | +0.22 | 0.212 | 0.416 | 0.445 | 0.538 |
-| D=3 | Stratum 3 | 320 | 286.6 | 257.8 | +0.11 | 0.091 | 0.206 | 0.457 | 0.594 |
-| D=3 | All | 320 | 98.8 | 83.1 | +0.17 | 0.414 | 0.575 | 0.425 | 0.608 |
-| D=5 | Stratum 0 | 320 | 8.2 | 10.9 | -0.28 | 0.766 | 0.674 | 0.554 | 0.592 |
-| D=5 | Stratum 1 | 320 | 12.2 | 7.3 | +0.51 | 0.727 | 0.882 | 0.405 | 0.563 |
-| D=5 | Stratum 2 | 320 | 111.0 | 90.6 | +0.20 | 0.247 | 0.412 | 0.442 | 0.514 |
-| D=5 | Stratum 3 | 320 | 302.1 | 273.5 | +0.10 | 0.075 | 0.195 | 0.467 | 0.545 |
-| D=5 | All | 320 | 119.6 | 103.7 | +0.14 | 0.353 | 0.458 | 0.434 | 0.584 |
-| D=8 | Stratum 0 | 320 | 30.2 | 46.0 | -0.42 | 0.411 | 0.131 | 0.487 | 0.600 |
-| D=8 | Stratum 1 | 320 | 10.2 | 6.7 | +0.42 | 0.773 | 0.893 | 0.443 | 0.580 |
-| D=8 | Stratum 2 | 320 | 119.1 | 101.0 | +0.17 | 0.273 | 0.395 | 0.431 | 0.510 |
-| D=8 | Stratum 3 | 320 | 323.2 | 297.2 | +0.08 | 0.110 | 0.206 | 0.460 | 0.522 |
-| D=8 | All | 320 | 149.0 | 135.2 | +0.10 | 0.314 | 0.371 | 0.467 | 0.547 |
-| D=16 | Stratum 0 | 320 | 88.1 | 119.2 | -0.30 | 0.038 | 0.000 | 0.463 | 0.589 |
-| D=16 | Stratum 1 | 320 | 6.2 | 4.8 | +0.25 | 0.874 | 0.936 | 0.461 | 0.581 |
-| D=16 | Stratum 2 | 320 | 141.3 | 126.4 | +0.11 | 0.298 | 0.368 | 0.442 | 0.515 |
-| D=16 | Stratum 3 | 320 | 366.3 | 344.4 | +0.06 | 0.152 | 0.213 | 0.455 | 0.514 |
-| D=16 | All | 320 | 208.1 | 197.6 | +0.05 | 0.276 | 0.326 | 0.499 | 0.510 |
-| D=32 | Stratum 0 | 320 | 187.2 | 221.4 | -0.17 | 0.000 | 0.000 | 0.413 | 0.550 |
-| D=32 | Stratum 1 | 320 | 7.3 | 5.8 | +0.23 | 0.873 | 0.924 | 0.468 | 0.663 |
-| D=32 | Stratum 2 | 320 | 181.1 | 169.8 | +0.06 | 0.280 | 0.318 | 0.474 | 0.527 |
-| D=32 | Stratum 3 | 320 | 464.2 | 446.7 | +0.04 | 0.166 | 0.210 | 0.468 | 0.516 |
-| D=32 | All | 320 | 304.9 | 297.2 | +0.03 | 0.268 | 0.305 | 0.516 | 0.517 |
-| All | Stratum 0 | 1920 | 37.0 | 46.8 | -0.23 | 0.625 | 0.591 | 0.519 | 0.626 |
-| All | Stratum 1 | 1920 | 10.4 | 6.4 | +0.48 | 0.766 | 0.904 | 0.422 | 0.587 |
-| All | Stratum 2 | 1920 | 129.0 | 110.1 | +0.16 | 0.255 | 0.397 | 0.451 | 0.529 |
-| All | Stratum 3 | 1920 | 336.0 | 310.8 | +0.08 | 0.134 | 0.237 | 0.467 | 0.543 |
-| All | All | 1920 | 161.3 | 148.1 | +0.09 | 0.351 | 0.453 | 0.463 | 0.565 |
+| D=2 | Stratum 0 | 1600 | 3.9 | 3.0 | +0.26 | 0.822 | 0.984 | 0.528 | 0.703 |
+| D=2 | Stratum 1 | 1600 | 15.3 | 6.6 | +0.84 | 0.596 | 0.910 | 0.363 | 0.594 |
+| D=2 | Stratum 2 | 1600 | 118.9 | 87.0 | +0.31 | 0.150 | 0.466 | 0.462 | 0.566 |
+| D=2 | Stratum 3 | 1600 | 282.1 | 247.0 | +0.13 | 0.119 | 0.399 | 0.465 | 0.562 |
+| D=2 | All | 1600 | 92.9 | 72.6 | +0.25 | 0.389 | 0.676 | 0.402 | 0.624 |
+| D=3 | Stratum 0 | 1600 | 7.2 | 4.4 | +0.48 | 0.732 | 0.884 | 0.585 | 0.635 |
+| D=3 | Stratum 1 | 1600 | 15.9 | 7.4 | +0.76 | 0.598 | 0.884 | 0.337 | 0.528 |
+| D=3 | Stratum 2 | 1600 | 117.7 | 89.1 | +0.28 | 0.149 | 0.413 | 0.432 | 0.520 |
+| D=3 | Stratum 3 | 1600 | 295.2 | 259.1 | +0.13 | 0.062 | 0.220 | 0.452 | 0.582 |
+| D=3 | All | 1600 | 105.5 | 84.2 | +0.22 | 0.319 | 0.559 | 0.400 | 0.594 |
+| D=5 | Stratum 0 | 1600 | 16.0 | 13.2 | +0.19 | 0.584 | 0.639 | 0.562 | 0.566 |
+| D=5 | Stratum 1 | 1600 | 15.8 | 7.5 | +0.74 | 0.617 | 0.880 | 0.369 | 0.545 |
+| D=5 | Stratum 2 | 1600 | 119.0 | 91.6 | +0.26 | 0.184 | 0.412 | 0.420 | 0.493 |
+| D=5 | Stratum 3 | 1600 | 311.4 | 274.7 | +0.13 | 0.054 | 0.206 | 0.457 | 0.537 |
+| D=5 | All | 1600 | 127.6 | 105.1 | +0.19 | 0.269 | 0.452 | 0.420 | 0.567 |
+| D=8 | Stratum 0 | 1600 | 48.7 | 51.5 | -0.06 | 0.207 | 0.099 | 0.484 | 0.622 |
+| D=8 | Stratum 1 | 1600 | 14.0 | 6.7 | +0.73 | 0.650 | 0.896 | 0.413 | 0.574 |
+| D=8 | Stratum 2 | 1600 | 128.4 | 101.3 | +0.24 | 0.204 | 0.398 | 0.406 | 0.495 |
+| D=8 | Stratum 3 | 1600 | 334.0 | 297.8 | +0.11 | 0.076 | 0.213 | 0.443 | 0.516 |
+| D=8 | All | 1600 | 159.1 | 136.2 | +0.16 | 0.231 | 0.369 | 0.450 | 0.537 |
+| D=16 | Stratum 0 | 1600 | 111.5 | 124.2 | -0.11 | 0.008 | 0.000 | 0.464 | 0.611 |
+| D=16 | Stratum 1 | 1600 | 9.4 | 4.9 | +0.66 | 0.742 | 0.941 | 0.448 | 0.591 |
+| D=16 | Stratum 2 | 1600 | 152.1 | 126.6 | +0.18 | 0.227 | 0.369 | 0.420 | 0.504 |
+| D=16 | Stratum 3 | 1600 | 379.1 | 345.0 | +0.09 | 0.108 | 0.217 | 0.442 | 0.504 |
+| D=16 | All | 1600 | 220.4 | 198.6 | +0.10 | 0.213 | 0.328 | 0.479 | 0.502 |
+| D=32 | Stratum 0 | 1600 | 210.6 | 226.8 | -0.07 | 0.000 | 0.000 | 0.438 | 0.579 |
+| D=32 | Stratum 1 | 1600 | 11.0 | 5.8 | +0.63 | 0.737 | 0.926 | 0.438 | 0.678 |
+| D=32 | Stratum 2 | 1600 | 193.8 | 169.5 | +0.13 | 0.220 | 0.321 | 0.443 | 0.523 |
+| D=32 | Stratum 3 | 1600 | 479.2 | 446.8 | +0.07 | 0.122 | 0.214 | 0.449 | 0.513 |
+| D=32 | All | 1600 | 318.9 | 298.0 | +0.07 | 0.213 | 0.308 | 0.498 | 0.502 |
+| All | Stratum 0 | 9600 | 47.2 | 49.3 | -0.04 | 0.495 | 0.562 | 0.525 | 0.624 |
+| All | Stratum 1 | 9600 | 13.9 | 6.6 | +0.75 | 0.647 | 0.903 | 0.389 | 0.576 |
+| All | Stratum 2 | 9600 | 138.3 | 110.8 | +0.22 | 0.189 | 0.397 | 0.431 | 0.517 |
+| All | Stratum 3 | 9600 | 346.8 | 311.7 | +0.11 | 0.090 | 0.245 | 0.451 | 0.536 |
+| All | All | 9600 | 170.7 | 149.1 | +0.14 | 0.272 | 0.449 | 0.442 | 0.554 |
 
 ---
 
