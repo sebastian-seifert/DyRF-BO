@@ -21,7 +21,10 @@ from scripts.aggregate_extrapolation_results import (
     build_dimension_strata_matrix,
     build_objective_scorecard_dataframe,
     build_parser,
+    build_sample_size_scorecard_dataframe,
     build_scorecard_dataframe,
+    build_surrogate_scorecard_dataframe,
+    build_uq_ablation_scorecard_dataframe,
     compute_cliffs_delta,
     compute_paired_comparison,
     compute_paired_wilcoxon,
@@ -49,6 +52,7 @@ def _make_mock_summary(
     plcb_winkler: float,
     slcb_auroc: float,
     plcb_auroc: float,
+    surrogate: str = "smac_default",
 ) -> Dict[str, Any]:
     """Create a mock summary dictionary matching run_single_experiment output schema."""
     summary: Dict[str, Any] = {
@@ -57,6 +61,8 @@ def _make_mock_summary(
         "function_name": function_name,
         "sampling_strategy": strategy,
         "seed": seed,
+        "surrogate": surrogate,
+        "surrogate_type": surrogate,
         "n_test": 1000,
         "elapsed_seconds": 1.5,
         # Global metrics
@@ -76,6 +82,37 @@ def _make_mock_summary(
         "outlier_auroc_plcb": plcb_auroc,
         "auprc_slcb": 0.4,
         "auprc_plcb": 0.7,
+        # Ablation estimators
+        "spearman_dist_u_rf_fire_lower": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 - 0.05,
+        "spearman_err_u_rf_fire_lower": (slcb_spearman_err + plcb_spearman_err) / 2.0,
+        "picp_u_rf_fire_lower": (slcb_picp + plcb_picp) / 2.0,
+        "mpiw_u_rf_fire_lower": 1.4,
+        "winkler_u_rf_fire_lower": (slcb_winkler + plcb_winkler) / 2.0,
+        "outlier_auroc_u_rf_fire_lower": (slcb_auroc + plcb_auroc) / 2.0,
+        "spearman_dist_u_prox_a_lower": (slcb_spearman_dist + plcb_spearman_dist) / 2.0,
+        "spearman_err_u_prox_a_lower": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.02,
+        "picp_u_prox_a_lower": (slcb_picp + plcb_picp) / 2.0 + 0.05,
+        "mpiw_u_prox_a_lower": 1.5,
+        "winkler_u_prox_a_lower": (slcb_winkler + plcb_winkler) / 2.0 - 2.0,
+        "outlier_auroc_u_prox_a_lower": (slcb_auroc + plcb_auroc) / 2.0 + 0.05,
+        "spearman_dist_u_prox_b_lower": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 + 0.05,
+        "spearman_err_u_prox_b_lower": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.04,
+        "picp_u_prox_b_lower": (slcb_picp + plcb_picp) / 2.0 + 0.08,
+        "mpiw_u_prox_b_lower": 1.6,
+        "winkler_u_prox_b_lower": (slcb_winkler + plcb_winkler) / 2.0 - 4.0,
+        "outlier_auroc_u_prox_b_lower": (slcb_auroc + plcb_auroc) / 2.0 + 0.08,
+        "spearman_dist_u_prox_bc_lower": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 + 0.08,
+        "spearman_err_u_prox_bc_lower": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.05,
+        "picp_u_prox_bc_lower": (slcb_picp + plcb_picp) / 2.0 + 0.10,
+        "mpiw_u_prox_bc_lower": 1.7,
+        "winkler_u_prox_bc_lower": (slcb_winkler + plcb_winkler) / 2.0 - 5.0,
+        "outlier_auroc_u_prox_bc_lower": (slcb_auroc + plcb_auroc) / 2.0 + 0.10,
+        "spearman_dist_u_shaker_total_lower": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 - 0.02,
+        "spearman_err_u_shaker_total_lower": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.01,
+        "picp_u_shaker_total_lower": (slcb_picp + plcb_picp) / 2.0 + 0.02,
+        "mpiw_u_shaker_total_lower": 1.45,
+        "winkler_u_shaker_total_lower": (slcb_winkler + plcb_winkler) / 2.0 - 1.0,
+        "outlier_auroc_u_shaker_total_lower": (slcb_auroc + plcb_auroc) / 2.0 + 0.02,
         "global": {
             "slcb": {
                 "spearman_dist": slcb_spearman_dist,
@@ -93,7 +130,98 @@ def _make_mock_summary(
                 "mpiw": 1.8,
                 "winkler": plcb_winkler,
                 "auroc": plcb_auroc,
+                "outlier_auroc": plcb_auroc,
                 "auprc": 0.7,
+            },
+            "rf_fire": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 - 0.05,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0,
+                "picp": (slcb_picp + plcb_picp) / 2.0,
+                "mpiw": 1.4,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0,
+            },
+            "u_rf_fire_lower": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 - 0.05,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0,
+                "picp": (slcb_picp + plcb_picp) / 2.0,
+                "mpiw": 1.4,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0,
+            },
+            "prox_a": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.02,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.05,
+                "mpiw": 1.5,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 2.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.05,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.05,
+            },
+            "u_prox_a_lower": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.02,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.05,
+                "mpiw": 1.5,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 2.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.05,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.05,
+            },
+            "prox_b": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 + 0.05,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.04,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.08,
+                "mpiw": 1.6,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 4.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.08,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.08,
+            },
+            "u_prox_b_lower": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 + 0.05,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.04,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.08,
+                "mpiw": 1.6,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 4.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.08,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.08,
+            },
+            "prox_bc": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 + 0.08,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.05,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.10,
+                "mpiw": 1.7,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 5.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.10,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.10,
+            },
+            "u_prox_bc_lower": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 + 0.08,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.05,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.10,
+                "mpiw": 1.7,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 5.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.10,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.10,
+            },
+            "shaker_total": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 - 0.02,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.01,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.02,
+                "mpiw": 1.45,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 1.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.02,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.02,
+            },
+            "u_shaker_total_lower": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 - 0.02,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.01,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.02,
+                "mpiw": 1.45,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 1.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.02,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.02,
             },
         },
     }
@@ -109,6 +237,7 @@ def _make_mock_summary(
                 "mpiw": 1.2,
                 "winkler": slcb_winkler * (1.0 + 0.2 * s),
                 "auroc": slcb_auroc,
+                "outlier_auroc": slcb_auroc,
             },
             "plcb": {
                 "spearman_dist": max(0.4, plcb_spearman_dist - 0.02 * s),
@@ -117,6 +246,97 @@ def _make_mock_summary(
                 "mpiw": 1.8 * (1.0 + 0.1 * s),
                 "winkler": plcb_winkler * (1.0 + 0.05 * s),
                 "auroc": plcb_auroc,
+                "outlier_auroc": plcb_auroc,
+            },
+            "rf_fire": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 - 0.05,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0,
+                "picp": (slcb_picp + plcb_picp) / 2.0,
+                "mpiw": 1.4,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0,
+            },
+            "u_rf_fire_lower": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 - 0.05,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0,
+                "picp": (slcb_picp + plcb_picp) / 2.0,
+                "mpiw": 1.4,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0,
+            },
+            "prox_a": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.02,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.05,
+                "mpiw": 1.5,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 2.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.05,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.05,
+            },
+            "u_prox_a_lower": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.02,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.05,
+                "mpiw": 1.5,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 2.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.05,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.05,
+            },
+            "prox_b": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 + 0.05,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.04,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.08,
+                "mpiw": 1.6,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 4.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.08,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.08,
+            },
+            "u_prox_b_lower": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 + 0.05,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.04,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.08,
+                "mpiw": 1.6,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 4.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.08,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.08,
+            },
+            "prox_bc": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 + 0.08,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.05,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.10,
+                "mpiw": 1.7,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 5.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.10,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.10,
+            },
+            "u_prox_bc_lower": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 + 0.08,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.05,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.10,
+                "mpiw": 1.7,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 5.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.10,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.10,
+            },
+            "shaker_total": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 - 0.02,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.01,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.02,
+                "mpiw": 1.45,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 1.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.02,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.02,
+            },
+            "u_shaker_total_lower": {
+                "spearman_dist": (slcb_spearman_dist + plcb_spearman_dist) / 2.0 - 0.02,
+                "spearman_err": (slcb_spearman_err + plcb_spearman_err) / 2.0 + 0.01,
+                "picp": (slcb_picp + plcb_picp) / 2.0 + 0.02,
+                "mpiw": 1.45,
+                "winkler": (slcb_winkler + plcb_winkler) / 2.0 - 1.0,
+                "auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.02,
+                "outlier_auroc": (slcb_auroc + plcb_auroc) / 2.0 + 0.02,
             },
         }
     summary["strata"] = strata_data
@@ -334,6 +554,58 @@ class TestLoadSummaryRecords:
         assert row_mature["surrogate"] == "mature"
         assert row_legacy["surrogate"] == "smac_default"
 
+    def test_load_summary_records_multi_estimator(self, mock_summaries_dir: Path):
+        """Verifies multi-estimator and surrogate ingestion in load_summary_records."""
+        df = load_summary_records(mock_summaries_dir)
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+
+        # 1. Verify surrogate, n_train, and k_over_n_ratio
+        assert "surrogate" in df.columns
+        assert "n_train" in df.columns
+        assert "k_over_n_ratio" in df.columns
+
+        for _, row in df.iterrows():
+            assert row["surrogate"] == "smac_default"
+            assert row["n_train"] in [112, 224]
+            assert pytest.approx(row["k_over_n_ratio"]) == 28.0 / float(row["n_train"])
+
+        # 2. Verify global metrics exist for methods: slcb, rf_fire, prox_a, prox_b, prox_bc, plcb, shaker_total
+        methods = ["slcb", "rf_fire", "prox_a", "prox_b", "prox_bc", "plcb", "shaker_total"]
+        global_metrics = [
+            "spearman_dist",
+            "spearman_err",
+            "picp",
+            "picp_error",
+            "winkler",
+            "outlier_auroc",
+        ]
+        for m in methods:
+            for metric in global_metrics:
+                col_name = f"{metric}_{m}"
+                assert col_name in df.columns, f"Expected global metric column '{col_name}' in DataFrame"
+                assert not df[col_name].isna().all(), f"All values are NaN for '{col_name}'"
+
+            # Check derived picp_error = abs(picp - 0.95)
+            for _, row in df.iterrows():
+                assert pytest.approx(row[f"picp_error_{m}"]) == abs(row[f"picp_{m}"] - 0.95)
+
+        # 3. Verify per-stratum metrics exist for strata 0..3 for these estimators
+        strata_metrics = [
+            "spearman_dist",
+            "spearman_err",
+            "picp",
+            "winkler",
+            "outlier_auroc",
+        ]
+        for s in range(4):
+            for m in methods:
+                for metric in strata_metrics:
+                    col_name = f"stratum_{s}_{metric}_{m}"
+                    assert col_name in df.columns, f"Expected stratum metric column '{col_name}' in DataFrame"
+                    assert not df[col_name].isna().all(), f"All values are NaN for '{col_name}'"
+
+
 
 class TestScorecardGeneration:
     """Tests for generating the comprehensive calibration scorecard DataFrame."""
@@ -481,6 +753,40 @@ class TestReportGeneration:
         assert "Objective Function Breakdown" in report or "Objective Breakdown" in report
         assert "Dimension x Strata Matrix" in report or "Strata Matrix" in report
 
+    def test_generate_markdown_report_bbob_paradox(self, mock_summaries_dir: Path):
+        df = load_summary_records(mock_summaries_dir)
+        scorecard = build_scorecard_dataframe(df)
+        report = generate_markdown_report(df, scorecard)
+
+        # 1. BBOB Paradox and related mechanisms
+        assert "BBOB Optimization Paradox" in report
+        assert "Hallucinated Exploration Trap" in report
+        assert "Implicit Trust Region" in report
+
+        # 2. Sections or links for Surrogate Architecture, Sample Size Scaling, UQ Component Ablation
+        assert "Surrogate Architecture" in report or "extrapolation_surrogate_scorecard.csv" in report
+        assert "Sample Size" in report or "extrapolation_sample_size_scorecard.csv" in report
+        assert "UQ Component Ablation" in report or "extrapolation_uq_ablation_scorecard.csv" in report
+
+        # 3. Dynamic verdict evaluation:
+        # When PLCB has positive correlation and high win rate (like in mock_summaries_dir),
+        # Hypothesis 2 should be confirmed:
+        assert "CONFIRMED" in report
+
+        # When PLCB has negative correlation or loses majority of runs (win rate < 50%),
+        # Hypothesis 2 verdict must NOT be hardcoded "CONFIRMED".
+        # It must be marked as "REFUTED (Open-Loop Extrapolation)" and mention "boundary leaf saturation".
+        df_negative = df.copy()
+        df_negative["spearman_dist_plcb"] = -0.40
+        df_negative["spearman_dist_slcb"] = 0.50
+        scorecard_neg = build_scorecard_dataframe(df_negative)
+        report_neg = generate_markdown_report(df_negative, scorecard_neg)
+
+        assert "REFUTED (Open-Loop Extrapolation)" in report_neg
+        assert "boundary leaf saturation" in report_neg.lower()
+        # In the Hypothesis 2 section of report_neg, the verdict should be REFUTED (Open-Loop Extrapolation)
+        assert "CONFIRMED" not in report_neg.split("## Hypothesis 2")[1].split("---")[0]
+
     def test_generate_notion_scorecard(self, mock_summaries_dir: Path):
         df = load_summary_records(mock_summaries_dir)
         scorecard = build_scorecard_dataframe(df)
@@ -504,6 +810,9 @@ class TestCLIExecution:
         assert args.output_csv == "results/extrapolation_uq/analysis/extrapolation_calibration_scorecard.csv"
         assert args.output_report == "results/extrapolation_uq/analysis/HYPOTHESIS_EVALUATION_REPORT.md"
         assert args.output_notion == "bachelorthesis/extrapolation_uq_scorecard_notion.txt"
+        assert args.output_surrogate_csv is None
+        assert args.output_sample_size_csv is None
+        assert args.output_ablation_csv is None
 
     def test_cli_empty_directory_graceful(self, tmp_path: Path):
         empty_dir = tmp_path / "empty_summaries"
@@ -525,6 +834,9 @@ class TestCLIExecution:
         assert out_notion.is_file()
         assert (out_csv.parent / "extrapolation_objective_scorecard.csv").is_file()
         assert (out_csv.parent / "extrapolation_dimension_strata_matrix.csv").is_file()
+        assert (out_csv.parent / "extrapolation_surrogate_scorecard.csv").is_file()
+        assert (out_csv.parent / "extrapolation_sample_size_scorecard.csv").is_file()
+        assert (out_csv.parent / "extrapolation_uq_ablation_scorecard.csv").is_file()
 
     def test_cli_full_execution(self, mock_summaries_dir: Path, tmp_path: Path):
         out_csv = tmp_path / "analysis" / "extrapolation_calibration_scorecard.csv"
@@ -549,10 +861,20 @@ class TestCLIExecution:
         # Verify additional CSV scorecards were created
         obj_csv = out_csv.parent / "extrapolation_objective_scorecard.csv"
         matrix_csv = out_csv.parent / "extrapolation_dimension_strata_matrix.csv"
+        surr_csv = out_csv.parent / "extrapolation_surrogate_scorecard.csv"
+        sample_csv = out_csv.parent / "extrapolation_sample_size_scorecard.csv"
+        ablation_csv = out_csv.parent / "extrapolation_uq_ablation_scorecard.csv"
+
         assert obj_csv.is_file()
         assert obj_csv.stat().st_size > 0
         assert matrix_csv.is_file()
         assert matrix_csv.stat().st_size > 0
+        assert surr_csv.is_file()
+        assert surr_csv.stat().st_size > 0
+        assert sample_csv.is_file()
+        assert sample_csv.stat().st_size > 0
+        assert ablation_csv.is_file()
+        assert ablation_csv.stat().st_size > 0
 
         # Verify CSV can be parsed by pandas
         scorecard_df = pd.read_csv(out_csv)
@@ -566,3 +888,402 @@ class TestCLIExecution:
         matrix_df = pd.read_csv(matrix_csv)
         assert not matrix_df.empty
         assert "winkler_ratio" in matrix_df.columns
+
+        surr_df = pd.read_csv(surr_csv)
+        assert not surr_df.empty
+        assert "surrogate" in surr_df.columns
+
+        sample_df = pd.read_csv(sample_csv)
+        assert not sample_df.empty
+        assert "n_train" in sample_df.columns
+        assert "k_over_n_ratio" in sample_df.columns
+
+        ablation_df = pd.read_csv(ablation_csv)
+        assert not ablation_df.empty
+        assert "estimator" in ablation_df.columns
+        assert "spearman_dist_diff_vs_slcb" in ablation_df.columns
+
+
+class TestSurrogateScorecard:
+    """Tests for surrogate hyperparameter scorecard generation."""
+
+    METRICS = ["spearman_dist", "spearman_err", "picp_error", "winkler", "outlier_auroc"]
+    EXPECTED_SCHEMA = [
+        "surrogate",
+        "dimension",
+        "n_experiments",
+        # spearman_dist
+        "spearman_dist_plcb_mean", "spearman_dist_plcb_sem",
+        "spearman_dist_slcb_mean", "spearman_dist_slcb_sem",
+        "spearman_dist_diff_mean", "spearman_dist_pvalue",
+        "spearman_dist_cliffs_delta", "spearman_dist_wins",
+        "spearman_dist_ties", "spearman_dist_losses",
+        # spearman_err
+        "spearman_err_plcb_mean", "spearman_err_plcb_sem",
+        "spearman_err_slcb_mean", "spearman_err_slcb_sem",
+        "spearman_err_diff_mean", "spearman_err_pvalue",
+        "spearman_err_cliffs_delta", "spearman_err_wins",
+        "spearman_err_ties", "spearman_err_losses",
+        # picp_error
+        "picp_error_plcb_mean", "picp_error_plcb_sem",
+        "picp_error_slcb_mean", "picp_error_slcb_sem",
+        "picp_error_diff_mean", "picp_error_pvalue",
+        "picp_error_cliffs_delta", "picp_error_wins",
+        "picp_error_ties", "picp_error_losses",
+        # winkler
+        "winkler_plcb_mean", "winkler_plcb_sem",
+        "winkler_slcb_mean", "winkler_slcb_sem",
+        "winkler_diff_mean", "winkler_pvalue",
+        "winkler_cliffs_delta", "winkler_wins",
+        "winkler_ties", "winkler_losses",
+        # outlier_auroc
+        "outlier_auroc_plcb_mean", "outlier_auroc_plcb_sem",
+        "outlier_auroc_slcb_mean", "outlier_auroc_slcb_sem",
+        "outlier_auroc_diff_mean", "outlier_auroc_pvalue",
+        "outlier_auroc_cliffs_delta", "outlier_auroc_wins",
+        "outlier_auroc_ties", "outlier_auroc_losses",
+    ]
+
+    def test_build_surrogate_scorecard_empty(self):
+        """Test that empty DataFrame returns empty scorecard with correct column schema."""
+        empty_df = pd.DataFrame()
+        sc = build_surrogate_scorecard_dataframe(empty_df)
+        assert isinstance(sc, pd.DataFrame)
+        assert sc.empty
+        assert list(sc.columns) == self.EXPECTED_SCHEMA
+
+    def test_build_surrogate_scorecard_schema_and_grouping(self, mock_summaries_dir: Path):
+        """Test scorecard schema and grouping by (surrogate, dimension) with aggregate rows."""
+        df = load_summary_records(mock_summaries_dir)
+        sc = build_surrogate_scorecard_dataframe(df)
+
+        assert isinstance(sc, pd.DataFrame)
+        assert not sc.empty
+        assert list(sc.columns) == self.EXPECTED_SCHEMA
+
+        # Check surrogate present: smac_default
+        surrogates = sc["surrogate"].unique().tolist()
+        assert "smac_default" in surrogates
+        assert "All" in surrogates
+
+        # Check dimension slices for smac_default
+        smac_rows = sc[sc["surrogate"] == "smac_default"]
+        smac_dims = smac_rows["dimension"].tolist()
+        assert 2 in smac_dims
+        assert 16 in smac_dims
+        assert 32 in smac_dims
+        assert "All" in smac_dims
+
+        # Check total grand row
+        total_rows = sc[(sc["surrogate"] == "All") & (sc["dimension"] == "All")]
+        assert len(total_rows) == 1
+        assert total_rows.iloc[0]["n_experiments"] == len(df)
+
+        # Check metric values in row
+        d32_row = sc[(sc["surrogate"] == "smac_default") & (sc["dimension"] == 32)].iloc[0]
+        assert d32_row["spearman_dist_plcb_mean"] > 0.7
+        assert d32_row["spearman_dist_slcb_mean"] < 0.1
+        assert d32_row["spearman_dist_diff_mean"] > 0.0
+
+    def test_build_surrogate_scorecard_multi_surrogate(self, tmp_path: Path):
+        """Test with multi-surrogate mock data (smac_default, mature, shallow)."""
+        summary_dir = tmp_path / "multi_surr_summaries"
+        summary_dir.mkdir(parents=True, exist_ok=True)
+
+        surrogates = ["smac_default", "mature", "shallow"]
+        dims = [2, 16]
+        seeds = [0, 1]
+
+        total_created = 0
+        for surr in surrogates:
+            for d in dims:
+                for s in seeds:
+                    mock_data = _make_mock_summary(
+                        dimension=d,
+                        n_train=112 if d == 2 else 224,
+                        function_name="sphere",
+                        strategy="natural",
+                        seed=s,
+                        slcb_spearman_dist=0.3,
+                        plcb_spearman_dist=0.8,
+                        slcb_spearman_err=0.2,
+                        plcb_spearman_err=0.6,
+                        slcb_picp=0.6,
+                        plcb_picp=0.95,
+                        slcb_winkler=40.0,
+                        plcb_winkler=15.0,
+                        slcb_auroc=0.5,
+                        plcb_auroc=0.85,
+                        surrogate=surr,
+                    )
+                    fn = f"summary_sphere_d{d}_{surr}_s{s}.json"
+                    with open(summary_dir / fn, "w", encoding="utf-8") as f:
+                        json.dump(mock_data, f)
+                    total_created += 1
+
+        df = load_summary_records(summary_dir)
+        assert len(df) == total_created
+
+        sc = build_surrogate_scorecard_dataframe(df)
+        assert list(sc.columns) == self.EXPECTED_SCHEMA
+
+        # Check all surrogates have per-dimension rows + an 'All' aggregate row
+        for surr in surrogates:
+            surr_rows = sc[sc["surrogate"] == surr]
+            assert not surr_rows.empty
+            surr_dims = surr_rows["dimension"].tolist()
+            for d in dims:
+                assert d in surr_dims
+            assert "All" in surr_dims
+
+            # Verify n_experiments for (surr, 'All') is 4 (2 dims * 2 seeds)
+            surr_all = surr_rows[surr_rows["dimension"] == "All"].iloc[0]
+            assert surr_all["n_experiments"] == len(dims) * len(seeds)
+
+        # Check master grand total row
+        grand_total = sc[(sc["surrogate"] == "All") & (sc["dimension"] == "All")]
+        assert len(grand_total) == 1
+        assert grand_total.iloc[0]["n_experiments"] == total_created
+
+
+class TestSampleSizeScorecard:
+    """Tests for sample size (n_train) scorecard generation."""
+
+    METRICS = ["spearman_dist", "spearman_err", "picp_error", "winkler", "outlier_auroc"]
+    EXPECTED_SCHEMA = [
+        "n_train",
+        "k_over_n_ratio",
+        "dimension",
+        "n_experiments",
+        # spearman_dist
+        "spearman_dist_plcb_mean", "spearman_dist_plcb_sem",
+        "spearman_dist_slcb_mean", "spearman_dist_slcb_sem",
+        "spearman_dist_diff_mean", "spearman_dist_pvalue",
+        "spearman_dist_cliffs_delta", "spearman_dist_wins",
+        "spearman_dist_ties", "spearman_dist_losses",
+        # spearman_err
+        "spearman_err_plcb_mean", "spearman_err_plcb_sem",
+        "spearman_err_slcb_mean", "spearman_err_slcb_sem",
+        "spearman_err_diff_mean", "spearman_err_pvalue",
+        "spearman_err_cliffs_delta", "spearman_err_wins",
+        "spearman_err_ties", "spearman_err_losses",
+        # picp_error
+        "picp_error_plcb_mean", "picp_error_plcb_sem",
+        "picp_error_slcb_mean", "picp_error_slcb_sem",
+        "picp_error_diff_mean", "picp_error_pvalue",
+        "picp_error_cliffs_delta", "picp_error_wins",
+        "picp_error_ties", "picp_error_losses",
+        # winkler
+        "winkler_plcb_mean", "winkler_plcb_sem",
+        "winkler_slcb_mean", "winkler_slcb_sem",
+        "winkler_diff_mean", "winkler_pvalue",
+        "winkler_cliffs_delta", "winkler_wins",
+        "winkler_ties", "winkler_losses",
+        # outlier_auroc
+        "outlier_auroc_plcb_mean", "outlier_auroc_plcb_sem",
+        "outlier_auroc_slcb_mean", "outlier_auroc_slcb_sem",
+        "outlier_auroc_diff_mean", "outlier_auroc_pvalue",
+        "outlier_auroc_cliffs_delta", "outlier_auroc_wins",
+        "outlier_auroc_ties", "outlier_auroc_losses",
+    ]
+
+    def test_build_sample_size_scorecard_empty(self):
+        """Test that empty DataFrame returns empty scorecard with correct column schema."""
+        empty_df = pd.DataFrame()
+        sc = build_sample_size_scorecard_dataframe(empty_df)
+        assert isinstance(sc, pd.DataFrame)
+        assert sc.empty
+        assert list(sc.columns) == self.EXPECTED_SCHEMA
+
+    def test_build_sample_size_scorecard_schema_and_grouping(self, mock_summaries_dir: Path):
+        """Test scorecard schema, grouping by (n_train, dimension), and k_over_n_ratio values."""
+        df = load_summary_records(mock_summaries_dir)
+        sc = build_sample_size_scorecard_dataframe(df)
+
+        assert isinstance(sc, pd.DataFrame)
+        assert not sc.empty
+        assert list(sc.columns) == self.EXPECTED_SCHEMA
+
+        # Check n_train present: 112, 224, All
+        n_train_vals = sc["n_train"].unique().tolist()
+        assert 112 in n_train_vals
+        assert 224 in n_train_vals
+        assert "All" in n_train_vals
+
+        # Check n_train=112 rows:
+        # In mock data, n_train=112 is used for d=2
+        rows_112 = sc[sc["n_train"] == 112]
+        dims_112 = rows_112["dimension"].tolist()
+        assert 2 in dims_112
+        assert "All" in dims_112
+
+        # Check k_over_n_ratio for 112: 28.0 / 112 = 0.25
+        for _, r in rows_112.iterrows():
+            assert pytest.approx(r["k_over_n_ratio"]) == 0.25
+
+        # Check n_train=224 rows:
+        # In mock data, n_train=224 is used for d=16, 32
+        rows_224 = sc[sc["n_train"] == 224]
+        dims_224 = rows_224["dimension"].tolist()
+        assert 16 in dims_224
+        assert 32 in dims_224
+        assert "All" in dims_224
+
+        # Check k_over_n_ratio for 224: 28.0 / 224 = 0.125
+        for _, r in rows_224.iterrows():
+            assert pytest.approx(r["k_over_n_ratio"]) == 0.125
+
+        # Check master grand total row: n_train="All", dimension="All"
+        grand_total = sc[(sc["n_train"] == "All") & (sc["dimension"] == "All")]
+        assert len(grand_total) == 1
+        assert grand_total.iloc[0]["n_experiments"] == len(df)
+        ratio_all = grand_total.iloc[0]["k_over_n_ratio"]
+        assert ratio_all is None or pd.isna(ratio_all)
+
+    def test_build_sample_size_scorecard_custom_sample_sizes(self, tmp_path: Path):
+        """Test with varying sample sizes (56, 112, 224) and verify ratios."""
+        summary_dir = tmp_path / "custom_n_train_summaries"
+        summary_dir.mkdir(parents=True, exist_ok=True)
+
+        sample_sizes = [56, 112, 224]
+        dims = [2, 4]
+        total_created = 0
+
+        for n in sample_sizes:
+            for d in dims:
+                mock_data = _make_mock_summary(
+                    dimension=d,
+                    n_train=n,
+                    function_name="sphere",
+                    strategy="natural",
+                    seed=0,
+                    slcb_spearman_dist=0.3,
+                    plcb_spearman_dist=0.8,
+                    slcb_spearman_err=0.2,
+                    plcb_spearman_err=0.6,
+                    slcb_picp=0.6,
+                    plcb_picp=0.95,
+                    slcb_winkler=40.0,
+                    plcb_winkler=15.0,
+                    slcb_auroc=0.5,
+                    plcb_auroc=0.85,
+                )
+                fn = f"summary_sphere_d{d}_n{n}_s0.json"
+                with open(summary_dir / fn, "w", encoding="utf-8") as f:
+                    json.dump(mock_data, f)
+                total_created += 1
+
+        df = load_summary_records(summary_dir)
+        sc = build_sample_size_scorecard_dataframe(df)
+
+        expected_ratios = {56: 0.5, 112: 0.25, 224: 0.125}
+        for n, expected_ratio in expected_ratios.items():
+            n_rows = sc[sc["n_train"] == n]
+            assert not n_rows.empty
+            for _, r in n_rows.iterrows():
+                assert pytest.approx(r["k_over_n_ratio"]) == expected_ratio
+
+        # Grand total
+        grand_total = sc[(sc["n_train"] == "All") & (sc["dimension"] == "All")].iloc[0]
+        assert grand_total["n_experiments"] == total_created
+        assert grand_total["k_over_n_ratio"] is None or pd.isna(grand_total["k_over_n_ratio"])
+
+
+class TestUQAblationScorecard:
+    """Tests for UQ component-level ablation scorecard generation."""
+
+    EXPECTED_SCHEMA = [
+        "estimator",
+        "dimension",
+        "n_experiments",
+        "spearman_dist_mean",
+        "spearman_dist_sem",
+        "spearman_err_mean",
+        "spearman_err_sem",
+        "picp_mean",
+        "picp_sem",
+        "picp_error_mean",
+        "picp_error_sem",
+        "mpiw_mean",
+        "mpiw_sem",
+        "winkler_mean",
+        "winkler_sem",
+        "outlier_auroc_mean",
+        "outlier_auroc_sem",
+        "spearman_dist_diff_vs_slcb",
+        "spearman_dist_pvalue_vs_slcb",
+        "spearman_dist_cliffs_delta_vs_slcb",
+        "spearman_dist_win_rate_vs_slcb",
+        "winkler_diff_vs_slcb",
+        "winkler_pvalue_vs_slcb",
+        "winkler_cliffs_delta_vs_slcb",
+        "winkler_win_rate_vs_slcb",
+        "outlier_auroc_diff_vs_slcb",
+        "outlier_auroc_pvalue_vs_slcb",
+        "outlier_auroc_cliffs_delta_vs_slcb",
+        "outlier_auroc_win_rate_vs_slcb",
+    ]
+
+    def test_build_uq_ablation_scorecard_empty(self):
+        """Empty DataFrame handling returning empty DataFrame with schema."""
+        empty_df = pd.DataFrame()
+        sc = build_uq_ablation_scorecard_dataframe(empty_df)
+        assert isinstance(sc, pd.DataFrame)
+        assert sc.empty
+        assert list(sc.columns) == self.EXPECTED_SCHEMA
+
+    def test_build_uq_ablation_scorecard_schema_and_methods(self, mock_summaries_dir: Path):
+        """Verify that all methods (slcb, rf_fire, prox_a, prox_b, prox_bc, plcb) are represented for each dimension and dimension='All'."""
+        df = load_summary_records(mock_summaries_dir)
+        sc = build_uq_ablation_scorecard_dataframe(df)
+
+        assert isinstance(sc, pd.DataFrame)
+        assert not sc.empty
+        assert list(sc.columns) == self.EXPECTED_SCHEMA
+
+        expected_methods = ["slcb", "rf_fire", "prox_a", "prox_b", "prox_bc", "plcb", "shaker_total"]
+        dimensions = [2, 16, 32, "All"]
+
+        for method in expected_methods:
+            method_rows = sc[sc["estimator"] == method]
+            assert not method_rows.empty, f"Method {method} missing from scorecard"
+            dim_values = method_rows["dimension"].tolist()
+            for d in dimensions:
+                assert d in dim_values, f"Dimension {d} missing for method {method}"
+
+    def test_build_uq_ablation_scorecard_paired_comparisons_vs_slcb(self, mock_summaries_dir: Path):
+        """Verify that paired comparisons against slcb work correctly."""
+        df = load_summary_records(mock_summaries_dir)
+        sc = build_uq_ablation_scorecard_dataframe(df)
+
+        # For slcb, diff should be 0 and win rate should be 0.0
+        slcb_rows = sc[sc["estimator"] == "slcb"]
+        assert not slcb_rows.empty
+        for _, r in slcb_rows.iterrows():
+            assert pytest.approx(r["spearman_dist_diff_vs_slcb"]) == 0.0
+            assert pytest.approx(r["spearman_dist_win_rate_vs_slcb"]) == 0.0
+            assert pytest.approx(r["spearman_dist_cliffs_delta_vs_slcb"]) == 0.0
+            assert pytest.approx(r["winkler_diff_vs_slcb"]) == 0.0
+            assert pytest.approx(r["winkler_win_rate_vs_slcb"]) == 0.0
+            assert pytest.approx(r["winkler_cliffs_delta_vs_slcb"]) == 0.0
+            assert pytest.approx(r["outlier_auroc_diff_vs_slcb"]) == 0.0
+            assert pytest.approx(r["outlier_auroc_win_rate_vs_slcb"]) == 0.0
+            assert pytest.approx(r["outlier_auroc_cliffs_delta_vs_slcb"]) == 0.0
+
+        # For plcb, win rates, effect sizes, and p-values are computed
+        plcb_rows = sc[sc["estimator"] == "plcb"]
+        assert not plcb_rows.empty
+        for _, r in plcb_rows.iterrows():
+            assert r["spearman_dist_diff_vs_slcb"] > 0.0
+            assert r["spearman_dist_win_rate_vs_slcb"] > 0.0
+            assert np.isfinite(r["spearman_dist_pvalue_vs_slcb"])
+            assert r["spearman_dist_cliffs_delta_vs_slcb"] > 0.0
+            assert r["winkler_diff_vs_slcb"] < 0.0
+            assert r["winkler_win_rate_vs_slcb"] > 0.0
+            assert np.isfinite(r["winkler_pvalue_vs_slcb"])
+            assert r["winkler_cliffs_delta_vs_slcb"] < 0.0
+            assert r["outlier_auroc_diff_vs_slcb"] > 0.0
+            assert r["outlier_auroc_win_rate_vs_slcb"] > 0.0
+            assert np.isfinite(r["outlier_auroc_pvalue_vs_slcb"])
+            assert r["outlier_auroc_cliffs_delta_vs_slcb"] > 0.0
+
