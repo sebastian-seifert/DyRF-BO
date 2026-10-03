@@ -110,7 +110,6 @@ class TestGenerateUnweightedProximitySweepTasks:
 
         for task in tasks:
             assert "scripts/run_extrapolation_experiment.py" in task
-            assert "--eval-mode unweighted_proximity_only" in task
             assert "--skip-if-exists" in task
 
             parts = task.split()
@@ -141,7 +140,6 @@ class TestGenerateUnweightedProximitySweepTasks:
         surrogates = set()
         for task in tasks:
             assert "scripts/run_extrapolation_experiment.py" in task
-            assert "--eval-mode unweighted_proximity_only" in task
             assert "--skip-if-exists" in task
             parts = task.split()
             surrogates.add(parts[parts.index("--surrogate") + 1])
@@ -159,7 +157,7 @@ class TestGenerateUnweightedProximitySweepTasks:
         assert out_file.exists()
 
         # Check sample commands
-        assert "--eval-mode unweighted_proximity_only" in tasks[0]
+        assert "scripts/run_extrapolation_experiment.py" in tasks[0]
         assert "--skip-if-exists" in tasks[0]
 
     def test_custom_parameters_grid(self, tmp_path):
@@ -177,6 +175,20 @@ class TestGenerateUnweightedProximitySweepTasks:
         )
         # 2 dims x 1 N x 1 func x 1 strat x 2 seeds x 2 surrogates = 8 tasks
         assert len(tasks) == 8
+        for task in tasks:
+            assert "scripts/run_extrapolation_experiment.py" in task
+            assert "--skip-if-exists" in task
+
+    def test_eval_mode_unweighted_proximity_only_forwarded(self, tmp_path):
+        from scripts.generate_unweighted_proximity_sweep_tasks import generate_tasks
+
+        out_file = tmp_path / "unweighted_only_tasks.txt"
+        tasks = generate_tasks(
+            pilot=True,
+            eval_mode="unweighted_proximity_only",
+            output_file=out_file,
+        )
+        assert len(tasks) == 20
         for task in tasks:
             assert "--eval-mode unweighted_proximity_only" in task
 

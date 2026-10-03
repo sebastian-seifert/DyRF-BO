@@ -155,6 +155,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional hint for parallel worker count.",
     )
     parser.add_argument(
+        "--eval-mode",
+        type=str.lower,
+        default="all",
+        choices=["all", "unweighted_proximity_only"],
+        help="Evaluation mode: 'all' (default: full UQ suite with both weighted & unweighted proximity) or 'unweighted_proximity_only'.",
+    )
+    parser.add_argument(
         "--python-bin",
         type=str,
         default="python",
@@ -182,6 +189,7 @@ def generate_tasks(
     surrogates: Optional[List[str]] = None,
     output_dir: Optional[str | Path] = DEFAULT_OUTPUT_DIR,
     summary_dir: Optional[str | Path] = DEFAULT_SUMMARY_DIR,
+    eval_mode: str = "all",
     python_bin: str = "python",
     skip_if_exists: bool = True,
     workers: Optional[int] = None,
@@ -214,6 +222,8 @@ def generate_tasks(
         Target directory for raw parquet evaluations.
     summary_dir : str | Path, optional
         Target directory for summary JSON files.
+    eval_mode : str, default='all'
+        Evaluation mode ('all' for complete UQ suite with unweighted proximity, or 'unweighted_proximity_only').
     python_bin : str, default='python'
         Python interpreter binary.
     skip_if_exists : bool, default=True
@@ -236,6 +246,7 @@ def generate_tasks(
     py_bin = shlex.quote(str(python_bin))
     out_dir_suffix = f" --output-dir {shlex.quote(str(output_dir))}" if output_dir else ""
     sum_dir_suffix = f" --summary-dir {shlex.quote(str(summary_dir))}" if summary_dir else ""
+    eval_suffix = f" --eval-mode {shlex.quote(str(eval_mode))}" if eval_mode != "all" else ""
     skip_suffix = " --skip-if-exists" if skip_if_exists else ""
     tasks: List[str] = []
 
@@ -254,8 +265,8 @@ def generate_tasks(
                                     f"--function {func} "
                                     f"--strategy {strat} "
                                     f"--seed {seed} "
-                                    f"--surrogate {surr} "
-                                    f"--eval-mode unweighted_proximity_only"
+                                    f"--surrogate {surr}"
+                                    f"{eval_suffix}"
                                     f"{out_dir_suffix}"
                                     f"{sum_dir_suffix}"
                                     f"{skip_suffix}"
@@ -272,8 +283,8 @@ def generate_tasks(
                     f"--function {func} "
                     f"--strategy {strat} "
                     f"--seed {seed} "
-                    f"--surrogate {surr} "
-                    f"--eval-mode unweighted_proximity_only"
+                    f"--surrogate {surr}"
+                    f"{eval_suffix}"
                     f"{out_dir_suffix}"
                     f"{sum_dir_suffix}"
                     f"{skip_suffix}"
@@ -300,8 +311,8 @@ def generate_tasks(
                                     f"--function {func} "
                                     f"--strategy {strat} "
                                     f"--seed {seed} "
-                                    f"--surrogate {surr} "
-                                    f"--eval-mode unweighted_proximity_only"
+                                    f"--surrogate {surr}"
+                                    f"{eval_suffix}"
                                     f"{out_dir_suffix}"
                                     f"{sum_dir_suffix}"
                                     f"{skip_suffix}"
@@ -335,6 +346,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         surrogates=args.surrogates,
         output_dir=args.output_dir,
         summary_dir=args.summary_dir,
+        eval_mode=args.eval_mode,
         python_bin=args.python_bin,
         skip_if_exists=args.skip_if_exists,
         workers=args.workers,
