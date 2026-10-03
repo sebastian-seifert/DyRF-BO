@@ -30,7 +30,7 @@ except ImportError:
     HAS_GPU = False
 
 class GPUProximityRegressionUQ:
-    def __init__(self, model, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None, normalize_by_depth=False):
+    def __init__(self, model, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, density_scaling_alpha=1.0, topological_decay_lambda=None, normalize_by_depth=False, weighting: str = "leaf_normalized", use_leaf_weights: bool | None = None):
         """
         GPU-Accelerated Wrapper for Localized Uncertainty Quantification in Random Forests
         via Proximities (RF-FIRE / RF-GAP). Supports dynamic NumPy and CuPy backends.
@@ -47,6 +47,8 @@ class GPUProximityRegressionUQ:
             density_scaling_alpha: float, power exponent for leaf density scaling.
             topological_decay_lambda: float or None, exponential decay factor lambda for topological walking.
             normalize_by_depth: bool, if True, normalizes topological distances by 2 * max_tree_depth.
+            weighting: str, "leaf_normalized" (default), "unweighted_all", or "unweighted_inbag".
+            use_leaf_weights: bool or None, backward-compatibility flag. If False, weighting resolves to "unweighted_all".
         """
         self.model = model
         self.X_train = np.asarray(X_train)
@@ -57,6 +59,23 @@ class GPUProximityRegressionUQ:
         self.density_scaling_alpha = density_scaling_alpha
         self.topological_decay_lambda = topological_decay_lambda
         self.normalize_by_depth = normalize_by_depth
+
+        valid_options = {"leaf_normalized", "weighted", "unweighted_all", "unweighted", "unweighted_inbag"}
+        if weighting not in valid_options:
+            raise ValueError(f"Unknown weighting scheme '{weighting}'. Expected one of {sorted(list(valid_options))}")
+
+        if use_leaf_weights is False and weighting in ("leaf_normalized", "weighted"):
+            weighting = "unweighted_all"
+        elif use_leaf_weights is True and weighting in ("unweighted", "unweighted_all"):
+            weighting = "leaf_normalized"
+
+        if weighting in ("unweighted", "unweighted_all"):
+            weighting = "unweighted_all"
+        elif weighting in ("weighted", "leaf_normalized"):
+            weighting = "leaf_normalized"
+
+        self.weighting = weighting
+        self.use_leaf_weights = use_leaf_weights
 
         
         # Configure backend dynamically
@@ -280,6 +299,8 @@ class GPUProximityRegressionUQ:
         self.in_bag_leaves_xp = self.xp.asarray(self.in_bag_leaves)
         self.train_weights_xp = self.xp.asarray(self.train_weights)
         self.in_bag_counts_xp = self.xp.asarray(self.in_bag_counts)
+        self.leaf_matrix_train_xp = self.xp.asarray(self.leaf_matrix_train)
+        self.in_bag_indices_xp = self.xp.asarray(self.in_bag_indices, dtype=self.xp.float32)
 
         # Precompute leaf-to-leaf distance matrices
         self._precompute_tree_distances()
@@ -498,7 +519,26 @@ class GPUProximityRegressionUQ:
                 
         return float(optimal_lambda)
 
-    def compute_uq(self, X_test, n_neighbors="auto", level=0.95, use_density_scaling=None):
+    def _resolve_runtime_weighting(self, weighting: str | None = None, use_leaf_weights: bool | None = None) -> str:
+        if weighting is None and use_leaf_weights is None:
+            return self.weighting
+        w = weighting if weighting is not None else self.weighting
+        valid_options = {"leaf_normalized", "weighted", "unweighted_all", "unweighted", "unweighted_inbag"}
+        if w not in valid_options:
+            raise ValueError(f"Unknown weighting scheme '{w}'. Expected one of {sorted(list(valid_options))}")
+        if use_leaf_weights is False and w in ("leaf_normalized", "weighted"):
+            return "unweighted_all"
+        elif use_leaf_weights is True and w in ("unweighted", "unweighted_all"):
+            return "leaf_normalized"
+        if w in ("unweighted", "unweighted_all"):
+            return "unweighted_all"
+        elif w in ("weighted", "leaf_normalized"):
+            return "leaf_normalized"
+        elif w == "unweighted_inbag":
+            return "unweighted_inbag"
+        return w
+
+    def compute_uq(self, X_test, n_neighbors="auto", level=0.95, use_density_scaling=None, weighting: str | None = None, use_leaf_weights: bool | None = None):
         """
         Computes localized uncertainty quantification (interval width) for test query points.
         
@@ -507,9 +547,13 @@ class GPUProximityRegressionUQ:
             n_neighbors: int, 'auto', or 'all'. Number of nearest neighbors to consider.
             level: float, confidence level of the prediction interval.
             use_density_scaling: bool or None, if True, scales UQ inversely with density.
+            weighting: str or None, weighting mode override ("leaf_normalized", "unweighted_all", "unweighted_inbag").
+            use_leaf_weights: bool or None, backward-compatibility flag.
         """
         if use_density_scaling is None:
             use_density_scaling = getattr(self, "use_density_scaling", False)
+
+        active_weighting = self._resolve_runtime_weighting(weighting, use_leaf_weights)
 
         # Ensure model is fitted and structures are prepared
         if not hasattr(self, "estimators"):
@@ -613,7 +657,10 @@ class GPUProximityRegressionUQ:
                     # Retrieve dense leaf index mapping
                     id_to_dense = self.tree_leaf_id_to_dense[t]
                     dense_test = id_to_dense[leaf_batch[:, t]]
-                    dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
+                    if active_weighting == "unweighted_all":
+                        dense_train = id_to_dense[self.leaf_matrix_train_xp[:, t]]
+                    else:
+                        dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
                     # Vectorized 2D gather from precomputed distance matrix
                     d_t = self.tree_leaf_distances[t][dense_test[:, None], dense_train[None, :]]
                     # Compute exponential decay kernel: e^(-lambda * d_t) or normalized p_walk
@@ -625,17 +672,28 @@ class GPUProximityRegressionUQ:
                     else:
                         decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
                     # Accumulate walked proximity
-                    prox_batch += decay_t * self.train_weights_xp[None, :, t]
+                    if active_weighting == "unweighted_all":
+                        prox_batch += decay_t
+                    elif active_weighting == "unweighted_inbag":
+                        prox_batch += decay_t * self.in_bag_indices_xp[None, :, t]
+                    else:
+                        prox_batch += decay_t * self.train_weights_xp[None, :, t]
                     
                     if use_density_scaling:
                         # Accumulate walked density sum (unnormalized density metric)
                         density_batch += self.xp.sum(decay_t * self.in_bag_counts_xp[None, :, t], axis=1)
                 else:
-                    # 2D comparison: (batch_size, 1) == (1, n_train) -> (batch_size, n_train)
-                    # Matches if test sample leaf equals train sample leaf in tree t
-                    matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
-                    # Accumulate the precomputed weights
-                    prox_batch += matches_t * self.train_weights_xp[None, :, t]
+                    if active_weighting == "unweighted_all":
+                        matches_t = leaf_batch[:, t, None] == self.leaf_matrix_train_xp[None, :, t]
+                        prox_batch += matches_t.astype(self.xp.float32)
+                    elif active_weighting == "unweighted_inbag":
+                        matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                        prox_batch += matches_t.astype(self.xp.float32) * self.in_bag_indices_xp[None, :, t]
+                    else:
+                        # Matches if test sample leaf equals train sample leaf in tree t
+                        matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                        # Accumulate the precomputed weights
+                        prox_batch += matches_t * self.train_weights_xp[None, :, t]
                 
             prox_batch /= self.n_estimators
             
@@ -771,7 +829,9 @@ class GPUProximityRegressionUQ:
         X_test: np.ndarray,
         n_neighbors: int | str = "auto",
         level: float = 0.95,
-        return_mae: bool = False
+        return_mae: bool = False,
+        weighting: str | None = None,
+        use_leaf_weights: bool | None = None,
     ):
         """
         Generate point predictions with empirical prediction intervals using RF proximities.
@@ -779,6 +839,8 @@ class GPUProximityRegressionUQ:
         """
         if not hasattr(self, "estimators"):
             self.fit()
+
+        active_weighting = self._resolve_runtime_weighting(weighting, use_leaf_weights)
 
         X_test = np.asarray(X_test)
         n_test = len(X_test)
@@ -822,17 +884,32 @@ class GPUProximityRegressionUQ:
                 if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
                     id_to_dense = self.tree_leaf_id_to_dense[t]
                     dense_test = id_to_dense[leaf_batch[:, t]]
-                    dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
+                    if active_weighting == "unweighted_all":
+                        dense_train = id_to_dense[self.leaf_matrix_train_xp[:, t]]
+                    else:
+                        dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
                     d_t = self.tree_leaf_distances[t][dense_test[:, None], dense_train[None, :]]
                     if self.normalize_by_depth:
                         max_depth_val = max(1.0, float(self.tree_max_depths[t]))
                         decay_t = self.xp.exp(-self.topological_decay_lambda * d_t / (2.0 * max_depth_val))
                     else:
                         decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
-                    prox_batch += decay_t * self.train_weights_xp[None, :, t]
+                    if active_weighting == "unweighted_all":
+                        prox_batch += decay_t
+                    elif active_weighting == "unweighted_inbag":
+                        prox_batch += decay_t * self.in_bag_indices_xp[None, :, t]
+                    else:
+                        prox_batch += decay_t * self.train_weights_xp[None, :, t]
                 else:
-                    matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
-                    prox_batch += matches_t * self.train_weights_xp[None, :, t]
+                    if active_weighting == "unweighted_all":
+                        matches_t = leaf_batch[:, t, None] == self.leaf_matrix_train_xp[None, :, t]
+                        prox_batch += matches_t.astype(self.xp.float32)
+                    elif active_weighting == "unweighted_inbag":
+                        matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                        prox_batch += matches_t.astype(self.xp.float32) * self.in_bag_indices_xp[None, :, t]
+                    else:
+                        matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                        prox_batch += matches_t * self.train_weights_xp[None, :, t]
 
             prox_batch /= self.n_estimators
 
@@ -1063,11 +1140,16 @@ class GPUProximityRegressionUQ:
             
         return val
 
-    def compute_proximity_matrix(self, X_test):
+    def compute_proximity_matrix(self, X_test, weighting: str | None = None, use_leaf_weights: bool | None = None):
         """
         Computes the full proximity matrix between X_test and X_train.
         Returns: np.ndarray of shape (n_test, n_train) or cp.ndarray.
         """
+        if not hasattr(self, "estimators"):
+            self.fit()
+
+        active_weighting = self._resolve_runtime_weighting(weighting, use_leaf_weights)
+
         X_test = np.atleast_2d(X_test)
         n_test = X_test.shape[0]
         
@@ -1094,7 +1176,10 @@ class GPUProximityRegressionUQ:
                 if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
                     id_to_dense = self.tree_leaf_id_to_dense[t]
                     dense_test = id_to_dense[leaf_batch[:, t]]
-                    dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
+                    if active_weighting == "unweighted_all":
+                        dense_train = id_to_dense[self.leaf_matrix_train_xp[:, t]]
+                    else:
+                        dense_train = id_to_dense[self.in_bag_leaves_xp[:, t]]
                     d_t = self.tree_leaf_distances[t][dense_test[:, None], dense_train[None, :]]
                     if self.normalize_by_depth:
                         max_depth = self.tree_max_depths[t]
@@ -1102,10 +1187,22 @@ class GPUProximityRegressionUQ:
                         decay_t = self.xp.exp(-self.topological_decay_lambda * d_t / (2.0 * max_depth_val))
                     else:
                         decay_t = self.xp.exp(-self.topological_decay_lambda * d_t)
-                    prox_batch += decay_t * self.train_weights_xp[None, :, t]
+                    if active_weighting == "unweighted_all":
+                        prox_batch += decay_t
+                    elif active_weighting == "unweighted_inbag":
+                        prox_batch += decay_t * self.in_bag_indices_xp[None, :, t]
+                    else:
+                        prox_batch += decay_t * self.train_weights_xp[None, :, t]
                 else:
-                    matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
-                    prox_batch += matches_t * self.train_weights_xp[None, :, t]
+                    if active_weighting == "unweighted_all":
+                        matches_t = leaf_batch[:, t, None] == self.leaf_matrix_train_xp[None, :, t]
+                        prox_batch += matches_t.astype(self.xp.float32)
+                    elif active_weighting == "unweighted_inbag":
+                        matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                        prox_batch += matches_t.astype(self.xp.float32) * self.in_bag_indices_xp[None, :, t]
+                    else:
+                        matches_t = leaf_batch[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                        prox_batch += matches_t * self.train_weights_xp[None, :, t]
             prox_batch /= self.n_estimators
             prox_matrix[start:end, :] = prox_batch
             

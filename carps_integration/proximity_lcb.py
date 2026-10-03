@@ -25,13 +25,22 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
         eps: float = 0.16,
         level: float = 0.95,
         k: int | str = 25,
-        k_warmup: int = 25
+        k_warmup: int = 25,
+        weighting: str = "weighted",
+        use_leaf_weights: bool | None = None,
     ) -> None:
         super().__init__()
         self._eps = float(eps)
         self._level = float(level)
         self._k = k
         self._k_warmup = int(k_warmup)
+        if use_leaf_weights is False and weighting == "weighted":
+            self._weighting = "unweighted"
+        elif use_leaf_weights is True and weighting == "unweighted":
+            self._weighting = "weighted"
+        else:
+            self._weighting = weighting
+        self._use_leaf_weights = use_leaf_weights
         alpha = 1.0 - self._level
         self._kappa = float(norm.ppf(1.0 - alpha / 2.0)) if self._level > 0.0 else 0.0
         self._num_data: int | None = None
@@ -49,6 +58,7 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
             "k": self._k,
             "k_warmup": self._k_warmup,
             "kappa": self._kappa,
+            "weighting": self._weighting,
         })
         return meta
 
@@ -93,9 +103,14 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
         # 4. Phase 2: Floored Proximity Lower Bound when N > k_eff
         # Obtain intervals and local in-interval MAE
         if hasattr(self._model, "predict_with_intervals"):
-            res = self._model.predict_with_intervals(
-                X, n_neighbors=self._k, level=self._level, return_mae=True
-            )
+            try:
+                res = self._model.predict_with_intervals(
+                    X, n_neighbors=self._k, level=self._level, return_mae=True, weighting=self._weighting
+                )
+            except TypeError:
+                res = self._model.predict_with_intervals(
+                    X, n_neighbors=self._k, level=self._level, return_mae=True
+                )
             if len(res) == 4:
                 y_pred_lwr, y_pred, _, local_mae = res
             else:

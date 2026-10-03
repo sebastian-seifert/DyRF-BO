@@ -233,9 +233,11 @@ SUPPORTED_ESTIMATORS: List[str] = [
     "slcb",
     "rf_fire",
     "prox_a",
+    "prox_a_unweighted",
     "prox_b",
     "prox_bc",
     "plcb",
+    "plcb_unweighted",
     "shaker_total",
 ]
 
@@ -243,11 +245,29 @@ ESTIMATOR_ALIASES: Dict[str, List[str]] = {
     "slcb": ["slcb", "u_slcb", "slcb_lower", "u_slcb_lower"],
     "rf_fire": ["rf_fire", "u_rf_fire_lower", "rf_fire_lower", "u_rf_fire", "rf_fire_half", "u_rf_fire_half"],
     "prox_a": ["prox_a", "u_prox_a_lower", "prox_a_lower", "u_prox_a", "prox_a_half", "u_prox_a_half"],
+    "prox_a_unweighted": [
+        "prox_a_unweighted",
+        "u_prox_a_unweighted_lower",
+        "prox_a_unweighted_lower",
+        "u_prox_a_unweighted",
+        "prox_a_unweighted_half",
+        "u_prox_a_unweighted_half",
+    ],
     "prox_b": ["prox_b", "u_prox_b_lower", "prox_b_lower", "u_prox_b", "prox_b_half", "u_prox_b_half"],
     "prox_bc": ["prox_bc", "u_prox_bc_lower", "prox_bc_lower", "u_prox_bc", "prox_bc_half", "u_prox_bc_half"],
     "plcb": ["plcb", "u_plcb", "plcb_lower", "u_plcb_lower"],
+    "plcb_unweighted": [
+        "plcb_unweighted",
+        "u_plcb_unweighted_lower",
+        "plcb_unweighted_lower",
+        "u_plcb_unweighted",
+        "plcb_unweighted_half",
+        "u_plcb_unweighted_half",
+    ],
     "shaker_total": ["shaker_total", "u_shaker_total", "shaker_total_lower", "u_shaker_total_lower", "shaker", "u_shaker"],
 }
+
+method_column_map: Dict[str, List[str]] = ESTIMATOR_ALIASES
 
 
 def load_summary_records(summaries_dir: str | Path) -> pd.DataFrame:
@@ -1005,7 +1025,17 @@ def build_uq_ablation_scorecard_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=ablation_schema)
 
-    standard_methods = ["slcb", "rf_fire", "prox_a", "prox_b", "prox_bc", "plcb", "shaker_total"]
+    standard_methods = [
+        "slcb",
+        "rf_fire",
+        "prox_a",
+        "prox_a_unweighted",
+        "prox_b",
+        "prox_bc",
+        "plcb",
+        "plcb_unweighted",
+        "shaker_total",
+    ]
     base_metrics = [
         "spearman_dist",
         "spearman_err",
@@ -1255,6 +1285,9 @@ def build_dimension_strata_matrix(df: pd.DataFrame) -> pd.DataFrame:
     matrix_df = pd.DataFrame(rows)
     ordered_cols = [c for c in matrix_schema if c in matrix_df.columns]
     return matrix_df[ordered_cols]
+
+
+build_ablation_scorecard_df = build_uq_ablation_scorecard_dataframe
 
 
 def generate_markdown_report(

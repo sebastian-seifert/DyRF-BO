@@ -114,7 +114,8 @@ class CustomUncertaintyRandomForest(RandomForest):
         X: np.ndarray,
         n_neighbors: int | str = "auto",
         level: float = 0.95,
-        return_mae: bool = False
+        return_mae: bool = False,
+        **kwargs,
     ):
         """
         Generates point predictions and empirical prediction intervals.
@@ -129,7 +130,7 @@ class CustomUncertaintyRandomForest(RandomForest):
 
         if self.uq_extractor is not None and hasattr(self.uq_extractor, "predict_with_intervals"):
             return self.uq_extractor.predict_with_intervals(
-                X_clean, n_neighbors=n_neighbors, level=level, return_mae=return_mae
+                X_clean, n_neighbors=n_neighbors, level=level, return_mae=return_mae, **kwargs
             )
 
         # Fallback to Gaussian interval via _predict
