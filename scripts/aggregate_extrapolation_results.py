@@ -1836,8 +1836,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-notion",
         type=str,
-        default="bachelorthesis/extrapolation_uq_scorecard_notion.txt",
-        help="Path for Notion-ready text file (default: bachelorthesis/extrapolation_uq_scorecard_notion.txt).",
+        default="results/extrapolation_uq/analysis/extrapolation_uq_scorecard_notion.txt",
+        help="Path for Notion-ready text file (default: results/extrapolation_uq/analysis/extrapolation_uq_scorecard_notion.txt).",
     )
     parser.add_argument(
         "--output-objective-csv",
@@ -1918,7 +1918,7 @@ def run_aggregation(
     base_out = Path(output_dir) if output_dir else Path("results/extrapolation_uq/analysis")
     out_csv = Path(output_csv) if output_csv else base_out / "extrapolation_calibration_scorecard.csv"
     out_rep = Path(output_report) if output_report else base_out / "HYPOTHESIS_EVALUATION_REPORT.md"
-    out_not = Path(output_notion) if output_notion else Path("bachelorthesis/extrapolation_uq_scorecard_notion.txt")
+    out_not = Path(output_notion) if output_notion else base_out / "extrapolation_uq_scorecard_notion.txt"
 
     out_obj_csv = (
         Path(output_objective_csv)

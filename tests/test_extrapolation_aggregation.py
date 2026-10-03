@@ -809,7 +809,7 @@ class TestCLIExecution:
         assert args.summaries_dir == "results/extrapolation_uq/summaries"
         assert args.output_csv == "results/extrapolation_uq/analysis/extrapolation_calibration_scorecard.csv"
         assert args.output_report == "results/extrapolation_uq/analysis/HYPOTHESIS_EVALUATION_REPORT.md"
-        assert args.output_notion == "bachelorthesis/extrapolation_uq_scorecard_notion.txt"
+        assert args.output_notion == "results/extrapolation_uq/analysis/extrapolation_uq_scorecard_notion.txt"
         assert args.output_surrogate_csv is None
         assert args.output_sample_size_csv is None
         assert args.output_ablation_csv is None
@@ -841,7 +841,7 @@ class TestCLIExecution:
     def test_cli_full_execution(self, mock_summaries_dir: Path, tmp_path: Path):
         out_csv = tmp_path / "analysis" / "extrapolation_calibration_scorecard.csv"
         out_report = tmp_path / "analysis" / "HYPOTHESIS_EVALUATION_REPORT.md"
-        out_notion = tmp_path / "bachelorthesis" / "extrapolation_uq_scorecard_notion.txt"
+        out_notion = tmp_path / "analysis" / "extrapolation_uq_scorecard_notion.txt"
 
         exit_code = main([
             "--summaries-dir", str(mock_summaries_dir),
