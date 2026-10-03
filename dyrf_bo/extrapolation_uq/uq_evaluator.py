@@ -506,8 +506,14 @@ class MultiUQEvaluator:
         use_extra_trees: Optional[bool] = None,
         batch_size: Union[int, str] = 512,
         surrogate_type: str = "smac_default",
+        eval_mode: str = "all",
         **kwargs: Any,
     ) -> None:
+        if eval_mode not in ("all", "unweighted_proximity_only"):
+            raise ValueError(
+                f"Unknown eval_mode '{eval_mode}'. Must be 'all' or 'unweighted_proximity_only'."
+            )
+        self.eval_mode = eval_mode
         self.surrogate_type = surrogate_type
         self.seed = seed
 
@@ -619,11 +625,14 @@ class MultiUQEvaluator:
         self.uq_model.fit()
 
         # 2. EpistemicQuantifier for Shaker GMM entropy family
-        self.shaker = EpistemicQuantifier(
-            model=self.model,
-            X_train=X_arr,
-            y_train=y_arr,
-        )
+        if self.eval_mode == "unweighted_proximity_only":
+            self.shaker = None
+        else:
+            self.shaker = EpistemicQuantifier(
+                model=self.model,
+                X_train=X_arr,
+                y_train=y_arr,
+            )
 
         self.X_train_ = X_arr
         self.y_train_ = y_arr
@@ -694,47 +703,53 @@ class MultiUQEvaluator:
         # =========================================================================
         # Group 2: Shaker Information-Theoretic Entropy Family
         # =========================================================================
-        if self.shaker is None:
-            self.shaker = EpistemicQuantifier(
-                model=self.model,
-                X_train=self.X_train_,
-                y_train=self.y_train_,
+        if self.eval_mode == "unweighted_proximity_only":
+            u_shaker_epistemic = np.zeros(M, dtype=np.float64)
+            u_shaker_total = np.zeros(M, dtype=np.float64)
+            shaker_mi = np.zeros(M, dtype=np.float64)
+            shaker_total_entropy = np.zeros(M, dtype=np.float64)
+        else:
+            if self.shaker is None:
+                self.shaker = EpistemicQuantifier(
+                    model=self.model,
+                    X_train=self.X_train_,
+                    y_train=self.y_train_,
+                )
+
+            shaker_mi = np.asarray(
+                self.shaker.shaker_get_epistemic_entropy(
+                    X_test_2d,
+                    method="huber",
+                    backend=self.device,
+                ),
+                dtype=np.float64,
             )
 
-        shaker_mi = np.asarray(
-            self.shaker.shaker_get_epistemic_entropy(
-                X_test_2d,
-                method="huber",
-                backend=self.device,
-            ),
-            dtype=np.float64,
-        )
+            shaker_total_entropy = np.asarray(
+                self.shaker._shaker_calc_total_entropy(
+                    X_test_2d,
+                    method="huber",
+                    backend=self.device,
+                ),
+                dtype=np.float64,
+            )
 
-        shaker_total_entropy = np.asarray(
-            self.shaker._shaker_calc_total_entropy(
-                X_test_2d,
-                method="huber",
-                backend=self.device,
-            ),
-            dtype=np.float64,
-        )
+            aleatoric_var = np.asarray(
+                self.shaker.base_get_aleatoric_variance(X_test_2d),
+                dtype=np.float64,
+            )
+            sigma_aleatoric = np.sqrt(np.maximum(aleatoric_var, 1e-6))
 
-        aleatoric_var = np.asarray(
-            self.shaker.base_get_aleatoric_variance(X_test_2d),
-            dtype=np.float64,
-        )
-        sigma_aleatoric = np.sqrt(np.maximum(aleatoric_var, 1e-6))
+            safe_mi_exp = np.clip(2.0 * shaker_mi, 0.0, 50.0)
+            u_shaker_epistemic = (
+                self.kappa * sigma_aleatoric * np.sqrt(np.maximum(2.0 ** safe_mi_exp - 1.0, 0.0))
+            ).astype(np.float64)
 
-        safe_mi_exp = np.clip(2.0 * shaker_mi, 0.0, 50.0)
-        u_shaker_epistemic = (
-            self.kappa * sigma_aleatoric * np.sqrt(np.maximum(2.0 ** safe_mi_exp - 1.0, 0.0))
-        ).astype(np.float64)
-
-        safe_tot_exp = np.clip(2.0 * shaker_total_entropy, -50.0, 50.0)
-        entropy_power_var = (2.0 ** safe_tot_exp) / (2.0 * np.pi * np.e)
-        u_shaker_total = (
-            self.kappa * np.sqrt(np.maximum(entropy_power_var, 0.0))
-        ).astype(np.float64)
+            safe_tot_exp = np.clip(2.0 * shaker_total_entropy, -50.0, 50.0)
+            entropy_power_var = (2.0 ** safe_tot_exp) / (2.0 * np.pi * np.e)
+            u_shaker_total = (
+                self.kappa * np.sqrt(np.maximum(entropy_power_var, 0.0))
+            ).astype(np.float64)
 
         # =========================================================================
         # Group 3: Proximity / RF-FIRE / RF-GAP Family
@@ -792,8 +807,9 @@ class MultiUQEvaluator:
 
                 prox_topo_weighted = np.zeros((b_len, N_train), dtype=np.float32)
                 prox_topo_unweighted = np.zeros((b_len, N_train), dtype=np.float32)
-                density_chunk = np.zeros(b_len, dtype=np.float32)
-                prox_fire = np.zeros((b_len, N_train), dtype=np.float32)
+                if self.eval_mode != "unweighted_proximity_only":
+                    density_chunk = np.zeros(b_len, dtype=np.float32)
+                    prox_fire = np.zeros((b_len, N_train), dtype=np.float32)
 
                 for t in range(B):
                     id_to_dense = self.uq_model.tree_leaf_id_to_dense[t]
@@ -812,27 +828,31 @@ class MultiUQEvaluator:
                     decay_t_weighted = np.exp(-self.topological_decay_lambda * d_t_weighted)
 
                     train_w = self.uq_model.train_weights[:, t]
-                    in_bag_c = self.uq_model.in_bag_counts[:, t]
-
                     prox_topo_weighted += decay_t_weighted * train_w[None, :]
-                    density_chunk += np.sum(decay_t_weighted * in_bag_c[None, :], axis=1)
+
+                    if self.eval_mode != "unweighted_proximity_only":
+                        in_bag_c = self.uq_model.in_bag_counts[:, t]
+                        density_chunk += np.sum(decay_t_weighted * in_bag_c[None, :], axis=1)
 
                     # Unweighted (Option A: pure Breiman topological across all trees)
                     d_t_unweighted = tree_dists[dense_test[:, None], dense_train_all[None, :]]
                     decay_t_unweighted = np.exp(-self.topological_decay_lambda * d_t_unweighted)
                     prox_topo_unweighted += decay_t_unweighted
 
-                    matches_t = (leaf_batch[:, t, None] == self.uq_model.in_bag_leaves[None, :, t])
-                    prox_fire += matches_t * train_w[None, :]
+                    if self.eval_mode != "unweighted_proximity_only":
+                        matches_t = (leaf_batch[:, t, None] == self.uq_model.in_bag_leaves[None, :, t])
+                        prox_fire += matches_t * train_w[None, :]
 
                 prox_topo_weighted /= B
                 prox_topo_unweighted /= B
-                prox_fire /= B
+                if self.eval_mode != "unweighted_proximity_only":
+                    prox_fire /= B
 
                 if valid_oob_mask is not None:
                     prox_topo_weighted[:, ~valid_oob_mask] = 0.0
                     prox_topo_unweighted[:, ~valid_oob_mask] = 0.0
-                    prox_fire[:, ~valid_oob_mask] = 0.0
+                    if self.eval_mode != "unweighted_proximity_only":
+                        prox_fire[:, ~valid_oob_mask] = 0.0
 
                 # 1a. Topological fixed-k weighted (proximity_a and proximity_lcb)
                 if k_eff < N_train:
@@ -882,36 +902,44 @@ class MultiUQEvaluator:
                 b_u_plcb_unweighted_half = b_u_prox_a_unweighted_half
                 b_u_plcb_unweighted_lower = np.maximum(b_delta_floor, -q_lwr_topo_u)
 
-                # 2. Continuous weighted quantiles (proximity_b and proximity_bc)
-                q_lwr_b = self.uq_model._compute_weighted_quantile(oob_res, prox_topo_weighted, alpha_lwr)
-                q_upr_b = self.uq_model._compute_weighted_quantile(oob_res, prox_topo_weighted, alpha_upr)
-                if hasattr(q_lwr_b, "get"):
-                    q_lwr_b = q_lwr_b.get()
-                if hasattr(q_upr_b, "get"):
-                    q_upr_b = q_upr_b.get()
+                if self.eval_mode != "unweighted_proximity_only":
+                    # 2. Continuous weighted quantiles (proximity_b and proximity_bc)
+                    q_lwr_b = self.uq_model._compute_weighted_quantile(oob_res, prox_topo_weighted, alpha_lwr)
+                    q_upr_b = self.uq_model._compute_weighted_quantile(oob_res, prox_topo_weighted, alpha_upr)
+                    if hasattr(q_lwr_b, "get"):
+                        q_lwr_b = q_lwr_b.get()
+                    if hasattr(q_upr_b, "get"):
+                        q_upr_b = q_upr_b.get()
 
-                b_u_prox_b_half = (q_upr_b - q_lwr_b) / 2.0
-                b_u_prox_b_lower = np.maximum(0.0, -q_lwr_b)
+                    b_u_prox_b_half = (q_upr_b - q_lwr_b) / 2.0
+                    b_u_prox_b_lower = np.maximum(0.0, -q_lwr_b)
 
-                avg_test_leaf_sizes = density_chunk / B
-                avg_test_leaf_sizes = np.maximum(avg_test_leaf_sizes, 1e-5)
-                gamma = (n_baseline / avg_test_leaf_sizes) ** self.density_scaling_alpha
+                    avg_test_leaf_sizes = density_chunk / B
+                    avg_test_leaf_sizes = np.maximum(avg_test_leaf_sizes, 1e-5)
+                    gamma = (n_baseline / avg_test_leaf_sizes) ** self.density_scaling_alpha
 
-                b_u_prox_bc_half = gamma * b_u_prox_b_half
-                b_u_prox_bc_lower = gamma * b_u_prox_b_lower
+                    b_u_prox_bc_half = gamma * b_u_prox_b_half
+                    b_u_prox_bc_lower = gamma * b_u_prox_b_lower
 
-                # 3. RF-FIRE co-occurrence
-                if k_eff < N_train:
-                    partition_idx_fire = np.flip(np.argsort(prox_fire, axis=1), axis=1)[:, :k_eff]
-                    k_residuals_fire = oob_res[partition_idx_fire]
-                else:
-                    k_residuals_fire = np.broadcast_to(oob_res[None, :], (b_len, N_train))
+                    # 3. RF-FIRE co-occurrence
+                    if k_eff < N_train:
+                        partition_idx_fire = np.flip(np.argsort(prox_fire, axis=1), axis=1)[:, :k_eff]
+                        k_residuals_fire = oob_res[partition_idx_fire]
+                    else:
+                        k_residuals_fire = np.broadcast_to(oob_res[None, :], (b_len, N_train))
 
-                q_lwr_fire = np.quantile(k_residuals_fire, alpha_lwr, axis=1)
-                q_upr_fire = np.quantile(k_residuals_fire, alpha_upr, axis=1)
+                    q_lwr_fire = np.quantile(k_residuals_fire, alpha_lwr, axis=1)
+                    q_upr_fire = np.quantile(k_residuals_fire, alpha_upr, axis=1)
 
-                b_u_rf_fire_half = (q_upr_fire - q_lwr_fire) / 2.0
-                b_u_rf_fire_lower = np.maximum(0.0, -q_lwr_fire)
+                    b_u_rf_fire_half = (q_upr_fire - q_lwr_fire) / 2.0
+                    b_u_rf_fire_lower = np.maximum(0.0, -q_lwr_fire)
+
+                    u_prox_b_half[start:end] = b_u_prox_b_half
+                    u_prox_b_lower[start:end] = b_u_prox_b_lower
+                    u_prox_bc_half[start:end] = b_u_prox_bc_half
+                    u_prox_bc_lower[start:end] = b_u_prox_bc_lower
+                    u_rf_fire_half[start:end] = b_u_rf_fire_half
+                    u_rf_fire_lower[start:end] = b_u_rf_fire_lower
 
                 # Store into output arrays
                 u_prox_a_half[start:end] = b_u_prox_a_half
@@ -928,13 +956,6 @@ class MultiUQEvaluator:
                 u_prox_a_unweighted_lower[start:end] = b_u_prox_a_unweighted_lower
                 u_plcb_unweighted_half[start:end] = b_u_plcb_unweighted_half
                 u_plcb_unweighted_lower[start:end] = b_u_plcb_unweighted_lower
-
-                u_prox_b_half[start:end] = b_u_prox_b_half
-                u_prox_b_lower[start:end] = b_u_prox_b_lower
-                u_prox_bc_half[start:end] = b_u_prox_bc_half
-                u_prox_bc_lower[start:end] = b_u_prox_bc_lower
-                u_rf_fire_half[start:end] = b_u_rf_fire_half
-                u_rf_fire_lower[start:end] = b_u_rf_fire_lower
 
                 q_lower[start:end] = q_lwr_topo_w
                 delta_floor[start:end] = b_delta_floor
@@ -971,7 +992,10 @@ class MultiUQEvaluator:
             u_rf_fire_half = u_plcb_half
             u_rf_fire_lower = u_prox_a_lower
 
-        u_plcb = u_plcb_lower
+        if self.eval_mode == "unweighted_proximity_only":
+            u_plcb = u_plcb_unweighted_lower
+        else:
+            u_plcb = u_plcb_lower
 
         return MultiUQResult(
             y_hat=y_hat,
@@ -1018,6 +1042,14 @@ class DualUQEvaluator(MultiUQEvaluator):
     (Pure Extracted Exploration Term) on the identical underlying random forest.
     Maintains 100% backwards compatibility with legacy callers and test assertions.
     """
+
+    def __init__(
+        self,
+        *args: Any,
+        eval_mode: str = "all",
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, eval_mode=eval_mode, **kwargs)
 
     def evaluate(self, X_test: np.ndarray) -> DualUQResult:
         """Evaluate both Standard SMAC3 LCB and Proximity LCB.

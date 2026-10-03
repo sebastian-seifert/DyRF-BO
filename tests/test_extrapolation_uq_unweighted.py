@@ -287,3 +287,134 @@ class TestAggregateExtrapolationResultsConfiguration:
         src = inspect.getsource(agg.build_uq_ablation_scorecard_dataframe)
         assert "prox_a_unweighted" in src
         assert "plcb_unweighted" in src
+
+
+class TestEvalModeUnweightedProximityOnly:
+    """Verifies the fast evaluation mode skipping Shaker and focusing on unweighted proximity."""
+
+    def test_unweighted_proximity_only_skips_shaker_and_evaluates(self):
+        np.random.seed(42)
+        N, D, M = 40, 2, 15
+        X_train = np.random.uniform(-0.5, 0.5, size=(N, D))
+        y_train = np.sin(X_train[:, 0]) + 0.1 * np.random.randn(N)
+        evaluator = MultiUQEvaluator(
+            seed=42,
+            n_trees=5,
+            k=10,
+            eval_mode="unweighted_proximity_only",
+            device="cpu",
+        )
+        assert evaluator.eval_mode == "unweighted_proximity_only"
+        evaluator.fit(X_train, y_train)
+
+        # In unweighted_proximity_only mode, Shaker is NOT fitted or instantiated
+        assert evaluator.shaker is None
+
+        X_test = np.random.uniform(-1.0, 1.0, size=(M, D))
+        res = evaluator.evaluate(X_test)
+
+        # Shaker fields must be zeros
+        np.testing.assert_array_equal(res.u_shaker_epistemic, np.zeros(M))
+        np.testing.assert_array_equal(res.u_shaker_total, np.zeros(M))
+        np.testing.assert_array_equal(res.shaker_mi, np.zeros(M))
+        np.testing.assert_array_equal(res.shaker_total_entropy, np.zeros(M))
+
+        # Hutter fields must be computed and finite
+        assert np.all(np.isfinite(res.u_hutter_total))
+        assert np.all(res.u_hutter_total > 0.0)
+        assert np.all(np.isfinite(res.y_hat))
+
+        # Unweighted & weighted proximity fields must be computed and finite
+        for f in (
+            "u_prox_a_unweighted_half",
+            "u_prox_a_unweighted_lower",
+            "u_plcb_unweighted_half",
+            "u_plcb_unweighted_lower",
+            "u_prox_a_weighted_half",
+            "u_prox_a_weighted_lower",
+            "u_plcb_weighted_half",
+            "u_plcb_weighted_lower",
+            "u_prox_a_half",
+            "u_prox_a_lower",
+            "u_plcb_half",
+            "u_plcb_lower",
+        ):
+            arr = getattr(res, f)
+            assert np.all(np.isfinite(arr)), f"{f} contains non-finite values"
+            assert np.all(arr >= 0.0), f"{f} contains negative values"
+
+        # u_slcb = u_hutter_total and u_plcb = u_plcb_unweighted_lower
+        np.testing.assert_allclose(res.u_slcb, res.u_hutter_total, atol=1e-12)
+        np.testing.assert_allclose(res.u_plcb, res.u_plcb_unweighted_lower, atol=1e-12)
+
+    def test_dual_uq_evaluator_unweighted_proximity_only(self):
+        np.random.seed(42)
+        N, D, M = 30, 2, 10
+        X_train = np.random.uniform(-0.5, 0.5, size=(N, D))
+        y_train = np.sin(X_train[:, 0]) + 0.1 * np.random.randn(N)
+        dual_eval = DualUQEvaluator(
+            seed=42,
+            n_trees=5,
+            k=10,
+            eval_mode="unweighted_proximity_only",
+            device="cpu",
+        )
+        assert dual_eval.eval_mode == "unweighted_proximity_only"
+        dual_eval.fit(X_train, y_train)
+        assert dual_eval.shaker is None
+
+        X_test = np.random.uniform(-1.0, 1.0, size=(M, D))
+        res = dual_eval.evaluate(X_test)
+        assert isinstance(res, DualUQResult)
+        np.testing.assert_allclose(res.u_slcb, res.u_hutter_total, atol=1e-12)
+        np.testing.assert_allclose(res.u_plcb, res.u_plcb_unweighted_lower, atol=1e-12)
+
+    def test_invalid_eval_mode_raises(self):
+        with pytest.raises(ValueError, match="Unknown eval_mode"):
+            MultiUQEvaluator(eval_mode="invalid_mode")
+
+    def test_runner_and_cli_eval_mode(self):
+        from scripts.run_extrapolation_experiment import build_parser
+
+        parser = build_parser()
+        args1 = parser.parse_args([
+            "--dimension", "2",
+            "--n-train", "25",
+            "--function", "sphere",
+            "--strategy", "natural",
+            "--seed", "42",
+            "--eval-mode", "unweighted_proximity_only",
+        ])
+        assert args1.eval_mode == "unweighted_proximity_only"
+
+        args2 = parser.parse_args([
+            "--dimension", "2",
+            "--n-train", "25",
+            "--function", "sphere",
+            "--strategy", "natural",
+            "--seed", "42",
+            "--unweighted-proximity-only",
+        ])
+        assert args2.unweighted_proximity_only is True
+
+        cfg = ExtrapolationRunConfig(
+            dimension=2,
+            n_train=25,
+            n_test=10,
+            function_name="sphere",
+            sampling_strategy="natural",
+            n_trees=5,
+            surrogate_type="smac_default",
+            seed=42,
+            eval_mode="unweighted_proximity_only",
+        )
+        assert cfg.eval_mode == "unweighted_proximity_only"
+        summary, point_df = run_single_experiment(cfg, save_parquet=False)
+        assert summary["eval_mode"] == "unweighted_proximity_only"
+        np.testing.assert_array_equal(point_df["u_shaker_epistemic"].values, np.zeros(10))
+        np.testing.assert_allclose(
+            point_df["u_plcb"].values,
+            point_df["u_plcb_unweighted_lower"].values,
+            atol=1e-12,
+        )
+

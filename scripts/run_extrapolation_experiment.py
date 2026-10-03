@@ -160,6 +160,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Skip execution if target output files already exist (default: False).",
     )
+    parser.add_argument(
+        "--eval-mode",
+        type=str.lower,
+        default="all",
+        choices=["all", "unweighted_proximity_only"],
+        help="UQ evaluation mode: 'all' or 'unweighted_proximity_only' (default: 'all').",
+    )
+    parser.add_argument(
+        "--unweighted-proximity-only",
+        action="store_true",
+        default=False,
+        help="Fast mode: compute only unweighted proximity UQ, skipping Shaker numerical integration.",
+    )
 
     return parser
 
@@ -213,6 +226,7 @@ def run_experiment(args: argparse.Namespace) -> int:
             return 0
 
     # Build run configuration
+    eval_mode = "unweighted_proximity_only" if args.unweighted_proximity_only else args.eval_mode
     config = ExtrapolationRunConfig(
         dimension=args.dimension,
         n_train=args.n_train,
@@ -225,6 +239,7 @@ def run_experiment(args: argparse.Namespace) -> int:
         decay_lambda=args.decay_lambda,
         n_trees=args.n_trees,
         surrogate_type=args.surrogate,
+        eval_mode=eval_mode,
     )
 
     start_time = time.perf_counter()

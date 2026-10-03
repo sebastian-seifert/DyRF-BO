@@ -67,114 +67,118 @@ class TestGenerateUnweightedProximitySweepTasks:
 
         parser = build_parser()
         args = parser.parse_args([
-            "--mode", "pilot",
+            "--pilot",
             "--output-file", "results/test_tasks.txt",
             "--workers", "4",
             "--output-dir", "results/test_raw",
             "--summary-dir", "results/test_summaries",
+            "--dimensions", "2", "3",
+            "--n-trains", "112",
+            "--functions", "sphere",
+            "--strategies", "natural",
+            "--seeds", "0", "1",
+            "--surrogates", "smac_default", "breiman",
         ])
-        assert args.mode == "pilot"
+        assert args.pilot is True
         assert args.output_file == "results/test_tasks.txt"
         assert args.workers == 4
         assert args.output_dir == "results/test_raw"
         assert args.summary_dir == "results/test_summaries"
+        assert args.dimensions == [2, 3]
+        assert args.n_trains == [112]
+        assert args.functions == ["sphere"]
+        assert args.strategies == ["natural"]
+        assert args.seeds == [0, 1]
+        assert args.surrogates == ["smac_default", "breiman"]
 
-    def test_pilot_grid_generates_8_tasks(self, tmp_path):
+    def test_pilot_grid_generates_20_tasks(self, tmp_path):
         from scripts.generate_unweighted_proximity_sweep_tasks import generate_tasks
 
         out_file = tmp_path / "pilot_tasks.txt"
-        tasks = generate_tasks(mode="pilot", output_file=out_file)
+        tasks = generate_tasks(pilot=True, output_file=out_file)
 
-        assert len(tasks) == 8, f"Expected 8 pilot tasks, got {len(tasks)}"
+        # 2 D x 1 N x 1 func x 2 strats x 1 seed x 5 surrogates = 20 tasks
+        assert len(tasks) == 20, f"Expected 20 pilot tasks, got {len(tasks)}"
         assert out_file.exists()
 
-        # Parse and verify content of all tasks
         dimensions = set()
         n_trains = set()
         functions = set()
         strategies = set()
         seeds = set()
+        surrogates = set()
 
         for task in tasks:
             assert "scripts/run_extrapolation_experiment.py" in task
-            parts = task.split()
-            dim = int(parts[parts.index("--dimension") + 1])
-            n_train = int(parts[parts.index("--n-train") + 1])
-            func = parts[parts.index("--function") + 1]
-            strat = parts[parts.index("--strategy") + 1]
-            seed = int(parts[parts.index("--seed") + 1])
+            assert "--eval-mode unweighted_proximity_only" in task
+            assert "--skip-if-exists" in task
 
-            dimensions.add(dim)
-            n_trains.add(n_train)
-            functions.add(func)
-            strategies.add(strat)
-            seeds.add(seed)
+            parts = task.split()
+            dimensions.add(int(parts[parts.index("--dimension") + 1]))
+            n_trains.add(int(parts[parts.index("--n-train") + 1]))
+            functions.add(parts[parts.index("--function") + 1])
+            strategies.add(parts[parts.index("--strategy") + 1])
+            seeds.add(int(parts[parts.index("--seed") + 1]))
+            surrogates.add(parts[parts.index("--surrogate") + 1])
 
         assert dimensions == {2, 16}
         assert n_trains == {112}
-        assert functions == {"sphere", "ackley"}
+        assert functions == {"sphere"}
         assert strategies == {"natural", "stratified"}
         assert seeds == {0}
+        assert surrogates == {"smac_default", "mature", "shallow", "coarse", "breiman"}
 
-    def test_comparison_grid_generates_32_tasks(self, tmp_path):
+    def test_stress_grid_generates_80_tasks(self, tmp_path):
         from scripts.generate_unweighted_proximity_sweep_tasks import generate_tasks
 
-        out_file = tmp_path / "comparison_tasks.txt"
-        tasks = generate_tasks(mode="comparison", output_file=out_file)
+        out_file = tmp_path / "stress_tasks.txt"
+        tasks = generate_tasks(stress=True, output_file=out_file)
 
-        assert len(tasks) == 32, f"Expected 32 comparison tasks, got {len(tasks)}"
+        # 16 balanced configs x 5 surrogates = 80 tasks
+        assert len(tasks) == 80, f"Expected 80 stress tasks, got {len(tasks)}"
         assert out_file.exists()
 
-        dimensions = set()
-        n_trains = set()
-        functions = set()
-        strategies = set()
-        seeds = set()
-
+        surrogates = set()
         for task in tasks:
             assert "scripts/run_extrapolation_experiment.py" in task
+            assert "--eval-mode unweighted_proximity_only" in task
+            assert "--skip-if-exists" in task
             parts = task.split()
-            dimensions.add(int(parts[parts.index("--dimension") + 1]))
-            n_trains.add(int(parts[parts.index("--n-train") + 1]))
-            functions.add(parts[parts.index("--function") + 1])
-            strategies.add(parts[parts.index("--strategy") + 1])
-            seeds.add(int(parts[parts.index("--seed") + 1]))
+            surrogates.add(parts[parts.index("--surrogate") + 1])
 
-        assert dimensions == {2, 5, 16, 32}
-        assert n_trains == {112, 224}
-        assert functions == {"sphere", "ackley", "rastrigin", "rosenbrock"}
-        assert strategies == {"natural", "stratified"}
-        assert seeds == {0}
+        assert surrogates == {"smac_default", "mature", "shallow", "coarse", "breiman"}
 
-    def test_full_grid_generates_64_tasks(self, tmp_path):
+    def test_full_grid_generates_9600_tasks(self, tmp_path):
         from scripts.generate_unweighted_proximity_sweep_tasks import generate_tasks
 
         out_file = tmp_path / "full_tasks.txt"
-        tasks = generate_tasks(mode="full", output_file=out_file)
+        tasks = generate_tasks(output_file=out_file)
 
-        assert len(tasks) == 64, f"Expected 64 full tasks, got {len(tasks)}"
+        # 6 dimensions x 4 n_trains x 4 functions x 2 strategies x 10 seeds x 5 surrogates = 9,600 tasks
+        assert len(tasks) == 9600, f"Expected 9600 full tasks, got {len(tasks)}"
         assert out_file.exists()
 
-        dimensions = set()
-        n_trains = set()
-        functions = set()
-        strategies = set()
-        seeds = set()
+        # Check sample commands
+        assert "--eval-mode unweighted_proximity_only" in tasks[0]
+        assert "--skip-if-exists" in tasks[0]
 
+    def test_custom_parameters_grid(self, tmp_path):
+        from scripts.generate_unweighted_proximity_sweep_tasks import generate_tasks
+
+        out_file = tmp_path / "custom_tasks.txt"
+        tasks = generate_tasks(
+            dimensions=[2, 5],
+            n_trains=[112],
+            functions=["sphere"],
+            strategies=["natural"],
+            seeds=[0, 1],
+            surrogates=["smac_default", "breiman"],
+            output_file=out_file,
+        )
+        # 2 dims x 1 N x 1 func x 1 strat x 2 seeds x 2 surrogates = 8 tasks
+        assert len(tasks) == 8
         for task in tasks:
-            assert "scripts/run_extrapolation_experiment.py" in task
-            parts = task.split()
-            dimensions.add(int(parts[parts.index("--dimension") + 1]))
-            n_trains.add(int(parts[parts.index("--n-train") + 1]))
-            functions.add(parts[parts.index("--function") + 1])
-            strategies.add(parts[parts.index("--strategy") + 1])
-            seeds.add(int(parts[parts.index("--seed") + 1]))
-
-        assert dimensions == {2, 5, 16, 32}
-        assert n_trains == {112, 224}
-        assert functions == {"sphere", "ackley", "rastrigin", "rosenbrock"}
-        assert strategies == {"natural", "stratified"}
-        assert seeds == {0}
+            assert "--eval-mode unweighted_proximity_only" in task
 
 
 # ---------------------------------------------------------------------------

@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
-"""Task generator for Dedicated Unweighted Proximity Sweep (Milestone 3).
+"""Task generator for Dedicated Unweighted Proximity Sweep.
 
-Generates reproducible command-line tasks for unweighted proximity evaluation
-across dimensions, training set sizes, benchmark functions, and sampling strategies.
+Generates reproducible task command lines across benchmark dimensions, sample sizes,
+objective functions, sampling protocols, seeds, and surrogates in fast unweighted proximity mode.
 
-Grid configurations:
-- 'pilot' (8 tasks): D in [2, 16], N=112, functions ['sphere', 'ackley'],
-  strategies ['natural', 'stratified'], seed 0.
-- 'comparison' (32 tasks): D in [2, 5, 16, 32], N in [112, 224],
-  functions ['sphere', 'ackley', 'rastrigin', 'rosenbrock'],
-  strategies ['natural', 'stratified'], seed 0 (balanced orthogonal design).
-- 'full' (64 tasks): Full orthogonal factorial sweep across 4 dimensions x
-  2 sample sizes x 4 functions x 2 strategies x 1 seed.
+Full grid: 6 dimensions x 4 sample sizes x 4 functions x 2 strategies x 10 seeds x 5 surrogates = 9,600 runs.
+Pilot grid: 2 dimensions ([2, 16]) x 1 sample size (112) x 1 function ('sphere') x 2 strategies x 1 seed (0) x 5 surrogates = 20 runs.
+Stress grid: 16 balanced configurations x 5 surrogates = 80 runs.
 """
 
 from __future__ import annotations
@@ -23,6 +18,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
+# Ensure repository root is on sys.path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -31,17 +27,40 @@ DEFAULT_OUTPUT_FILE = "results/unweighted_proximity_sweep/tasks.txt"
 DEFAULT_OUTPUT_DIR = "results/unweighted_proximity_sweep/raw"
 DEFAULT_SUMMARY_DIR = "results/unweighted_proximity_sweep/summaries"
 
+DEFAULT_DIMENSIONS = [2, 3, 5, 8, 16, 32]
+DEFAULT_N_TRAINS = [112, 224, 448, 896]
+DEFAULT_FUNCTIONS = ["sphere", "rosenbrock", "rastrigin", "ackley"]
+DEFAULT_STRATEGIES = ["natural", "stratified"]
+DEFAULT_SEEDS = list(range(10))
+DEFAULT_SURROGATES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
+
 PILOT_DIMENSIONS = [2, 16]
 PILOT_N_TRAINS = [112]
-PILOT_FUNCTIONS = ["sphere", "ackley"]
+PILOT_FUNCTIONS = ["sphere"]
 PILOT_STRATEGIES = ["natural", "stratified"]
 PILOT_SEEDS = [0]
+PILOT_SURROGATES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
 
-SWEEP_DIMENSIONS = [2, 5, 16, 32]
-SWEEP_N_TRAINS = [112, 224]
-SWEEP_FUNCTIONS = ["sphere", "ackley", "rastrigin", "rosenbrock"]
-SWEEP_STRATEGIES = ["natural", "stratified"]
-SWEEP_SEEDS = [0]
+STRESS_CONFIGURATIONS = [
+    # 16-run balanced orthogonal design:
+    # 4 dimensions (2, 5, 16, 32) x 4 functions x 2 sample sizes (112, 224) x 2 strategies
+    (2, 112, "sphere", "natural", 0),
+    (2, 112, "rosenbrock", "stratified", 0),
+    (2, 224, "rastrigin", "natural", 0),
+    (2, 224, "ackley", "stratified", 0),
+    (5, 112, "rosenbrock", "natural", 0),
+    (5, 112, "rastrigin", "stratified", 0),
+    (5, 224, "ackley", "natural", 0),
+    (5, 224, "sphere", "stratified", 0),
+    (16, 112, "rastrigin", "natural", 0),
+    (16, 112, "ackley", "stratified", 0),
+    (16, 224, "sphere", "natural", 0),
+    (16, 224, "rosenbrock", "stratified", 0),
+    (32, 112, "ackley", "natural", 0),
+    (32, 112, "sphere", "stratified", 0),
+    (32, 224, "rosenbrock", "natural", 0),
+    (32, 224, "rastrigin", "stratified", 0),
+]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,17 +69,29 @@ def build_parser() -> argparse.ArgumentParser:
         description="Generate task command lines for unweighted proximity sweep."
     )
     parser.add_argument(
-        "--mode",
-        type=str.lower,
-        choices=["pilot", "comparison", "full"],
-        default="full",
-        help="Sweep mode: 'pilot' (8 tasks), 'comparison' (32 tasks), or 'full' (64 tasks) (default: full).",
-    )
-    parser.add_argument(
         "--output-file",
         type=str,
         default=DEFAULT_OUTPUT_FILE,
         help=f"Target path for task file (default: {DEFAULT_OUTPUT_FILE}).",
+    )
+    parser.add_argument(
+        "--pilot",
+        action="store_true",
+        default=False,
+        help="Generate pilot suite: 2 D x 1 N x 1 func x 2 strats x 5 surrogates x 1 seed = 20 tasks.",
+    )
+    parser.add_argument(
+        "--stress",
+        action="store_true",
+        default=False,
+        help="Generate stress suite: 16 balanced configs x 5 surrogates = 80 tasks.",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str.lower,
+        choices=["pilot", "stress", "full"],
+        default=None,
+        help="Optional sweep mode identifier ('pilot', 'stress', 'full').",
     )
     parser.add_argument(
         "--output-dir",
@@ -73,6 +104,49 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=DEFAULT_SUMMARY_DIR,
         help=f"Target directory for summary JSON files (default: {DEFAULT_SUMMARY_DIR}).",
+    )
+    parser.add_argument(
+        "--dimensions",
+        type=int,
+        nargs="+",
+        default=DEFAULT_DIMENSIONS,
+        help=f"List of dimensions (default: {DEFAULT_DIMENSIONS}).",
+    )
+    parser.add_argument(
+        "--n-trains",
+        type=int,
+        nargs="+",
+        default=DEFAULT_N_TRAINS,
+        help=f"List of training sample sizes (default: {DEFAULT_N_TRAINS}).",
+    )
+    parser.add_argument(
+        "--functions",
+        type=str,
+        nargs="+",
+        default=DEFAULT_FUNCTIONS,
+        help=f"List of benchmark functions (default: {DEFAULT_FUNCTIONS}).",
+    )
+    parser.add_argument(
+        "--strategies",
+        type=str,
+        nargs="+",
+        default=DEFAULT_STRATEGIES,
+        help=f"List of sampling strategies (default: {DEFAULT_STRATEGIES}).",
+    )
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        default=DEFAULT_SEEDS,
+        help=f"List of random seeds (default: {DEFAULT_SEEDS}).",
+    )
+    parser.add_argument(
+        "--surrogates",
+        type=str,
+        nargs="+",
+        choices=DEFAULT_SURROGATES,
+        default=DEFAULT_SURROGATES,
+        help=f"List of surrogate models (default: {DEFAULT_SURROGATES}).",
     )
     parser.add_argument(
         "--workers",
@@ -96,28 +170,52 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def generate_tasks(
-    mode: str = "full",
     output_file: str | Path = DEFAULT_OUTPUT_FILE,
-    output_dir: str | Path = DEFAULT_OUTPUT_DIR,
-    summary_dir: str | Path = DEFAULT_SUMMARY_DIR,
+    pilot: bool = False,
+    stress: bool = False,
+    mode: Optional[str] = None,
+    dimensions: Optional[List[int]] = None,
+    n_trains: Optional[List[int]] = None,
+    functions: Optional[List[str]] = None,
+    strategies: Optional[List[str]] = None,
+    seeds: Optional[List[int]] = None,
+    surrogates: Optional[List[str]] = None,
+    output_dir: Optional[str | Path] = DEFAULT_OUTPUT_DIR,
+    summary_dir: Optional[str | Path] = DEFAULT_SUMMARY_DIR,
     python_bin: str = "python",
     skip_if_exists: bool = True,
     workers: Optional[int] = None,
 ) -> List[str]:
-    """Generate task command lines according to specified sweep mode.
+    """Generate task command lines for unweighted proximity sweep.
 
     Parameters
     ----------
-    mode : {'pilot', 'comparison', 'full'}, default='full'
-        Sweep mode selecting grid configuration.
     output_file : str | Path, default=DEFAULT_OUTPUT_FILE
         Destination text file for task commands.
-    output_dir : str | Path, default=DEFAULT_OUTPUT_DIR
-        Directory where tasks write raw evaluations.
-    summary_dir : str | Path, default=DEFAULT_SUMMARY_DIR
-        Directory where tasks write summary JSONs.
+    pilot : bool, default=False
+        If True, generates pilot suite (20 tasks).
+    stress : bool, default=False
+        If True, generates stress suite (80 tasks).
+    mode : Optional[str], default=None
+        Sweep mode string ('pilot', 'stress', 'full'). Overrides pilot/stress flags if specified.
+    dimensions : list[int], optional
+        Feature space dimensions.
+    n_trains : list[int], optional
+        Training set sizes.
+    functions : list[str], optional
+        Benchmark objective functions.
+    strategies : list[str], optional
+        Sampling strategies ('natural', 'stratified').
+    seeds : list[int], optional
+        Random seeds.
+    surrogates : list[str], optional
+        Surrogate types ('smac_default', 'mature', 'shallow', 'coarse', 'breiman').
+    output_dir : str | Path, optional
+        Target directory for raw parquet evaluations.
+    summary_dir : str | Path, optional
+        Target directory for summary JSON files.
     python_bin : str, default='python'
-        Python executable binary.
+        Python interpreter binary.
     skip_if_exists : bool, default=True
         Whether to pass --skip-if-exists to each task runner.
     workers : int, optional
@@ -126,84 +224,95 @@ def generate_tasks(
     Returns
     -------
     list[str]
-        List of executable task strings.
+        List of generated task command lines.
     """
-    mode = mode.lower()
-    tasks: List[str] = []
+    if mode is not None:
+        mode_lower = mode.lower()
+        if mode_lower == "pilot":
+            pilot = True
+        elif mode_lower == "stress":
+            stress = True
 
     py_bin = shlex.quote(str(python_bin))
-    out_dir_str = shlex.quote(str(output_dir))
-    sum_dir_str = shlex.quote(str(summary_dir))
-    skip_flag = " --skip-if-exists" if skip_if_exists else ""
+    out_dir_suffix = f" --output-dir {shlex.quote(str(output_dir))}" if output_dir else ""
+    sum_dir_suffix = f" --summary-dir {shlex.quote(str(summary_dir))}" if summary_dir else ""
+    skip_suffix = " --skip-if-exists" if skip_if_exists else ""
+    tasks: List[str] = []
 
-    if mode == "pilot":
-        # 8 tasks: 2 D x 1 N x 2 funcs x 2 strats x 1 seed
+    if pilot:
+        surr_list = surrogates if surrogates is not None else PILOT_SURROGATES
         for dim in PILOT_DIMENSIONS:
             for n_train in PILOT_N_TRAINS:
                 for func in PILOT_FUNCTIONS:
                     for strat in PILOT_STRATEGIES:
                         for seed in PILOT_SEEDS:
-                            cmd = (
-                                f"{py_bin} scripts/run_extrapolation_experiment.py "
-                                f"--dimension {dim} "
-                                f"--n-train {n_train} "
-                                f"--function {func} "
-                                f"--strategy {strat} "
-                                f"--seed {seed} "
-                                f"--output-dir {out_dir_str} "
-                                f"--summary-dir {sum_dir_str}"
-                                f"{skip_flag}"
-                            )
-                            tasks.append(cmd)
-
-    elif mode == "comparison":
-        # 32 tasks: Balanced orthogonal design over 4 dims x 4 funcs x 2 strats,
-        # with n_train balanced between 112 and 224.
-        for d_idx, dim in enumerate(SWEEP_DIMENSIONS):
-            for f_idx, func in enumerate(SWEEP_FUNCTIONS):
-                for s_idx, strat in enumerate(SWEEP_STRATEGIES):
-                    n_train = SWEEP_N_TRAINS[(d_idx + f_idx + s_idx) % 2]
-                    cmd = (
-                        f"{py_bin} scripts/run_extrapolation_experiment.py "
-                        f"--dimension {dim} "
-                        f"--n-train {n_train} "
-                        f"--function {func} "
-                        f"--strategy {strat} "
-                        f"--seed {SWEEP_SEEDS[0]} "
-                        f"--output-dir {out_dir_str} "
-                        f"--summary-dir {sum_dir_str}"
-                        f"{skip_flag}"
-                    )
-                    tasks.append(cmd)
-
-    elif mode == "full":
-        # 64 tasks: Complete orthogonal sweep over 4 dims x 2 Ns x 4 funcs x 2 strats x 1 seed
-        for dim in SWEEP_DIMENSIONS:
-            for n_train in SWEEP_N_TRAINS:
-                for func in SWEEP_FUNCTIONS:
-                    for strat in SWEEP_STRATEGIES:
-                        for seed in SWEEP_SEEDS:
-                            cmd = (
-                                f"{py_bin} scripts/run_extrapolation_experiment.py "
-                                f"--dimension {dim} "
-                                f"--n-train {n_train} "
-                                f"--function {func} "
-                                f"--strategy {strat} "
-                                f"--seed {seed} "
-                                f"--output-dir {out_dir_str} "
-                                f"--summary-dir {sum_dir_str}"
-                                f"{skip_flag}"
-                            )
-                            tasks.append(cmd)
+                            for surr in surr_list:
+                                cmd = (
+                                    f"{py_bin} scripts/run_extrapolation_experiment.py "
+                                    f"--dimension {dim} "
+                                    f"--n-train {n_train} "
+                                    f"--function {func} "
+                                    f"--strategy {strat} "
+                                    f"--seed {seed} "
+                                    f"--surrogate {surr} "
+                                    f"--eval-mode unweighted_proximity_only"
+                                    f"{out_dir_suffix}"
+                                    f"{sum_dir_suffix}"
+                                    f"{skip_suffix}"
+                                )
+                                tasks.append(cmd)
+    elif stress:
+        surr_list = surrogates if surrogates is not None else DEFAULT_SURROGATES
+        for dim, n_train, func, strat, seed in STRESS_CONFIGURATIONS:
+            for surr in surr_list:
+                cmd = (
+                    f"{py_bin} scripts/run_extrapolation_experiment.py "
+                    f"--dimension {dim} "
+                    f"--n-train {n_train} "
+                    f"--function {func} "
+                    f"--strategy {strat} "
+                    f"--seed {seed} "
+                    f"--surrogate {surr} "
+                    f"--eval-mode unweighted_proximity_only"
+                    f"{out_dir_suffix}"
+                    f"{sum_dir_suffix}"
+                    f"{skip_suffix}"
+                )
+                tasks.append(cmd)
     else:
-        raise ValueError(f"Unknown mode '{mode}'. Must be one of 'pilot', 'comparison', 'full'.")
+        dims = dimensions if dimensions is not None else DEFAULT_DIMENSIONS
+        trains = n_trains if n_trains is not None else DEFAULT_N_TRAINS
+        funcs = functions if functions is not None else DEFAULT_FUNCTIONS
+        strats = strategies if strategies is not None else DEFAULT_STRATEGIES
+        seed_list = seeds if seeds is not None else DEFAULT_SEEDS
+        surr_list = surrogates if surrogates is not None else DEFAULT_SURROGATES
 
-    # Write tasks to target output file
-    out_path = Path(output_file)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as f:
-        for t in tasks:
-            f.write(t + "\n")
+        for dim in dims:
+            for n_train in trains:
+                for func in funcs:
+                    for strat in strats:
+                        for seed in seed_list:
+                            for surr in surr_list:
+                                cmd = (
+                                    f"{py_bin} scripts/run_extrapolation_experiment.py "
+                                    f"--dimension {dim} "
+                                    f"--n-train {n_train} "
+                                    f"--function {func} "
+                                    f"--strategy {strat} "
+                                    f"--seed {seed} "
+                                    f"--surrogate {surr} "
+                                    f"--eval-mode unweighted_proximity_only"
+                                    f"{out_dir_suffix}"
+                                    f"{sum_dir_suffix}"
+                                    f"{skip_suffix}"
+                                )
+                                tasks.append(cmd)
+
+    target_path = Path(output_file)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(target_path, "w", encoding="utf-8") as f:
+        for cmd in tasks:
+            f.write(cmd + "\n")
 
     return tasks
 
@@ -214,15 +323,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     tasks = generate_tasks(
-        mode=args.mode,
         output_file=args.output_file,
+        pilot=args.pilot,
+        stress=args.stress,
+        mode=args.mode,
+        dimensions=args.dimensions,
+        n_trains=args.n_trains,
+        functions=args.functions,
+        strategies=args.strategies,
+        seeds=args.seeds,
+        surrogates=args.surrogates,
         output_dir=args.output_dir,
         summary_dir=args.summary_dir,
         python_bin=args.python_bin,
         skip_if_exists=args.skip_if_exists,
         workers=args.workers,
     )
-    print(f"Generated {len(tasks)} tasks in mode '{args.mode}' -> '{args.output_file}'")
+    mode_desc = "pilot" if args.pilot else ("stress" if args.stress else (args.mode or "full"))
+    print(f"Generated {len(tasks)} tasks in mode '{mode_desc}' -> '{args.output_file}'")
     return 0
 
 

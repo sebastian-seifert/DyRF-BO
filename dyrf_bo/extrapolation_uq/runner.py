@@ -63,6 +63,7 @@ class ExtrapolationRunConfig:
     decay_lambda: float = 0.20486
     n_trees: int = 10
     surrogate_type: str = "smac_default"
+    eval_mode: str = "all"
 
     def __init__(
         self,
@@ -78,6 +79,7 @@ class ExtrapolationRunConfig:
         n_trees: int = 10,
         surrogate_type: str = "smac_default",
         surrogate: str | None = None,
+        eval_mode: str = "all",
     ):
         self.dimension = dimension
         self.n_train = n_train
@@ -90,6 +92,7 @@ class ExtrapolationRunConfig:
         self.decay_lambda = decay_lambda
         self.n_trees = n_trees
         self.surrogate_type = surrogate if surrogate is not None else surrogate_type
+        self.eval_mode = eval_mode
 
     @property
     def surrogate(self) -> str:
@@ -205,6 +208,7 @@ def run_single_experiment(
         k=config.k,
         epsilon=config.eps,
         topological_decay_lambda=config.decay_lambda,
+        eval_mode=config.eval_mode,
     )
     evaluator.fit(X_train, y_train_tilde)
 
@@ -301,6 +305,7 @@ def run_single_experiment(
     summary_dict["seed"] = config.seed
     summary_dict["surrogate_type"] = config.surrogate_type
     summary_dict["surrogate"] = config.surrogate_type
+    summary_dict["eval_mode"] = config.eval_mode
     summary_dict["n_test"] = len(point_df)
 
 
