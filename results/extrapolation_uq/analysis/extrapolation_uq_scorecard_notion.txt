@@ -1,29 +1,41 @@
 # 📊 Extrapolation UQ Calibration Scorecard & Hypothesis Evaluation
 
-> **Key Takeaway:** Open-loop extrapolation reveals that PLCB exhibits boundary leaf saturation (mean distance correlation = -0.450), refuting open-loop distance monotonicity. However, this bounded uncertainty functions as an **Implicit Trust Region**, resolving the **BBOB Optimization Paradox** by shielding closed-loop BO from SLCB's **Hallucinated Exploration Trap** and driving 133 W / 7 L closed-loop dominance.
+> **Key Takeaway:** Open-loop extrapolation reveals that PLCB exhibits boundary leaf saturation (mean distance correlation = -0.398), refuting open-loop distance monotonicity. However, this bounded uncertainty functions as an **Implicit Trust Region**, resolving the **BBOB Optimization Paradox** by shielding closed-loop BO from SLCB's **Hallucinated Exploration Trap** and driving 133 W / 7 L closed-loop dominance.
 
 ## 🎯 Hypothesis Status
 
 - ✅ **Hypothesis 1 (SLCB Monotonicity Collapse): CONFIRMED**
   - SLCB uncertainty correlation with distance degrades toward zero / negative in D ≥ 16.
 - ❌ **Hypothesis 2 (PLCB Distance Sensitivity): REFUTED (Open-Loop Extrapolation)**
-  - PLCB uncertainty does not monotonically increase with distance (mean = -0.450, 0W / 24L) due to boundary leaf saturation.
+  - PLCB uncertainty does not monotonically increase with distance (mean = -0.398, 1019W / 8581L) due to boundary leaf saturation.
 - ⚠️ **Hypothesis 3 (Coverage & Winkler Scores): REFUTED / SLCB ADVANTAGE (Open-Loop)**
-  - In open-loop test sets, SLCB achieved lower Winkler penalty (222.4 vs 246.1) and closer coverage error (0.6803 vs 0.7317).
+  - In open-loop test sets, SLCB achieved lower Winkler penalty (149.1 vs 170.7) and closer coverage error (0.5029 vs 0.6776).
 
 ## 📈 Master Scorecard Table
 
 | Dimension | Strategy | PLCB Dist Corr | SLCB Dist Corr | p-value | Cliff's δ | Win/Loss | PLCB Winkler | SLCB Winkler | PLCB AUROC | SLCB AUROC |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| D=2 | natural | -0.338 | 0.132 | 3.1e-02 | -1.00 | 0W / 6L | 148.5 | 119.3 | 0.311 | 0.440 |
-| D=2 | stratified | -0.693 | 0.441 | 3.1e-02 | -1.00 | 0W / 6L | 168.9 | 146.8 | 0.248 | 0.563 |
-| D=16 | natural | -0.140 | 0.040 | 3.1e-02 | -1.00 | 0W / 6L | 460.8 | 428.2 | 0.438 | 0.509 |
-| D=16 | stratified | -0.631 | 0.680 | 3.1e-02 | -1.00 | 0W / 6L | 206.4 | 195.4 | 0.259 | 0.714 |
-| D=2 | All | -0.515 | 0.287 | 2.2e-03 | -1.00 | 0W / 12L | 158.7 | 133.1 | 0.280 | 0.501 |
-| D=16 | All | -0.385 | 0.360 | 2.2e-03 | -1.00 | 0W / 12L | 333.6 | 311.8 | 0.348 | 0.612 |
-| All | natural | -0.239 | 0.086 | 2.2e-03 | -1.00 | 0W / 12L | 304.6 | 273.8 | 0.375 | 0.474 |
-| All | stratified | -0.662 | 0.561 | 2.2e-03 | -1.00 | 0W / 12L | 187.6 | 171.1 | 0.253 | 0.639 |
-| All | All | -0.450 | 0.323 | 1.8e-05 | -1.00 | 0W / 24L | 246.1 | 222.4 | 0.314 | 0.556 |
+| D=2 | natural | -0.259 | 0.021 | 2.3e-94 | -0.47 | 143W / 657L | 84.3 | 61.7 | 0.393 | 0.557 |
+| D=2 | stratified | -0.503 | 0.115 | 1.5e-109 | -0.53 | 119W / 681L | 101.5 | 83.5 | 0.412 | 0.691 |
+| D=3 | natural | -0.273 | -0.111 | 6.7e-66 | -0.35 | 191W / 609L | 106.7 | 82.2 | 0.374 | 0.488 |
+| D=3 | stratified | -0.511 | 0.190 | 2.5e-115 | -0.63 | 72W / 728L | 104.3 | 86.3 | 0.426 | 0.700 |
+| D=5 | natural | -0.278 | -0.145 | 1.9e-67 | -0.36 | 177W / 623L | 144.1 | 116.3 | 0.380 | 0.467 |
+| D=5 | stratified | -0.605 | 0.262 | 3.4e-124 | -0.79 | 34W / 766L | 111.0 | 93.8 | 0.460 | 0.666 |
+| D=8 | natural | -0.244 | -0.102 | 6.1e-84 | -0.46 | 125W / 675L | 193.8 | 163.2 | 0.393 | 0.485 |
+| D=8 | stratified | -0.632 | 0.346 | 6.6e-127 | -0.89 | 26W / 774L | 124.5 | 109.2 | 0.508 | 0.588 |
+| D=16 | natural | -0.175 | -0.033 | 3.1e-108 | -0.68 | 70W / 730L | 286.6 | 254.9 | 0.421 | 0.498 |
+| D=16 | stratified | -0.605 | 0.464 | 1.2e-130 | -0.96 | 18W / 782L | 154.3 | 142.3 | 0.537 | 0.506 |
+| D=32 | natural | -0.116 | 0.015 | 1.3e-127 | -0.85 | 36W / 764L | 422.4 | 391.1 | 0.450 | 0.514 |
+| D=32 | stratified | -0.570 | 0.548 | 2.6e-132 | -0.98 | 8W / 792L | 215.4 | 204.8 | 0.546 | 0.490 |
+| D=2 | All | -0.381 | 0.068 | 2.7e-203 | -0.51 | 262W / 1338L | 92.9 | 72.6 | 0.402 | 0.624 |
+| D=3 | All | -0.392 | 0.040 | 2.4e-185 | -0.53 | 263W / 1337L | 105.5 | 84.2 | 0.400 | 0.594 |
+| D=5 | All | -0.442 | 0.058 | 2.7e-201 | -0.62 | 211W / 1389L | 127.6 | 105.1 | 0.420 | 0.567 |
+| D=8 | All | -0.438 | 0.122 | 8.5e-218 | -0.72 | 151W / 1449L | 159.1 | 136.2 | 0.450 | 0.537 |
+| D=16 | All | -0.390 | 0.215 | 5.5e-240 | -0.84 | 88W / 1512L | 220.4 | 198.6 | 0.479 | 0.502 |
+| D=32 | All | -0.343 | 0.282 | 3.2e-256 | -0.92 | 44W / 1556L | 318.9 | 298.0 | 0.498 | 0.502 |
+| All | natural | -0.224 | -0.059 | 0.0e+00 | -0.46 | 742W / 4058L | 206.3 | 178.3 | 0.402 | 0.501 |
+| All | stratified | -0.571 | 0.321 | 0.0e+00 | -0.79 | 277W / 4523L | 135.2 | 120.0 | 0.482 | 0.607 |
+| All | All | -0.398 | 0.131 | 0.0e+00 | -0.67 | 1019W / 8581L | 170.7 | 149.1 | 0.442 | 0.554 |
 
 ## 📌 Notes & Legend
 - **Dist Corr:** Spearman rank correlation between convex hull projection distance and uncertainty.
