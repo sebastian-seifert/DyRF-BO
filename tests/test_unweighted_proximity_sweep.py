@@ -444,3 +444,22 @@ class TestSlurmDispatchers:
         content = self.RUN_SH.read_text(encoding="utf-8")
         assert "scripts/generate_unweighted_proximity_sweep_tasks.py" in content
         assert "submit_unweighted_proximity_sweep_array.sbatch" in content
+
+    def test_submit_part1_and_part2_scripts_exist_and_configured(self):
+        part1_sh = REPO_ROOT / "scripts" / "submit_unweighted_proximity_part1.sh"
+        part2_sh = REPO_ROOT / "scripts" / "submit_unweighted_proximity_part2.sh"
+
+        assert part1_sh.exists(), "part1 script should exist"
+        assert part2_sh.exists(), "part2 script should exist"
+
+        assert bool(part1_sh.stat().st_mode & stat.S_IXUSR), "part1 script must be executable"
+        assert bool(part2_sh.stat().st_mode & stat.S_IXUSR), "part2 script must be executable"
+
+        p1_content = part1_sh.read_text(encoding="utf-8")
+        assert "START_TASK=1" in p1_content
+        assert "END_TASK=5000" in p1_content
+
+        p2_content = part2_sh.read_text(encoding="utf-8")
+        assert "START_TASK=5001" in p2_content
+        assert "END_TASK=9600" in p2_content
+
