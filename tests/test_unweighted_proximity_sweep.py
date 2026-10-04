@@ -414,6 +414,19 @@ class TestAggregateUnweightedProximityResults:
         assert "Low-D" in md_text or "D <= 5" in md_text
         assert "High-D" in md_text or "D >= 16" in md_text
 
+    def test_progress_logging_output(self, mock_results_dir, capsys):
+        from scripts.aggregate_unweighted_proximity_results import generate_unweighted_scorecard
+
+        output_dir = mock_results_dir / "analysis_progress"
+        generate_unweighted_scorecard(
+            raw_dir=mock_results_dir / "raw",
+            output_dir=output_dir,
+        )
+        captured = capsys.readouterr()
+        # Verify progress output was printed
+        assert "[Aggregation]" in captured.out
+        assert "%" in captured.out
+
 
 # ---------------------------------------------------------------------------
 # Test 4: SLURM Dispatchers

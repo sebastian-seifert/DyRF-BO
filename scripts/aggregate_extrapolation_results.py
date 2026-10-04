@@ -294,9 +294,18 @@ def load_summary_records(summaries_dir: str | Path) -> pd.DataFrame:
     if not json_files:
         return pd.DataFrame()
 
+    total_json = len(json_files)
+    print(f"[Aggregation] Loading {total_json} summary records from '{p}'...")
     records: List[Dict[str, Any]] = []
+    last_bucket = 0
 
-    for fpath in json_files:
+    for idx, fpath in enumerate(json_files, start=1):
+        pct = int((idx / total_json) * 100)
+        bucket = pct // 10
+        if bucket > last_bucket:
+            print(f"[Aggregation] Progress: {bucket * 10}% ({idx}/{total_json} summaries loaded)")
+            last_bucket = bucket
+
         try:
             with open(fpath, "r", encoding="utf-8") as f:
                 data = json.load(f)

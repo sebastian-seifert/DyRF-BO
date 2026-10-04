@@ -236,19 +236,43 @@ def collect_experiment_records(
     if raw_dir is not None:
         p_dir = Path(raw_dir)
         if p_dir.is_dir():
-            for f in sorted(p_dir.glob("*.parquet")):
-                rec = extract_record_from_parquet(f)
-                if rec is not None:
-                    records.append(rec)
+            parquet_files = sorted(p_dir.glob("*.parquet"))
+            total_files = len(parquet_files)
+            if total_files > 0:
+                print(f"[Aggregation] Processing {total_files} Parquet run files from '{p_dir}'...")
+                last_bucket = 0
+                for idx, f in enumerate(parquet_files, start=1):
+                    rec = extract_record_from_parquet(f)
+                    if rec is not None:
+                        records.append(rec)
+                    pct = int((idx / total_files) * 100)
+                    bucket = pct // 10
+                    if bucket > last_bucket:
+                        print(f"[Aggregation] Progress: {bucket * 10}% ({idx}/{total_files} files processed)")
+                        last_bucket = bucket
+                if last_bucket == 0 and total_files > 0:
+                    print(f"[Aggregation] Progress: 100% ({total_files}/{total_files} files processed)")
 
     # Priority 2: Summary JSON files (if no parquet records found or supplementary)
     if not records and summary_dir is not None:
         s_dir = Path(summary_dir)
         if s_dir.is_dir():
-            for f in sorted(s_dir.glob("*.json")):
-                rec = extract_record_from_summary(f)
-                if rec is not None:
-                    records.append(rec)
+            json_files = sorted(s_dir.glob("*.json"))
+            total_files = len(json_files)
+            if total_files > 0:
+                print(f"[Aggregation] Processing {total_files} summary JSON files from '{s_dir}'...")
+                last_bucket = 0
+                for idx, f in enumerate(json_files, start=1):
+                    rec = extract_record_from_summary(f)
+                    if rec is not None:
+                        records.append(rec)
+                    pct = int((idx / total_files) * 100)
+                    bucket = pct // 10
+                    if bucket > last_bucket:
+                        print(f"[Aggregation] Progress: {bucket * 10}% ({idx}/{total_files} files processed)")
+                        last_bucket = bucket
+                if last_bucket == 0 and total_files > 0:
+                    print(f"[Aggregation] Progress: 100% ({total_files}/{total_files} files processed)")
 
     if not records:
         return pd.DataFrame()
