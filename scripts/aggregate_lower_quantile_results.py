@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregator and Scorecard Generator for Lower-Quantile UQ Sweep (Milestone 3).
+"""Aggregator and Scorecard Generator for Lower-Quantile UQ Sweep.
 
 Reads raw evaluation Parquets and summary JSONs from lower-quantile UQ sweep runs,
 evaluates distance-uncertainty correlation metrics:
@@ -8,14 +8,25 @@ evaluates distance-uncertainty correlation metrics:
 - Delta(rho)
 - Normalized rank monotonicity: (1 + rho) / 2
 
-Generates comprehensive scorecards comparing:
-- Proximity A (u_prox_a_lower)
-- Proximity B (u_prox_b_lower)
-- Proximity AC (u_prox_ac_lower)
-- Proximity BC (u_prox_bc_lower)
-- Proximity LCB (u_plcb_lower)
-against non-proximity baselines (SLCB/Hutter, RF-FIRE, Shaker epistemic)
-as well as head-to-head proximity variants (e.g. AC vs A, BC vs B, B vs A).
+Generates comprehensive scorecards:
+1. Absolute Performance Leaderboard (Rank, Method, Category, rho_norm, rho_inf, Monotonicity)
+2. Pairwise Comparative Scorecards comparing:
+   - Proximity A (u_prox_a_lower)
+   - Proximity B (u_prox_b_lower)
+   - Proximity AC (u_prox_ac_lower)
+   - Proximity BC (u_prox_bc_lower)
+   - Proximity LCB (u_plcb_lower)
+   against all non-proximity baselines:
+   - SLCB / Hutter Total (u_slcb / u_hutter_total)
+   - Hutter Between / Epistemic (u_hutter_between)
+   - Hutter Within / Aleatoric (u_hutter_within)
+   - Shaker Epistemic (u_shaker_epistemic)
+   - Shaker Total (u_shaker_total)
+   - Shaker Mutual Information (shaker_mi)
+   - Shaker Total Entropy (shaker_total_entropy)
+   - RF-FIRE (u_rf_fire_lower)
+   as well as internal proximity variants (AC vs A, BC vs B, B vs A, BC vs AC, PLCB vs A).
+3. Surrogate Architecture Breakdown (performance across smac_default, mature, shallow, coarse, breiman).
 
 Stratified across:
 - Low-D (D <= 5)
@@ -23,14 +34,17 @@ Stratified across:
 - All Dimensions
 
 Outputs:
-- table_lower_quantile_scorecard.csv
-- table_lower_quantile_scorecard.md
+- table_lower_quantile_scorecard.csv / .md
+- table_lower_quantile_leaderboard.csv / .md
+- table_lower_quantile_by_surrogate.csv / .md
 """
 
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -55,6 +69,95 @@ PARQUET_PATTERN = re.compile(
 SUMMARY_PATTERN = re.compile(
     r"^summary_(?P<func>.+?)_d(?P<dim>\d+)_n(?P<n_train>\d+)_(?P<strat>[a-zA-Z0-9_]+?)(?:_(?P<surr>[a-zA-Z0-9_]+?))?_s(?P<seed>\d+)\.json$"
 )
+
+# Complete candidate column mapping for all evaluated methods
+ESTIMATOR_COL_MAP: Dict[str, List[str]] = {
+    # Proximity variants (all unweighted tree walks)
+    "prox_a": ["u_prox_a_lower", "u_prox_a_unweighted_lower", "u_prox_a_unweighted", "u_prox_a"],
+    "prox_b": ["u_prox_b_lower", "u_prox_b"],
+    "prox_ac": ["u_prox_ac_lower", "u_prox_ac"],
+    "prox_bc": ["u_prox_bc_lower", "u_prox_bc"],
+    "plcb": ["u_plcb_lower", "u_plcb", "u_plcb_unweighted_lower", "u_plcb_unweighted"],
+    # Non-proximity baselines
+    "slcb": ["u_slcb", "u_hutter_total", "slcb", "hutter_total"],
+    "hutter_between": ["u_hutter_between", "hutter_between"],
+    "hutter_within": ["u_hutter_within", "hutter_within"],
+    "shaker": ["u_shaker_epistemic", "shaker_epistemic"],
+    "shaker_total": ["u_shaker_total", "shaker_total"],
+    "shaker_mi": ["shaker_mi", "u_shaker_mi"],
+    "shaker_total_entropy": ["shaker_total_entropy", "u_shaker_total_entropy"],
+    "rf_fire": ["u_rf_fire_lower", "u_rf_fire", "rf_fire"],
+}
+
+# Complete key candidates in summary JSON files
+ESTIMATOR_KEY_MAP: Dict[str, List[str]] = {
+    "prox_a": ["u_prox_a_lower", "prox_a", "u_prox_a_unweighted_lower"],
+    "prox_b": ["u_prox_b_lower", "prox_b"],
+    "prox_ac": ["u_prox_ac_lower", "prox_ac"],
+    "prox_bc": ["u_prox_bc_lower", "prox_bc"],
+    "plcb": ["u_plcb_lower", "plcb", "u_plcb_unweighted_lower"],
+    "slcb": ["u_slcb", "slcb", "u_hutter_total", "hutter_total"],
+    "hutter_between": ["u_hutter_between", "hutter_between"],
+    "hutter_within": ["u_hutter_within", "hutter_within"],
+    "shaker": ["u_shaker_epistemic", "shaker_epistemic"],
+    "shaker_total": ["u_shaker_total", "shaker_total"],
+    "shaker_mi": ["shaker_mi", "u_shaker_mi"],
+    "shaker_total_entropy": ["shaker_total_entropy", "u_shaker_total_entropy"],
+    "rf_fire": ["u_rf_fire_lower", "rf_fire"],
+}
+
+# Human-readable labels and categories for methods
+ESTIMATOR_META: Dict[str, Dict[str, str]] = {
+    "prox_a": {"name": "Proximity A (TNS Top-k)", "category": "Proximity (Unweighted)"},
+    "prox_b": {"name": "Proximity B (TWQ Continuous)", "category": "Proximity (Unweighted)"},
+    "prox_ac": {"name": "Proximity AC (TNS + Density)", "category": "Proximity (Unweighted)"},
+    "prox_bc": {"name": "Proximity BC (TWQ + Density)", "category": "Proximity (Unweighted)"},
+    "plcb": {"name": "PLCB (Adaptive Floor)", "category": "Proximity (Unweighted)"},
+    "slcb": {"name": "SLCB / Hutter Total", "category": "Baseline (Variance)"},
+    "hutter_between": {"name": "Hutter Between (Epistemic)", "category": "Baseline (Tree Disagreement)"},
+    "hutter_within": {"name": "Hutter Within (Aleatoric)", "category": "Baseline (Leaf Variance)"},
+    "shaker": {"name": "Shaker Epistemic", "category": "Baseline (Numerical Integration)"},
+    "shaker_total": {"name": "Shaker Total", "category": "Baseline (Numerical Integration)"},
+    "shaker_mi": {"name": "Shaker Mutual Information", "category": "Baseline (Information Theoretic)"},
+    "shaker_total_entropy": {"name": "Shaker Total Entropy", "category": "Baseline (Information Theoretic)"},
+    "rf_fire": {"name": "RF-FIRE Lower", "category": "Baseline (Volume Expansion)"},
+}
+
+# Defined pairwise comparisons: (test, ref, label)
+COMPARISONS: List[Tuple[str, str, str]] = [
+    # Proximity variants vs SLCB (Hutter Total) baseline
+    ("prox_a", "slcb", "prox_a vs slcb"),
+    ("prox_b", "slcb", "prox_b vs slcb"),
+    ("prox_ac", "slcb", "prox_ac vs slcb"),
+    ("prox_bc", "slcb", "prox_bc vs slcb"),
+    ("plcb", "slcb", "plcb vs slcb"),
+    # Proximity variants vs RF-FIRE
+    ("prox_a", "rf_fire", "prox_a vs rf_fire"),
+    ("prox_b", "rf_fire", "prox_b vs rf_fire"),
+    ("prox_ac", "rf_fire", "prox_ac vs rf_fire"),
+    ("prox_bc", "rf_fire", "prox_bc vs rf_fire"),
+    ("plcb", "rf_fire", "plcb vs rf_fire"),
+    # Proximity variants vs Shaker (Epistemic)
+    ("prox_a", "shaker", "prox_a vs shaker"),
+    ("prox_b", "shaker", "prox_b vs shaker"),
+    ("prox_ac", "shaker", "prox_ac vs shaker"),
+    ("prox_bc", "shaker", "prox_bc vs shaker"),
+    ("plcb", "shaker", "plcb vs shaker"),
+    # Proximity variants vs Hutter Between (Epistemic Disagreement)
+    ("prox_a", "hutter_between", "prox_a vs hutter_between"),
+    ("prox_b", "hutter_between", "prox_b vs hutter_between"),
+    ("prox_ac", "hutter_between", "prox_ac vs hutter_between"),
+    ("prox_bc", "hutter_between", "prox_bc vs hutter_between"),
+    ("plcb", "hutter_between", "plcb vs hutter_between"),
+    # Density multiplier C benefit
+    ("prox_ac", "prox_a", "prox_ac vs prox_a"),
+    ("prox_bc", "prox_b", "prox_bc vs prox_b"),
+    # Continuous quantile (B) vs Top-K (A)
+    ("prox_b", "prox_a", "prox_b vs prox_a"),
+    ("prox_bc", "prox_ac", "prox_bc vs prox_ac"),
+    # PLCB vs Proximity A
+    ("plcb", "prox_a", "plcb vs prox_a"),
+]
 
 
 def compute_spearman_rho(x: Sequence[float] | np.ndarray, y: Sequence[float] | np.ndarray) -> float:
@@ -107,15 +210,16 @@ def compute_paired_wilcoxon(
 
 
 def extract_record_from_parquet(filepath: Path) -> Optional[Dict[str, Any]]:
-    """Extract metrics from single run parquet file."""
+    """Extract metrics from a single run Parquet file."""
     m = PARQUET_PATTERN.match(filepath.name)
-    dim, n_train, func, strat, seed = None, None, None, None, None
+    dim, n_train, func, strat, surr, seed = None, None, None, None, None, None
     if m:
         gd = m.groupdict()
         dim = int(gd["dim"])
         n_train = int(gd["n_train"])
         func = gd["func"]
         strat = gd["strat"]
+        surr = gd.get("surr")
         seed = int(gd["seed"])
 
     try:
@@ -128,6 +232,9 @@ def extract_record_from_parquet(filepath: Path) -> Optional[Dict[str, Any]]:
         dim = int(df["dimension"].iloc[0])
     if dim is None:
         return None
+
+    if surr is None and "surrogate" in df.columns:
+        surr = str(df["surrogate"].iloc[0])
 
     d_norm = df["d_norm"].to_numpy() if "d_norm" in df.columns else None
     d_inf = df["d_inf"].to_numpy() if "d_inf" in df.columns else None
@@ -142,22 +249,11 @@ def extract_record_from_parquet(filepath: Path) -> Optional[Dict[str, Any]]:
         "n_train": n_train,
         "function": func,
         "strategy": strat,
+        "surrogate": surr or "smac_default",
         "seed": seed,
     }
 
-    # Map candidate column names for each target estimator
-    estimator_col_map = {
-        "prox_a": ["u_prox_a_lower", "u_prox_a_unweighted_lower", "u_prox_a_unweighted", "u_prox_a"],
-        "prox_b": ["u_prox_b_lower", "u_prox_b"],
-        "prox_ac": ["u_prox_ac_lower", "u_prox_ac"],
-        "prox_bc": ["u_prox_bc_lower", "u_prox_bc"],
-        "plcb": ["u_plcb_lower", "u_plcb", "u_plcb_unweighted_lower", "u_plcb_unweighted"],
-        "slcb": ["u_slcb", "u_hutter_total", "slcb", "hutter_total"],
-        "rf_fire": ["u_rf_fire_lower", "u_rf_fire", "rf_fire"],
-        "shaker": ["u_shaker_epistemic", "shaker_epistemic", "u_shaker_total"],
-    }
-
-    for est_name, col_candidates in estimator_col_map.items():
+    for est_name, col_candidates in ESTIMATOR_COL_MAP.items():
         arr = None
         for c in col_candidates:
             if c in df.columns:
@@ -171,7 +267,7 @@ def extract_record_from_parquet(filepath: Path) -> Optional[Dict[str, Any]]:
 
 
 def extract_record_from_summary(filepath: Path) -> Optional[Dict[str, Any]]:
-    """Extract metrics from single summary JSON file."""
+    """Extract metrics from a single summary JSON file."""
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -180,10 +276,14 @@ def extract_record_from_summary(filepath: Path) -> Optional[Dict[str, Any]]:
         return None
 
     dim = data.get("dimension")
-    if dim is None:
+    surr = data.get("surrogate") or data.get("surrogate_type")
+    if dim is None or surr is None:
         m = SUMMARY_PATTERN.match(filepath.name)
         if m:
-            dim = int(m.group("dim"))
+            if dim is None:
+                dim = int(m.group("dim"))
+            if surr is None:
+                surr = m.group("surr")
     if dim is None:
         return None
 
@@ -193,22 +293,12 @@ def extract_record_from_summary(filepath: Path) -> Optional[Dict[str, Any]]:
         "n_train": data.get("n_train"),
         "function": data.get("function_name"),
         "strategy": data.get("sampling_strategy"),
+        "surrogate": surr or "smac_default",
         "seed": data.get("seed"),
     }
 
     glob = data.get("global", {})
-    estimator_key_map = {
-        "prox_a": ["u_prox_a_lower", "prox_a", "u_prox_a_unweighted_lower"],
-        "prox_b": ["u_prox_b_lower", "prox_b"],
-        "prox_ac": ["u_prox_ac_lower", "prox_ac"],
-        "prox_bc": ["u_prox_bc_lower", "prox_bc"],
-        "plcb": ["u_plcb_lower", "plcb", "u_plcb_unweighted_lower"],
-        "slcb": ["u_slcb", "slcb", "u_hutter_total", "hutter_total"],
-        "rf_fire": ["u_rf_fire_lower", "rf_fire"],
-        "shaker": ["u_shaker_epistemic", "shaker_epistemic"],
-    }
-
-    for est_name, key_candidates in estimator_key_map.items():
+    for est_name, key_candidates in ESTIMATOR_KEY_MAP.items():
         m_dict = None
         for k in key_candidates:
             if k in glob:
@@ -225,21 +315,40 @@ def extract_record_from_summary(filepath: Path) -> Optional[Dict[str, Any]]:
 def collect_experiment_records(
     raw_dir: Optional[str | Path] = None,
     summary_dir: Optional[str | Path] = None,
+    prefer_summaries: bool = False,
+    workers: int = 4,
 ) -> pd.DataFrame:
-    """Collect metric records across parquet and summary JSON files."""
+    """Collect metric records across Parquet or summary JSON files.
+
+    Parameters
+    ----------
+    raw_dir : str | Path, optional
+        Directory containing raw Parquet files.
+    summary_dir : str | Path, optional
+        Directory containing summary JSON files.
+    prefer_summaries : bool, default=False
+        If True, reads small summary JSON files first, enabling ultra-fast (<5s) aggregation.
+    workers : int, default=4
+        Number of worker threads for parallel file ingestion.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame where each row is an experiment run with extracted metrics.
+    """
     records: List[Dict[str, Any]] = []
 
-    # Priority 1: Parquet files
-    if raw_dir is not None:
-        p_dir = Path(raw_dir)
-        if p_dir.is_dir():
-            parquet_files = sorted(p_dir.glob("*.parquet"))
-            total_files = len(parquet_files)
+    # Fast Mode: Priority Summary JSON files if requested
+    if prefer_summaries and summary_dir is not None:
+        s_dir = Path(summary_dir)
+        if s_dir.is_dir():
+            json_files = sorted(s_dir.glob("*.json"))
+            total_files = len(json_files)
             if total_files > 0:
-                print(f"[Aggregation] Processing {total_files} Parquet run files from '{p_dir}'...")
+                print(f"[Aggregation] Fast Mode: Processing {total_files} summary JSON files from '{s_dir}'...")
                 last_bucket = 0
-                for idx, f in enumerate(parquet_files, start=1):
-                    rec = extract_record_from_parquet(f)
+                for idx, f in enumerate(json_files, start=1):
+                    rec = extract_record_from_summary(f)
                     if rec is not None:
                         records.append(rec)
                     pct = int((idx / total_files) * 100)
@@ -249,15 +358,52 @@ def collect_experiment_records(
                         last_bucket = bucket
                 if last_bucket == 0 and total_files > 0:
                     print(f"[Aggregation] Progress: 100% ({total_files}/{total_files} files processed)")
+                return pd.DataFrame(records)
 
-    # Priority 2: Summary JSON files (supplementary if parquets empty)
+    # Standard Mode: Parquet files (with multi-threaded parallel read)
+    if raw_dir is not None:
+        p_dir = Path(raw_dir)
+        if p_dir.is_dir():
+            parquet_files = sorted(p_dir.glob("*.parquet"))
+            total_files = len(parquet_files)
+            if total_files > 0:
+                print(f"[Aggregation] Processing {total_files} Parquet run files with {workers} worker(s)...")
+                processed = 0
+                last_bucket = 0
+                if workers > 1 and total_files > 10:
+                    with ThreadPoolExecutor(max_workers=workers) as executor:
+                        futures = {executor.submit(extract_record_from_parquet, f): f for f in parquet_files}
+                        for fut in as_completed(futures):
+                            processed += 1
+                            rec = fut.result()
+                            if rec is not None:
+                                records.append(rec)
+                            pct = int((processed / total_files) * 100)
+                            bucket = pct // 10
+                            if bucket > last_bucket:
+                                print(f"[Aggregation] Progress: {bucket * 10}% ({processed}/{total_files} files processed)")
+                                last_bucket = bucket
+                else:
+                    for idx, f in enumerate(parquet_files, start=1):
+                        rec = extract_record_from_parquet(f)
+                        if rec is not None:
+                            records.append(rec)
+                        pct = int((idx / total_files) * 100)
+                        bucket = pct // 10
+                        if bucket > last_bucket:
+                            print(f"[Aggregation] Progress: {bucket * 10}% ({idx}/{total_files} files processed)")
+                            last_bucket = bucket
+                if last_bucket == 0 and total_files > 0:
+                    print(f"[Aggregation] Progress: 100% ({total_files}/{total_files} files processed)")
+
+    # Fallback to summaries if Parquets empty or not found
     if not records and summary_dir is not None:
         s_dir = Path(summary_dir)
         if s_dir.is_dir():
             json_files = sorted(s_dir.glob("*.json"))
             total_files = len(json_files)
             if total_files > 0:
-                print(f"[Aggregation] Processing {total_files} summary JSON files from '{s_dir}'...")
+                print(f"[Aggregation] Fallback: Processing {total_files} summary JSON files from '{s_dir}'...")
                 last_bucket = 0
                 for idx, f in enumerate(json_files, start=1):
                     rec = extract_record_from_summary(f)
@@ -284,31 +430,7 @@ def _build_scorecard_rows(
     """Build pairwise comparison rows for a specific dimension group."""
     rows: List[Dict[str, Any]] = []
 
-    # Defined comparisons: (estimator_test, estimator_ref, label)
-    comparisons = [
-        # Proximity variants vs SLCB baseline
-        ("prox_a", "slcb", "prox_a vs slcb"),
-        ("prox_b", "slcb", "prox_b vs slcb"),
-        ("prox_ac", "slcb", "prox_ac vs slcb"),
-        ("prox_bc", "slcb", "prox_bc vs slcb"),
-        ("plcb", "slcb", "plcb vs slcb"),
-        # Proximity variants vs RF-FIRE
-        ("prox_a", "rf_fire", "prox_a vs rf_fire"),
-        ("plcb", "rf_fire", "plcb vs rf_fire"),
-        # Proximity variants vs Shaker
-        ("prox_a", "shaker", "prox_a vs shaker"),
-        ("plcb", "shaker", "plcb vs shaker"),
-        # Density multiplier C benefit
-        ("prox_ac", "prox_a", "prox_ac vs prox_a"),
-        ("prox_bc", "prox_b", "prox_bc vs prox_b"),
-        # Continuous quantile (B) vs Top-K (A)
-        ("prox_b", "prox_a", "prox_b vs prox_a"),
-        ("prox_bc", "prox_ac", "prox_bc vs prox_ac"),
-        # PLCB vs Proximity A
-        ("plcb", "prox_a", "plcb vs prox_a"),
-    ]
-
-    for est_test, est_ref, comp_name in comparisons:
+    for est_test, est_ref, comp_name in COMPARISONS:
         col_test_norm = f"{est_test}_norm"
         col_ref_norm = f"{est_ref}_norm"
         col_test_inf = f"{est_test}_inf"
@@ -357,12 +479,99 @@ def _build_scorecard_rows(
     return rows
 
 
+def build_leaderboard(
+    df: pd.DataFrame,
+    dim_group_name: str,
+) -> pd.DataFrame:
+    """Build an absolute performance ranking leaderboard table."""
+    entries: List[Dict[str, Any]] = []
+
+    for est, meta in ESTIMATOR_META.items():
+        col_norm = f"{est}_norm"
+        col_inf = f"{est}_inf"
+        if col_norm in df.columns:
+            valid_norm = df[col_norm].dropna().to_numpy()
+            if len(valid_norm) > 0:
+                valid_inf = df[col_inf].dropna().to_numpy() if col_inf in df.columns else valid_norm
+                mean_norm = float(np.mean(valid_norm))
+                mean_inf = float(np.mean(valid_inf))
+                mono = float(np.mean((1.0 + valid_norm) / 2.0))
+                entries.append({
+                    "dimension_group": dim_group_name,
+                    "estimator": est,
+                    "name": meta["name"],
+                    "category": meta["category"],
+                    "n_runs": len(valid_norm),
+                    "spearman_norm": mean_norm,
+                    "spearman_inf": mean_inf,
+                    "norm_rank_monotonicity": mono,
+                })
+
+    if not entries:
+        return pd.DataFrame()
+
+    res_df = pd.DataFrame(entries)
+    res_df = res_df.sort_values(by="spearman_norm", ascending=False).reset_index(drop=True)
+    res_df.insert(0, "rank", np.arange(1, len(res_df) + 1))
+    return res_df
+
+
+def build_surrogate_breakdown(df_runs: pd.DataFrame) -> Tuple[pd.DataFrame, str]:
+    """Generate a breakdown of estimator performance per surrogate architecture."""
+    if df_runs.empty or "surrogate" not in df_runs.columns:
+        return pd.DataFrame(), ""
+
+    surrogates = sorted(df_runs["surrogate"].dropna().unique())
+    rows: List[Dict[str, Any]] = []
+
+    for s in surrogates:
+        sub_df = df_runs[df_runs["surrogate"] == s]
+        for est, meta in ESTIMATOR_META.items():
+            c_norm = f"{est}_norm"
+            if c_norm in sub_df.columns:
+                vals = sub_df[c_norm].dropna().to_numpy()
+                if len(vals) > 0:
+                    rows.append({
+                        "surrogate": s,
+                        "estimator": est,
+                        "name": meta["name"],
+                        "category": meta["category"],
+                        "n_runs": len(vals),
+                        "spearman_norm": float(np.mean(vals)),
+                        "norm_rank_monotonicity": float(np.mean((1.0 + vals) / 2.0)),
+                    })
+
+    if not rows:
+        return pd.DataFrame(), ""
+
+    surr_df = pd.DataFrame(rows)
+
+    md_lines = [
+        "# Lower-Quantile UQ: Surrogate Architecture Breakdown",
+        "",
+        "Empirical calibration performance of each UQ estimator stratified across the 5 Random Forest surrogates:",
+        "`smac_default`, `mature`, `shallow`, `coarse`, `breiman`.",
+        "",
+        "| Surrogate | Estimator | Category | N Runs | Spearman d_norm | Norm Monotonicity |",
+        "| :--- | :--- | :--- | ---: | ---: | ---: |",
+    ]
+    for _, r in surr_df.iterrows():
+        md_lines.append(
+            f"| `{r['surrogate']}` | `{r['estimator']}` | {r['category']} | {r['n_runs']} | "
+            f"{r['spearman_norm']:+.4f} | {r['norm_rank_monotonicity']:.4f} |"
+        )
+
+    return surr_df, "\n".join(md_lines)
+
+
 def generate_lower_quantile_scorecard(
     raw_dir: Optional[str | Path] = None,
     summary_dir: Optional[str | Path] = None,
     output_dir: str | Path = DEFAULT_OUTPUT_DIR,
+    prefer_summaries: bool = False,
+    workers: int = 4,
 ) -> Tuple[pd.DataFrame, str]:
-    """Generate lower-quantile scorecard CSV and Markdown files.
+    """Generate comprehensive lower-quantile scorecard, leaderboard, and surrogate tables.
 
     Parameters
     ----------
@@ -372,13 +581,22 @@ def generate_lower_quantile_scorecard(
         Directory containing summary JSON files.
     output_dir : str | Path, default=DEFAULT_OUTPUT_DIR
         Target directory to write CSV and Markdown scorecards.
+    prefer_summaries : bool, default=False
+        If True, reads summary JSON files for rapid aggregation.
+    workers : int, default=4
+        Worker threads for parallel file loading.
 
     Returns
     -------
     tuple[pd.DataFrame, str]
         Scorecard DataFrame and Markdown content string.
     """
-    df_runs = collect_experiment_records(raw_dir=raw_dir, summary_dir=summary_dir)
+    df_runs = collect_experiment_records(
+        raw_dir=raw_dir,
+        summary_dir=summary_dir,
+        prefer_summaries=prefer_summaries,
+        workers=workers,
+    )
 
     out_p = Path(output_dir)
     out_p.mkdir(parents=True, exist_ok=True)
@@ -403,12 +621,12 @@ def generate_lower_quantile_scorecard(
     low_d = df_runs[df_runs["dimension"] <= 5]
     high_d = df_runs[df_runs["dimension"] >= 16]
 
-    all_rows: List[Dict[str, Any]] = []
-    all_rows.extend(_build_scorecard_rows(low_d, "Low-D (D <= 5)"))
-    all_rows.extend(_build_scorecard_rows(high_d, "High-D (D >= 16)"))
-    all_rows.extend(_build_scorecard_rows(df_runs, "All Dimensions"))
-
-    scorecard_df = pd.DataFrame(all_rows)
+    # 1. Build Pairwise Scorecards
+    all_scorecard_rows: List[Dict[str, Any]] = []
+    all_scorecard_rows.extend(_build_scorecard_rows(low_d, "Low-D (D <= 5)"))
+    all_scorecard_rows.extend(_build_scorecard_rows(high_d, "High-D (D >= 16)"))
+    all_scorecard_rows.extend(_build_scorecard_rows(df_runs, "All Dimensions"))
+    scorecard_df = pd.DataFrame(all_scorecard_rows)
 
     md_lines: List[str] = [
         "# Lower-Quantile UQ Calibration Scorecard",
@@ -416,7 +634,7 @@ def generate_lower_quantile_scorecard(
         "## Executive Summary",
         "",
         "Empirical calibration scorecard comparing **Lower-Quantile Proximity UQ variants** (A, B, AC, BC, PLCB)",
-        "against classical non-proximity baselines (SLCB / Hutter Total, RF-FIRE, Shaker Epistemic).",
+        "against classical non-proximity baselines (SLCB / Hutter Total, Hutter Between, RF-FIRE, Shaker Epistemic).",
         "Evaluates Spearman rank correlation with Euclidean (d_norm) and Chebyshev (d_inf) projection distances,",
         "difference in distance alignment Delta(rho), and normalized rank monotonicity ((1 + rho) / 2).",
         "",
@@ -449,15 +667,57 @@ def generate_lower_quantile_scorecard(
     ])
 
     md_content = "\n".join(md_lines)
-
     csv_path = out_p / "table_lower_quantile_scorecard.csv"
     md_path = out_p / "table_lower_quantile_scorecard.md"
-
     scorecard_df.to_csv(csv_path, index=False)
     md_path.write_text(md_content, encoding="utf-8")
 
+    # 2. Build Absolute Performance Leaderboards
+    lb_all = build_leaderboard(df_runs, "All Dimensions")
+    lb_low = build_leaderboard(low_d, "Low-D (D <= 5)")
+    lb_high = build_leaderboard(high_d, "High-D (D >= 16)")
+
+    combined_lb = pd.concat([lb_all, lb_low, lb_high], ignore_index=True)
+    lb_csv_path = out_p / "table_lower_quantile_leaderboard.csv"
+    lb_md_path = out_p / "table_lower_quantile_leaderboard.md"
+    combined_lb.to_csv(lb_csv_path, index=False)
+
+    lb_md_lines = [
+        "# Lower-Quantile UQ Absolute Performance Leaderboard",
+        "",
+        "Absolute ranking of all evaluated UQ estimators sorted by mean Spearman rank correlation with distance.",
+        "",
+    ]
+    for grp_name, grp_df in [("All Dimensions", lb_all), ("Low-D (D <= 5)", lb_low), ("High-D (D >= 16)", lb_high)]:
+        lb_md_lines.extend([
+            f"### Leaderboard: {grp_name}",
+            "",
+            "| Rank | Estimator | Method Description | Category | N Runs | Spearman d_norm | Spearman d_inf | Norm Monotonicity |",
+            "| ---: | :--- | :--- | :--- | ---: | ---: | ---: | ---: |",
+        ])
+        for _, r in grp_df.iterrows():
+            lb_md_lines.append(
+                f"| **{r['rank']}** | `{r['estimator']}` | {r['name']} | {r['category']} | {r['n_runs']} | "
+                f"**{r['spearman_norm']:+.4f}** | {r['spearman_inf']:+.4f} | {r['norm_rank_monotonicity']:.4f} |"
+            )
+        lb_md_lines.append("")
+
+    lb_md_path.write_text("\n".join(lb_md_lines), encoding="utf-8")
+
+    # 3. Build Surrogate Breakdown Table
+    surr_df, surr_md = build_surrogate_breakdown(df_runs)
+    if not surr_df.empty:
+        surr_csv_path = out_p / "table_lower_quantile_by_surrogate.csv"
+        surr_md_path = out_p / "table_lower_quantile_by_surrogate.md"
+        surr_df.to_csv(surr_csv_path, index=False)
+        surr_md_path.write_text(surr_md, encoding="utf-8")
+
     print(f"Generated scorecard CSV -> {csv_path}")
     print(f"Generated scorecard Markdown -> {md_path}")
+    print(f"Generated leaderboard CSV -> {lb_csv_path}")
+    print(f"Generated leaderboard Markdown -> {lb_md_path}")
+    if not surr_df.empty:
+        print(f"Generated surrogate breakdown -> {out_p / 'table_lower_quantile_by_surrogate.md'}")
 
     return scorecard_df, md_content
 
@@ -465,7 +725,7 @@ def generate_lower_quantile_scorecard(
 def build_parser() -> argparse.ArgumentParser:
     """Build CLI parser for lower-quantile results aggregation."""
     parser = argparse.ArgumentParser(
-        description="Aggregate lower-quantile sweep results and generate scorecards."
+        description="Aggregate lower-quantile sweep results and generate scorecards, leaderboard, and surrogate analysis."
     )
     parser.add_argument(
         "--results-dir",
@@ -491,6 +751,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Output directory for generated scorecards (default: <results-dir>/analysis).",
     )
+    parser.add_argument(
+        "--use-summaries",
+        action="store_true",
+        help="Prioritize reading small JSON summaries for ultra-fast (<5s) scorecard generation.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=min(8, os.cpu_count() or 4),
+        help="Number of worker threads for parallel file loading (default: min(8, cpu_count)).",
+    )
     return parser
 
 
@@ -508,6 +779,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         raw_dir=raw_dir,
         summary_dir=summary_dir,
         output_dir=output_dir,
+        prefer_summaries=args.use_summaries,
+        workers=args.workers,
     )
     return 0
 

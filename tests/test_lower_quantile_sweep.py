@@ -374,6 +374,12 @@ class TestAggregateLowerQuantileResults:
             u_rf_fire_lower = d_norm * 0.5 + 0.15 * np.random.randn(M)
             u_shaker_epistemic = d_norm * 0.3 + 0.3 * np.random.randn(M)
 
+            u_hutter_between = d_norm * 0.35 + 0.1 * np.random.randn(M)
+            u_hutter_within = d_norm * 0.1 + 0.05 * np.random.randn(M)
+            u_shaker_total = d_norm * 0.38 + 0.2 * np.random.randn(M)
+            shaker_mi = d_norm * 0.25 + 0.1 * np.random.randn(M)
+            shaker_total_entropy = d_norm * 0.4 + 0.1 * np.random.randn(M)
+
             df = pd.DataFrame({
                 "point_id": np.arange(M),
                 "d_norm": d_norm,
@@ -390,9 +396,14 @@ class TestAggregateLowerQuantileResults:
                 "u_plcb_lower": u_plcb_lower,
                 "u_plcb": u_plcb_lower,
                 "u_hutter_total": u_hutter_total,
+                "u_hutter_between": u_hutter_between,
+                "u_hutter_within": u_hutter_within,
                 "u_slcb": u_slcb,
                 "u_rf_fire_lower": u_rf_fire_lower,
                 "u_shaker_epistemic": u_shaker_epistemic,
+                "u_shaker_total": u_shaker_total,
+                "shaker_mi": shaker_mi,
+                "shaker_total_entropy": shaker_total_entropy,
             })
             parquet_name = f"extrapolation_{func}_d{dim}_n{n_train}_{strat}_smac_default_s{seed}.parquet"
             df.to_parquet(raw_dir / parquet_name, index=False)
@@ -411,8 +422,14 @@ class TestAggregateLowerQuantileResults:
                     "u_prox_bc_lower": {"spearman_dist": 0.87, "spearman_err": 0.1},
                     "u_plcb_lower": {"spearman_dist": 0.86, "spearman_err": 0.1},
                     "u_slcb": {"spearman_dist": 0.45, "spearman_err": 0.1},
+                    "u_hutter_total": {"spearman_dist": 0.45, "spearman_err": 0.1},
+                    "u_hutter_between": {"spearman_dist": 0.40, "spearman_err": 0.1},
+                    "u_hutter_within": {"spearman_dist": 0.20, "spearman_err": 0.1},
                     "u_rf_fire_lower": {"spearman_dist": 0.50, "spearman_err": 0.1},
                     "u_shaker_epistemic": {"spearman_dist": 0.35, "spearman_err": 0.1},
+                    "u_shaker_total": {"spearman_dist": 0.38, "spearman_err": 0.1},
+                    "shaker_mi": {"spearman_dist": 0.25, "spearman_err": 0.1},
+                    "shaker_total_entropy": {"spearman_dist": 0.30, "spearman_err": 0.1},
                 },
             }
             summary_name = f"summary_{func}_d{dim}_n{n_train}_{strat}_smac_default_s{seed}.json"
@@ -468,7 +485,6 @@ class TestAggregateLowerQuantileResults:
 
         # Check comparisons include Proximity A, B, AC, BC, PLCB and non-proximity baselines
         comparisons = list(df["comparison"].unique())
-        comparisons_text = " ".join(comparisons)
 
         assert any("prox_a" in c for c in comparisons), "Scorecard must evaluate Proximity A"
         assert any("prox_b" in c for c in comparisons), "Scorecard must evaluate Proximity B"
@@ -491,6 +507,78 @@ class TestAggregateLowerQuantileResults:
         assert "prox_ac" in md_text
         assert "prox_bc" in md_text
         assert "plcb" in md_text
+
+    def test_extracts_all_non_proximity_baselines(self, mock_results_dir):
+        from scripts.aggregate_lower_quantile_results import collect_experiment_records
+
+        df_records = collect_experiment_records(raw_dir=mock_results_dir / "raw")
+        assert not df_records.empty
+
+        # Check all non-proximity baselines are recorded
+        for base in ["slcb", "hutter_between", "hutter_within", "shaker", "shaker_total", "shaker_mi", "shaker_total_entropy", "rf_fire"]:
+            assert f"{base}_norm" in df_records.columns, f"Expected {base}_norm in extracted records"
+
+    def test_generates_leaderboard_table_md_and_csv(self, mock_results_dir):
+        from scripts.aggregate_lower_quantile_results import generate_lower_quantile_scorecard
+
+        output_dir = mock_results_dir / "analysis_leaderboard"
+        generate_lower_quantile_scorecard(
+            raw_dir=mock_results_dir / "raw",
+            output_dir=output_dir,
+        )
+
+        lb_md = output_dir / "table_lower_quantile_leaderboard.md"
+        lb_csv = output_dir / "table_lower_quantile_leaderboard.csv"
+
+        assert lb_md.exists(), f"Expected {lb_md} to exist"
+        assert lb_csv.exists(), f"Expected {lb_csv} to exist"
+
+        df_lb = pd.read_csv(lb_csv)
+        assert "rank" in df_lb.columns
+        assert "estimator" in df_lb.columns
+        assert "spearman_norm" in df_lb.columns
+        assert "norm_rank_monotonicity" in df_lb.columns
+        assert "dimension_group" in df_lb.columns
+
+        # Verify Proximity variants and baselines are ranked
+        estimators = list(df_lb["estimator"].unique())
+        assert "prox_a" in estimators
+        assert "prox_b" in estimators
+        assert "prox_ac" in estimators
+        assert "prox_bc" in estimators
+        assert "plcb" in estimators
+
+    def test_use_summaries_flag(self, mock_results_dir):
+        from scripts.aggregate_lower_quantile_results import generate_lower_quantile_scorecard
+
+        output_dir = mock_results_dir / "analysis_summaries"
+        scorecard_df, md = generate_lower_quantile_scorecard(
+            summary_dir=mock_results_dir / "summaries",
+            prefer_summaries=True,
+            output_dir=output_dir,
+        )
+        assert not scorecard_df.empty
+        assert len(scorecard_df) > 0
+
+    def test_surrogate_breakdown_scorecard(self, mock_results_dir):
+        from scripts.aggregate_lower_quantile_results import generate_lower_quantile_scorecard
+
+        output_dir = mock_results_dir / "analysis_surrogate"
+        generate_lower_quantile_scorecard(
+            raw_dir=mock_results_dir / "raw",
+            output_dir=output_dir,
+        )
+
+        surr_md = output_dir / "table_lower_quantile_by_surrogate.md"
+        surr_csv = output_dir / "table_lower_quantile_by_surrogate.csv"
+
+        assert surr_md.exists(), f"Expected {surr_md} to exist"
+        assert surr_csv.exists(), f"Expected {surr_csv} to exist"
+
+        df_surr = pd.read_csv(surr_csv)
+        assert "surrogate" in df_surr.columns
+        assert "estimator" in df_surr.columns
+        assert "spearman_norm" in df_surr.columns
 
 
 # ---------------------------------------------------------------------------
