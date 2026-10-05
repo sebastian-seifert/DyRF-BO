@@ -20,7 +20,7 @@ from .samplers import (
     sample_subdomain_training,
 )
 from .test_objectives import StandardizedObjective, get_objective
-from .uq_evaluator import DualUQEvaluator, MultiUQEvaluator
+from .uq_evaluator import MultiUQEvaluator
 
 
 
@@ -64,6 +64,7 @@ class ExtrapolationRunConfig:
     n_trees: int = 10
     surrogate_type: str = "smac_default"
     eval_mode: str = "all"
+    weighted_proximity: bool = False
 
     def __init__(
         self,
@@ -80,6 +81,7 @@ class ExtrapolationRunConfig:
         surrogate_type: str = "smac_default",
         surrogate: str | None = None,
         eval_mode: str = "all",
+        weighted_proximity: bool = False,
     ):
         self.dimension = dimension
         self.n_train = n_train
@@ -93,6 +95,7 @@ class ExtrapolationRunConfig:
         self.n_trees = n_trees
         self.surrogate_type = surrogate if surrogate is not None else surrogate_type
         self.eval_mode = eval_mode
+        self.weighted_proximity = weighted_proximity
 
     @property
     def surrogate(self) -> str:
@@ -209,6 +212,7 @@ def run_single_experiment(
         epsilon=config.eps,
         topological_decay_lambda=config.decay_lambda,
         eval_mode=config.eval_mode,
+        weighted_proximity=config.weighted_proximity,
     )
     evaluator.fit(X_train, y_train_tilde)
 
@@ -232,7 +236,7 @@ def run_single_experiment(
         "y_true": np.asarray(y_true, dtype=np.float64),
         "y_hat": np.asarray(uq_res.y_hat, dtype=np.float64),
         "abs_error": np.asarray(abs_error, dtype=np.float64),
-        # Candidate estimators (15 signals + mi + entropy)
+        # Non-proximity baselines
         "u_hutter_total": np.asarray(uq_res.u_hutter_total, dtype=np.float64),
         "u_hutter_between": np.asarray(uq_res.u_hutter_between, dtype=np.float64),
         "u_hutter_within": np.asarray(uq_res.u_hutter_within, dtype=np.float64),
@@ -240,26 +244,14 @@ def run_single_experiment(
         "u_shaker_total": np.asarray(uq_res.u_shaker_total, dtype=np.float64),
         "shaker_mi": np.asarray(uq_res.shaker_mi, dtype=np.float64),
         "shaker_total_entropy": np.asarray(uq_res.shaker_total_entropy, dtype=np.float64),
-        "u_rf_fire_half": np.asarray(uq_res.u_rf_fire_half, dtype=np.float64),
         "u_rf_fire_lower": np.asarray(uq_res.u_rf_fire_lower, dtype=np.float64),
-        "u_prox_a_half": np.asarray(uq_res.u_prox_a_half, dtype=np.float64),
-        "u_prox_a_lower": np.asarray(uq_res.u_prox_a_lower, dtype=np.float64),
-        "u_prox_a_weighted_half": np.asarray(uq_res.u_prox_a_weighted_half, dtype=np.float64),
-        "u_prox_a_weighted_lower": np.asarray(uq_res.u_prox_a_weighted_lower, dtype=np.float64),
-        "u_prox_a_unweighted_half": np.asarray(uq_res.u_prox_a_unweighted_half, dtype=np.float64),
-        "u_prox_a_unweighted_lower": np.asarray(uq_res.u_prox_a_unweighted_lower, dtype=np.float64),
-        "u_prox_b_half": np.asarray(uq_res.u_prox_b_half, dtype=np.float64),
-        "u_prox_b_lower": np.asarray(uq_res.u_prox_b_lower, dtype=np.float64),
-        "u_prox_bc_half": np.asarray(uq_res.u_prox_bc_half, dtype=np.float64),
-        "u_prox_bc_lower": np.asarray(uq_res.u_prox_bc_lower, dtype=np.float64),
-        "u_plcb_half": np.asarray(uq_res.u_plcb_half, dtype=np.float64),
-        "u_plcb_lower": np.asarray(uq_res.u_plcb_lower, dtype=np.float64),
-        "u_plcb_weighted_half": np.asarray(uq_res.u_plcb_weighted_half, dtype=np.float64),
-        "u_plcb_weighted_lower": np.asarray(uq_res.u_plcb_weighted_lower, dtype=np.float64),
-        "u_plcb_unweighted_half": np.asarray(uq_res.u_plcb_unweighted_half, dtype=np.float64),
-        "u_plcb_unweighted_lower": np.asarray(uq_res.u_plcb_unweighted_lower, dtype=np.float64),
-        # Legacy aliases
         "u_slcb": np.asarray(uq_res.u_slcb, dtype=np.float64),
+        # Proximity (lower quantiles)
+        "u_prox_a_lower": np.asarray(uq_res.u_prox_a_lower, dtype=np.float64),
+        "u_prox_b_lower": np.asarray(uq_res.u_prox_b_lower, dtype=np.float64),
+        "u_prox_ac_lower": np.asarray(uq_res.u_prox_ac_lower, dtype=np.float64),
+        "u_prox_bc_lower": np.asarray(uq_res.u_prox_bc_lower, dtype=np.float64),
+        "u_plcb_lower": np.asarray(uq_res.u_plcb_lower, dtype=np.float64),
         "u_plcb": np.asarray(uq_res.u_plcb, dtype=np.float64),
         # Diagnostics
         "delta_floor": np.asarray(uq_res.delta_floor, dtype=np.float64),
@@ -289,15 +281,48 @@ def run_single_experiment(
         point_df.to_parquet(parquet_path, index=False, engine="pyarrow")
 
     # 12. Comprehensive calibration scorecard
+    active_uncertainties = {
+        # Active estimator names (using lower quantiles for quantile-based methods)
+        "slcb": uq_res.u_slcb,
+        "hutter_total": uq_res.u_hutter_total,
+        "hutter_between": uq_res.u_hutter_between,
+        "hutter_within": uq_res.u_hutter_within,
+        "shaker_epistemic": uq_res.u_shaker_epistemic,
+        "shaker_total": uq_res.u_shaker_total,
+        "rf_fire": uq_res.u_rf_fire_lower,
+        "prox_a": uq_res.u_prox_a_lower,
+        "prox_b": uq_res.u_prox_b_lower,
+        "prox_ac": uq_res.u_prox_ac_lower,
+        "prox_bc": uq_res.u_prox_bc_lower,
+        "plcb": uq_res.u_plcb_lower,
+        # Full field names with prefixes for backward compatibility
+        "u_hutter_total": uq_res.u_hutter_total,
+        "u_hutter_between": uq_res.u_hutter_between,
+        "u_hutter_within": uq_res.u_hutter_within,
+        "u_shaker_epistemic": uq_res.u_shaker_epistemic,
+        "u_shaker_total": uq_res.u_shaker_total,
+        "u_rf_fire_lower": uq_res.u_rf_fire_lower,
+        "u_prox_a_lower": uq_res.u_prox_a_lower,
+        "u_prox_b_lower": uq_res.u_prox_b_lower,
+        "u_prox_ac_lower": uq_res.u_prox_ac_lower,
+        "u_prox_bc_lower": uq_res.u_prox_bc_lower,
+        "u_plcb_lower": uq_res.u_plcb_lower,
+        "u_slcb": uq_res.u_slcb,
+        "u_plcb": uq_res.u_plcb,
+    }
+
     summary_dict = compute_comprehensive_metrics(
         y_true=y_true,
         y_hat=uq_res.y_hat,
-        u_slcb=uq_res.u_slcb,
-        u_plcb=uq_res.u_plcb,
         d_norm=proj_res.d_norm,
         strata_labels=strata_labels,
-        uq_result=uq_res,
+        uq_result=active_uncertainties,
     )
+    if "strata" in summary_dict and "strata_metrics" not in summary_dict:
+        summary_dict["strata_metrics"] = summary_dict["strata"]
+    elif "strata_metrics" in summary_dict and "strata" not in summary_dict:
+        summary_dict["strata"] = summary_dict["strata_metrics"]
+
     summary_dict["dimension"] = config.dimension
     summary_dict["n_train"] = config.n_train
     summary_dict["function_name"] = str(config.function_name)
@@ -308,6 +333,5 @@ def run_single_experiment(
     summary_dict["eval_mode"] = config.eval_mode
     summary_dict["n_test"] = len(point_df)
 
-
-    # 12. Return
+    # 13. Return
     return summary_dict, point_df

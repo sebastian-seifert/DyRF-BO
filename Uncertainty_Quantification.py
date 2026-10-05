@@ -41,6 +41,8 @@ from Hybrid_Proximity_Epistemic_UQ import HybridProximityEpistemicUQ
 # Helps on clusters where NVRTC does not directly support the GPU's native arch.
 os.environ.setdefault("CUPY_COMPILE_WITH_PTX", "1")
 
+args = None
+
 """
 Bachelor Thesis: Epistemic Uncertainty Quantification
 Primary Focus: Quantifying uncertainty due to lack of data/exploration (Epistemic).
@@ -561,7 +563,9 @@ def run_single_test(
                 rf, X_train, y_train, device="auto", batch_size="auto",
                 use_density_scaling=use_density_scaling,
                 density_scaling_alpha=density_scaling_alpha,
-                topological_decay_lambda=topological_decay_lambda
+                topological_decay_lambda=topological_decay_lambda,
+                weighting="leaf_normalized" if getattr(args, "weighted_proximity", False) else "unweighted_all",
+                weighted=getattr(args, "weighted_proximity", False)
             )
             if topological_decay_lambda is not None and topological_decay_lambda < 0:
                 prox_q.tune_lambda_oob()
@@ -571,7 +575,9 @@ def run_single_test(
                 rf, X_train, y_train, device="auto", batch_size="auto",
                 use_density_scaling=use_density_scaling,
                 density_scaling_alpha=density_scaling_alpha,
-                topological_decay_lambda=1.0
+                topological_decay_lambda=1.0,
+                weighting="leaf_normalized" if getattr(args, "weighted_proximity", False) else "unweighted_all",
+                weighted=getattr(args, "weighted_proximity", False)
             )
             prox_q.tune_lambda_oob()
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_neighbors, level=0.95)
@@ -586,14 +592,24 @@ def run_single_test(
                     for k_val in k_list:
                         if k_val == "auto": continue
                         p_key = f"Proximity_Baseline_L{l_val}_K{k_val}" if len(l_list) > 1 or len(k_list) > 1 else "Proximity_Baseline"
-                        prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, topological_decay_lambda=l_val)
+                        prox_q = GPUProximityRegressionUQ(
+                            rf, X_train, y_train, device="auto", batch_size="auto",
+                            use_density_scaling=False, topological_decay_lambda=l_val,
+                            weighting="leaf_normalized" if getattr(args, "weighted_proximity", False) else "unweighted_all",
+                            weighted=getattr(args, "weighted_proximity", False)
+                        )
                         uncertainties[p_key] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
 
             elif app == "Proximity_Method_B":
                 for l_val in l_list:
                     l_eff = 1.0 if l_val is None else l_val
                     p_key = f"Proximity_Method_B_L{l_eff}" if len(l_list) > 1 else "Proximity_Method_B"
-                    prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=False, topological_decay_lambda=l_eff)
+                    prox_q = GPUProximityRegressionUQ(
+                        rf, X_train, y_train, device="auto", batch_size="auto",
+                        use_density_scaling=False, topological_decay_lambda=l_eff,
+                        weighting="leaf_normalized" if getattr(args, "weighted_proximity", False) else "unweighted_all",
+                        weighted=getattr(args, "weighted_proximity", False)
+                    )
                     uncertainties[p_key] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
 
             elif app == "Proximity_Method_C":
@@ -603,7 +619,12 @@ def run_single_test(
                         for k_val in k_list:
                             if k_val == "auto": continue
                             p_key = f"Proximity_Method_C_L{l_eff}_A{a_val}_K{k_val}" if len(l_list) > 1 or len(a_list) > 1 or len(k_list) > 1 else "Proximity_Method_C"
-                            prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=True, density_scaling_alpha=a_val, topological_decay_lambda=l_eff)
+                            prox_q = GPUProximityRegressionUQ(
+                                rf, X_train, y_train, device="auto", batch_size="auto",
+                                use_density_scaling=True, density_scaling_alpha=a_val, topological_decay_lambda=l_eff,
+                                weighting="leaf_normalized" if getattr(args, "weighted_proximity", False) else "unweighted_all",
+                                weighted=getattr(args, "weighted_proximity", False)
+                            )
                             uncertainties[p_key] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
 
             elif app == "Proximity_Method_B_C":
@@ -611,14 +632,21 @@ def run_single_test(
                     l_eff = 5.0 if l_val is None else l_val
                     for a_val in a_list:
                         p_key = f"Proximity_Method_B_C_L{l_eff}_A{a_val}" if len(l_list) > 1 or len(a_list) > 1 else "Proximity_Method_B_C"
-                        prox_q = GPUProximityRegressionUQ(rf, X_train, y_train, device="auto", batch_size="auto", use_density_scaling=True, density_scaling_alpha=a_val, topological_decay_lambda=l_eff)
+                        prox_q = GPUProximityRegressionUQ(
+                            rf, X_train, y_train, device="auto", batch_size="auto",
+                            use_density_scaling=True, density_scaling_alpha=a_val, topological_decay_lambda=l_eff,
+                            weighting="leaf_normalized" if getattr(args, "weighted_proximity", False) else "unweighted_all",
+                            weighted=getattr(args, "weighted_proximity", False)
+                        )
                         uncertainties[p_key] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
         elif app == "Proximity_Method_B_Norm":
             prox_q = GPUProximityRegressionUQ(
                 rf, X_train, y_train, device="auto", batch_size="auto",
                 use_density_scaling=False,
                 topological_decay_lambda=1.0,
-                normalize_by_depth=True
+                normalize_by_depth=True,
+                weighting="leaf_normalized" if getattr(args, "weighted_proximity", False) else "unweighted_all",
+                weighted=getattr(args, "weighted_proximity", False)
             )
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
         elif app == "Proximity_Method_C_Norm":
@@ -627,7 +655,9 @@ def run_single_test(
                 use_density_scaling=True,
                 density_scaling_alpha=density_scaling_alpha,
                 topological_decay_lambda=5.0,
-                normalize_by_depth=True
+                normalize_by_depth=True,
+                weighting="leaf_normalized" if getattr(args, "weighted_proximity", False) else "unweighted_all",
+                weighted=getattr(args, "weighted_proximity", False)
             )
             k_val = 20 if isinstance(k_neighbors, str) and k_neighbors == "auto" else k_neighbors
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors=k_val, level=0.95)
@@ -637,7 +667,9 @@ def run_single_test(
                 use_density_scaling=True,
                 density_scaling_alpha=density_scaling_alpha,
                 topological_decay_lambda=5.0,
-                normalize_by_depth=True
+                normalize_by_depth=True,
+                weighting="leaf_normalized" if getattr(args, "weighted_proximity", False) else "unweighted_all",
+                weighted=getattr(args, "weighted_proximity", False)
             )
             uncertainties[app] = prox_q.compute_uq(X_test, n_neighbors="auto", level=0.95)
         elif app in ["Hybrid_Shaker_Entropy_L20", "Hybrid_Shaker_Entropy_L40", "Hybrid_Shaker_Entropy_L70"]:
@@ -651,7 +683,8 @@ def run_single_test(
                 lambda_blend=lambda_val,
                 k_neighbors=k_val,
                 device="auto",
-                batch_size="auto"
+                batch_size="auto",
+                weighted=getattr(args, "weighted_proximity", False)
             )
             uncertainties[app] = hybrid_q.compute_uq(X_test)
         elif app in ["Hybrid_Likelihood_L20", "Hybrid_Likelihood_L40", "Hybrid_Likelihood_L70"]:
@@ -665,7 +698,8 @@ def run_single_test(
                 lambda_blend=lambda_val,
                 k_neighbors=k_val,
                 device="auto",
-                batch_size="auto"
+                batch_size="auto",
+                weighted=getattr(args, "weighted_proximity", False)
             )
             uncertainties[app] = hybrid_q.compute_uq(X_test)
         t_app_end = time.perf_counter()
@@ -856,6 +890,7 @@ def parse_args_with_config(
             - Parsed command line namespace.
             - Structured master configuration object.
     """
+    global args
     import argparse
     from config_schema import BenchmarkMasterConfig, DataConfig, RFConfig, ExtractorConfig, ProximityConfig
 
@@ -871,6 +906,7 @@ def parse_args_with_config(
     parser.add_argument("--seed", type=int, default=None, help="Explicit single random seed to run (sets n_runs=1 and seed_offset=seed)")
     parser.add_argument("--debug_timing", action="store_true", help="Print detailed execution timings for each section during evaluation")
     parser.add_argument("--use_density_scaling", action="store_true", help="Use leaf density scaling to prevent the overconfidence trap in Proximity UQ")
+    parser.add_argument("--weighted_proximity", action="store_true", default=False, help="Use leaf-weighted proximity kernels across topological approaches")
     parser.add_argument("--density_scaling_alpha", type=str, default="1.0", help="Exponent parameter alpha (float or comma-separated list)")
     parser.add_argument("--topological_decay_lambda", type=str, default=None, help="Decay parameter lambda (float or comma-separated list)")
     parser.add_argument("--n_jobs", type=int, default=-1, help="Number of CPU cores for RF training")
@@ -927,6 +963,8 @@ def parse_args_with_config(
                 master_cfg.proximity.topological_decay_lambda = []
         if "k_neighbors" in explicit_keys:
             master_cfg.proximity.k_neighbors = [x.strip() for x in args.k_neighbors.split(",")]
+        if "weighted_proximity" in explicit_keys:
+            master_cfg.proximity.weighted = args.weighted_proximity
     else:
         seed_val = args.seed if args.seed is not None else args.seed_offset
         rf_cfg = RFConfig.from_preset(args.rf_config)
@@ -971,7 +1009,8 @@ def parse_args_with_config(
                 topological_decay_lambda=t_lambda,
                 k_neighbors=k_list,
                 use_density_scaling=args.use_density_scaling,
-                density_scaling_alpha=d_alpha
+                density_scaling_alpha=d_alpha,
+                weighted=args.weighted_proximity
             )
         )
 
@@ -984,6 +1023,7 @@ def parse_args_with_config(
     args.noise_std = master_cfg.data.noise_std
     args.id_split = master_cfg.data.id_split
     args.use_density_scaling = master_cfg.proximity.use_density_scaling
+    args.weighted_proximity = master_cfg.proximity.weighted
     args.approaches = ",".join(master_cfg.extractors.approaches)
     if master_cfg.proximity.topological_decay_lambda:
         args.topological_decay_lambda = ",".join(map(str, master_cfg.proximity.topological_decay_lambda))

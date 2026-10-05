@@ -26,48 +26,75 @@ class TestUnweightedProximityCore(unittest.TestCase):
         self.rf = RandomForestRegressor(n_estimators=10, max_depth=4, random_state=42, bootstrap=True)
         self.rf.fit(self.X_train, self.y_train)
 
-    def test_default_behavior_strictly_identical_to_legacy_leaf_normalized(self):
+    def test_default_initialization_is_unweighted(self):
         """
-        Verify that default GPUProximityRegressionUQ behaves 100% identically
-        to legacy weighted RF-GAP (use_leaf_weights=True / weighting='leaf_normalized').
+        Verify that default GPUProximityRegressionUQ defaults to unweighted ('unweighted_all'),
+        produces a strictly symmetric proximity matrix P = P^T, and self-identity diag(P) == 1.0.
+        Also check with topological tree path decay.
         """
-        # Test standard proximity (topological_decay_lambda=None)
+        # Standard binary proximity (no decay)
         uq_default = GPUProximityRegressionUQ(self.rf, self.X_train, self.y_train, device="cpu")
-        uq_explicit = GPUProximityRegressionUQ(
-            self.rf, self.X_train, self.y_train, device="cpu",
-            weighting="leaf_normalized", use_leaf_weights=True
-        )
+        self.assertEqual(uq_default.weighting, "unweighted_all")
 
-        p_mat_default = uq_default.compute_proximity_matrix(self.X_test)
-        p_mat_explicit = uq_explicit.compute_proximity_matrix(self.X_test)
-        np.testing.assert_allclose(p_mat_default, p_mat_explicit, rtol=1e-7, atol=1e-7)
+        P_default = uq_default.compute_proximity_matrix(self.X_train)
+        n_samples = len(self.X_train)
+        self.assertEqual(P_default.shape, (n_samples, n_samples))
+        np.testing.assert_allclose(P_default, P_default.T, atol=1e-6, err_msg="Default proximity matrix is not symmetric!")
+        np.testing.assert_allclose(np.diag(P_default), 1.0, atol=1e-6, err_msg="Default self-proximity is not 1.0!")
 
-        uq_sig_default = uq_default.compute_uq(self.X_test)
-        uq_sig_explicit = uq_explicit.compute_uq(self.X_test)
-        np.testing.assert_allclose(uq_sig_default, uq_sig_explicit, rtol=1e-7, atol=1e-7)
-
-        pred_res_default = uq_default.predict_with_intervals(self.X_test, return_mae=True)
-        pred_res_explicit = uq_explicit.predict_with_intervals(self.X_test, return_mae=True)
-        for d, e in zip(pred_res_default, pred_res_explicit):
-            np.testing.assert_allclose(d, e, rtol=1e-7, atol=1e-7)
-
-        # Test topological proximity (topological_decay_lambda=1.2)
+        # Topological proximity
         uq_topo_default = GPUProximityRegressionUQ(
             self.rf, self.X_train, self.y_train, device="cpu", topological_decay_lambda=1.2
         )
-        uq_topo_explicit = GPUProximityRegressionUQ(
-            self.rf, self.X_train, self.y_train, device="cpu", topological_decay_lambda=1.2,
-            weighting="leaf_normalized", use_leaf_weights=True
+        self.assertEqual(uq_topo_default.weighting, "unweighted_all")
+        P_topo = uq_topo_default.compute_proximity_matrix(self.X_train)
+        np.testing.assert_allclose(P_topo, P_topo.T, atol=1e-6, err_msg="Topological P(X, X) not symmetric!")
+        np.testing.assert_allclose(np.diag(P_topo), 1.0, atol=1e-6, err_msg="Topological self-proximity not 1.0!")
+
+    def test_explicit_weighted_flags_produce_legacy_weighted(self):
+        """
+        Verify that explicit flag weighted=True (or use_leaf_weights=True, or weighting='leaf_normalized')
+        produces the legacy weighted matrix (scaled by leaf weights) across all methods.
+        """
+        uq_weighted = GPUProximityRegressionUQ(
+            self.rf, self.X_train, self.y_train, device="cpu", weighted=True
+        )
+        uq_leaf = GPUProximityRegressionUQ(
+            self.rf, self.X_train, self.y_train, device="cpu", use_leaf_weights=True
+        )
+        uq_norm = GPUProximityRegressionUQ(
+            self.rf, self.X_train, self.y_train, device="cpu", weighting="leaf_normalized"
         )
 
-        p_mat_topo_default = uq_topo_default.compute_proximity_matrix(self.X_test)
-        p_mat_topo_explicit = uq_topo_explicit.compute_proximity_matrix(self.X_test)
-        np.testing.assert_allclose(p_mat_topo_default, p_mat_topo_explicit, rtol=1e-7, atol=1e-7)
+        for uq in (uq_weighted, uq_leaf, uq_norm):
+            self.assertEqual(uq.weighting, "leaf_normalized")
 
-        pred_topo_default = uq_topo_default.predict_with_intervals(self.X_test, return_mae=True)
-        pred_topo_explicit = uq_topo_explicit.predict_with_intervals(self.X_test, return_mae=True)
-        for d, e in zip(pred_topo_default, pred_topo_explicit):
-            np.testing.assert_allclose(d, e, rtol=1e-7, atol=1e-7)
+        # Proximity matrix on X_test matches across all three
+        p_mat_weighted = uq_weighted.compute_proximity_matrix(self.X_test)
+        p_mat_leaf = uq_leaf.compute_proximity_matrix(self.X_test)
+        p_mat_norm = uq_norm.compute_proximity_matrix(self.X_test)
+        np.testing.assert_allclose(p_mat_weighted, p_mat_leaf, rtol=1e-7, atol=1e-7)
+        np.testing.assert_allclose(p_mat_weighted, p_mat_norm, rtol=1e-7, atol=1e-7)
+
+        # compute_uq matches across all three
+        uq_sig_weighted = uq_weighted.compute_uq(self.X_test)
+        uq_sig_leaf = uq_leaf.compute_uq(self.X_test)
+        uq_sig_norm = uq_norm.compute_uq(self.X_test)
+        np.testing.assert_allclose(uq_sig_weighted, uq_sig_leaf, rtol=1e-7, atol=1e-7)
+        np.testing.assert_allclose(uq_sig_weighted, uq_sig_norm, rtol=1e-7, atol=1e-7)
+
+        # predict_with_intervals matches across all three
+        pred_weighted = uq_weighted.predict_with_intervals(self.X_test, return_mae=True)
+        pred_leaf = uq_leaf.predict_with_intervals(self.X_test, return_mae=True)
+        pred_norm = uq_norm.predict_with_intervals(self.X_test, return_mae=True)
+        for w, l, m in zip(pred_weighted, pred_leaf, pred_norm):
+            np.testing.assert_allclose(w, l, rtol=1e-7, atol=1e-7)
+            np.testing.assert_allclose(w, m, rtol=1e-7, atol=1e-7)
+
+        # Confirm that the weighted matrix is scaled by leaf weights (not symmetric, diag != 1.0)
+        P_train_weighted = uq_weighted.compute_proximity_matrix(self.X_train)
+        self.assertFalse(np.allclose(np.diag(P_train_weighted), 1.0, atol=1e-3))
+        self.assertFalse(np.allclose(P_train_weighted, P_train_weighted.T, atol=1e-3))
 
     def test_option_a_strictly_symmetric_and_self_identity_binary(self):
         """
@@ -160,25 +187,67 @@ class TestUnweightedProximityCore(unittest.TestCase):
         self.assertEqual(len(pred_mid), 2)
         self.assertTrue(np.all(pred_lwr <= pred_upr))
 
-    def test_predict_with_intervals_runtime_weighting_override(self):
+    def test_runtime_weighting_and_weighted_override(self):
         """
-        Verify that predict_with_intervals and compute_uq accept weighting and use_leaf_weights overrides.
+        Verify that compute_proximity_matrix, compute_uq, and predict_with_intervals
+        default to unweighted and accept weighted: bool | None = None override.
         """
         uq = GPUProximityRegressionUQ(self.rf, self.X_train, self.y_train, device="cpu")
-        self.assertEqual(uq.weighting, "leaf_normalized")
+        self.assertEqual(uq.weighting, "unweighted_all")
 
-        # Explicitly request unweighted_all at prediction time
-        res_override = uq.predict_with_intervals(self.X_test, weighting="unweighted_all")
-        res_model = GPUProximityRegressionUQ(
+        uq_unweighted = GPUProximityRegressionUQ(
             self.rf, self.X_train, self.y_train, device="cpu", weighting="unweighted_all"
-        ).predict_with_intervals(self.X_test)
+        )
+        uq_weighted = GPUProximityRegressionUQ(
+            self.rf, self.X_train, self.y_train, device="cpu", weighted=True
+        )
 
-        for a, b in zip(res_override, res_model):
+        # 1. compute_proximity_matrix defaults to unweighted
+        p_default = uq.compute_proximity_matrix(self.X_test)
+        p_unweighted = uq_unweighted.compute_proximity_matrix(self.X_test)
+        p_weighted = uq_weighted.compute_proximity_matrix(self.X_test)
+        np.testing.assert_allclose(p_default, p_unweighted, rtol=1e-7, atol=1e-7)
+        self.assertFalse(np.allclose(p_default, p_weighted, atol=1e-3))
+
+        # compute_proximity_matrix with weighted=True override
+        p_override_weighted = uq.compute_proximity_matrix(self.X_test, weighted=True)
+        np.testing.assert_allclose(p_override_weighted, p_weighted, rtol=1e-7, atol=1e-7)
+
+        # compute_proximity_matrix with weighted=False override
+        p_override_unweighted = uq.compute_proximity_matrix(self.X_test, weighted=False)
+        np.testing.assert_allclose(p_override_unweighted, p_unweighted, rtol=1e-7, atol=1e-7)
+
+        # 2. compute_uq defaults to unweighted
+        uq_sig_default = uq.compute_uq(self.X_test)
+        uq_sig_unweighted = uq_unweighted.compute_uq(self.X_test)
+        uq_sig_weighted = uq_weighted.compute_uq(self.X_test)
+        np.testing.assert_allclose(uq_sig_default, uq_sig_unweighted, rtol=1e-7, atol=1e-7)
+
+        uq_sig_override = uq.compute_uq(self.X_test, weighted=True)
+        np.testing.assert_allclose(uq_sig_override, uq_sig_weighted, rtol=1e-7, atol=1e-7)
+
+        # 3. predict_with_intervals defaults to unweighted
+        pred_default = uq.predict_with_intervals(self.X_test, return_mae=True)
+        pred_unweighted = uq_unweighted.predict_with_intervals(self.X_test, return_mae=True)
+        pred_weighted = uq_weighted.predict_with_intervals(self.X_test, return_mae=True)
+        for d, u in zip(pred_default, pred_unweighted):
+            np.testing.assert_allclose(d, u, rtol=1e-7, atol=1e-7)
+
+        pred_override = uq.predict_with_intervals(self.X_test, return_mae=True, weighted=True)
+        for o, w in zip(pred_override, pred_weighted):
+            np.testing.assert_allclose(o, w, rtol=1e-7, atol=1e-7)
+
+        pred_override_unweighted = uq.predict_with_intervals(self.X_test, return_mae=True, weighted=False)
+        for o, u in zip(pred_override_unweighted, pred_unweighted):
+            np.testing.assert_allclose(o, u, rtol=1e-7, atol=1e-7)
+
+        # Also verify legacy weighting and use_leaf_weights overrides still work
+        res_override = uq.predict_with_intervals(self.X_test, weighting="leaf_normalized")
+        for a, b in zip(res_override, pred_weighted):
             np.testing.assert_allclose(a, b, rtol=1e-6, atol=1e-6)
 
-        # Override via use_leaf_weights=False
-        res_override_bool = uq.predict_with_intervals(self.X_test, use_leaf_weights=False)
-        for a, b in zip(res_override_bool, res_model):
+        res_override_bool = uq.predict_with_intervals(self.X_test, use_leaf_weights=True)
+        for a, b in zip(res_override_bool, pred_weighted):
             np.testing.assert_allclose(a, b, rtol=1e-6, atol=1e-6)
 
     def test_extractor_integration_proximity_b_and_standard(self):
@@ -245,9 +314,12 @@ class TestUnweightedProximityCore(unittest.TestCase):
         acq2 = ProximityLowerBoundAcquisition(eps=0.15, level=0.95, k=10, use_leaf_weights=False)
         self.assertEqual(acq2._weighting, "unweighted")
 
-        # Case 3: Default is "weighted"
+        # Case 3: Default is "unweighted"
         acq_def = ProximityLowerBoundAcquisition(eps=0.15, level=0.95, k=10)
-        self.assertEqual(acq_def._weighting, "weighted")
+        self.assertEqual(acq_def._weighting, "unweighted")
+        self.assertFalse(acq_def._weighted)
+        self.assertEqual(acq_def.meta["weighting"], "unweighted")
+        self.assertFalse(acq_def.meta["weighted"])
 
         # Mock surrogate to verify arguments passed to predict_with_intervals
         class CallRecordingSurrogate:
@@ -306,10 +378,24 @@ class TestUnweightedProximityCore(unittest.TestCase):
 
     def test_resolve_runtime_weighting_validation(self):
         """
-        Verify that _resolve_runtime_weighting validates the weighting string against known
+        Verify that _resolve_runtime_weighting defaults to self.weighting ('unweighted_all'),
+        handles weighted: bool | None = None, validates the weighting string against known
         options and raises ValueError for unknown weighting schemes.
         """
         uq = GPUProximityRegressionUQ(self.rf, self.X_train, self.y_train, device="cpu")
+        self.assertEqual(uq.weighting, "unweighted_all")
+
+        # Default resolves to unweighted_all
+        self.assertEqual(uq._resolve_runtime_weighting(), "unweighted_all")
+
+        # weighted boolean overrides
+        self.assertEqual(uq._resolve_runtime_weighting(weighted=True), "leaf_normalized")
+        self.assertEqual(uq._resolve_runtime_weighting(weighted=False), "unweighted_all")
+
+        # use_leaf_weights overrides
+        self.assertEqual(uq._resolve_runtime_weighting(use_leaf_weights=True), "leaf_normalized")
+        self.assertEqual(uq._resolve_runtime_weighting(use_leaf_weights=False), "unweighted_all")
+
         valid_options = {"leaf_normalized", "weighted", "unweighted_all", "unweighted", "unweighted_inbag"}
         for opt in valid_options:
             res = uq._resolve_runtime_weighting(weighting=opt)

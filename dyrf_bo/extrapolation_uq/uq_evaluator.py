@@ -1,16 +1,17 @@
 """Multi-UQ and Dual Uncertainty Quantification Inference Engine.
 
-Evaluates 10 candidate uncertainty quantification methods across tree ensembles:
+Evaluates candidate uncertainty quantification methods across tree ensembles:
 1. Hutter Total: 1.96 * sqrt(var_between + var_within) [Alias: u_slcb]
 2. Hutter Between: 1.96 * sqrt(var_between) (ddof=1)
 3. Hutter Within: 1.96 * sqrt(var_within)
 4. Shaker Epistemic: 1.96 * sigma_aleatoric * sqrt(4^MI - 1) via Huber closed-form entropy
 5. Shaker Total: 1.96 * sqrt( 2^(2*H_total) / (2*pi*e) ) via Huber GMM entropy-power
-6. RF-FIRE: Standard Proximity (k=28, lambda=0, eps=0) -> (half, lower)
-7. Proximity A: Topological Path Distance (k=28, lambda=0.20486, eps=0) -> (half, lower)
-8. Proximity B: Topological Continuous Distance (k="auto", lambda=0.20486, eps=0) -> (half, lower)
-9. Proximity B+C: Topological Continuous + Density Scaling (k="auto", lambda=0.20486, alpha=1.0) -> (half, lower)
-10. Proximity LCB: Pure Extracted Exploration Term (k=28, lambda=0.20486, eps=0.080791) -> (half, lower) [Alias: u_plcb]
+6. RF-FIRE Lower: Standard Proximity lower quantile exploration term
+7. Proximity A Lower: Pure unweighted topological path distance (fixed-k lower quantile)
+8. Proximity B Lower: Pure unweighted topological continuous weighted lower quantile
+9. Proximity AC Lower: Proximity A lower quantile combined with Density Scaling C
+10. Proximity BC Lower: Proximity B lower quantile combined with Density Scaling C
+11. Proximity LCB Lower: Pure Extracted Exploration Term with floor [Alias: u_plcb]
 """
 
 from __future__ import annotations
@@ -256,42 +257,18 @@ class MultiUQResult:
         Mutual information in bits of shape (M,).
     shaker_total_entropy : np.ndarray
         GMM total differential entropy in bits of shape (M,).
-    u_rf_fire_half : np.ndarray
-        RF-FIRE prediction interval half-width of shape (M,).
     u_rf_fire_lower : np.ndarray
         RF-FIRE lower quantile exploration term of shape (M,).
-    u_prox_a_half : np.ndarray
-        Proximity A prediction interval half-width of shape (M,).
     u_prox_a_lower : np.ndarray
-        Proximity A lower quantile exploration term of shape (M,).
-    u_prox_a_weighted_half : np.ndarray
-        Weighted (RF-GAP) Proximity A prediction interval half-width of shape (M,).
-    u_prox_a_weighted_lower : np.ndarray
-        Weighted (RF-GAP) Proximity A lower quantile exploration term of shape (M,).
-    u_prox_a_unweighted_half : np.ndarray
-        Unweighted Proximity A prediction interval half-width of shape (M,).
-    u_prox_a_unweighted_lower : np.ndarray
-        Unweighted Proximity A lower quantile exploration term of shape (M,).
-    u_prox_b_half : np.ndarray
-        Proximity B prediction interval half-width of shape (M,).
+        Proximity A (Topological Path Distance, unweighted tree walk) lower quantile exploration term of shape (M,).
     u_prox_b_lower : np.ndarray
-        Proximity B lower quantile exploration term of shape (M,).
-    u_prox_bc_half : np.ndarray
-        Proximity B+C density-scaled interval half-width of shape (M,).
+        Proximity B (Topological Continuous Distance, unweighted tree walk) lower quantile exploration term of shape (M,).
+    u_prox_ac_lower : np.ndarray
+        Proximity AC (Proximity A combined with Density Scaling C) lower quantile exploration term of shape (M,).
     u_prox_bc_lower : np.ndarray
-        Proximity B+C density-scaled lower quantile exploration term of shape (M,).
-    u_plcb_half : np.ndarray
-        Proximity LCB prediction interval half-width of shape (M,).
+        Proximity BC (Proximity B combined with Density Scaling C) lower quantile exploration term of shape (M,).
     u_plcb_lower : np.ndarray
         Proximity LCB lower quantile exploration term with floor of shape (M,).
-    u_plcb_weighted_half : np.ndarray
-        Weighted (RF-GAP) Proximity LCB prediction interval half-width of shape (M,).
-    u_plcb_weighted_lower : np.ndarray
-        Weighted (RF-GAP) Proximity LCB lower quantile exploration term with floor of shape (M,).
-    u_plcb_unweighted_half : np.ndarray
-        Unweighted Proximity LCB prediction interval half-width of shape (M,).
-    u_plcb_unweighted_lower : np.ndarray
-        Unweighted Proximity LCB lower quantile exploration term with floor of shape (M,).
     """
 
     y_hat: np.ndarray
@@ -310,24 +287,12 @@ class MultiUQResult:
     u_shaker_total: np.ndarray
     shaker_mi: np.ndarray
     shaker_total_entropy: np.ndarray
-    u_rf_fire_half: np.ndarray
     u_rf_fire_lower: np.ndarray
-    u_prox_a_half: np.ndarray
     u_prox_a_lower: np.ndarray
-    u_prox_a_weighted_half: np.ndarray
-    u_prox_a_weighted_lower: np.ndarray
-    u_prox_a_unweighted_half: np.ndarray
-    u_prox_a_unweighted_lower: np.ndarray
-    u_prox_b_half: np.ndarray
     u_prox_b_lower: np.ndarray
-    u_prox_bc_half: np.ndarray
+    u_prox_ac_lower: np.ndarray
     u_prox_bc_lower: np.ndarray
-    u_plcb_half: np.ndarray
     u_plcb_lower: np.ndarray
-    u_plcb_weighted_half: np.ndarray
-    u_plcb_weighted_lower: np.ndarray
-    u_plcb_unweighted_half: np.ndarray
-    u_plcb_unweighted_lower: np.ndarray
 
     def __getitem__(self, key: str) -> np.ndarray:
         if hasattr(self, key) and not key.startswith("_"):
@@ -359,24 +324,12 @@ class MultiUQResult:
             "u_shaker_total",
             "shaker_mi",
             "shaker_total_entropy",
-            "u_rf_fire_half",
             "u_rf_fire_lower",
-            "u_prox_a_half",
             "u_prox_a_lower",
-            "u_prox_a_weighted_half",
-            "u_prox_a_weighted_lower",
-            "u_prox_a_unweighted_half",
-            "u_prox_a_unweighted_lower",
-            "u_prox_b_half",
             "u_prox_b_lower",
-            "u_prox_bc_half",
+            "u_prox_ac_lower",
             "u_prox_bc_lower",
-            "u_plcb_half",
             "u_plcb_lower",
-            "u_plcb_weighted_half",
-            "u_plcb_weighted_lower",
-            "u_plcb_unweighted_half",
-            "u_plcb_unweighted_lower",
             "u_slcb",
             "u_plcb",
             "var_between",
@@ -409,26 +362,27 @@ class MultiUQResult:
             "u_hutter_within": self.u_hutter_within,
             "u_shaker_epistemic": self.u_shaker_epistemic,
             "u_shaker_total": self.u_shaker_total,
-            "u_rf_fire_half": self.u_rf_fire_half,
             "u_rf_fire_lower": self.u_rf_fire_lower,
-            "u_prox_a_half": self.u_prox_a_half,
             "u_prox_a_lower": self.u_prox_a_lower,
-            "u_prox_a_weighted_half": self.u_prox_a_weighted_half,
-            "u_prox_a_weighted_lower": self.u_prox_a_weighted_lower,
-            "u_prox_a_unweighted_half": self.u_prox_a_unweighted_half,
-            "u_prox_a_unweighted_lower": self.u_prox_a_unweighted_lower,
-            "u_prox_b_half": self.u_prox_b_half,
             "u_prox_b_lower": self.u_prox_b_lower,
-            "u_prox_bc_half": self.u_prox_bc_half,
+            "u_prox_ac_lower": self.u_prox_ac_lower,
             "u_prox_bc_lower": self.u_prox_bc_lower,
-            "u_plcb_half": self.u_plcb_half,
             "u_plcb_lower": self.u_plcb_lower,
-            "u_plcb_weighted_half": self.u_plcb_weighted_half,
-            "u_plcb_weighted_lower": self.u_plcb_weighted_lower,
-            "u_plcb_unweighted_half": self.u_plcb_unweighted_half,
-            "u_plcb_unweighted_lower": self.u_plcb_unweighted_lower,
             "u_slcb": self.u_slcb,
             "u_plcb": self.u_plcb,
+            # Active estimator names for lower quantiles
+            "hutter_total": self.u_hutter_total,
+            "hutter_between": self.u_hutter_between,
+            "hutter_within": self.u_hutter_within,
+            "shaker_epistemic": self.u_shaker_epistemic,
+            "shaker_total": self.u_shaker_total,
+            "rf_fire": self.u_rf_fire_lower,
+            "prox_a": self.u_prox_a_lower,
+            "prox_b": self.u_prox_b_lower,
+            "prox_ac": self.u_prox_ac_lower,
+            "prox_bc": self.u_prox_bc_lower,
+            "plcb": self.u_plcb_lower,
+            "slcb": self.u_slcb,
         }
 
 
@@ -507,6 +461,7 @@ class MultiUQEvaluator:
         batch_size: Union[int, str] = 512,
         surrogate_type: str = "smac_default",
         eval_mode: str = "all",
+        weighted_proximity: bool = False,
         **kwargs: Any,
     ) -> None:
         if eval_mode not in ("all", "unweighted_proximity_only"):
@@ -516,6 +471,7 @@ class MultiUQEvaluator:
         self.eval_mode = eval_mode
         self.surrogate_type = surrogate_type
         self.seed = seed
+        self.weighted_proximity = weighted_proximity
 
         # Resolve n_trees: if explicitly overridden (kwargs or n_trees != 10), use override.
         # Otherwise respect surrogate defaults.
@@ -621,6 +577,8 @@ class MultiUQEvaluator:
             topological_decay_lambda=self.topological_decay_lambda,
             density_scaling_alpha=self.density_scaling_alpha,
             use_density_scaling=True,
+            weighting="leaf_normalized" if self.weighted_proximity else "unweighted_all",
+            weighted=self.weighted_proximity,
         )
         self.uq_model.fit()
 
@@ -767,24 +725,12 @@ class MultiUQEvaluator:
         )
 
         if has_precomputed_topo:
-            u_rf_fire_half = np.zeros(M, dtype=np.float64)
             u_rf_fire_lower = np.zeros(M, dtype=np.float64)
-            u_prox_a_half = np.zeros(M, dtype=np.float64)
             u_prox_a_lower = np.zeros(M, dtype=np.float64)
-            u_prox_a_weighted_half = np.zeros(M, dtype=np.float64)
-            u_prox_a_weighted_lower = np.zeros(M, dtype=np.float64)
-            u_prox_a_unweighted_half = np.zeros(M, dtype=np.float64)
-            u_prox_a_unweighted_lower = np.zeros(M, dtype=np.float64)
-            u_prox_b_half = np.zeros(M, dtype=np.float64)
             u_prox_b_lower = np.zeros(M, dtype=np.float64)
-            u_prox_bc_half = np.zeros(M, dtype=np.float64)
+            u_prox_ac_lower = np.zeros(M, dtype=np.float64)
             u_prox_bc_lower = np.zeros(M, dtype=np.float64)
-            u_plcb_half = np.zeros(M, dtype=np.float64)
             u_plcb_lower = np.zeros(M, dtype=np.float64)
-            u_plcb_weighted_half = np.zeros(M, dtype=np.float64)
-            u_plcb_weighted_lower = np.zeros(M, dtype=np.float64)
-            u_plcb_unweighted_half = np.zeros(M, dtype=np.float64)
-            u_plcb_unweighted_lower = np.zeros(M, dtype=np.float64)
             q_lower = np.zeros(M, dtype=np.float64)
             delta_floor = np.zeros(M, dtype=np.float64)
             local_mae = np.zeros(M, dtype=np.float64)
@@ -805,11 +751,9 @@ class MultiUQEvaluator:
                 X_chunk = X_test_2d[start:end, :]
                 leaf_batch = self.model.apply(X_chunk)
 
-                prox_topo_weighted = np.zeros((b_len, N_train), dtype=np.float32)
                 prox_topo_unweighted = np.zeros((b_len, N_train), dtype=np.float32)
-                if self.eval_mode != "unweighted_proximity_only":
-                    density_chunk = np.zeros(b_len, dtype=np.float32)
-                    prox_fire = np.zeros((b_len, N_train), dtype=np.float32)
+                density_chunk = np.zeros(b_len, dtype=np.float32)
+                prox_fire = np.zeros((b_len, N_train), dtype=np.float32)
 
                 for t in range(B):
                     id_to_dense = self.uq_model.tree_leaf_id_to_dense[t]
@@ -823,70 +767,30 @@ class MultiUQEvaluator:
                     if hasattr(tree_dists, "get"):
                         tree_dists = tree_dists.get()
 
-                    # Weighted (RF-GAP)
-                    d_t_weighted = tree_dists[dense_test[:, None], dense_train_inbag[None, :]]
-                    decay_t_weighted = np.exp(-self.topological_decay_lambda * d_t_weighted)
-
-                    train_w = self.uq_model.train_weights[:, t]
-                    prox_topo_weighted += decay_t_weighted * train_w[None, :]
-
-                    if self.eval_mode != "unweighted_proximity_only":
-                        in_bag_c = self.uq_model.in_bag_counts[:, t]
-                        density_chunk += np.sum(decay_t_weighted * in_bag_c[None, :], axis=1)
-
                     # Unweighted (Option A: pure Breiman topological across all trees)
                     d_t_unweighted = tree_dists[dense_test[:, None], dense_train_all[None, :]]
                     decay_t_unweighted = np.exp(-self.topological_decay_lambda * d_t_unweighted)
                     prox_topo_unweighted += decay_t_unweighted
 
-                    if self.eval_mode != "unweighted_proximity_only":
-                        matches_t = (leaf_batch[:, t, None] == self.uq_model.in_bag_leaves[None, :, t])
-                        prox_fire += matches_t * train_w[None, :]
+                    # Walked density sum for density scaling gamma
+                    d_t_inbag = tree_dists[dense_test[:, None], dense_train_inbag[None, :]]
+                    decay_t_inbag = np.exp(-self.topological_decay_lambda * d_t_inbag)
+                    in_bag_c = self.uq_model.in_bag_counts[:, t]
+                    density_chunk += np.sum(decay_t_inbag * in_bag_c[None, :], axis=1)
 
-                prox_topo_weighted /= B
+                    # RF-FIRE co-occurrence
+                    train_w = self.uq_model.train_weights[:, t]
+                    matches_t = (leaf_batch[:, t, None] == self.uq_model.in_bag_leaves[None, :, t])
+                    prox_fire += matches_t * train_w[None, :]
+
                 prox_topo_unweighted /= B
-                if self.eval_mode != "unweighted_proximity_only":
-                    prox_fire /= B
+                prox_fire /= B
 
                 if valid_oob_mask is not None:
-                    prox_topo_weighted[:, ~valid_oob_mask] = 0.0
                     prox_topo_unweighted[:, ~valid_oob_mask] = 0.0
-                    if self.eval_mode != "unweighted_proximity_only":
-                        prox_fire[:, ~valid_oob_mask] = 0.0
+                    prox_fire[:, ~valid_oob_mask] = 0.0
 
-                # 1a. Topological fixed-k weighted (proximity_a and proximity_lcb)
-                if k_eff < N_train:
-                    partition_idx_topo_w = np.flip(np.argsort(prox_topo_weighted, axis=1), axis=1)[:, :k_eff]
-                    k_residuals_topo_w = oob_res[partition_idx_topo_w]
-                else:
-                    k_residuals_topo_w = np.broadcast_to(oob_res[None, :], (b_len, N_train))
-
-                q_lwr_topo_w = np.quantile(k_residuals_topo_w, alpha_lwr, axis=1)
-                q_upr_topo_w = np.quantile(k_residuals_topo_w, alpha_upr, axis=1)
-
-                in_int_topo_w = (k_residuals_topo_w >= q_lwr_topo_w[:, None]) & (k_residuals_topo_w <= q_upr_topo_w[:, None])
-                cnt_topo_w = np.sum(in_int_topo_w, axis=1)
-                sum_abs_topo_w = np.sum(np.abs(k_residuals_topo_w) * in_int_topo_w, axis=1)
-                b_local_mae = np.where(
-                    cnt_topo_w > 0,
-                    sum_abs_topo_w / np.maximum(cnt_topo_w, 1),
-                    float(self.uq_model.oob_mae),
-                )
-                b_delta_floor = self.epsilon * self.kappa * b_local_mae
-
-                b_u_prox_a_weighted_half = (q_upr_topo_w - q_lwr_topo_w) / 2.0
-                b_u_prox_a_weighted_lower = np.maximum(0.0, -q_lwr_topo_w)
-
-                b_u_plcb_weighted_half = b_u_prox_a_weighted_half
-                b_u_plcb_weighted_lower = np.maximum(b_delta_floor, -q_lwr_topo_w)
-
-                # Legacy fields match weighted
-                b_u_prox_a_half = b_u_prox_a_weighted_half
-                b_u_prox_a_lower = b_u_prox_a_weighted_lower
-                b_u_plcb_half = b_u_plcb_weighted_half
-                b_u_plcb_lower = b_u_plcb_weighted_lower
-
-                # 1b. Topological fixed-k unweighted (pure Breiman topological)
+                # 1. Topological fixed-k unweighted (Proximity A & PLCB)
                 if k_eff < N_train:
                     partition_idx_topo_u = np.flip(np.argsort(prox_topo_unweighted, axis=1), axis=1)[:, :k_eff]
                     k_residuals_topo_u = oob_res[partition_idx_topo_u]
@@ -896,106 +800,80 @@ class MultiUQEvaluator:
                 q_lwr_topo_u = np.quantile(k_residuals_topo_u, alpha_lwr, axis=1)
                 q_upr_topo_u = np.quantile(k_residuals_topo_u, alpha_upr, axis=1)
 
-                b_u_prox_a_unweighted_half = (q_upr_topo_u - q_lwr_topo_u) / 2.0
-                b_u_prox_a_unweighted_lower = np.maximum(0.0, -q_lwr_topo_u)
+                in_int_topo_u = (k_residuals_topo_u >= q_lwr_topo_u[:, None]) & (k_residuals_topo_u <= q_upr_topo_u[:, None])
+                cnt_topo_u = np.sum(in_int_topo_u, axis=1)
+                sum_abs_topo_u = np.sum(np.abs(k_residuals_topo_u) * in_int_topo_u, axis=1)
+                b_local_mae_u = np.where(
+                    cnt_topo_u > 0,
+                    sum_abs_topo_u / np.maximum(cnt_topo_u, 1),
+                    float(self.uq_model.oob_mae),
+                )
+                b_delta_floor_u = self.epsilon * self.kappa * b_local_mae_u
 
-                b_u_plcb_unweighted_half = b_u_prox_a_unweighted_half
-                b_u_plcb_unweighted_lower = np.maximum(b_delta_floor, -q_lwr_topo_u)
+                # Proximity A
+                b_u_prox_a_lower = np.maximum(0.0, -q_lwr_topo_u)
 
-                if self.eval_mode != "unweighted_proximity_only":
-                    # 2. Continuous weighted quantiles (proximity_b and proximity_bc)
-                    q_lwr_b = self.uq_model._compute_weighted_quantile(oob_res, prox_topo_weighted, alpha_lwr)
-                    q_upr_b = self.uq_model._compute_weighted_quantile(oob_res, prox_topo_weighted, alpha_upr)
-                    if hasattr(q_lwr_b, "get"):
-                        q_lwr_b = q_lwr_b.get()
-                    if hasattr(q_upr_b, "get"):
-                        q_upr_b = q_upr_b.get()
+                # Continuous weighted quantile for Proximity B using unweighted tree-walk proximities
+                q_lwr_b_unw = self.uq_model._compute_weighted_quantile(oob_res, prox_topo_unweighted, alpha_lwr)
+                if hasattr(q_lwr_b_unw, "get"):
+                    q_lwr_b_unw = q_lwr_b_unw.get()
+                b_u_prox_b_lower = np.maximum(0.0, -q_lwr_b_unw)
 
-                    b_u_prox_b_half = (q_upr_b - q_lwr_b) / 2.0
-                    b_u_prox_b_lower = np.maximum(0.0, -q_lwr_b)
+                # Density scaling gamma
+                avg_test_leaf_sizes = density_chunk / B
+                avg_test_leaf_sizes = np.maximum(avg_test_leaf_sizes, 1e-5)
+                gamma = np.maximum(1.0, (n_baseline / avg_test_leaf_sizes) ** self.density_scaling_alpha)
 
-                    avg_test_leaf_sizes = density_chunk / B
-                    avg_test_leaf_sizes = np.maximum(avg_test_leaf_sizes, 1e-5)
-                    gamma = (n_baseline / avg_test_leaf_sizes) ** self.density_scaling_alpha
+                # Proximity AC (A combined with C)
+                b_u_prox_ac_lower = gamma * b_u_prox_a_lower
 
-                    b_u_prox_bc_half = gamma * b_u_prox_b_half
-                    b_u_prox_bc_lower = gamma * b_u_prox_b_lower
+                # Proximity BC (B combined with C)
+                b_u_prox_bc_lower = gamma * b_u_prox_b_lower
 
-                    # 3. RF-FIRE co-occurrence
-                    if k_eff < N_train:
-                        partition_idx_fire = np.flip(np.argsort(prox_fire, axis=1), axis=1)[:, :k_eff]
-                        k_residuals_fire = oob_res[partition_idx_fire]
-                    else:
-                        k_residuals_fire = np.broadcast_to(oob_res[None, :], (b_len, N_train))
+                # PLCB
+                b_u_plcb_lower = np.maximum(b_delta_floor_u, -q_lwr_topo_u)
 
-                    q_lwr_fire = np.quantile(k_residuals_fire, alpha_lwr, axis=1)
-                    q_upr_fire = np.quantile(k_residuals_fire, alpha_upr, axis=1)
-
-                    b_u_rf_fire_half = (q_upr_fire - q_lwr_fire) / 2.0
-                    b_u_rf_fire_lower = np.maximum(0.0, -q_lwr_fire)
-
-                    u_prox_b_half[start:end] = b_u_prox_b_half
-                    u_prox_b_lower[start:end] = b_u_prox_b_lower
-                    u_prox_bc_half[start:end] = b_u_prox_bc_half
-                    u_prox_bc_lower[start:end] = b_u_prox_bc_lower
-                    u_rf_fire_half[start:end] = b_u_rf_fire_half
-                    u_rf_fire_lower[start:end] = b_u_rf_fire_lower
+                # RF-FIRE lower quantile
+                if k_eff < N_train:
+                    partition_idx_fire = np.flip(np.argsort(prox_fire, axis=1), axis=1)[:, :k_eff]
+                    k_residuals_fire = oob_res[partition_idx_fire]
+                else:
+                    k_residuals_fire = np.broadcast_to(oob_res[None, :], (b_len, N_train))
+                q_lwr_fire = np.quantile(k_residuals_fire, alpha_lwr, axis=1)
+                b_u_rf_fire_lower = np.maximum(0.0, -q_lwr_fire)
 
                 # Store into output arrays
-                u_prox_a_half[start:end] = b_u_prox_a_half
                 u_prox_a_lower[start:end] = b_u_prox_a_lower
-                u_plcb_half[start:end] = b_u_plcb_half
+                u_prox_b_lower[start:end] = b_u_prox_b_lower
+                u_prox_ac_lower[start:end] = b_u_prox_ac_lower
+                u_prox_bc_lower[start:end] = b_u_prox_bc_lower
                 u_plcb_lower[start:end] = b_u_plcb_lower
+                u_rf_fire_lower[start:end] = b_u_rf_fire_lower
 
-                u_prox_a_weighted_half[start:end] = b_u_prox_a_weighted_half
-                u_prox_a_weighted_lower[start:end] = b_u_prox_a_weighted_lower
-                u_plcb_weighted_half[start:end] = b_u_plcb_weighted_half
-                u_plcb_weighted_lower[start:end] = b_u_plcb_weighted_lower
-
-                u_prox_a_unweighted_half[start:end] = b_u_prox_a_unweighted_half
-                u_prox_a_unweighted_lower[start:end] = b_u_prox_a_unweighted_lower
-                u_plcb_unweighted_half[start:end] = b_u_plcb_unweighted_half
-                u_plcb_unweighted_lower[start:end] = b_u_plcb_unweighted_lower
-
-                q_lower[start:end] = q_lwr_topo_w
-                delta_floor[start:end] = b_delta_floor
-                local_mae[start:end] = b_local_mae
+                q_lower[start:end] = q_lwr_topo_u
+                delta_floor[start:end] = b_delta_floor_u
+                local_mae[start:end] = b_local_mae_u
         else:
             # Fallback for mocked or non-topological UQ model
-            y_pred_lwr, _, y_pred_upr, b_local_mae = self.uq_model.predict_with_intervals(
+            y_pred_lwr, _, _, b_local_mae = self.uq_model.predict_with_intervals(
                 X_test_2d,
                 n_neighbors=k_eff,
                 level=self.level,
                 return_mae=True,
             )
             q_lower = (y_pred_lwr - y_hat).astype(np.float64)
-            q_upr = (y_pred_upr - y_hat).astype(np.float64)
             local_mae = np.asarray(b_local_mae, dtype=np.float64)
             delta_floor = self.epsilon * self.kappa * local_mae
 
             u_plcb_lower = np.maximum(delta_floor, -q_lower)
-            u_plcb_half = (q_upr - q_lower) / 2.0
-            u_prox_a_half = u_plcb_half
             u_prox_a_lower = np.maximum(0.0, -q_lower)
-            u_prox_a_weighted_half = u_prox_a_half
-            u_prox_a_weighted_lower = u_prox_a_lower
-            u_prox_a_unweighted_half = u_prox_a_half
-            u_prox_a_unweighted_lower = u_prox_a_lower
-            u_plcb_weighted_half = u_plcb_half
-            u_plcb_weighted_lower = u_plcb_lower
-            u_plcb_unweighted_half = u_plcb_half
-            u_plcb_unweighted_lower = u_plcb_lower
-            u_prox_b_half = u_plcb_half
             u_prox_b_lower = u_prox_a_lower
-            u_prox_bc_half = u_plcb_half
+            u_prox_ac_lower = u_prox_a_lower
             u_prox_bc_lower = u_prox_a_lower
-            u_rf_fire_half = u_plcb_half
             u_rf_fire_lower = u_prox_a_lower
 
-        if self.eval_mode == "unweighted_proximity_only":
-            u_plcb = u_plcb_unweighted_lower
-        else:
-            u_plcb = u_plcb_lower
+        u_slcb = u_hutter_total
+        u_plcb = u_plcb_lower
 
         return MultiUQResult(
             y_hat=y_hat,
@@ -1014,24 +892,12 @@ class MultiUQEvaluator:
             u_shaker_total=u_shaker_total,
             shaker_mi=shaker_mi,
             shaker_total_entropy=shaker_total_entropy,
-            u_rf_fire_half=u_rf_fire_half,
             u_rf_fire_lower=u_rf_fire_lower,
-            u_prox_a_half=u_prox_a_half,
             u_prox_a_lower=u_prox_a_lower,
-            u_prox_a_weighted_half=u_prox_a_weighted_half,
-            u_prox_a_weighted_lower=u_prox_a_weighted_lower,
-            u_prox_a_unweighted_half=u_prox_a_unweighted_half,
-            u_prox_a_unweighted_lower=u_prox_a_unweighted_lower,
-            u_prox_b_half=u_prox_b_half,
             u_prox_b_lower=u_prox_b_lower,
-            u_prox_bc_half=u_prox_bc_half,
+            u_prox_ac_lower=u_prox_ac_lower,
             u_prox_bc_lower=u_prox_bc_lower,
-            u_plcb_half=u_plcb_half,
             u_plcb_lower=u_plcb_lower,
-            u_plcb_weighted_half=u_plcb_weighted_half,
-            u_plcb_weighted_lower=u_plcb_weighted_lower,
-            u_plcb_unweighted_half=u_plcb_unweighted_half,
-            u_plcb_unweighted_lower=u_plcb_unweighted_lower,
         )
 
 
@@ -1047,9 +913,10 @@ class DualUQEvaluator(MultiUQEvaluator):
         self,
         *args: Any,
         eval_mode: str = "all",
+        weighted_proximity: bool = False,
         **kwargs: Any,
     ) -> None:
-        super().__init__(*args, eval_mode=eval_mode, **kwargs)
+        super().__init__(*args, eval_mode=eval_mode, weighted_proximity=weighted_proximity, **kwargs)
 
     def evaluate(self, X_test: np.ndarray) -> DualUQResult:
         """Evaluate both Standard SMAC3 LCB and Proximity LCB.
@@ -1077,22 +944,10 @@ class DualUQEvaluator(MultiUQEvaluator):
             u_shaker_total=multi_res.u_shaker_total,
             shaker_mi=multi_res.shaker_mi,
             shaker_total_entropy=multi_res.shaker_total_entropy,
-            u_rf_fire_half=multi_res.u_rf_fire_half,
             u_rf_fire_lower=multi_res.u_rf_fire_lower,
-            u_prox_a_half=multi_res.u_prox_a_half,
             u_prox_a_lower=multi_res.u_prox_a_lower,
-            u_prox_a_weighted_half=multi_res.u_prox_a_weighted_half,
-            u_prox_a_weighted_lower=multi_res.u_prox_a_weighted_lower,
-            u_prox_a_unweighted_half=multi_res.u_prox_a_unweighted_half,
-            u_prox_a_unweighted_lower=multi_res.u_prox_a_unweighted_lower,
-            u_prox_b_half=multi_res.u_prox_b_half,
             u_prox_b_lower=multi_res.u_prox_b_lower,
-            u_prox_bc_half=multi_res.u_prox_bc_half,
+            u_prox_ac_lower=multi_res.u_prox_ac_lower,
             u_prox_bc_lower=multi_res.u_prox_bc_lower,
-            u_plcb_half=multi_res.u_plcb_half,
             u_plcb_lower=multi_res.u_plcb_lower,
-            u_plcb_weighted_half=multi_res.u_plcb_weighted_half,
-            u_plcb_weighted_lower=multi_res.u_plcb_weighted_lower,
-            u_plcb_unweighted_half=multi_res.u_plcb_unweighted_half,
-            u_plcb_unweighted_lower=multi_res.u_plcb_unweighted_lower,
         )

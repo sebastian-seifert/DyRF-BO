@@ -48,8 +48,10 @@ def test_topological_weighted_quantiles():
     
     # Manually configure in-bag data to bypass actual fit logic
     uq_wrapper.leaf_matrix_train = np.array([[3], [4], [2]], dtype=np.int32)
+    uq_wrapper.leaf_matrix_train_xp = uq_wrapper.xp.asarray(uq_wrapper.leaf_matrix_train)
     uq_wrapper.in_bag_leaves = uq_wrapper.leaf_matrix_train
     uq_wrapper.in_bag_leaves_xp = uq_wrapper.xp.asarray(uq_wrapper.in_bag_leaves)
+    uq_wrapper.valid_oob_mask = np.ones(len(X_train), dtype=bool)
     
     uq_wrapper.in_bag_indices = np.array([[1], [1], [1]], dtype=np.float32)
     uq_wrapper.in_bag_counts = np.array([[1], [1], [1]], dtype=np.float32)
@@ -72,20 +74,18 @@ def test_topological_weighted_quantiles():
     # 3. Sum of weights: 1.185122
     # 4. Normalized cumulative weights: [0.843795, 0.957997, 1.0]
     # 5. Weighted Quantiles for [0.1, 0.5, 2.0] at level=0.95 (alpha_lwr=0.025, alpha_upr=0.975):
+    #    Inverse empirical CDF:
     #    Lwr: cumulative weight at index 0 (0.843795) >= 0.025 -> index 0 (val = 0.1)
-    #    Upr: cumulative weight at index 1 is 0.957997 < 0.975; index 2 is 1.0 >= 0.975.
-    #         Interpolate between index 1 (val=0.5, cum=0.957997) and index 2 (val=2.0, cum=1.0):
-    #         fraction = (0.975 - 0.957997) / (1.0 - 0.957997) = 0.017003 / 0.042003 = 0.4048
-    #         val = 0.5 + 1.5 * 0.4048 = 1.1072
-    #         uq_val = 1.1072 - 0.1 = 1.0072
+    #    Upr: cumulative weight at index 1 is 0.957997 < 0.975; index 2 is 1.0 >= 0.975 -> index 2 (val = 2.0)
+    #    uq_val = 2.0 - 0.1 = 1.9
     uq_vals = uq_wrapper.compute_uq(X_test, n_neighbors="auto", level=0.95)
     
     print("\nCalculated UQ interval widths (Weighted Quantiles):", uq_vals)
     
-    # uq_val = (1.1072 - 0.1) / normal_divisor = 1.0072 / 3.919928 = 0.256943
+    # uq_val = 1.9 / normal_divisor = 1.9 / 3.919928 = 0.48470277
     from scipy.stats import norm
     normal_divisor = 2.0 * float(norm.ppf((1.0 + 0.95) / 2.0))
-    expected_sigma = 1.0072 / normal_divisor
+    expected_sigma = 1.9 / normal_divisor
     np.testing.assert_allclose(uq_vals[0], expected_sigma, rtol=1e-3)
     print("✓ SUCCESS: Topological Weighted Quantiles match expected values!")
 

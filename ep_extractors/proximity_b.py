@@ -12,8 +12,9 @@ class ProximityBExtractor(BaseEpistemicExtractor):
         model,
         device="auto",
         decay_lambda=1.345,
-        weighting: str = "leaf_normalized",
+        weighting: str = "unweighted_all",
         use_leaf_weights: Optional[bool] = None,
+        weighted: bool = False,
         **kwargs
     ):
         """
@@ -24,6 +25,7 @@ class ProximityBExtractor(BaseEpistemicExtractor):
         self.decay_lambda = decay_lambda
         self.weighting = weighting
         self.use_leaf_weights = use_leaf_weights
+        self.weighted = weighted
         self.uq_model = None
 
     def fit(self, X_train: np.ndarray, y_train: np.ndarray) -> None:
@@ -36,6 +38,7 @@ class ProximityBExtractor(BaseEpistemicExtractor):
             topological_decay_lambda=self.decay_lambda,
             weighting=self.weighting,
             use_leaf_weights=self.use_leaf_weights,
+            weighted=self.weighted,
         )
         self.uq_model.fit()
 
@@ -58,6 +61,7 @@ class ProximityBExtractor(BaseEpistemicExtractor):
         return_mae: bool = False,
         weighting: Optional[str] = None,
         use_leaf_weights: Optional[bool] = None,
+        weighted: Optional[bool] = None,
         **kwargs,
     ):
         if self.uq_model is None:
@@ -69,6 +73,7 @@ class ProximityBExtractor(BaseEpistemicExtractor):
             return_mae=return_mae,
             weighting=weighting if weighting is not None else self.weighting,
             use_leaf_weights=use_leaf_weights if use_leaf_weights is not None else self.use_leaf_weights,
+            weighted=weighted if weighted is not None else self.weighted,
         )
 
 
@@ -81,6 +86,7 @@ class ProximityBUnweightedExtractor(ProximityBExtractor):
         decay_lambda=1.345,
         weighting: str = "unweighted_all",
         use_leaf_weights: Optional[bool] = None,
+        weighted: bool = False,
         **kwargs,
     ):
         super().__init__(
@@ -89,5 +95,29 @@ class ProximityBUnweightedExtractor(ProximityBExtractor):
             decay_lambda=decay_lambda,
             weighting=weighting,
             use_leaf_weights=use_leaf_weights,
+            weighted=weighted,
+            **kwargs,
+        )
+
+
+@UQExtractorRegistry.register("proximity_b_weighted")
+class ProximityBWeightedExtractor(ProximityBExtractor):
+    def __init__(
+        self,
+        model,
+        device="auto",
+        decay_lambda=1.345,
+        weighting: str = "leaf_normalized",
+        use_leaf_weights: Optional[bool] = None,
+        weighted: bool = True,
+        **kwargs,
+    ):
+        super().__init__(
+            model,
+            device=device,
+            decay_lambda=decay_lambda,
+            weighting=weighting,
+            use_leaf_weights=use_leaf_weights,
+            weighted=weighted,
             **kwargs,
         )

@@ -27,7 +27,7 @@ REQUIRED_DATAFRAME_COLUMNS = [
     "y_true",
     "y_hat",
     "abs_error",
-    # Candidate estimators (15 signals + mi + entropy)
+    # Candidate estimators (lower quantiles + mi + entropy)
     "u_hutter_total",
     "u_hutter_between",
     "u_hutter_within",
@@ -35,15 +35,11 @@ REQUIRED_DATAFRAME_COLUMNS = [
     "u_shaker_total",
     "shaker_mi",
     "shaker_total_entropy",
-    "u_rf_fire_half",
     "u_rf_fire_lower",
-    "u_prox_a_half",
     "u_prox_a_lower",
-    "u_prox_b_half",
     "u_prox_b_lower",
-    "u_prox_bc_half",
+    "u_prox_ac_lower",
     "u_prox_bc_lower",
-    "u_plcb_half",
     "u_plcb_lower",
     # Legacy aliases
     "u_slcb",
@@ -145,7 +141,7 @@ class TestRunSingleExperiment:
         assert np.all(df["u_plcb"] > 0.0)
         assert np.all(df["u_hutter_total"] > 0.0)
         assert np.all(df["u_shaker_epistemic"] >= 0.0)
-        assert np.all(df["u_rf_fire_half"] >= 0.0)
+        assert np.all(df["u_rf_fire_lower"] >= 0.0)
         assert np.allclose(df["abs_error"], np.abs(df["y_true"] - df["y_hat"]))
 
         # 4. Stratified specific checks: 4 strata evenly split

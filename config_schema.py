@@ -63,6 +63,7 @@ class ProximityConfig:
     methods: List[str] = field(default_factory=lambda: [
         "Proximity_Baseline", "Proximity_Method_B", "Proximity_Method_C", "Proximity_Method_B_C"
     ])
+    weighted: bool = False
 
 @dataclass
 class AcquisitionConfig:
@@ -143,6 +144,8 @@ class BenchmarkMasterConfig:
         )
         if self.proximity.use_density_scaling:
             prox_line += " --use_density_scaling"
+        if getattr(self.proximity, "weighted", False):
+            prox_line += " --weighted_proximity"
         lines.append(prox_line)
 
         return lines

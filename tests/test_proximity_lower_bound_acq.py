@@ -23,7 +23,8 @@ class MockProximitySurrogate:
         X: np.ndarray,
         n_neighbors: int | str = "auto",
         level: float = 0.95,
-        return_mae: bool = True
+        return_mae: bool = True,
+        **kwargs,
     ):
         n = len(X)
         y_pred = self._y_pred[:n]
@@ -528,6 +529,125 @@ class TestProximityLowerBoundAcquisition(unittest.TestCase):
             if issubclass(w.category, UserWarning) and "falling back to gaussian prediction" in str(w.message).lower()
         ]
         self.assertGreaterEqual(len(fallback_warnings), 1)
+
+    def test_proximity_lower_bound_acq_default_initialization_unweighted(self):
+        """
+        Verify that default initialization of ProximityLowerBoundAcquisition has:
+        - _weighting == 'unweighted'
+        - _weighted is False
+        - meta['weighting'] == 'unweighted'
+        - meta['weighted'] is False
+        """
+        acq = ProximityLowerBoundAcquisition()
+        self.assertEqual(acq._weighting, "unweighted")
+        self.assertIs(acq._weighted, False)
+        self.assertEqual(acq.meta["weighting"], "unweighted")
+        self.assertIs(acq.meta["weighted"], False)
+
+    def test_proximity_lower_bound_acq_weighting_resolution(self):
+        """
+        Verify that weighted=True, use_leaf_weights=True, or weighting='weighted'
+        activates the legacy weighted mode (_weighting='weighted', _weighted=True).
+        Otherwise defaults to unweighted (_weighting='unweighted', _weighted=False).
+        """
+        # Explicit weighted=True
+        acq_w1 = ProximityLowerBoundAcquisition(weighted=True)
+        self.assertEqual(acq_w1._weighting, "weighted")
+        self.assertIs(acq_w1._weighted, True)
+        self.assertEqual(acq_w1.meta["weighting"], "weighted")
+        self.assertIs(acq_w1.meta["weighted"], True)
+
+        # Explicit weighting="weighted"
+        acq_w2 = ProximityLowerBoundAcquisition(weighting="weighted")
+        self.assertEqual(acq_w2._weighting, "weighted")
+        self.assertIs(acq_w2._weighted, True)
+        self.assertEqual(acq_w2.meta["weighting"], "weighted")
+        self.assertIs(acq_w2.meta["weighted"], True)
+
+        # Explicit use_leaf_weights=True
+        acq_w3 = ProximityLowerBoundAcquisition(use_leaf_weights=True)
+        self.assertEqual(acq_w3._weighting, "weighted")
+        self.assertIs(acq_w3._weighted, True)
+        self.assertEqual(acq_w3.meta["weighting"], "weighted")
+        self.assertIs(acq_w3.meta["weighted"], True)
+
+        # Explicit unweighted flags
+        acq_u1 = ProximityLowerBoundAcquisition(weighted=False)
+        self.assertEqual(acq_u1._weighting, "unweighted")
+        self.assertIs(acq_u1._weighted, False)
+        self.assertEqual(acq_u1.meta["weighting"], "unweighted")
+        self.assertIs(acq_u1.meta["weighted"], False)
+
+        acq_u2 = ProximityLowerBoundAcquisition(weighting="unweighted")
+        self.assertEqual(acq_u2._weighting, "unweighted")
+        self.assertIs(acq_u2._weighted, False)
+        self.assertEqual(acq_u2.meta["weighting"], "unweighted")
+        self.assertIs(acq_u2.meta["weighted"], False)
+
+        acq_u3 = ProximityLowerBoundAcquisition(use_leaf_weights=False)
+        self.assertEqual(acq_u3._weighting, "unweighted")
+        self.assertIs(acq_u3._weighted, False)
+        self.assertEqual(acq_u3.meta["weighting"], "unweighted")
+        self.assertIs(acq_u3.meta["weighted"], False)
+
+    def test_proximity_lower_bound_acq_forwards_weighting_to_predict_with_intervals(self):
+        """
+        Verify that _compute forwards weighting and weighted parameters
+        to the surrogate model's predict_with_intervals method.
+        """
+        class KWargCaptureSurrogate:
+            def __init__(self, n_train: int = 50):
+                self.n_train = n_train
+                self.last_X = np.zeros((n_train, 2))
+                self.last_kwargs = {}
+
+            def predict_with_intervals(self, X: np.ndarray, **kwargs):
+                self.last_kwargs = kwargs
+                n = len(X)
+                return (
+                    np.zeros(n),
+                    np.zeros(n),
+                    np.ones(n),
+                    np.full(n, 0.5),
+                )
+
+        surrogate = KWargCaptureSurrogate(n_train=50)
+        X = np.array([[1.0, 2.0]])
+
+        # Default (unweighted)
+        acq_default = ProximityLowerBoundAcquisition(k=10)
+        acq_default.update(surrogate, num_data=50)
+        _ = acq_default._compute(X)
+        self.assertIn("weighting", surrogate.last_kwargs)
+        self.assertEqual(surrogate.last_kwargs["weighting"], "unweighted")
+        self.assertIn("weighted", surrogate.last_kwargs)
+        self.assertIs(surrogate.last_kwargs["weighted"], False)
+
+        # Explicit weighted
+        acq_weighted = ProximityLowerBoundAcquisition(k=10, weighted=True)
+        acq_weighted.update(surrogate, num_data=50)
+        _ = acq_weighted._compute(X)
+        self.assertIn("weighting", surrogate.last_kwargs)
+        self.assertEqual(surrogate.last_kwargs["weighting"], "weighted")
+        self.assertIn("weighted", surrogate.last_kwargs)
+        self.assertIs(surrogate.last_kwargs["weighted"], True)
+
+    def test_smac20_proximity_lcb_weighted_yaml_config(self):
+        """
+        Verify that carps_integration/configs/optimizer/smac20_proximity_lcb_weighted.yaml
+        exists, is valid YAML, and has weighted legacy settings.
+        """
+        import yaml
+        from pathlib import Path
+        yaml_path = Path("carps_integration/configs/optimizer/smac20_proximity_lcb_weighted.yaml")
+        self.assertTrue(yaml_path.exists(), f"{yaml_path} does not exist")
+        with open(yaml_path) as f:
+            cfg = yaml.safe_load(f)
+        opt = cfg["optimizer"]
+        self.assertEqual(opt["acq_func_name"], "proximity_lcb")
+        self.assertTrue(opt["acq_func_kwargs"].get("weighted") is True or opt["acq_func_kwargs"].get("weighting") == "weighted")
+        extractor_kwargs = opt["smac_cfg"]["model_kwargs"]["extractor_kwargs"]
+        self.assertTrue(extractor_kwargs.get("weighted") is True or extractor_kwargs.get("weighting") == "leaf_normalized")
 
 if __name__ == "__main__":
     unittest.main()

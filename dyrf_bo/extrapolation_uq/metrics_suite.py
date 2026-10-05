@@ -384,6 +384,7 @@ def compute_comprehensive_metrics(
                         result[f"stratum_{s_int}_{k}_{stripped}"] = v
 
         result["strata"] = strata_dict
+        result["strata_metrics"] = strata_dict
 
     return result
 

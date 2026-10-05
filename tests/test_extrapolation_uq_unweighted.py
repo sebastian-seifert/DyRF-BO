@@ -54,6 +54,14 @@ NEW_UQ_FIELDS = (
     "u_prox_a_weighted_lower",
     "u_plcb_weighted_half",
     "u_plcb_weighted_lower",
+    "u_prox_b_unweighted_half",
+    "u_prox_b_unweighted_lower",
+    "u_prox_b_weighted_half",
+    "u_prox_b_weighted_lower",
+    "u_prox_bc_unweighted_half",
+    "u_prox_bc_unweighted_lower",
+    "u_prox_bc_weighted_half",
+    "u_prox_bc_weighted_lower",
 )
 
 
@@ -78,7 +86,7 @@ def fitted_evaluator_bundle():
 
 
 class TestMultiUQResultNewFields:
-    """Verifies that MultiUQResult exposes the 8 new fields with valid shapes and dtypes."""
+    """Verifies that MultiUQResult exposes all new unweighted and weighted fields with valid shapes and dtypes."""
 
     def test_dataclass_contract_and_attributes(self, fitted_evaluator_bundle):
         _, _, res, M = fitted_evaluator_bundle
@@ -120,45 +128,144 @@ class TestMultiUQResultNewFields:
 
 
 class TestBackwardCompatibilityParity:
-    """Verifies strict 100% backward compatibility parity between legacy and weighted fields."""
+    """Verifies default unweighted parity (weighted_proximity=False) and weighted parity when enabled."""
 
-    def test_exact_weighted_parity(self, fitted_evaluator_bundle):
-        _, _, res, _ = fitted_evaluator_bundle
+    def test_default_unweighted_parity(self, fitted_evaluator_bundle):
+        evaluator, _, res, _ = fitted_evaluator_bundle
+        assert getattr(evaluator, "weighted_proximity", False) is False
 
-        # u_prox_a_half == u_prox_a_weighted_half
+        # u_prox_a_* == u_prox_a_unweighted_*
         np.testing.assert_allclose(
             res.u_prox_a_half,
-            res.u_prox_a_weighted_half,
+            res.u_prox_a_unweighted_half,
             atol=1e-12,
-            err_msg="u_prox_a_half does not match u_prox_a_weighted_half",
+            err_msg="u_prox_a_half does not match u_prox_a_unweighted_half by default",
         )
-
-        # u_prox_a_lower == u_prox_a_weighted_lower
         np.testing.assert_allclose(
             res.u_prox_a_lower,
-            res.u_prox_a_weighted_lower,
+            res.u_prox_a_unweighted_lower,
             atol=1e-12,
-            err_msg="u_prox_a_lower does not match u_prox_a_weighted_lower",
+            err_msg="u_prox_a_lower does not match u_prox_a_unweighted_lower by default",
         )
 
-        # u_plcb_half == u_plcb_weighted_half
+        # u_prox_b_* == u_prox_b_unweighted_*
+        np.testing.assert_allclose(
+            res.u_prox_b_half,
+            res.u_prox_b_unweighted_half,
+            atol=1e-12,
+            err_msg="u_prox_b_half does not match u_prox_b_unweighted_half by default",
+        )
+        np.testing.assert_allclose(
+            res.u_prox_b_lower,
+            res.u_prox_b_unweighted_lower,
+            atol=1e-12,
+            err_msg="u_prox_b_lower does not match u_prox_b_unweighted_lower by default",
+        )
+
+        # u_prox_bc_* == u_prox_bc_unweighted_*
+        np.testing.assert_allclose(
+            res.u_prox_bc_half,
+            res.u_prox_bc_unweighted_half,
+            atol=1e-12,
+            err_msg="u_prox_bc_half does not match u_prox_bc_unweighted_half by default",
+        )
+        np.testing.assert_allclose(
+            res.u_prox_bc_lower,
+            res.u_prox_bc_unweighted_lower,
+            atol=1e-12,
+            err_msg="u_prox_bc_lower does not match u_prox_bc_unweighted_lower by default",
+        )
+
+        # u_plcb_* == u_plcb_unweighted_*
         np.testing.assert_allclose(
             res.u_plcb_half,
-            res.u_plcb_weighted_half,
+            res.u_plcb_unweighted_half,
             atol=1e-12,
-            err_msg="u_plcb_half does not match u_plcb_weighted_half",
+            err_msg="u_plcb_half does not match u_plcb_unweighted_half by default",
         )
-
-        # u_plcb_lower == u_plcb_weighted_lower
         np.testing.assert_allclose(
             res.u_plcb_lower,
-            res.u_plcb_weighted_lower,
+            res.u_plcb_unweighted_lower,
             atol=1e-12,
-            err_msg="u_plcb_lower does not match u_plcb_weighted_lower",
+            err_msg="u_plcb_lower does not match u_plcb_unweighted_lower by default",
+        )
+
+        # Legacy alias u_plcb == u_plcb_lower == u_plcb_unweighted_lower
+        np.testing.assert_allclose(res.u_plcb, res.u_plcb_unweighted_lower, atol=1e-12)
+
+    def test_weighted_proximity_flag_parity(self, fitted_evaluator_bundle):
+        evaluator, X_test, _, _ = fitted_evaluator_bundle
+        evaluator_w = MultiUQEvaluator(
+            seed=evaluator.seed,
+            n_trees=evaluator.n_trees,
+            k=evaluator.k,
+            epsilon=evaluator.epsilon,
+            topological_decay_lambda=evaluator.topological_decay_lambda,
+            device="cpu",
+            weighted_proximity=True,
+        )
+        assert evaluator_w.weighted_proximity is True
+        evaluator_w.fit(evaluator.uq_model.X_train, evaluator.uq_model.y_train)
+        res_w = evaluator_w.evaluate(X_test)
+
+        # u_prox_a_* == u_prox_a_weighted_*
+        np.testing.assert_allclose(
+            res_w.u_prox_a_half,
+            res_w.u_prox_a_weighted_half,
+            atol=1e-12,
+            err_msg="u_prox_a_half does not match u_prox_a_weighted_half when weighted_proximity=True",
+        )
+        np.testing.assert_allclose(
+            res_w.u_prox_a_lower,
+            res_w.u_prox_a_weighted_lower,
+            atol=1e-12,
+            err_msg="u_prox_a_lower does not match u_prox_a_weighted_lower when weighted_proximity=True",
+        )
+
+        # u_prox_b_* == u_prox_b_weighted_*
+        np.testing.assert_allclose(
+            res_w.u_prox_b_half,
+            res_w.u_prox_b_weighted_half,
+            atol=1e-12,
+            err_msg="u_prox_b_half does not match u_prox_b_weighted_half when weighted_proximity=True",
+        )
+        np.testing.assert_allclose(
+            res_w.u_prox_b_lower,
+            res_w.u_prox_b_weighted_lower,
+            atol=1e-12,
+            err_msg="u_prox_b_lower does not match u_prox_b_weighted_lower when weighted_proximity=True",
+        )
+
+        # u_prox_bc_* == u_prox_bc_weighted_*
+        np.testing.assert_allclose(
+            res_w.u_prox_bc_half,
+            res_w.u_prox_bc_weighted_half,
+            atol=1e-12,
+            err_msg="u_prox_bc_half does not match u_prox_bc_weighted_half when weighted_proximity=True",
+        )
+        np.testing.assert_allclose(
+            res_w.u_prox_bc_lower,
+            res_w.u_prox_bc_weighted_lower,
+            atol=1e-12,
+            err_msg="u_prox_bc_lower does not match u_prox_bc_weighted_lower when weighted_proximity=True",
+        )
+
+        # u_plcb_* == u_plcb_weighted_*
+        np.testing.assert_allclose(
+            res_w.u_plcb_half,
+            res_w.u_plcb_weighted_half,
+            atol=1e-12,
+            err_msg="u_plcb_half does not match u_plcb_weighted_half when weighted_proximity=True",
+        )
+        np.testing.assert_allclose(
+            res_w.u_plcb_lower,
+            res_w.u_plcb_weighted_lower,
+            atol=1e-12,
+            err_msg="u_plcb_lower does not match u_plcb_weighted_lower when weighted_proximity=True",
         )
 
         # Legacy alias u_plcb == u_plcb_lower == u_plcb_weighted_lower
-        np.testing.assert_allclose(res.u_plcb, res.u_plcb_weighted_lower, atol=1e-12)
+        np.testing.assert_allclose(res_w.u_plcb, res_w.u_plcb_weighted_lower, atol=1e-12)
 
     def test_dual_uq_evaluator_compatibility(self, fitted_evaluator_bundle):
         evaluator, X_test, multi_res, _ = fitted_evaluator_bundle
@@ -169,6 +276,7 @@ class TestBackwardCompatibilityParity:
             epsilon=evaluator.epsilon,
             topological_decay_lambda=evaluator.topological_decay_lambda,
             device="cpu",
+            weighted_proximity=False,
         )
         dual_eval.fit(evaluator.uq_model.X_train, evaluator.uq_model.y_train)
         dual_res = dual_eval.evaluate(X_test)
@@ -178,6 +286,22 @@ class TestBackwardCompatibilityParity:
             assert hasattr(dual_res, field)
             np.testing.assert_allclose(getattr(dual_res, field), getattr(multi_res, field), atol=1e-10)
 
+        np.testing.assert_allclose(dual_res.u_plcb, dual_res.u_plcb_unweighted_lower, atol=1e-12)
+
+        # Also test DualUQEvaluator with weighted_proximity=True
+        dual_eval_w = DualUQEvaluator(
+            seed=evaluator.seed,
+            n_trees=evaluator.n_trees,
+            k=evaluator.k,
+            epsilon=evaluator.epsilon,
+            topological_decay_lambda=evaluator.topological_decay_lambda,
+            device="cpu",
+            weighted_proximity=True,
+        )
+        dual_eval_w.fit(evaluator.uq_model.X_train, evaluator.uq_model.y_train)
+        dual_res_w = dual_eval_w.evaluate(X_test)
+        np.testing.assert_allclose(dual_res_w.u_plcb, dual_res_w.u_plcb_weighted_lower, atol=1e-12)
+
 
 class TestUnweightedProximityInvariants:
     """Verifies theoretical mathematical invariants for unweighted proximities."""
@@ -185,11 +309,9 @@ class TestUnweightedProximityInvariants:
     def test_unweighted_non_negativity_and_flooring(self, fitted_evaluator_bundle):
         _, _, res, _ = fitted_evaluator_bundle
 
-        # Non-negativity
-        assert np.all(res.u_prox_a_unweighted_half >= 0.0)
-        assert np.all(res.u_prox_a_unweighted_lower >= 0.0)
-        assert np.all(res.u_plcb_unweighted_half >= 0.0)
-        assert np.all(res.u_plcb_unweighted_lower >= 0.0)
+        # Non-negativity across all new fields
+        for field in NEW_UQ_FIELDS:
+            assert np.all(getattr(res, field) >= 0.0), f"{field} has negative values"
 
         # Half-width identity
         np.testing.assert_allclose(
@@ -229,7 +351,7 @@ class TestUnweightedProximityInvariants:
 
 
 class TestRunnerDataFrameExportNewColumns:
-    """Verifies that runner.py exports all 8 new fields in data_dict and Parquet."""
+    """Verifies that runner.py exports all new fields in data_dict and Parquet."""
 
     def test_run_single_experiment_dataframe_contains_new_columns(self):
         cfg = ExtrapolationRunConfig(
@@ -241,6 +363,7 @@ class TestRunnerDataFrameExportNewColumns:
             n_trees=5,
             surrogate_type="smac_default",
             seed=42,
+            weighted_proximity=False,
         )
         summary, point_df = run_single_experiment(cfg, save_parquet=False)
 
@@ -250,6 +373,30 @@ class TestRunnerDataFrameExportNewColumns:
             series = point_df[field]
             assert np.all(np.isfinite(series)), f"Non-finite values in runner column '{field}'"
             assert np.all(series >= 0.0), f"Negative values in runner column '{field}'"
+
+        # Verify base columns match unweighted by default
+        np.testing.assert_allclose(point_df["u_prox_a_half"], point_df["u_prox_a_unweighted_half"], atol=1e-12)
+        np.testing.assert_allclose(point_df["u_prox_b_half"], point_df["u_prox_b_unweighted_half"], atol=1e-12)
+        np.testing.assert_allclose(point_df["u_prox_bc_half"], point_df["u_prox_bc_unweighted_half"], atol=1e-12)
+        np.testing.assert_allclose(point_df["u_plcb"], point_df["u_plcb_unweighted_lower"], atol=1e-12)
+
+        # Verify weighted_proximity=True config
+        cfg_w = ExtrapolationRunConfig(
+            dimension=2,
+            n_train=25,
+            n_test=12,
+            function_name="sphere",
+            sampling_strategy="natural",
+            n_trees=5,
+            surrogate_type="smac_default",
+            seed=42,
+            weighted_proximity=True,
+        )
+        _, point_df_w = run_single_experiment(cfg_w, save_parquet=False)
+        np.testing.assert_allclose(point_df_w["u_prox_a_half"], point_df_w["u_prox_a_weighted_half"], atol=1e-12)
+        np.testing.assert_allclose(point_df_w["u_prox_b_half"], point_df_w["u_prox_b_weighted_half"], atol=1e-12)
+        np.testing.assert_allclose(point_df_w["u_prox_bc_half"], point_df_w["u_prox_bc_weighted_half"], atol=1e-12)
+        np.testing.assert_allclose(point_df_w["u_plcb"], point_df_w["u_plcb_weighted_lower"], atol=1e-12)
 
         # Parquet round-trip verification
         with tempfile.TemporaryDirectory() as tmp_dir:

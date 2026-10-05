@@ -19,7 +19,9 @@ class HybridProximityEpistemicUQ:
         lambda_blend=0.4,
         k_neighbors=20,
         device="auto",
-        batch_size="auto"
+        batch_size="auto",
+        weighted: bool = False,
+        weighting: str = "unweighted_all",
     ):
         """
         Hybrid UQ approach blending local neighborhood epistemic uncertainty (RF Proximity KNN)
@@ -36,6 +38,8 @@ class HybridProximityEpistemicUQ:
             k_neighbors: int, number of nearest neighbors (KNN) to pool.
             device: str, backend device ("auto", "cpu", "gpu").
             batch_size: int or "auto", batch sizing for proximity compute.
+            weighted: bool, if True, uses leaf-normalized weighted proximity. Default False.
+            weighting: str, weighting scheme ("unweighted_all", "leaf_normalized", etc.). Default "unweighted_all".
         """
         self.model = model
         self.X_train = np.asarray(X_train)
@@ -47,6 +51,16 @@ class HybridProximityEpistemicUQ:
         self.k_neighbors = k_neighbors
         self.device = device
         self.batch_size = batch_size
+
+        if weighted and weighting == "unweighted_all":
+            self.weighting = "leaf_normalized"
+            self.weighted = True
+        elif weighting in ("weighted", "leaf_normalized"):
+            self.weighting = "leaf_normalized"
+            self.weighted = True
+        else:
+            self.weighting = weighting
+            self.weighted = weighted
         
         if hasattr(self.model, "estimators_"):
             self.fit()
@@ -65,7 +79,9 @@ class HybridProximityEpistemicUQ:
             batch_size=self.batch_size,
             use_density_scaling=False,
             topological_decay_lambda=self.proximity_decay_lambda,
-            normalize_by_depth=self.normalize_by_depth
+            normalize_by_depth=self.normalize_by_depth,
+            weighting=self.weighting,
+            weighted=self.weighted
         )
         self.prox_model.fit()
 

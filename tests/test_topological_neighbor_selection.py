@@ -48,8 +48,10 @@ def test_topological_neighbor_selection():
     
     # Manually configure in-bag data to bypass actual fit logic
     uq_wrapper.leaf_matrix_train = np.array([[3], [4], [2]], dtype=np.int32)
+    uq_wrapper.leaf_matrix_train_xp = uq_wrapper.xp.asarray(uq_wrapper.leaf_matrix_train)
     uq_wrapper.in_bag_leaves = uq_wrapper.leaf_matrix_train
     uq_wrapper.in_bag_leaves_xp = uq_wrapper.xp.asarray(uq_wrapper.in_bag_leaves)
+    uq_wrapper.valid_oob_mask = np.ones(len(X_train), dtype=bool)
     
     uq_wrapper.in_bag_indices = np.array([[1], [1], [1]], dtype=np.float32)
     uq_wrapper.in_bag_counts = np.array([[1], [1], [1]], dtype=np.float32)

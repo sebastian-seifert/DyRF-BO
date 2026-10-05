@@ -5,14 +5,16 @@ from ep_extractors.base import BaseEpistemicExtractor
 from ep_extractors import UQExtractorRegistry
 from GPU_Proximity_Regression_UQ import GPUProximityRegressionUQ
 
+
 @UQExtractorRegistry.register("standard_proximity")
 class StandardProximityExtractor(BaseEpistemicExtractor):
     def __init__(
         self,
         model,
         device="auto",
-        weighting: str = "leaf_normalized",
+        weighting: str = "unweighted_all",
         use_leaf_weights: Optional[bool] = None,
+        weighted: bool = False,
         **kwargs
     ):
         """
@@ -23,6 +25,7 @@ class StandardProximityExtractor(BaseEpistemicExtractor):
         self.device = device
         self.weighting = weighting
         self.use_leaf_weights = use_leaf_weights
+        self.weighted = weighted
         self.uq_model = None
 
     def fit(self, X_train: np.ndarray, y_train: np.ndarray) -> None:
@@ -35,6 +38,7 @@ class StandardProximityExtractor(BaseEpistemicExtractor):
             topological_decay_lambda=None,
             weighting=self.weighting,
             use_leaf_weights=self.use_leaf_weights,
+            weighted=self.weighted,
         )
         self.uq_model.fit()
 
@@ -57,6 +61,7 @@ class StandardProximityExtractor(BaseEpistemicExtractor):
         return_mae: bool = False,
         weighting: Optional[str] = None,
         use_leaf_weights: Optional[bool] = None,
+        weighted: Optional[bool] = None,
         **kwargs,
     ):
         if self.uq_model is None:
@@ -68,6 +73,7 @@ class StandardProximityExtractor(BaseEpistemicExtractor):
             return_mae=return_mae,
             weighting=weighting if weighting is not None else self.weighting,
             use_leaf_weights=use_leaf_weights if use_leaf_weights is not None else self.use_leaf_weights,
+            weighted=weighted if weighted is not None else self.weighted,
         )
 
 
@@ -79,6 +85,7 @@ class StandardProximityUnweightedExtractor(StandardProximityExtractor):
         device="auto",
         weighting: str = "unweighted_all",
         use_leaf_weights: Optional[bool] = None,
+        weighted: bool = False,
         **kwargs,
     ):
         super().__init__(
@@ -86,5 +93,27 @@ class StandardProximityUnweightedExtractor(StandardProximityExtractor):
             device=device,
             weighting=weighting,
             use_leaf_weights=use_leaf_weights,
+            weighted=weighted,
+            **kwargs,
+        )
+
+
+@UQExtractorRegistry.register("standard_proximity_weighted")
+class StandardProximityWeightedExtractor(StandardProximityExtractor):
+    def __init__(
+        self,
+        model,
+        device="auto",
+        weighting: str = "leaf_normalized",
+        use_leaf_weights: Optional[bool] = None,
+        weighted: bool = True,
+        **kwargs,
+    ):
+        super().__init__(
+            model,
+            device=device,
+            weighting=weighting,
+            use_leaf_weights=use_leaf_weights,
+            weighted=weighted,
             **kwargs,
         )

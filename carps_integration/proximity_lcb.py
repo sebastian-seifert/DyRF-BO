@@ -26,20 +26,21 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
         level: float = 0.95,
         k: int | str = 25,
         k_warmup: int = 25,
-        weighting: str = "weighted",
+        weighting: str = "unweighted",
         use_leaf_weights: bool | None = None,
+        weighted: bool = False,
     ) -> None:
         super().__init__()
         self._eps = float(eps)
         self._level = float(level)
         self._k = k
         self._k_warmup = int(k_warmup)
-        if use_leaf_weights is False and weighting == "weighted":
-            self._weighting = "unweighted"
-        elif use_leaf_weights is True and weighting == "unweighted":
+        if weighted is True or use_leaf_weights is True or weighting == "weighted":
             self._weighting = "weighted"
+            self._weighted = True
         else:
-            self._weighting = weighting
+            self._weighting = "unweighted"
+            self._weighted = False
         self._use_leaf_weights = use_leaf_weights
         alpha = 1.0 - self._level
         self._kappa = float(norm.ppf(1.0 - alpha / 2.0)) if self._level > 0.0 else 0.0
@@ -59,6 +60,7 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
             "k_warmup": self._k_warmup,
             "kappa": self._kappa,
             "weighting": self._weighting,
+            "weighted": self._weighted,
         })
         return meta
 
@@ -105,12 +107,26 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
         if hasattr(self._model, "predict_with_intervals"):
             try:
                 res = self._model.predict_with_intervals(
-                    X, n_neighbors=self._k, level=self._level, return_mae=True, weighting=self._weighting
+                    X,
+                    n_neighbors=self._k,
+                    level=self._level,
+                    return_mae=True,
+                    weighting=self._weighting,
+                    weighted=self._weighted,
                 )
             except TypeError:
-                res = self._model.predict_with_intervals(
-                    X, n_neighbors=self._k, level=self._level, return_mae=True
-                )
+                try:
+                    res = self._model.predict_with_intervals(
+                        X,
+                        n_neighbors=self._k,
+                        level=self._level,
+                        return_mae=True,
+                        weighting=self._weighting,
+                    )
+                except TypeError:
+                    res = self._model.predict_with_intervals(
+                        X, n_neighbors=self._k, level=self._level, return_mae=True
+                    )
             if len(res) == 4:
                 y_pred_lwr, y_pred, _, local_mae = res
             else:
