@@ -152,6 +152,8 @@ def patched_smac3_init(self, task, smac_cfg, loggers=None, expects_multiple_obje
         self.acq_func_name = kwargs.pop("acq_func_name")
     if "acq_func_kwargs" in kwargs:
         self.acq_func_kwargs = kwargs.pop("acq_func_kwargs")
+    if "method" in kwargs:
+        self.method = kwargs.pop("method")
     original_smac3_init(
         self,
         task=task,
@@ -182,9 +184,15 @@ def patched_smac3_setup_optimizer(self):
     )
     acq_kwargs = {}
     if hasattr(self, "acq_func_kwargs") and self.acq_func_kwargs:
-        acq_kwargs = dict(self.acq_func_kwargs)
+        if isinstance(self.acq_func_kwargs, omegaconf.DictConfig):
+            acq_kwargs = OmegaConf.to_container(self.acq_func_kwargs, resolve=True)
+        else:
+            acq_kwargs = dict(self.acq_func_kwargs)
     elif hasattr(self.smac_cfg, "acq_func_kwargs") and self.smac_cfg.acq_func_kwargs:
         acq_kwargs = OmegaConf.to_container(self.smac_cfg.acq_func_kwargs, resolve=True)
+
+    if hasattr(self, "method") and self.method and "method" not in acq_kwargs:
+        acq_kwargs["method"] = self.method
 
     if "acquisition_function" not in smac_kwargs and acq_name:
         acq_lower = str(acq_name).lower()
