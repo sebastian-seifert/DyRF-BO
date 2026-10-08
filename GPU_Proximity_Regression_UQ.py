@@ -821,12 +821,15 @@ class GPUProximityRegressionUQ:
                 t_accum_total += (t1_accum - t0_accum)
                 t0_quantile = time.perf_counter()
                 
-            if n_neighbors == "auto":
-                if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
-                    # Method B: Topological Weighted Quantiles
-                    resid_lwr[start:end] = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_lwr)
-                    resid_upr[start:end] = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_upr)
-                else:
+            if (
+                self.topological_decay_lambda is not None
+                and self.topological_decay_lambda > 0.0
+                and n_neighbors in ("auto", "all")
+            ):
+                # Method B: Topological Weighted Quantiles
+                resid_lwr[start:end] = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_lwr)
+                resid_upr[start:end] = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_upr)
+            elif n_neighbors == "auto":
                     # Mask out training samples with proximity < 1e-10 using xp.where instead of tiling
                     masked_residuals = self.xp.where(prox_batch >= 1e-10, self.oob_residuals_xp[None, :], self.xp.nan)
                     
@@ -1027,20 +1030,23 @@ class GPUProximityRegressionUQ:
                     stacklevel=2,
                 )
 
-            if n_neighbors == "auto":
-                if self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
-                    lwr_b = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_lwr)
-                    upr_b = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_upr)
-                    resid_lwr[start:end] = lwr_b
-                    resid_upr[start:end] = upr_b
-                    if return_mae:
-                        resids = self.oob_residuals_xp[None, :]
-                        in_int = (resids >= lwr_b[:, None]) & (resids <= upr_b[:, None])
-                        w_in = prox_batch * in_int
-                        w_sum = self.xp.sum(w_in, axis=1)
-                        mae_val = self.xp.sum(self.xp.abs(resids) * w_in, axis=1) / self.xp.maximum(w_sum, 1e-10)
-                        local_mae[start:end] = self.xp.where(w_sum > 0, mae_val, float(self.oob_mae))
-                else:
+            if (
+                self.topological_decay_lambda is not None
+                and self.topological_decay_lambda > 0.0
+                and n_neighbors in ("auto", "all")
+            ):
+                lwr_b = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_lwr)
+                upr_b = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_upr)
+                resid_lwr[start:end] = lwr_b
+                resid_upr[start:end] = upr_b
+                if return_mae:
+                    resids = self.oob_residuals_xp[None, :]
+                    in_int = (resids >= lwr_b[:, None]) & (resids <= upr_b[:, None])
+                    w_in = prox_batch * in_int
+                    w_sum = self.xp.sum(w_in, axis=1)
+                    mae_val = self.xp.sum(self.xp.abs(resids) * w_in, axis=1) / self.xp.maximum(w_sum, 1e-10)
+                    local_mae[start:end] = self.xp.where(w_sum > 0, mae_val, float(self.oob_mae))
+            elif n_neighbors == "auto":
                     masked_residuals = self.xp.where(prox_batch >= 1e-10, self.oob_residuals_xp[None, :], self.xp.nan)
                     if self.using_gpu and not self.nanquantile_supported:
                         tiled_cpu = cp.asnumpy(masked_residuals)

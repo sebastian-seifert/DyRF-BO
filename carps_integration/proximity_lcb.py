@@ -29,6 +29,7 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
         weighting: str = "unweighted",
         use_leaf_weights: bool | None = None,
         weighted: bool = False,
+        method: str | None = None,
     ) -> None:
         super().__init__()
         self._eps = float(eps)
@@ -42,6 +43,7 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
             self._weighting = "unweighted"
             self._weighted = False
         self._use_leaf_weights = use_leaf_weights
+        self._method = method.lower() if isinstance(method, str) else None
         alpha = 1.0 - self._level
         self._kappa = float(norm.ppf(1.0 - alpha / 2.0)) if self._level > 0.0 else 0.0
         self._num_data: int | None = None
@@ -61,12 +63,56 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
             "kappa": self._kappa,
             "weighting": self._weighting,
             "weighted": self._weighted,
+            "method": self._method,
         })
         return meta
 
+    def _is_continuous_method(self) -> bool:
+        """
+        Determines whether the acquisition operates in continuous mode (methods B or BC)
+        versus discrete neighbor mode (methods A or AC).
+        Continuous mode bypasses k-warmup and computes intervals using continuous tree-walk proximities.
+        """
+        if self._method is not None:
+            m = self._method.lower()
+            return m.startswith("proximity_b") or m in (
+                "b", "bc", "b_cv", "bc_cv", "proximity_b", "proximity_bc", "proximity_b_cv", "proximity_bc_cv"
+            )
+
+        if self._model is not None:
+            # 1. Check model.uncertainty_func
+            u_func = getattr(self._model, "uncertainty_func", None)
+            if isinstance(u_func, str):
+                u_str = u_func.lower()
+                if u_str.startswith("proximity_b") or u_str in (
+                    "b", "bc", "b_cv", "bc_cv", "proximity_b", "proximity_bc", "proximity_b_cv", "proximity_bc_cv"
+                ):
+                    return True
+
+            # 2. Check attached extractor or the model object itself
+            extractor = getattr(self._model, "uq_extractor", None) or getattr(self._model, "extractor", None)
+            candidates = [extractor, self._model]
+            for obj in candidates:
+                if obj is not None:
+                    cls_name = type(obj).__name__
+                    if (
+                        cls_name.startswith("ProximityB")
+                        or cls_name.startswith("ProximityBC")
+                        or "proximityb" in cls_name.lower()
+                        or "proximity_b" in cls_name.lower()
+                    ):
+                        return True
+                    if hasattr(obj, "method") and isinstance(obj.method, str):
+                        m_obj = obj.method.lower()
+                        if m_obj.startswith("proximity_b") or m_obj in (
+                            "b", "bc", "b_cv", "bc_cv", "proximity_b", "proximity_bc", "proximity_b_cv", "proximity_bc_cv"
+                        ):
+                            return True
+
+        return False
+
     def _update(self, **kwargs: Any) -> None:
-        if "num_data" in kwargs:
-            self._num_data = int(kwargs["num_data"])
+        self._num_data = int(kwargs["num_data"]) if "num_data" in kwargs else None
 
     def _compute(self, X: np.ndarray) -> np.ndarray:
         if self._model is None:
@@ -85,14 +131,23 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
             else:
                 N = 0
 
-        # 2. Determine effective k
-        if isinstance(self._k, (int, np.integer)):
-            k_eff = int(self._k)
+        # 2. Determine mode and effective neighbor parameter
+        is_continuous = self._is_continuous_method()
+        if is_continuous:
+            # Continuous mode (B, BC): bypass k-warmup when N > 0, using continuous tree-walk proximities
+            should_warmup = (N is None or N <= 0)
+            n_neighbors = "auto"
         else:
-            k_eff = self._k_warmup
+            # Discrete mode (A, AC): retain discrete k-warmup
+            if isinstance(self._k, (int, np.integer)):
+                k_eff = int(self._k)
+            else:
+                k_eff = self._k_warmup
+            should_warmup = (N is None or N <= k_eff)
+            n_neighbors = self._k
 
-        # 3. Phase 1: Pure Native SMAC3 Random Forest LCB during Warm Start (N <= k_eff)
-        if N <= k_eff:
+        # 3. Phase 1: Pure Native SMAC3 Random Forest LCB during Warm Start
+        if should_warmup:
             if hasattr(self._model, "predict_standard_rf"):
                 mean_rf, var_rf = self._model.predict_standard_rf(X)
             else:
@@ -102,13 +157,13 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
             # Standard RF LCB for minimization: -(mean - kappa * std) = -mean + kappa * std
             return (-mean_rf + self._kappa * std_rf).reshape(-1, 1)
 
-        # 4. Phase 2: Floored Proximity Lower Bound when N > k_eff
+        # 4. Phase 2: Floored Proximity Lower Bound
         # Obtain intervals and local in-interval MAE
         if hasattr(self._model, "predict_with_intervals"):
             try:
                 res = self._model.predict_with_intervals(
                     X,
-                    n_neighbors=self._k,
+                    n_neighbors=n_neighbors,
                     level=self._level,
                     return_mae=True,
                     weighting=self._weighting,
@@ -118,14 +173,14 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
                 try:
                     res = self._model.predict_with_intervals(
                         X,
-                        n_neighbors=self._k,
+                        n_neighbors=n_neighbors,
                         level=self._level,
                         return_mae=True,
                         weighting=self._weighting,
                     )
                 except TypeError:
                     res = self._model.predict_with_intervals(
-                        X, n_neighbors=self._k, level=self._level, return_mae=True
+                        X, n_neighbors=n_neighbors, level=self._level, return_mae=True
                     )
             if len(res) == 4:
                 y_pred_lwr, y_pred, _, local_mae = res
@@ -142,13 +197,15 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
             )
             mean, var = self._model.predict_marginalized(X)
             y_pred = mean.flatten()
-            std = np.sqrt(var.flatten())
+            std = np.sqrt(np.maximum(var.flatten(), 1e-10))
             y_pred_lwr = y_pred - self._kappa * std
             local_mae = np.full_like(y_pred, getattr(self._model, "oob_mae", 1.0))
 
         y_pred = np.asarray(y_pred, dtype=np.float64).flatten()
         y_pred_lwr = np.asarray(y_pred_lwr, dtype=np.float64).flatten()
         local_mae = np.asarray(local_mae, dtype=np.float64).flatten()
+        if local_mae.size == 1 and y_pred.size > 1:
+            local_mae = np.full_like(y_pred, local_mae.item())
 
         # Compute point-adaptive exploration floor if eps > 0 and kappa > 0
         if self._eps > 0.0 and self._kappa > 0.0:
