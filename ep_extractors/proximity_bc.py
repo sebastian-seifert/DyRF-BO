@@ -17,6 +17,8 @@ class ProximityBCExtractor(BaseEpistemicExtractor):
         weighting: str = "unweighted_all",
         use_leaf_weights: Optional[bool] = None,
         weighted: bool = False,
+        residual_mode: str = "oob",
+        cv_folds: int = 5,
         **kwargs,
     ):
         """
@@ -29,6 +31,8 @@ class ProximityBCExtractor(BaseEpistemicExtractor):
         self.weighting = weighting
         self.use_leaf_weights = use_leaf_weights
         self.weighted = weighted
+        self.residual_mode = residual_mode
+        self.cv_folds = cv_folds
         self.uq_model = None
 
     def fit(self, X_train: np.ndarray, y_train: np.ndarray) -> None:
@@ -43,6 +47,8 @@ class ProximityBCExtractor(BaseEpistemicExtractor):
             weighting=self.weighting,
             use_leaf_weights=self.use_leaf_weights,
             weighted=self.weighted,
+            residual_mode=self.residual_mode,
+            cv_folds=self.cv_folds,
         )
         self.uq_model.fit()
 
@@ -129,3 +135,33 @@ class ProximityBCWeightedExtractor(ProximityBCExtractor):
             weighted=weighted,
             **kwargs,
         )
+
+
+@UQExtractorRegistry.register("proximity_bc_cv")
+class ProximityBCCVExtractor(ProximityBCExtractor):
+    def __init__(
+        self,
+        model,
+        device="auto",
+        decay_lambda=1.0,
+        alpha=1.0,
+        weighting: str = "unweighted_all",
+        use_leaf_weights: Optional[bool] = None,
+        weighted: bool = False,
+        residual_mode: str = "cv",
+        cv_folds: int = 5,
+        **kwargs,
+    ):
+        super().__init__(
+            model,
+            device=device,
+            decay_lambda=decay_lambda,
+            alpha=alpha,
+            weighting=weighting,
+            use_leaf_weights=use_leaf_weights,
+            weighted=weighted,
+            residual_mode=residual_mode,
+            cv_folds=cv_folds,
+            **kwargs,
+        )
+

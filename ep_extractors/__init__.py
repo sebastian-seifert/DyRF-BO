@@ -76,6 +76,7 @@ from ep_extractors import shaker_entropy
 from ep_extractors import likelihood_credal
 from ep_extractors import standard_proximity
 from ep_extractors import proximity_b
+from ep_extractors import proximity_ac
 from ep_extractors import proximity_bc
 from ep_extractors import proximity_auto_lambda
 from ep_extractors import distance_evidential
