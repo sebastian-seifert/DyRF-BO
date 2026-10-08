@@ -21,6 +21,7 @@ class CustomUncertaintyRandomForest(RandomForest):
         min_samples_split: int = 2,
         ratio_features: float = 1.0,
         log_y: bool = True,
+        min_samples_uq: int = 5,
         **kwargs
     ):
         super().__init__(
@@ -33,6 +34,7 @@ class CustomUncertaintyRandomForest(RandomForest):
         )
         self.uncertainty_func = uncertainty_func
         self.extractor_kwargs = extractor_kwargs
+        self.min_samples_uq = min_samples_uq
         self.uq_extractor = None
         self.last_X = None
         self.last_y = None
@@ -58,6 +60,12 @@ class CustomUncertaintyRandomForest(RandomForest):
         self.last_X = X_clean
         self.last_y = y_target.flatten()
         
+        # Defer UQ extractor fitting until N >= min_samples_uq to guarantee standard SMAC3 initial phase behavior
+        # and eliminate cv_folds warnings during initial design.
+        if len(X_clean) < self.min_samples_uq:
+            self.uq_extractor = None
+            return self
+
         # SMAC3's self._rf is an EPMRandomForest (subclass of sklearn RandomForestRegressor).
         # We pass self._rf directly into UQExtractorRegistry with zero secondary model retraining overhead!
         if isinstance(self.uncertainty_func, str) and self._rf is not None:
@@ -72,15 +80,15 @@ class CustomUncertaintyRandomForest(RandomForest):
         Predicts mean using SMAC3 Random Forest and computes custom uncertainty signal U(X).
         Returns (mean, U(X)^2) so SMAC3's native acquisition functions (EI, PI, LCB) use U(X)!
         """
+        if (self.last_X is not None and len(self.last_X) < self.min_samples_uq) or (
+            isinstance(self.uncertainty_func, str) and self.uq_extractor is None
+        ):
+            return super()._predict(X, covariance_type=covariance_type)
+
         mean, _ = super()._predict(X, covariance_type=covariance_type)
         X_clean = self._impute_inactive(X)
         
         if isinstance(self.uncertainty_func, str):
-            if self.uq_extractor is None and self._rf is not None:
-                self.uq_extractor = UQExtractorRegistry.get(
-                    self.uncertainty_func, self._rf, **(self.extractor_kwargs or {})
-                )
-                self.uq_extractor.fit(self.last_X if self.last_X is not None else X_clean, self.last_y)
             unc_signal = self.uq_extractor.extract_epistemic_signal(X_clean)
         elif callable(self.uncertainty_func):
             unc_signal = self.uncertainty_func(self._rf or self, X_clean, self.last_y)
@@ -106,7 +114,12 @@ class CustomUncertaintyRandomForest(RandomForest):
         if self.uq_extractor is not None and hasattr(self.uq_extractor, "oob_mae"):
             return self.uq_extractor.oob_mae
         if hasattr(self._rf, "oob_prediction_") and self.last_y is not None:
-            return float(np.mean(np.abs(self.last_y - self._rf.oob_prediction_)))
+            try:
+                valid_mask = ~np.isnan(self._rf.oob_prediction_)
+                if np.any(valid_mask):
+                    return float(np.mean(np.abs(self.last_y[valid_mask] - self._rf.oob_prediction_[valid_mask])))
+            except Exception:
+                pass
         return 1.0
 
     def predict_with_intervals(
@@ -122,7 +135,12 @@ class CustomUncertaintyRandomForest(RandomForest):
         Delegates directly to uq_extractor if supported.
         """
         X_clean = self._impute_inactive(X)
-        if self.uq_extractor is None and self._rf is not None and isinstance(self.uncertainty_func, str):
+        if (
+            self.uq_extractor is None
+            and self._rf is not None
+            and isinstance(self.uncertainty_func, str)
+            and (self.last_X is not None and len(self.last_X) >= self.min_samples_uq)
+        ):
             self.uq_extractor = UQExtractorRegistry.get(
                 self.uncertainty_func, self._rf, **(self.extractor_kwargs or {})
             )
@@ -134,13 +152,14 @@ class CustomUncertaintyRandomForest(RandomForest):
             )
 
         # Fallback to Gaussian interval via _predict
-        extractor_name = type(self.uq_extractor).__name__ if self.uq_extractor is not None else str(self.uncertainty_func)
-        warnings.warn(
-            f"Active UQ extractor '{extractor_name}' does not implement 'predict_with_intervals'; "
-            "falling back to Gaussian prediction intervals.",
-            UserWarning,
-            stacklevel=2,
-        )
+        if self.uq_extractor is not None:
+            extractor_name = type(self.uq_extractor).__name__
+            warnings.warn(
+                f"Active UQ extractor '{extractor_name}' does not implement 'predict_with_intervals'; "
+                "falling back to Gaussian prediction intervals.",
+                UserWarning,
+                stacklevel=2,
+            )
         mean, var = self._predict(X_clean)
         mean = mean.flatten()
         std = np.sqrt(var.flatten())

@@ -340,9 +340,11 @@ class TestUnweightedProximityCore(unittest.TestCase):
 
         mock_model = CallRecordingSurrogate(n_train=50)
         cs = ConfigurationSpace()
-        cs.add_hyperparameter(Float("x0", (-2.0, 2.0), default=0.0))
-        cs.add_hyperparameter(Float("x1", (-2.0, 2.0), default=0.0))
-        cs.add_hyperparameter(Float("x2", (-2.0, 2.0), default=0.0))
+        cs.add([
+            Float("x0", (-2.0, 2.0), default=0.0),
+            Float("x1", (-2.0, 2.0), default=0.0),
+            Float("x2", (-2.0, 2.0), default=0.0),
+        ])
 
         acq1.update(model=mock_model)
         X_eval = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
@@ -455,6 +457,60 @@ class TestUnweightedProximityCore(unittest.TestCase):
         self.assertEqual(mean.shape, (len(self.X_test), 1))
         self.assertEqual(var.shape, (len(self.X_test), 1))
         self.assertTrue(np.all(var > 0.0))
+
+    def test_initial_design_defer_uq_fitting(self):
+        """
+        Verify that CustomUncertaintyRandomForest.train() with N < 5 (e.g. N=2, 3, 4)
+        leaves self.uq_extractor as None, produces pure native SMAC3 RF predictions,
+        and does not instantiate/fit the UQ extractor or raise warnings/crashes,
+        while N >= 5 successfully fits self.uq_extractor.
+        """
+        cs = ConfigurationSpace(seed=42)
+        cs.add([
+            Float("x0", (-2.0, 2.0), default=0.0),
+            Float("x1", (-2.0, 2.0), default=0.0),
+            Float("x2", (-2.0, 2.0), default=0.0),
+        ])
+
+        for n_samples in [2, 3, 4]:
+            model = CustomUncertaintyRandomForest(
+                uncertainty_func="proximity_b_unweighted",
+                configspace=cs,
+                n_trees=10,
+                seed=42,
+            )
+            model.train(self.X_train[:n_samples], self.y_train[:n_samples])
+            self.assertIsNone(
+                model.uq_extractor,
+                f"Expected model.uq_extractor to be None for N={n_samples}, but got {type(model.uq_extractor)}",
+            )
+
+            # _predict / predict should produce native RF predictions without crashing or fitting extractor
+            mean, var = model.predict(self.X_test)
+            mean_std, var_std = model.predict_standard_rf(self.X_test)
+            np.testing.assert_allclose(mean, mean_std, rtol=1e-6, atol=1e-6)
+            np.testing.assert_allclose(var, var_std, rtol=1e-6, atol=1e-6)
+            self.assertIsNone(model.uq_extractor)
+
+            # predict_with_intervals should work without crashing
+            y_lwr, y_mean, y_upr = model.predict_with_intervals(self.X_test, return_mae=False)
+            self.assertEqual(y_mean.shape, (len(self.X_test),))
+            self.assertTrue(np.all(np.isfinite(y_lwr)))
+            self.assertTrue(np.all(np.isfinite(y_mean)))
+            self.assertTrue(np.all(np.isfinite(y_upr)))
+            self.assertTrue(np.all(y_upr >= y_lwr - 1e-7))
+            self.assertIsNone(model.uq_extractor)
+
+        # For N = 5, uq_extractor should be fitted normally
+        model_5 = CustomUncertaintyRandomForest(
+            uncertainty_func="proximity_b_unweighted",
+            configspace=cs,
+            n_trees=10,
+            seed=42,
+        )
+        model_5.train(self.X_train[:5], self.y_train[:5])
+        self.assertIsNotNone(model_5.uq_extractor)
+        self.assertEqual(model_5.uq_extractor.weighting, "unweighted_all")
 
 
 if __name__ == "__main__":
