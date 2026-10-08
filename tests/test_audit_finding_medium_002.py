@@ -108,7 +108,7 @@ class TestFindingMedium002OOBReconstructionAndMasking(unittest.TestCase):
             rf = RandomForestRegressor(n_estimators=5, random_state=42, bootstrap=True)
             rf.fit(X, y)
 
-        uq_model = GPUProximityRegressionUQ(rf, X, y, device="cpu", use_density_scaling=False)
+        uq_model = GPUProximityRegressionUQ(rf, X, y, device="cpu", use_density_scaling=False, warn_on_low_support=True)
         uq_model.fit()
 
         # Artificially mask out almost all OOB points to simulate severe starvation

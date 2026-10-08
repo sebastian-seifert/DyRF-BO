@@ -80,6 +80,7 @@ class StandardProximityExtractor(BaseEpistemicExtractor):
             weighting=weighting if weighting is not None else self.weighting,
             use_leaf_weights=use_leaf_weights if use_leaf_weights is not None else self.use_leaf_weights,
             weighted=weighted if weighted is not None else self.weighted,
+            **kwargs,
         )
 
 
