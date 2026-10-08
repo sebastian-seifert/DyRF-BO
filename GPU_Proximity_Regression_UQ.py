@@ -44,6 +44,8 @@ class GPUProximityRegressionUQ:
         weighting: str = "unweighted_all",
         use_leaf_weights: bool | None = None,
         weighted: bool = False,
+        residual_mode: str = "oob",
+        cv_folds: int = 5,
     ):
         """
         GPU-Accelerated Wrapper for Localized Uncertainty Quantification in Random Forests
@@ -64,6 +66,8 @@ class GPUProximityRegressionUQ:
             weighting: str, "unweighted_all" (default), "leaf_normalized", or "unweighted_inbag".
             use_leaf_weights: bool or None, backward-compatibility flag. If False, weighting resolves to "unweighted_all".
             weighted: bool, if True, sets weighting to "leaf_normalized". Default False ("unweighted_all").
+            residual_mode: str, "oob" (default) or "cv". Method used to compute residuals.
+            cv_folds: int, number of cross-validation folds if residual_mode="cv". Default 5.
         """
         self.model = model
         self.X_train = np.asarray(X_train)
@@ -74,6 +78,14 @@ class GPUProximityRegressionUQ:
         self.density_scaling_alpha = density_scaling_alpha
         self.topological_decay_lambda = topological_decay_lambda
         self.normalize_by_depth = normalize_by_depth
+
+        valid_residual_modes = {"oob", "cv"}
+        if residual_mode not in valid_residual_modes:
+            raise ValueError(f"Unknown residual_mode '{residual_mode}'. Expected one of {sorted(list(valid_residual_modes))}")
+        self.residual_mode = residual_mode
+        self.cv_folds = int(cv_folds)
+        if self.cv_folds < 2:
+            raise ValueError(f"cv_folds must be an integer >= 2, got {self.cv_folds}.")
 
         valid_options = {"leaf_normalized", "weighted", "unweighted_all", "unweighted", "unweighted_inbag"}
         if weighting not in valid_options:
@@ -251,19 +263,15 @@ class GPUProximityRegressionUQ:
             idx, counts = np.unique(ib_idx, return_counts=True)
             self.in_bag_counts[idx, t] = counts
 
-        oob_counts = np.sum(self.oob_indices, axis=1)
-        self.valid_oob_mask = (oob_counts > 0) & (np.isfinite(self.oob_prediction_) if self.oob_prediction_ is not None else False)
-
-        # Replace non-finite or invalid OOB entries with 0.0 in oob_residuals
-        # to ensure zero-weighted invalid rows cannot poison downstream arrays with NaNs
-        if self.oob_prediction_ is not None:
-            clean_oob_pred = np.where(self.valid_oob_mask, self.oob_prediction_, self.y_train)
-            raw_residuals = self.y_train - clean_oob_pred
+        if self.residual_mode == "cv":
+            raw_residuals = self._compute_cv_residuals()
+            if self.n_train >= self.cv_folds:
+                self.valid_oob_mask = np.ones(self.n_train, dtype=bool)
         else:
-            raw_residuals = np.zeros_like(self.y_train)
+            raw_residuals = self._compute_oob_residuals()
 
         if self.using_gpu:
-            self.oob_residuals = cupyx.empty_pinned(self.y_train.shape, dtype=np.float32)
+            self.oob_residuals = cupyx.empty_pinned(raw_residuals.shape, dtype=np.float32)
             self.oob_residuals[...] = raw_residuals
         else:
             self.oob_residuals = raw_residuals.astype(np.float32)
@@ -338,6 +346,60 @@ class GPUProximityRegressionUQ:
             t_transfer = time.perf_counter()
             print(f"[TIMING] Transfer structures to backend: {(t_transfer - t_weights)*1000:.2f} ms")
             print(f"[TIMING] Total fit: {(t_transfer - t_start)*1000:.2f} ms")
+
+    def _compute_oob_residuals(self) -> np.ndarray:
+        """
+        Extracts out-of-bag residuals and populates valid_oob_mask.
+        """
+        oob_counts = np.sum(self.oob_indices, axis=1)
+        self.valid_oob_mask = (oob_counts > 0) & (
+            np.isfinite(self.oob_prediction_) if self.oob_prediction_ is not None else False
+        )
+
+        # Replace non-finite or invalid OOB entries with 0.0 in oob_residuals
+        # to ensure zero-weighted invalid rows cannot poison downstream arrays with NaNs
+        if self.oob_prediction_ is not None:
+            clean_oob_pred = np.where(self.valid_oob_mask, self.oob_prediction_, self.y_train)
+            raw_residuals = self.y_train - clean_oob_pred
+        else:
+            raw_residuals = np.zeros_like(self.y_train)
+        return raw_residuals
+
+    def _compute_cv_residuals(self) -> np.ndarray:
+        """
+        Computes out-of-fold residuals using K-Fold cross validation.
+        Falls back to OOB residuals if n_train < cv_folds.
+        """
+        if self.n_train < self.cv_folds:
+            warnings.warn(
+                f"Training set size N={self.n_train} is smaller than cv_folds={self.cv_folds}. "
+                "Falling back to OOB residuals.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return self._compute_oob_residuals()
+
+        from sklearn.model_selection import KFold
+        from sklearn.base import clone
+
+        seed = getattr(self.model, "random_state", None)
+        kf = KFold(n_splits=self.cv_folds, shuffle=True, random_state=seed)
+
+        y_train_flat = np.asarray(self.y_train, dtype=np.float32).ravel()
+        raw_residuals = np.zeros(self.n_train, dtype=np.float32)
+        for train_idx, val_idx in kf.split(self.X_train):
+            sub_model = clone(self.model)
+            if hasattr(sub_model, "oob_score"):
+                sub_model.set_params(oob_score=False)
+            sub_model.fit(self.X_train[train_idx], self.y_train[train_idx])
+            y_pred_val = sub_model.predict(self.X_train[val_idx])
+            if isinstance(y_pred_val, tuple):
+                y_pred_val = y_pred_val[0]
+            y_pred_val = np.asarray(y_pred_val, dtype=np.float32).flatten()
+            raw_residuals[val_idx] = y_train_flat[val_idx] - y_pred_val
+
+        self.valid_oob_mask = np.ones(self.n_train, dtype=bool)
+        return raw_residuals
 
     def _precompute_tree_distances(self):
         """Precomputes path distances between all terminal leaves for each tree in the forest."""
