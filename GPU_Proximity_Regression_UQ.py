@@ -46,6 +46,8 @@ class GPUProximityRegressionUQ:
         weighted: bool = False,
         residual_mode: str = "oob",
         cv_folds: int = 5,
+        fallback_on_low_support: bool = False,
+        warn_on_low_support: bool = False,
     ):
         """
         GPU-Accelerated Wrapper for Localized Uncertainty Quantification in Random Forests
@@ -104,6 +106,9 @@ class GPUProximityRegressionUQ:
         self.weighting = weighting
         self.use_leaf_weights = use_leaf_weights
         self.weighted = (self.weighting == "leaf_normalized")
+        self.fallback_on_low_support = bool(fallback_on_low_support)
+        self.warn_on_low_support = bool(warn_on_low_support)
+        self._low_support_warned = False
 
         
         # Configure backend dynamically
@@ -200,6 +205,7 @@ class GPUProximityRegressionUQ:
         Fits the underlying Random Forest model if not already fitted,
         extracts OOB residual statistics, and prepares internal structures.
         """
+        self._low_support_warned = False
         import time
         debug_timing = os.environ.get("PROXIMITY_DEBUG") == "1"
         
@@ -621,6 +627,59 @@ class GPUProximityRegressionUQ:
             return "unweighted_inbag"
         return w
 
+    def _compute_discrete_intervals_fallback(
+        self,
+        leaf_sub,
+        active_weighting,
+        n_neighbors,
+        alpha_lwr,
+        alpha_upr,
+        return_mae=False,
+    ):
+        """
+        Evaluates prediction intervals and optional local MAE for a sub-batch of test points
+        using Proximity A discrete leaf co-occurrence (with top-k neighbor selection).
+        """
+        sub_len = len(leaf_sub)
+        prox_disc = self.xp.zeros((sub_len, self.n_train), dtype=self.xp.float32)
+        for t in range(self.n_estimators):
+            if active_weighting == "unweighted_all":
+                train_leaves = getattr(self, "leaf_matrix_train_xp", self.in_bag_leaves_xp)
+                matches_t = leaf_sub[:, t, None] == train_leaves[None, :, t]
+                prox_disc += matches_t.astype(self.xp.float32)
+            elif active_weighting == "unweighted_inbag":
+                matches_t = leaf_sub[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                prox_disc += matches_t.astype(self.xp.float32) * self.in_bag_indices_xp[None, :, t]
+            else:
+                matches_t = leaf_sub[:, t, None] == self.in_bag_leaves_xp[None, :, t]
+                prox_disc += matches_t * self.train_weights_xp[None, :, t]
+
+        prox_disc /= self.n_estimators
+        if hasattr(self, "valid_oob_mask") and self.valid_oob_mask is not None:
+            prox_disc[:, ~self.valid_oob_mask] = 0.0
+
+        if isinstance(n_neighbors, (int, np.integer)):
+            k = min(int(n_neighbors), self.n_train)
+        else:
+            k = min(25, self.n_train)
+
+        if k < self.n_train:
+            partition_idx = self.xp.flip(self.xp.argsort(prox_disc, axis=1), axis=1)[:, :k]
+            k_residuals = self.oob_residuals_xp[partition_idx]
+        else:
+            k_residuals = self.xp.broadcast_to(self.oob_residuals_xp[None, :], (sub_len, self.n_train))
+
+        lwr = self.xp.quantile(k_residuals, alpha_lwr, axis=1)
+        upr = self.xp.quantile(k_residuals, alpha_upr, axis=1)
+
+        if return_mae:
+            in_int = (k_residuals >= lwr[:, None]) & (k_residuals <= upr[:, None])
+            cnt = self.xp.sum(in_int, axis=1)
+            sum_abs = self.xp.sum(self.xp.abs(k_residuals) * in_int, axis=1)
+            mae_val = self.xp.where(cnt > 0, sum_abs / self.xp.maximum(cnt, 1), float(self.oob_mae))
+            return lwr, upr, mae_val
+        return lwr, upr
+
     def compute_uq(
         self,
         X_test,
@@ -630,6 +689,7 @@ class GPUProximityRegressionUQ:
         weighting: str | None = None,
         use_leaf_weights: bool | None = None,
         weighted: bool | None = None,
+        fallback_on_low_support: bool | None = None,
     ):
         """
         Computes localized uncertainty quantification (interval width) for test query points.
@@ -647,6 +707,7 @@ class GPUProximityRegressionUQ:
             use_density_scaling = getattr(self, "use_density_scaling", False)
 
         active_weighting = self._resolve_runtime_weighting(weighting, use_leaf_weights, weighted)
+        effective_fallback = self.fallback_on_low_support if fallback_on_low_support is None else bool(fallback_on_low_support)
 
         # Ensure model is fitted and structures are prepared
         if not hasattr(self, "estimators"):
@@ -800,13 +861,15 @@ class GPUProximityRegressionUQ:
             k_eff = self.xp.where(w_sq_sum > 0, (w_sum**2) / w_sq_sum, 0.0)
             low_support = (w_sum < 1e-5) | (k_eff < 3.0)
             if self.xp.any(low_support):
-                warnings.warn(
-                    f"[DyRF-BO UQ Warning] Insufficient valid OOB neighbor support for {int(self.xp.sum(low_support))} query point(s) "
-                    f"(minimum k_eff={float(self.xp.min(k_eff)):.1f} < 3, weight={float(self.xp.min(w_sum)):.2e}). "
-                    "Empirical quantiles may be degenerate.",
-                    UserWarning,
-                    stacklevel=2,
-                )
+                if self.warn_on_low_support and not self._low_support_warned:
+                    warnings.warn(
+                        f"[DyRF-BO UQ Warning] Insufficient valid OOB neighbor support for {int(self.xp.sum(low_support))} query point(s) "
+                        f"(minimum k_eff={float(self.xp.min(k_eff)):.1f} < 3, weight={float(self.xp.min(w_sum)):.2e}). "
+                        "Empirical quantiles may be degenerate.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self._low_support_warned = True
             
             if use_density_scaling and self.topological_decay_lambda is not None and self.topological_decay_lambda > 0.0:
                 walked_densities[start:end] = density_batch / self.n_estimators
@@ -827,8 +890,8 @@ class GPUProximityRegressionUQ:
                 and n_neighbors in ("auto", "all")
             ):
                 # Method B: Topological Weighted Quantiles
-                resid_lwr[start:end] = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_lwr)
-                resid_upr[start:end] = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_upr)
+                batch_lwr = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_lwr)
+                batch_upr = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_upr)
             elif n_neighbors == "auto":
                     # Mask out training samples with proximity < 1e-10 using xp.where instead of tiling
                     masked_residuals = self.xp.where(prox_batch >= 1e-10, self.oob_residuals_xp[None, :], self.xp.nan)
@@ -839,11 +902,11 @@ class GPUProximityRegressionUQ:
                         tiled_cpu = cp.asnumpy(masked_residuals)
                         lwr_cpu = np.nanquantile(tiled_cpu, alpha_lwr, axis=1)
                         upr_cpu = np.nanquantile(tiled_cpu, alpha_upr, axis=1)
-                        resid_lwr[start:end] = cp.asarray(lwr_cpu)
-                        resid_upr[start:end] = cp.asarray(upr_cpu)
+                        batch_lwr = cp.asarray(lwr_cpu)
+                        batch_upr = cp.asarray(upr_cpu)
                     else:
-                        resid_lwr[start:end] = self.xp.nanquantile(masked_residuals, alpha_lwr, axis=1)
-                        resid_upr[start:end] = self.xp.nanquantile(masked_residuals, alpha_upr, axis=1)
+                        batch_lwr = self.xp.nanquantile(masked_residuals, alpha_lwr, axis=1)
+                        batch_upr = self.xp.nanquantile(masked_residuals, alpha_upr, axis=1)
             else:
                 k = self.n_train if n_neighbors == "all" else int(n_neighbors)
                 
@@ -858,8 +921,24 @@ class GPUProximityRegressionUQ:
                     # If k matches self.n_train, sorting is redundant; use broadcasted residuals
                     k_residuals = self.xp.broadcast_to(self.oob_residuals_xp[None, :], (batch_len, self.n_train))
                 
-                resid_lwr[start:end] = self.xp.quantile(k_residuals, alpha_lwr, axis=1)
-                resid_upr[start:end] = self.xp.quantile(k_residuals, alpha_upr, axis=1)
+                batch_lwr = self.xp.quantile(k_residuals, alpha_lwr, axis=1)
+                batch_upr = self.xp.quantile(k_residuals, alpha_upr, axis=1)
+
+            if effective_fallback and self.xp.any(low_support):
+                low_idx = self.xp.where(low_support)[0]
+                disc_lwr, disc_upr = self._compute_discrete_intervals_fallback(
+                    leaf_batch[low_idx],
+                    active_weighting,
+                    n_neighbors,
+                    alpha_lwr,
+                    alpha_upr,
+                    return_mae=False,
+                )
+                batch_lwr[low_idx] = disc_lwr
+                batch_upr[low_idx] = disc_upr
+
+            resid_lwr[start:end] = batch_lwr
+            resid_upr[start:end] = batch_upr
                 
             if debug_timing:
                 if self.using_gpu:
@@ -931,6 +1010,7 @@ class GPUProximityRegressionUQ:
         weighting: str | None = None,
         use_leaf_weights: bool | None = None,
         weighted: bool | None = None,
+        fallback_on_low_support: bool | None = None,
     ):
         """
         Generate point predictions with empirical prediction intervals using RF proximities.
@@ -940,6 +1020,7 @@ class GPUProximityRegressionUQ:
             self.fit()
 
         active_weighting = self._resolve_runtime_weighting(weighting, use_leaf_weights, weighted)
+        effective_fallback = self.fallback_on_low_support if fallback_on_low_support is None else bool(fallback_on_low_support)
 
         X_test = np.asarray(X_test)
         n_test = len(X_test)
@@ -1022,13 +1103,15 @@ class GPUProximityRegressionUQ:
             k_eff = self.xp.where(w_sq_sum > 0, (w_sum**2) / w_sq_sum, 0.0)
             low_support = (w_sum < 1e-5) | (k_eff < 3.0)
             if self.xp.any(low_support):
-                warnings.warn(
-                    f"[DyRF-BO UQ Warning] Insufficient valid OOB neighbor support for {int(self.xp.sum(low_support))} query point(s) "
-                    f"(minimum k_eff={float(self.xp.min(k_eff)):.1f} < 3, weight={float(self.xp.min(w_sum)):.2e}). "
-                    "Empirical quantiles may be degenerate.",
-                    UserWarning,
-                    stacklevel=2,
-                )
+                if self.warn_on_low_support and not self._low_support_warned:
+                    warnings.warn(
+                        f"[DyRF-BO UQ Warning] Insufficient valid OOB neighbor support for {int(self.xp.sum(low_support))} query point(s) "
+                        f"(minimum k_eff={float(self.xp.min(k_eff)):.1f} < 3, weight={float(self.xp.min(w_sum)):.2e}). "
+                        "Empirical quantiles may be degenerate.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self._low_support_warned = True
 
             if (
                 self.topological_decay_lambda is not None
@@ -1037,35 +1120,33 @@ class GPUProximityRegressionUQ:
             ):
                 lwr_b = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_lwr)
                 upr_b = self._compute_weighted_quantile(self.oob_residuals_xp, prox_batch, alpha_upr)
-                resid_lwr[start:end] = lwr_b
-                resid_upr[start:end] = upr_b
+                batch_lwr = lwr_b
+                batch_upr = upr_b
                 if return_mae:
                     resids = self.oob_residuals_xp[None, :]
                     in_int = (resids >= lwr_b[:, None]) & (resids <= upr_b[:, None])
                     w_in = prox_batch * in_int
                     w_sum = self.xp.sum(w_in, axis=1)
                     mae_val = self.xp.sum(self.xp.abs(resids) * w_in, axis=1) / self.xp.maximum(w_sum, 1e-10)
-                    local_mae[start:end] = self.xp.where(w_sum > 0, mae_val, float(self.oob_mae))
+                    batch_mae = self.xp.where(w_sum > 0, mae_val, float(self.oob_mae))
             elif n_neighbors == "auto":
                     masked_residuals = self.xp.where(prox_batch >= 1e-10, self.oob_residuals_xp[None, :], self.xp.nan)
                     if self.using_gpu and not self.nanquantile_supported:
                         tiled_cpu = cp.asnumpy(masked_residuals)
                         lwr_cpu = np.nanquantile(tiled_cpu, alpha_lwr, axis=1)
                         upr_cpu = np.nanquantile(tiled_cpu, alpha_upr, axis=1)
-                        lwr_b = cp.asarray(lwr_cpu)
-                        upr_b = cp.asarray(upr_cpu)
+                        batch_lwr = cp.asarray(lwr_cpu)
+                        batch_upr = cp.asarray(upr_cpu)
                     else:
-                        lwr_b = self.xp.nanquantile(masked_residuals, alpha_lwr, axis=1)
-                        upr_b = self.xp.nanquantile(masked_residuals, alpha_upr, axis=1)
-                    resid_lwr[start:end] = lwr_b
-                    resid_upr[start:end] = upr_b
+                        batch_lwr = self.xp.nanquantile(masked_residuals, alpha_lwr, axis=1)
+                        batch_upr = self.xp.nanquantile(masked_residuals, alpha_upr, axis=1)
                     if return_mae:
-                        in_int = (masked_residuals >= lwr_b[:, None]) & (masked_residuals <= upr_b[:, None])
+                        in_int = (masked_residuals >= batch_lwr[:, None]) & (masked_residuals <= batch_upr[:, None])
                         valid_cnt = self.xp.sum(in_int & (~self.xp.isnan(masked_residuals)), axis=1)
                         abs_res = self.xp.where(~self.xp.isnan(masked_residuals), self.xp.abs(masked_residuals), 0.0)
                         sum_abs = self.xp.sum(abs_res * in_int, axis=1)
                         mae_val = sum_abs / self.xp.maximum(valid_cnt, 1)
-                        local_mae[start:end] = self.xp.where(valid_cnt > 0, mae_val, float(self.oob_mae))
+                        batch_mae = self.xp.where(valid_cnt > 0, mae_val, float(self.oob_mae))
             else:
                 k = self.n_train if n_neighbors == "all" else int(n_neighbors)
                 if k < self.n_train:
@@ -1073,16 +1154,45 @@ class GPUProximityRegressionUQ:
                     k_residuals = self.oob_residuals_xp[partition_idx]
                 else:
                     k_residuals = self.xp.broadcast_to(self.oob_residuals_xp[None, :], (batch_len, self.n_train))
-                lwr_b = self.xp.quantile(k_residuals, alpha_lwr, axis=1)
-                upr_b = self.xp.quantile(k_residuals, alpha_upr, axis=1)
-                resid_lwr[start:end] = lwr_b
-                resid_upr[start:end] = upr_b
+                batch_lwr = self.xp.quantile(k_residuals, alpha_lwr, axis=1)
+                batch_upr = self.xp.quantile(k_residuals, alpha_upr, axis=1)
                 if return_mae:
-                    in_int = (k_residuals >= lwr_b[:, None]) & (k_residuals <= upr_b[:, None])
+                    in_int = (k_residuals >= batch_lwr[:, None]) & (k_residuals <= batch_upr[:, None])
                     cnt = self.xp.sum(in_int, axis=1)
                     sum_abs = self.xp.sum(self.xp.abs(k_residuals) * in_int, axis=1)
                     mae_val = sum_abs / self.xp.maximum(cnt, 1)
-                    local_mae[start:end] = self.xp.where(cnt > 0, mae_val, float(self.oob_mae))
+                    batch_mae = self.xp.where(cnt > 0, mae_val, float(self.oob_mae))
+
+            if effective_fallback and self.xp.any(low_support):
+                low_idx = self.xp.where(low_support)[0]
+                if return_mae:
+                    disc_lwr, disc_upr, disc_mae = self._compute_discrete_intervals_fallback(
+                        leaf_batch[low_idx],
+                        active_weighting,
+                        n_neighbors,
+                        alpha_lwr,
+                        alpha_upr,
+                        return_mae=True,
+                    )
+                    batch_lwr[low_idx] = disc_lwr
+                    batch_upr[low_idx] = disc_upr
+                    batch_mae[low_idx] = disc_mae
+                else:
+                    disc_lwr, disc_upr = self._compute_discrete_intervals_fallback(
+                        leaf_batch[low_idx],
+                        active_weighting,
+                        n_neighbors,
+                        alpha_lwr,
+                        alpha_upr,
+                        return_mae=False,
+                    )
+                    batch_lwr[low_idx] = disc_lwr
+                    batch_upr[low_idx] = disc_upr
+
+            resid_lwr[start:end] = batch_lwr
+            resid_upr[start:end] = batch_upr
+            if return_mae:
+                local_mae[start:end] = batch_mae
 
         y_pred = self.model.predict(X_test)
         if isinstance(y_pred, tuple):

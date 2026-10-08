@@ -30,12 +30,14 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
         use_leaf_weights: bool | None = None,
         weighted: bool = False,
         method: str | None = None,
+        fallback_on_low_support: bool = False,
     ) -> None:
         super().__init__()
         self._eps = float(eps)
         self._level = float(level)
         self._k = k
         self._k_warmup = int(k_warmup)
+        self._fallback_on_low_support = bool(fallback_on_low_support)
         if weighted is True or use_leaf_weights is True or weighting == "weighted":
             self._weighting = "weighted"
             self._weighted = True
@@ -64,6 +66,7 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
             "weighting": self._weighting,
             "weighted": self._weighted,
             "method": self._method,
+            "fallback_on_low_support": self._fallback_on_low_support,
         })
         return meta
 
@@ -168,6 +171,7 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
                     return_mae=True,
                     weighting=self._weighting,
                     weighted=self._weighted,
+                    fallback_on_low_support=self._fallback_on_low_support,
                 )
             except TypeError:
                 try:
@@ -177,11 +181,21 @@ class ProximityLowerBoundAcquisition(AbstractAcquisitionFunction):
                         level=self._level,
                         return_mae=True,
                         weighting=self._weighting,
+                        fallback_on_low_support=self._fallback_on_low_support,
                     )
                 except TypeError:
-                    res = self._model.predict_with_intervals(
-                        X, n_neighbors=n_neighbors, level=self._level, return_mae=True
-                    )
+                    try:
+                        res = self._model.predict_with_intervals(
+                            X,
+                            n_neighbors=n_neighbors,
+                            level=self._level,
+                            return_mae=True,
+                            fallback_on_low_support=self._fallback_on_low_support,
+                        )
+                    except TypeError:
+                        res = self._model.predict_with_intervals(
+                            X, n_neighbors=n_neighbors, level=self._level, return_mae=True
+                        )
             if len(res) == 4:
                 y_pred_lwr, y_pred, _, local_mae = res
             else:
