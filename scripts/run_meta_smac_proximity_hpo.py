@@ -167,22 +167,49 @@ def parse_iteration_results(
 class MetaSmacOrchestrator:
     def __init__(
         self,
+        method: str = "a",
         start_iteration: int = 1,
         end_iteration: int = 100,
         seeds: int = 5,
         trials: int = 100,
-        output_dir: str = "results/meta_smac_proximity_hpo",
-        baserundir: str = "runs/meta_smac_proximity_hpo",
+        output_dir: Optional[str] = None,
+        baserundir: Optional[str] = None,
         resume: bool = False,
         dry_run: bool = False,
         sbatch_script: str = "scripts/submit_meta_smac_step.sbatch",
     ) -> None:
-        self.start_iteration = start_iteration
+        if isinstance(method, int):
+            self.start_iteration = method
+            self.method = "a"
+        else:
+            self.method = str(method).lower()
+            self.start_iteration = start_iteration
+
+        if self.method not in {"a", "b", "ac", "bc"}:
+            raise ValueError(
+                f"Unknown proximity method: '{self.method}'. Supported methods are 'a', 'b', 'ac', 'bc'."
+            )
+
         self.end_iteration = end_iteration
         self.seeds = seeds
         self.trials = trials
-        self.output_dir = Path(output_dir)
-        self.baserundir = Path(baserundir)
+
+        if output_dir is None:
+            if self.method == "a":
+                self.output_dir = Path("results/meta_smac_proximity_hpo")
+            else:
+                self.output_dir = Path(f"results/meta_smac_proximity_{self.method}_hpo")
+        else:
+            self.output_dir = Path(output_dir)
+
+        if baserundir is None:
+            if self.method == "a":
+                self.baserundir = Path("runs/meta_smac_proximity_hpo")
+            else:
+                self.baserundir = Path(f"runs/meta_smac_proximity_{self.method}_hpo")
+        else:
+            self.baserundir = Path(baserundir)
+
         self.resume = resume
         self.dry_run = dry_run
         self.sbatch_script = sbatch_script
@@ -197,7 +224,7 @@ class MetaSmacOrchestrator:
         self.ref_bounds = load_dev_reference_bounds()
         self.dev_tasks = [t.split("/")[-1] for t in CarpsBBSubsetRegistry.get_working_dev_tasks(exclude_nas=True)]
 
-        self.cs = create_proximity_meta_configspace()
+        self.cs = create_proximity_meta_configspace(method=self.method)
         self.scenario = Scenario(
             configspace=self.cs,
             n_trials=self.end_iteration,
@@ -230,11 +257,15 @@ class MetaSmacOrchestrator:
 
         # Replay past trials into SMAC's ask/tell state if starting clean SMAC instance
         for entry in self.history:
-            cfg_dict = {
-                "k": int(entry["k"]),
-                "decay_lambda": float(entry["decay_lambda"]),
-                "eps": float(entry["eps"]),
-            }
+            cfg_dict = {}
+            for hp_name in self.cs.keys():
+                if hp_name in entry:
+                    val = entry[hp_name]
+                    hp = self.cs[hp_name]
+                    if "Integer" in type(hp).__name__:
+                        cfg_dict[hp_name] = int(val)
+                    else:
+                        cfg_dict[hp_name] = float(val)
             cfg = Configuration(self.cs, values=cfg_dict)
             trial_info = TrialInfo(config=cfg, seed=self.scenario.seed)
             trial_value = TrialValue(cost=float(entry["loss_normalized_regret"]), status=StatusType.SUCCESS)
@@ -271,11 +302,19 @@ class MetaSmacOrchestrator:
     def _mock_evaluate(self, iteration: int, cfg: Dict[str, Any]) -> Dict[str, List[float]]:
         """Mock multi-task evaluation for dry-runs and automated tests."""
         results: Dict[str, List[float]] = {}
-        # Synthetic loss function around incumbent: k=25, lambda=1.345, eps=0.1678
-        k_err = ((cfg["k"] - 25) / 25.0) ** 2
-        lam_err = ((cfg["decay_lambda"] - 1.345) / 1.345) ** 2
-        eps_err = ((cfg["eps"] - 0.1678) / 0.1678) ** 2
-        dist_factor = 0.2 + 0.5 * (k_err + lam_err + eps_err)
+        # Synthetic loss function around method incumbent
+        err = 0.0
+        if "k" in cfg:
+            err += ((cfg["k"] - 25) / 25.0) ** 2
+        if "decay_lambda" in cfg:
+            err += ((cfg["decay_lambda"] - 1.345) / 1.345) ** 2
+        if "eps" in cfg:
+            target_eps = 0.1678 if self.method == "a" else 0.16
+            err += ((cfg["eps"] - target_eps) / target_eps) ** 2
+        if "alpha" in cfg:
+            err += ((cfg["alpha"] - 1.0) / 1.0) ** 2
+
+        dist_factor = 0.2 + 0.5 * err
 
         for task in self.dev_tasks:
             bounds = self.ref_bounds.get(task, {"min": 0.0, "max": 1.0})
@@ -317,11 +356,19 @@ class MetaSmacOrchestrator:
     def run(self) -> Dict[str, Any]:
         """Main optimization loop executing from start_iteration to end_iteration."""
         print("=" * 60)
-        print(f"Starting SMAC4HPO Meta-Optimization on Proximity LCB")
+        print(f"Starting SMAC4HPO Meta-Optimization on Proximity LCB (Method {self.method.upper()})")
         print(f"Iterations: {self.start_iteration} to {self.end_iteration}")
         print(f"Seeds: {self.seeds} | Trials per task: {self.trials}")
         print(f"Dry Run: {self.dry_run}")
         print("=" * 60)
+
+        opt_prefix_map = {
+            "a": "SMAC20_ProximityLCB",
+            "b": "SMAC20_ProximityB_LCB",
+            "ac": "SMAC20_ProximityAC_LCB",
+            "bc": "SMAC20_ProximityBC_LCB",
+        }
+        opt_prefix = opt_prefix_map.get(self.method, "SMAC20_ProximityLCB")
 
         for i in range(self.start_iteration, self.end_iteration + 1):
             iter_dir = self.output_dir / f"iter_{i:03d}"
@@ -329,14 +376,14 @@ class MetaSmacOrchestrator:
             task_file = iter_dir / "tasks.txt"
 
             trial_info = self.smac_opt.ask()
-            cfg_dict = {
-                "k": int(trial_info.config["k"]),
-                "decay_lambda": float(trial_info.config["decay_lambda"]),
-                "eps": float(trial_info.config["eps"]),
-            }
+            cfg_dict: Dict[str, Any] = dict(trial_info.config)
 
             print(f"\n>>> Iteration {i:03d} / {self.end_iteration:03d}")
-            print(f"Proposed: k={cfg_dict['k']}, decay_lambda={cfg_dict['decay_lambda']:.4f}, eps={cfg_dict['eps']:.4f}")
+            param_repr = ", ".join(
+                f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}"
+                for k, v in cfg_dict.items()
+            )
+            print(f"Proposed: {param_repr}")
 
             # Generate Hydra task command lines
             generate_iteration_tasks(
@@ -347,6 +394,7 @@ class MetaSmacOrchestrator:
                 output_dir=str(self.output_dir),
                 baserundir=str(self.baserundir),
                 output_file=str(task_file),
+                method=self.method,
             )
 
             # Evaluate (Dry-run mock or SLURM cluster)
@@ -366,10 +414,8 @@ class MetaSmacOrchestrator:
             entry = {
                 "iteration": i,
                 "config_id": f"cfg_{i:03d}",
-                "optimizer_id": f"SMAC20_ProximityLCB_iter{i:03d}",
-                "k": cfg_dict["k"],
-                "decay_lambda": cfg_dict["decay_lambda"],
-                "eps": cfg_dict["eps"],
+                "optimizer_id": f"{opt_prefix}_iter{i:03d}",
+                **cfg_dict,
                 "loss_normalized_regret": float(meta_loss),
             }
             self.history.append(entry)
@@ -377,9 +423,14 @@ class MetaSmacOrchestrator:
 
         sorted_history = sorted(self.history, key=lambda x: x["loss_normalized_regret"])
         best = sorted_history[0]
+        best_repr = ", ".join(
+            f"{k}={best[k]:.4f}" if isinstance(best[k], float) else f"{k}={best[k]}"
+            for k in self.cs.keys()
+            if k in best
+        )
         print("\n" + "=" * 60)
         print("SMAC4HPO Meta-Optimization Batch Completed!")
-        print(f"Best Configuration: k={best['k']}, decay_lambda={best['decay_lambda']:.4f}, eps={best['eps']:.4f}")
+        print(f"Best Configuration: {best_repr}")
         print(f"Best Meta-Loss: {best['loss_normalized_regret']:.4f}")
         print(f"Leaderboard saved to: {self.leaderboard_file}")
         print("=" * 60)
@@ -388,17 +439,19 @@ class MetaSmacOrchestrator:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="SMAC4HPO Meta-Optimizer for Proximity LCB.")
+    parser.add_argument("--method", choices=["a", "b", "ac", "bc"], default="a", help="Proximity acquisition method (default: a)")
     parser.add_argument("--start-iteration", type=int, default=1, help="Start iteration (default: 1)")
     parser.add_argument("--end-iteration", type=int, default=100, help="End iteration (default: 100)")
     parser.add_argument("--seeds", type=int, default=5, help="Number of seeds (default: 5)")
     parser.add_argument("--trials", type=int, default=100, help="Trials per task (default: 100)")
-    parser.add_argument("--output-dir", default="results/meta_smac_proximity_hpo", help="Output directory")
-    parser.add_argument("--baserundir", default="runs/meta_smac_proximity_hpo", help="Hydra baserundir")
+    parser.add_argument("--output-dir", default=None, help="Output directory (defaults based on method)")
+    parser.add_argument("--baserundir", default=None, help="Hydra baserundir (defaults based on method)")
     parser.add_argument("--resume", action="store_true", help="Resume from checkpoint")
     parser.add_argument("--dry-run", action="store_true", help="Execute mock evaluation for verification")
     args = parser.parse_args()
 
     orchestrator = MetaSmacOrchestrator(
+        method=args.method,
         start_iteration=args.start_iteration,
         end_iteration=args.end_iteration,
         seeds=args.seeds,
@@ -413,3 +466,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
