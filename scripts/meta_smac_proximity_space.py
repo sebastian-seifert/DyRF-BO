@@ -19,15 +19,51 @@ from smac.initial_design.sobol_design import SobolInitialDesign
 from smac.scenario import Scenario
 
 
-def create_proximity_meta_configspace(seed: int = 42) -> ConfigurationSpace:
-    """Creates the ConfigurationSpace for tuning Proximity LCB acquisition."""
-    cs = ConfigurationSpace(name="proximity_lcb_meta_space", seed=seed)
+def create_proximity_meta_configspace(
+    method: str | int = "a",
+    seed: int = 42,
+) -> ConfigurationSpace:
+    """Creates the ConfigurationSpace for tuning Proximity LCB acquisition.
 
-    k = Integer("k", bounds=(5, 30), default=25)
-    decay_lambda = Float("decay_lambda", bounds=(0.2, 2.0), default=1.345)
-    eps = Float("eps", bounds=(0.02, 0.20), default=0.1678)
+    Supported methods:
+    - 'a': k, decay_lambda, eps (default eps=0.1678)
+    - 'b': eps (default 0.16), decay_lambda
+    - 'ac': k, decay_lambda, eps (default 0.16), alpha (default 1.0)
+    - 'bc': eps (default 0.16), decay_lambda, alpha (default 1.0)
+    """
+    if isinstance(method, int):
+        seed = method
+        m = "a"
+    else:
+        m = method.lower()
 
-    cs.add([k, decay_lambda, eps])
+    cs = ConfigurationSpace(name=f"proximity_lcb_meta_space_{m}", seed=seed)
+
+    if m == "a":
+        k = Integer("k", bounds=(5, 30), default=25)
+        decay_lambda = Float("decay_lambda", bounds=(0.2, 2.0), default=1.345)
+        eps = Float("eps", bounds=(0.02, 0.20), default=0.1678)
+        cs.add([k, decay_lambda, eps])
+    elif m == "b":
+        decay_lambda = Float("decay_lambda", bounds=(0.2, 2.0), default=1.345)
+        eps = Float("eps", bounds=(0.02, 0.20), default=0.16)
+        cs.add([decay_lambda, eps])
+    elif m == "ac":
+        k = Integer("k", bounds=(5, 30), default=25)
+        decay_lambda = Float("decay_lambda", bounds=(0.2, 2.0), default=1.345)
+        eps = Float("eps", bounds=(0.02, 0.20), default=0.16)
+        alpha = Float("alpha", bounds=(0.1, 2.0), default=1.0)
+        cs.add([k, decay_lambda, eps, alpha])
+    elif m == "bc":
+        decay_lambda = Float("decay_lambda", bounds=(0.2, 2.0), default=1.345)
+        eps = Float("eps", bounds=(0.02, 0.20), default=0.16)
+        alpha = Float("alpha", bounds=(0.1, 2.0), default=1.0)
+        cs.add([decay_lambda, eps, alpha])
+    else:
+        raise ValueError(
+            f"Unknown proximity method: '{method}'. Supported methods are 'a', 'b', 'ac', 'bc'."
+        )
+
     return cs
 
 
@@ -42,7 +78,7 @@ class IncumbentFirstInitialDesign(SobolInitialDesign):
         configs = super().select_configurations()
         incumbent = self._configspace.get_default_configuration()
         filtered = [c for c in configs if c != incumbent]
-        return [incumbent] + filtered
+        return ([incumbent] + filtered)[: len(configs)]
 
 
 def build_initial_design_with_incumbent(
