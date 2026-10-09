@@ -1,0 +1,60 @@
+#!/bin/bash
+set -e
+
+echo "=================================================="
+echo "SMAC4HPO Meta-Optimization on Proximity Method AC"
+echo "Running 100 Bayesian Optimization Iterations on CARP-S BBsubset Dev Set"
+echo "(18 working dev tasks * 5 seeds = 90 runs per iteration, well below 5,000 limit)"
+echo "=================================================="
+
+# Ensure output directories exist safely
+mkdir -p results/meta_smac_proximity_ac_hpo/logs
+mkdir -p runs/meta_smac_proximity_ac_hpo
+
+# Ensure reference bounds exist
+if [ ! -f "results/meta_smac_proximity_hpo/reference_bounds.json" ]; then
+    echo "Extracting empirical reference bounds from CARP-S logs..."
+    if [ -f ".venv/bin/python" ]; then
+        .venv/bin/python scripts/extract_dev_reference_bounds.py
+    else
+        python3 scripts/extract_dev_reference_bounds.py
+    fi
+fi
+
+# Initialize modules / environment if on cluster
+module load python/3.10 2>/dev/null || true
+eval "$(conda shell.bash hook 2>/dev/null)" || true
+conda activate dyrf 2>/dev/null || true
+
+# Resolve Python interpreter
+if [ -n "$PYTHON_BIN" ] && [ -x "$PYTHON_BIN" ]; then
+    :
+elif [ -f "/bigwork/nhwpseis/.conda/envs/dyrf/bin/python" ]; then
+    PYTHON_BIN="/bigwork/nhwpseis/.conda/envs/dyrf/bin/python"
+elif [ -n "$CONDA_PREFIX" ] && [ -f "$CONDA_PREFIX/bin/python" ]; then
+    PYTHON_BIN="$CONDA_PREFIX/bin/python"
+elif [ -f ".venv/bin/python" ]; then
+    PYTHON_BIN=".venv/bin/python"
+else
+    PYTHON_BIN="python3"
+fi
+
+export PYTHONUNBUFFERED=1
+
+echo "Launching SMAC4HPO Orchestrator for Method AC (100 Iterations)..."
+
+$PYTHON_BIN -u scripts/run_meta_smac_proximity_hpo.py \
+    --method ac \
+    --start-iteration 1 \
+    --end-iteration 100 \
+    --seeds 5 \
+    --trials 100 \
+    --output-dir results/meta_smac_proximity_ac_hpo \
+    --baserundir runs/meta_smac_proximity_ac_hpo \
+    "$@"
+
+echo "=================================================="
+echo "SMAC4HPO Meta-Optimization for Method AC Completed Successfully!"
+echo "Final Best Configuration: results/meta_smac_proximity_ac_hpo/best_config.json"
+echo "Full Iteration Leaderboard: results/meta_smac_proximity_ac_hpo/meta_leaderboard.csv"
+echo "=================================================="
