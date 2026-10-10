@@ -54,10 +54,11 @@ submit_partition() {
         if [ $end -gt $total_tasks ]; then
             end=$total_tasks
         fi
+        local part_slug=$(echo "$part_name" | tr '[:upper:] ' '[:lower:]_')
         if [ "$DRY_RUN" = true ]; then
-            echo "[DRY-RUN] sbatch --export=ALL,TASK_FILE=${task_file} --array=${start}-${end}%25 scripts/submit_bbsubset_test_big_comparison_array.sbatch"
+            echo "[DRY-RUN] sbatch --job-name=bb_${part_slug} --output=${RESULTS_DIR}/logs/bb_${part_slug}_%A_%a.log --error=${RESULTS_DIR}/logs/bb_${part_slug}_%A_%a.err --export=ALL,TASK_FILE=${task_file} --array=${start}-${end}%25 scripts/submit_bbsubset_test_big_comparison_array.sbatch"
         else
-            JOB_ID=$(sbatch --parsable --export=ALL,TASK_FILE=${task_file} --array=${start}-${end}%25 scripts/submit_bbsubset_test_big_comparison_array.sbatch)
+            JOB_ID=$(sbatch --parsable --job-name=bb_${part_slug} --output=${RESULTS_DIR}/logs/bb_${part_slug}_%A_%a.log --error=${RESULTS_DIR}/logs/bb_${part_slug}_%A_%a.err --export=ALL,TASK_FILE=${task_file} --array=${start}-${end}%25 scripts/submit_bbsubset_test_big_comparison_array.sbatch)
             echo "Submitted ${part_name} Chunk (${start}-${end}) -> Job ID: ${JOB_ID}"
         fi
     done
