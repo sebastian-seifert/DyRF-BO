@@ -9,10 +9,15 @@ RESULTS_DIR="results/sweep_bbsubset_test_big_comparison"
 TASK_FILE_P1="${RESULTS_DIR}/tasks_part1.txt"
 TASK_FILE_P2="${RESULTS_DIR}/tasks_part2.txt"
 
-DRY_RUN=false
+TARGET_PART="all"
 for arg in "$@"; do
     if [ "$arg" == "--dry-run" ]; then
         DRY_RUN=true
+    elif [ "$arg" == "--part" ]; then
+        shift
+        TARGET_PART="$1"
+    elif [[ "$arg" =~ ^--part=(.*)$ ]]; then
+        TARGET_PART="${BASH_REMATCH[1]}"
     fi
 done
 
@@ -30,7 +35,7 @@ TOTAL_P2=$(wc -l < "$TASK_FILE_P2" | tr -d ' ')
 
 echo "Tasks in Part 1 (Baselines + Entropy + Prox A & AC): ${TOTAL_P1}"
 echo "Tasks in Part 2 (Prox B & BC):                       ${TOTAL_P2}"
-echo "Grand Total: $(( TOTAL_P1 + TOTAL_P2 )) runs"
+echo "Target Execution: ${TARGET_PART}"
 
 mkdir -p "${RESULTS_DIR}/logs"
 
@@ -58,8 +63,14 @@ submit_partition() {
     done
 }
 
-submit_partition "Part 1" "$TASK_FILE_P1" "$TOTAL_P1"
-submit_partition "Part 2" "$TASK_FILE_P2" "$TOTAL_P2"
+if [ "$TARGET_PART" == "1" ] || [ "$TARGET_PART" == "part1" ]; then
+    submit_partition "Part 1" "$TASK_FILE_P1" "$TOTAL_P1"
+elif [ "$TARGET_PART" == "2" ] || [ "$TARGET_PART" == "part2" ]; then
+    submit_partition "Part 2" "$TASK_FILE_P2" "$TOTAL_P2"
+else
+    submit_partition "Part 1" "$TASK_FILE_P1" "$TOTAL_P1"
+    submit_partition "Part 2" "$TASK_FILE_P2" "$TOTAL_P2"
+fi
 
 echo ""
 echo "=================================================="
