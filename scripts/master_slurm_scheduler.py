@@ -20,6 +20,12 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+if os.getcwd() not in sys.path:
+    sys.path.insert(0, os.getcwd())
+
 
 def parse_squeue_me_output(output: str) -> Tuple[int, int]:
     """Parses output from `squeue --me -h -o '%i %t'` to count remaining jobs and tasks.
@@ -160,7 +166,10 @@ class MasterSlurmScheduler:
         if not os.path.exists(self.config.task_manifest):
             out_dir = os.path.dirname(self.config.task_manifest) or "results/sweep_bbob_full_comparison"
             print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating full BBOB sweep tasks...")
-            from scripts.generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
+            try:
+                from scripts.generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
+            except ModuleNotFoundError:
+                from generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
             generate_bbob_full_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
 
         if not os.path.exists(self.config.task_manifest):
