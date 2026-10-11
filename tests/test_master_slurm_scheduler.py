@@ -113,3 +113,26 @@ def test_scheduling_respects_hard_task_cap(tmp_path):
     submitted = scheduler.step(mock_remaining_jobs=4, mock_active_tasks=4200, dry_run=True)
     assert len(submitted) == 1
     assert submitted[0] == (0, 1, 200)
+
+
+def test_scheduler_auto_generates_manifest_when_missing(tmp_path):
+    """Verify scheduler automatically generates manifest if it does not exist."""
+    missing_manifest = tmp_path / "auto_tasks" / "tasks_all.txt"
+    state_file = str(tmp_path / "scheduler_state.json")
+    config = SchedulerConfig(
+        task_manifest=str(missing_manifest),
+        chunk_size=250,
+        max_active_tasks=4500,
+        min_remaining_jobs_trigger=10,
+        state_file=state_file,
+    )
+    scheduler = MasterSlurmScheduler(config=config)
+
+    # First check that missing_manifest does not exist
+    assert not missing_manifest.exists()
+
+    # Step should auto-generate manifest using generate_bbob_full_sweep_tasks
+    submitted = scheduler.step(mock_remaining_jobs=0, mock_active_tasks=0, dry_run=True)
+    assert missing_manifest.exists()
+    assert len(submitted) > 0
+

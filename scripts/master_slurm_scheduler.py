@@ -158,6 +158,12 @@ class MasterSlurmScheduler:
             List of (chunk_idx, start_task, end_task) submitted during this step.
         """
         if not os.path.exists(self.config.task_manifest):
+            out_dir = os.path.dirname(self.config.task_manifest) or "results/sweep_bbob_full_comparison"
+            print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating full BBOB sweep tasks...")
+            from scripts.generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
+            generate_bbob_full_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
+
+        if not os.path.exists(self.config.task_manifest):
             raise FileNotFoundError(f"Manifest not found: {self.config.task_manifest}")
 
         with open(self.config.task_manifest, "r", encoding="utf-8") as f:
