@@ -101,11 +101,16 @@ def gather_bbob_trial_logs(
 
             if opt_id == "unknown" or task_id == "unknown":
                 parts = run_dir.parts
-                for p in parts:
+                for i, p in enumerate(parts):
                     if "SMAC" in p:
                         opt_id = p
                     if "cfg_" in p or "subset_" in p:
                         task_id = p
+                    elif p.lower() == "bbob" and i + 3 < len(parts):
+                        # Pattern: BBOB / bbob / dim / fid / iid
+                        d_cand, f_cand, i_cand = parts[i + 1], parts[i + 2], parts[i + 3]
+                        if d_cand.isdigit() and f_cand.isdigit() and i_cand.isdigit():
+                            task_id = f"bbob/{d_cand}/{f_cand}/{i_cand}"
                     if p.isdigit():
                         seed = int(p)
 
