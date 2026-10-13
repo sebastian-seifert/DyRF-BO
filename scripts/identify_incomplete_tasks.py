@@ -19,7 +19,7 @@ import os
 from pathlib import Path
 import re
 import sys
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
@@ -32,6 +32,7 @@ class TaskSpec:
     raw_line: str
     optimizer_id: str
     task_id: str
+    dimension: int
     seed: int
     n_trials: int
     baserundir: Path
@@ -70,19 +71,22 @@ def parse_task_line(line: str, line_number: int) -> Optional[TaskSpec]:
     telem_match = re.search(r"\+\+optimizer\.telemetry_path=([^\s]+)", line)
     telemetry_path = Path(telem_match.group(1)) if telem_match else None
 
-    # Construct expected CARPS run directory
+    # Construct expected CARPS run directory and extract dimension
     # Format: baserundir / optimizer_id / BBOB / bbob / {dim} / {fid} / {iid} / {seed}
     cfg_match = re.search(r"cfg_(\d+)_(\d+)_(\d+)", task_id)
     if cfg_match:
-        dim, fid, iid = cfg_match.groups()
-        expected_run_dir = baserundir / optimizer_id / "BBOB" / "bbob" / dim / fid / iid / str(seed)
+        dim_str, fid, iid = cfg_match.groups()
+        dimension = int(dim_str)
+        expected_run_dir = baserundir / optimizer_id / "BBOB" / "bbob" / dim_str / fid / iid / str(seed)
     else:
         # Check alternative format like bbob/2/1/0
         alt_match = re.search(r"bbob/(\d+)/(\d+)/(\d+)", task_id)
         if alt_match:
-            dim, fid, iid = alt_match.groups()
-            expected_run_dir = baserundir / optimizer_id / "BBOB" / "bbob" / dim / fid / iid / str(seed)
+            dim_str, fid, iid = alt_match.groups()
+            dimension = int(dim_str)
+            expected_run_dir = baserundir / optimizer_id / "BBOB" / "bbob" / dim_str / fid / iid / str(seed)
         else:
+            dimension = -1
             expected_run_dir = baserundir / optimizer_id / task_id / str(seed)
 
     return TaskSpec(
@@ -90,6 +94,7 @@ def parse_task_line(line: str, line_number: int) -> Optional[TaskSpec]:
         raw_line=line,
         optimizer_id=optimizer_id,
         task_id=task_id,
+        dimension=dimension,
         seed=seed,
         n_trials=n_trials,
         baserundir=baserundir,
@@ -161,20 +166,64 @@ def is_task_complete(spec: TaskSpec, required_fraction: float = 1.0) -> bool:
     return False
 
 
-def find_incomplete_tasks(
+def audit_tasks_by_dimension(
     manifest_path: Path | str,
     required_fraction: float = 1.0,
-) -> List[TaskSpec]:
-    """Finds all tasks in manifest that did not run to completion."""
+) -> Dict[int, Dict[str, Any]]:
+    """Audits task manifest grouping results by dimensionality."""
     manifest = Path(manifest_path)
     if not manifest.exists():
         raise FileNotFoundError(f"Manifest not found: {manifest}")
 
+    from collections import defaultdict
+    dim_tasks = defaultdict(list)
+    dim_incomplete = defaultdict(list)
+
+    with open(manifest, "r", encoding="utf-8") as f:
+        for idx, line in enumerate(f, start=1):
+            spec = parse_task_line(line, line_number=idx)
+            if spec is None:
+                continue
+            dim = spec.dimension
+            dim_tasks[dim].append(spec)
+            if not is_task_complete(spec, required_fraction=required_fraction):
+                dim_incomplete[dim].append(spec)
+
+    results: Dict[int, Dict[str, Any]] = {}
+    for dim in sorted(dim_tasks.keys()):
+        total = len(dim_tasks[dim])
+        incomplete = len(dim_incomplete[dim])
+        completed = total - incomplete
+        rate = (completed / total * 100.0) if total > 0 else 0.0
+        results[dim] = {
+            "total": total,
+            "completed": completed,
+            "incomplete": incomplete,
+            "completion_rate": rate,
+            "incomplete_tasks": dim_incomplete[dim],
+        }
+
+    return results
+
+
+def find_incomplete_tasks(
+    manifest_path: Path | str,
+    required_fraction: float = 1.0,
+    dimensions: Optional[Sequence[int]] = None,
+) -> List[TaskSpec]:
+    """Finds all tasks in manifest that did not run to completion, optionally filtered by dimensions."""
+    manifest = Path(manifest_path)
+    if not manifest.exists():
+        raise FileNotFoundError(f"Manifest not found: {manifest}")
+
+    target_dims = set(dimensions) if dimensions else None
     incomplete_tasks: List[TaskSpec] = []
     with open(manifest, "r", encoding="utf-8") as f:
         for idx, line in enumerate(f, start=1):
             spec = parse_task_line(line, line_number=idx)
             if spec is None:
+                continue
+            if target_dims is not None and spec.dimension not in target_dims:
                 continue
             if not is_task_complete(spec, required_fraction=required_fraction):
                 incomplete_tasks.append(spec)
@@ -197,13 +246,18 @@ def filter_manifest(
     manifest_path: Path | str,
     output_path: Path | str,
     required_fraction: float = 1.0,
+    dimensions: Optional[Sequence[int]] = None,
 ) -> Tuple[int, int]:
     """Filters manifest to only keep incomplete tasks, writing them to output_path."""
     manifest = Path(manifest_path)
     out_file = Path(output_path)
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
-    incomplete = find_incomplete_tasks(manifest, required_fraction=required_fraction)
+    incomplete = find_incomplete_tasks(
+        manifest,
+        required_fraction=required_fraction,
+        dimensions=dimensions,
+    )
     with open(out_file, "w", encoding="utf-8") as f:
         for task in incomplete:
             f.write(f"{task.raw_line}\n")
@@ -212,7 +266,7 @@ def filter_manifest(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Identify incomplete tasks from runs/ and manifests.")
+    parser = argparse.ArgumentParser(description="Identify incomplete tasks from runs/ and manifests grouped by dimensionality.")
     parser.add_argument(
         "--manifest",
         type=str,
@@ -220,10 +274,22 @@ def main() -> None:
         help="Path to tasks manifest file.",
     )
     parser.add_argument(
+        "--dimensions",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Optional list of dimensions to audit (e.g. --dimensions 2, or --dimensions 2 4 8 16 32).",
+    )
+    parser.add_argument(
         "--output-missing",
         type=str,
         default="results/sweep_bbob_full_comparison/missing_tasks.txt",
         help="Path to output file for missing tasks.",
+    )
+    parser.add_argument(
+        "--export-by-dimension",
+        action="store_true",
+        help="Export separate missing manifest per dimension (e.g. missing_tasks_dim2.txt).",
     )
     parser.add_argument(
         "--required-fraction",
@@ -238,23 +304,56 @@ def main() -> None:
         print(f"Error: Manifest {manifest} does not exist.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Scanning tasks in {manifest}...")
-    incomplete = find_incomplete_tasks(manifest, required_fraction=args.required_fraction)
-    total = count_total_tasks(manifest)
-    completed = total - len(incomplete)
-    completion_rate = (completed / total * 100.0) if total > 0 else 0.0
+    print(f"Auditing tasks in {manifest} grouped by dimensionality...")
+    dim_audit = audit_tasks_by_dimension(manifest, required_fraction=args.required_fraction)
 
-    print(f"Total tasks: {total}")
-    print(f"Completed:   {completed} ({completion_rate:.2f}%)")
-    print(f"Incomplete:  {len(incomplete)}")
+    # Filter to requested dimensions if provided
+    selected_dims = args.dimensions if args.dimensions is not None else sorted(dim_audit.keys())
+
+    print("\n" + "=" * 70)
+    print(f"{'Dimension':<12} | {'Total':<10} | {'Completed':<10} | {'Incomplete':<10} | {'Progress':<10}")
+    print("-" * 70)
+
+    grand_total = 0
+    grand_completed = 0
+    grand_incomplete = 0
+
+    all_selected_incomplete: List[TaskSpec] = []
+
+    for d in selected_dims:
+        if d in dim_audit:
+            stats = dim_audit[d]
+            grand_total += stats["total"]
+            grand_completed += stats["completed"]
+            grand_incomplete += stats["incomplete"]
+            all_selected_incomplete.extend(stats["incomplete_tasks"])
+
+            status_str = f"{stats['completion_rate']:.1f}%"
+            dim_label = f"{d}D" if d > 0 else "Unknown"
+            print(f"{dim_label:<12} | {stats['total']:<10} | {stats['completed']:<10} | {stats['incomplete']:<10} | {status_str:<10}")
+
+            if args.export_by_dimension and args.output_missing:
+                out_base = Path(args.output_missing)
+                stem = out_base.stem
+                dim_out = out_base.parent / f"{stem}_dim{d}.txt"
+                dim_out.parent.mkdir(parents=True, exist_ok=True)
+                with open(dim_out, "w", encoding="utf-8") as f:
+                    for task in stats["incomplete_tasks"]:
+                        f.write(f"{task.raw_line}\n")
+                print(f"  --> Exported {len(stats['incomplete_tasks'])} incomplete tasks to {dim_out}")
+
+    print("=" * 70)
+    grand_rate = (grand_completed / grand_total * 100.0) if grand_total > 0 else 0.0
+    print(f"{'OVERALL':<12} | {grand_total:<10} | {grand_completed:<10} | {grand_incomplete:<10} | {grand_rate:.1f}%")
+    print("=" * 70 + "\n")
 
     if args.output_missing:
         out_path = Path(args.output_missing)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w", encoding="utf-8") as f:
-            for task in incomplete:
+            for task in all_selected_incomplete:
                 f.write(f"{task.raw_line}\n")
-        print(f"Exported {len(incomplete)} incomplete tasks to {out_path}")
+        print(f"Exported {len(all_selected_incomplete)} incomplete tasks to {out_path}")
 
 
 if __name__ == "__main__":
