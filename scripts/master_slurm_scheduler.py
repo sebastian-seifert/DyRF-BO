@@ -164,13 +164,21 @@ class MasterSlurmScheduler:
             List of (chunk_idx, start_task, end_task) submitted during this step.
         """
         if not os.path.exists(self.config.task_manifest):
-            out_dir = os.path.dirname(self.config.task_manifest) or "results/sweep_bbob_full_comparison"
-            print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating full BBOB sweep tasks...")
-            try:
-                from scripts.generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
-            except ModuleNotFoundError:
-                from generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
-            generate_bbob_full_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
+            out_dir = os.path.dirname(self.config.task_manifest) or "."
+            if "dim2" in self.config.task_manifest:
+                print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating BBOB Dim 2 tasks...")
+                try:
+                    from scripts.generate_bbob_dim2_sweep_tasks import generate_bbob_dim2_sweep_tasks
+                except ModuleNotFoundError:
+                    from generate_bbob_dim2_sweep_tasks import generate_bbob_dim2_sweep_tasks
+                generate_bbob_dim2_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
+            else:
+                print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating full BBOB sweep tasks...")
+                try:
+                    from scripts.generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
+                except ModuleNotFoundError:
+                    from generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
+                generate_bbob_full_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
 
         if not os.path.exists(self.config.task_manifest):
             raise FileNotFoundError(f"Manifest not found: {self.config.task_manifest}")
@@ -259,17 +267,35 @@ if __name__ == "__main__":
     parser.add_argument("--max-tasks", type=int, default=4500)
     parser.add_argument("--trigger-jobs", type=int, default=10)
     parser.add_argument("--interval", type=int, default=60)
+    parser.add_argument("--concurrency", type=int, default=25)
+    parser.add_argument("--state-file", type=str, default=None)
+    parser.add_argument("--job-prefix", "--job-name-prefix", dest="job_prefix", type=str, default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--once", action="store_true")
 
     args = parser.parse_args()
+
+    default_state_file = (
+        args.state_file
+        if args.state_file
+        else os.path.join(os.path.dirname(args.manifest) or ".", "scheduler_state.json")
+    )
+    default_job_prefix = (
+        args.job_prefix
+        if args.job_prefix
+        else ("bbob_d2" if "dim2" in args.manifest else "bbob_swp")
+    )
+
     cfg = SchedulerConfig(
         task_manifest=args.manifest,
         sbatch_script=args.sbatch,
         chunk_size=args.chunk_size,
         max_active_tasks=args.max_tasks,
         min_remaining_jobs_trigger=args.trigger_jobs,
+        array_concurrency=args.concurrency,
         poll_interval_sec=args.interval,
+        state_file=default_state_file,
+        job_name_prefix=default_job_prefix,
     )
     scheduler = MasterSlurmScheduler(cfg)
     scheduler.run_loop(dry_run=args.dry_run, single_step=args.once)

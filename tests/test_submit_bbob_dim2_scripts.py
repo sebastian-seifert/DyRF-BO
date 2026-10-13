@@ -24,15 +24,33 @@ def test_sbatch_script_contains_dim2_paths():
     assert "scripts/run_carps_patched.py" in content
 
 
-def test_submit_all_script_dry_run():
-    """Verify submit_all runner supports --dry-run and partitions tasks."""
+def test_master_sbatch_script_contains_dim2_config():
+    """Verify master sbatch script references scheduler, dim2 logs, and 250 chunk size."""
+    master_path = Path("scripts/submit_bbob_dim2_sweep_master.sbatch")
+    assert master_path.exists()
+    assert os.access(master_path, os.X_OK)
+
+    content = master_path.read_text(encoding="utf-8")
+    assert "bbob_d2_master" in content
+    assert "results/sweep_bbob_dim2/logs" in content
+    assert "master_slurm_scheduler.py" in content
+    assert "--chunk-size 250" in content
+    assert "results/sweep_bbob_dim2/tasks.txt" in content
+
+
+def test_submit_all_script_uses_master_scheduler_with_chunk250():
+    """Verify submit_all runner invokes master scheduler with chunk size 250."""
     runner_path = Path("scripts/submit_bbob_dim2_sweep_all.sh")
     assert runner_path.exists()
     assert os.access(runner_path, os.X_OK)
 
+    content = runner_path.read_text(encoding="utf-8")
+    assert "master_slurm_scheduler.py" in content
+    assert "--chunk-size 250" in content or "CHUNK_SIZE=250" in content
+
     # Test dry run execution via bash
     res = subprocess.run(
-        ["bash", str(runner_path), "--dry-run"],
+        ["bash", str(runner_path), "--dry-run", "--once"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -40,3 +58,4 @@ def test_submit_all_script_dry_run():
     assert res.returncode == 0
     assert "[DRY-RUN]" in res.stdout
     assert "results/sweep_bbob_dim2/tasks.txt" in res.stdout
+

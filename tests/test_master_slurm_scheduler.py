@@ -136,3 +136,66 @@ def test_scheduler_auto_generates_manifest_when_missing(tmp_path):
     assert missing_manifest.exists()
     assert len(submitted) > 0
 
+
+def test_dim2_scheduler_config_and_cli(tmp_path):
+    """Verify SchedulerConfig handles dim2 paths and CLI parses custom state_file and prefix."""
+    dim2_manifest = tmp_path / "sweep_bbob_dim2" / "tasks.txt"
+    dim2_manifest.parent.mkdir(parents=True)
+    with open(dim2_manifest, "w") as f:
+        for i in range(500):
+            f.write(f"task_{i}\n")
+
+    state_file = str(tmp_path / "custom_state.json")
+    config = SchedulerConfig(
+        task_manifest=str(dim2_manifest),
+        sbatch_script="scripts/submit_bbob_dim2_sweep_array.sbatch",
+        chunk_size=250,
+        job_name_prefix="bbob_d2",
+        state_file=state_file,
+    )
+    scheduler = MasterSlurmScheduler(config=config)
+    chunks = scheduler.calculate_chunks(500)
+    assert len(chunks) == 2
+    assert chunks[0] == (1, 250)
+    assert chunks[1] == (251, 500)
+
+    # Test step execution
+    submitted = scheduler.step(mock_remaining_jobs=0, mock_active_tasks=0, dry_run=True)
+    assert len(submitted) == 2
+    assert os.path.exists(state_file)
+    with open(state_file) as f:
+        state = json.load(f)
+    assert state["completed_or_submitted_chunks"] == 2
+    assert state["submitted_chunks_info"][0]["job_id"] == "mock_job_0"
+
+
+def test_master_scheduler_cli_arguments(tmp_path):
+    """Verify master_slurm_scheduler CLI accepts --state-file, --job-prefix, --concurrency."""
+    import subprocess
+    manifest = tmp_path / "tasks.txt"
+    with open(manifest, "w") as f:
+        for i in range(250):
+            f.write(f"task_{i}\n")
+
+    state_file = tmp_path / "cli_state.json"
+    res = subprocess.run(
+        [
+            sys.executable,
+            "scripts/master_slurm_scheduler.py",
+            "--manifest", str(manifest),
+            "--state-file", str(state_file),
+            "--job-prefix", "test_pfx",
+            "--concurrency", "10",
+            "--chunk-size", "250",
+            "--dry-run",
+            "--once",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert res.returncode == 0
+    assert state_file.exists()
+
+
+
