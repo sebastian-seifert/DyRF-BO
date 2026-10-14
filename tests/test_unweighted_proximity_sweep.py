@@ -91,14 +91,14 @@ class TestGenerateUnweightedProximitySweepTasks:
         assert args.seeds == [0, 1]
         assert args.surrogates == ["smac_default", "breiman"]
 
-    def test_pilot_grid_generates_10_tasks(self, tmp_path):
+    def test_pilot_grid_generates_8_tasks(self, tmp_path):
         from scripts.generate_unweighted_proximity_sweep_tasks import generate_tasks
 
         out_file = tmp_path / "pilot_tasks.txt"
         tasks = generate_tasks(pilot=True, output_file=out_file)
 
-        # 2 D x 1 N x 1 func x 1 strat x 1 seed x 5 surrogates = 10 tasks
-        assert len(tasks) == 10, f"Expected 10 pilot tasks, got {len(tasks)}"
+        # 2 D x 1 N x 1 func x 1 strat x 1 seed x 4 surrogates = 8 tasks
+        assert len(tasks) == 8, f"Expected 8 pilot tasks, got {len(tasks)}"
         assert out_file.exists()
 
         dimensions = set()
@@ -125,16 +125,16 @@ class TestGenerateUnweightedProximitySweepTasks:
         assert functions == {"sphere"}
         assert strategies == {"stratified"}
         assert seeds == {0}
-        assert surrogates == {"smac_default", "mature", "shallow", "coarse", "breiman"}
+        assert surrogates == {"smac_default", "mature", "shallow", "coarse"}
 
-    def test_stress_grid_generates_80_tasks(self, tmp_path):
+    def test_stress_grid_generates_64_tasks(self, tmp_path):
         from scripts.generate_unweighted_proximity_sweep_tasks import generate_tasks
 
         out_file = tmp_path / "stress_tasks.txt"
         tasks = generate_tasks(stress=True, output_file=out_file)
 
-        # 16 balanced configs x 5 surrogates = 80 tasks
-        assert len(tasks) == 80, f"Expected 80 stress tasks, got {len(tasks)}"
+        # 16 balanced configs x 4 surrogates = 64 tasks
+        assert len(tasks) == 64, f"Expected 64 stress tasks, got {len(tasks)}"
         assert out_file.exists()
 
         surrogates = set()
@@ -144,16 +144,16 @@ class TestGenerateUnweightedProximitySweepTasks:
             parts = task.split()
             surrogates.add(parts[parts.index("--surrogate") + 1])
 
-        assert surrogates == {"smac_default", "mature", "shallow", "coarse", "breiman"}
+        assert surrogates == {"smac_default", "mature", "shallow", "coarse"}
 
-    def test_full_grid_generates_21600_tasks(self, tmp_path):
+    def test_full_grid_generates_17280_tasks(self, tmp_path):
         from scripts.generate_unweighted_proximity_sweep_tasks import generate_tasks
 
         out_file = tmp_path / "full_tasks.txt"
         tasks = generate_tasks(output_file=out_file)
 
-        # 6 dimensions x 6 n_trains x 4 functions x 1 strategy x 30 seeds x 5 surrogates = 21,600 tasks
-        assert len(tasks) == 21600, f"Expected 21600 full tasks, got {len(tasks)}"
+        # 6 dimensions x 6 n_trains x 4 functions x 1 strategy x 30 seeds x 4 surrogates = 17,280 tasks
+        assert len(tasks) == 17280, f"Expected 17280 full tasks, got {len(tasks)}"
         assert out_file.exists()
 
         # Check sample commands
@@ -188,7 +188,7 @@ class TestGenerateUnweightedProximitySweepTasks:
             eval_mode="unweighted_proximity_only",
             output_file=out_file,
         )
-        assert len(tasks) == 10
+        assert len(tasks) == 8
         for task in tasks:
             assert "--eval-mode unweighted_proximity_only" in task
 

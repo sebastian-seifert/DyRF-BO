@@ -4,9 +4,9 @@
 Generates reproducible task command lines across benchmark dimensions, sample sizes,
 objective functions, sampling protocols, seeds, and surrogates in fast unweighted proximity mode.
 
-Full grid: 6 dimensions x 6 sample sizes (34, 68, 136, 272, 544, 1088) x 4 functions x 1 strategy ('stratified') x 30 seeds x 5 surrogates = 21,600 runs.
-Pilot grid: 2 dimensions ([2, 16]) x 1 sample size (34) x 1 function ('sphere') x 1 strategy ('stratified') x 1 seed (0) x 5 surrogates = 10 runs.
-Stress grid: 16 balanced configurations x 5 surrogates = 80 runs.
+Full grid: 6 dimensions x 6 sample sizes (34, 68, 136, 272, 544, 1088) x 4 functions x 1 strategy ('stratified') x 30 seeds x 4 surrogates = 17,280 runs.
+Pilot grid: 2 dimensions ([2, 16]) x 1 sample size (34) x 1 function ('sphere') x 1 strategy ('stratified') x 1 seed (0) x 4 surrogates = 8 runs.
+Stress grid: 16 balanced configurations x 4 surrogates = 64 runs.
 """
 
 from __future__ import annotations
@@ -32,14 +32,15 @@ DEFAULT_N_TRAINS = [34, 68, 136, 272, 544, 1088]
 DEFAULT_FUNCTIONS = ["sphere", "rosenbrock", "rastrigin", "ackley"]
 DEFAULT_STRATEGIES = ["stratified"]
 DEFAULT_SEEDS = list(range(30))
-DEFAULT_SURROGATES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
+SURROGATE_CHOICES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
+DEFAULT_SURROGATES = ["smac_default", "mature", "shallow", "coarse"]
 
 PILOT_DIMENSIONS = [2, 16]
 PILOT_N_TRAINS = [34]
 PILOT_FUNCTIONS = ["sphere"]
 PILOT_STRATEGIES = ["stratified"]
 PILOT_SEEDS = [0]
-PILOT_SURROGATES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
+PILOT_SURROGATES = ["smac_default", "mature", "shallow", "coarse"]
 
 STRESS_CONFIGURATIONS = [
     # 16-run balanced orthogonal design:
@@ -78,13 +79,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--pilot",
         action="store_true",
         default=False,
-        help="Generate pilot suite: 2 D x 1 N x 1 func x 1 strat x 5 surrogates x 1 seed = 10 tasks.",
+        help="Generate pilot suite: 2 D x 1 N x 1 func x 1 strat x 4 surrogates x 1 seed = 8 tasks.",
     )
     parser.add_argument(
         "--stress",
         action="store_true",
         default=False,
-        help="Generate stress suite: 16 balanced configs x 5 surrogates = 80 tasks.",
+        help="Generate stress suite: 16 balanced configs x 4 surrogates = 64 tasks.",
     )
     parser.add_argument(
         "--mode",
@@ -144,7 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--surrogates",
         type=str,
         nargs="+",
-        choices=DEFAULT_SURROGATES,
+        choices=SURROGATE_CHOICES,
         default=DEFAULT_SURROGATES,
         help=f"List of surrogate models (default: {DEFAULT_SURROGATES}).",
     )
