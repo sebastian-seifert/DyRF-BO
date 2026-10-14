@@ -91,14 +91,14 @@ class TestGenerateUnweightedProximitySweepTasks:
         assert args.seeds == [0, 1]
         assert args.surrogates == ["smac_default", "breiman"]
 
-    def test_pilot_grid_generates_20_tasks(self, tmp_path):
+    def test_pilot_grid_generates_10_tasks(self, tmp_path):
         from scripts.generate_unweighted_proximity_sweep_tasks import generate_tasks
 
         out_file = tmp_path / "pilot_tasks.txt"
         tasks = generate_tasks(pilot=True, output_file=out_file)
 
-        # 2 D x 1 N x 1 func x 2 strats x 1 seed x 5 surrogates = 20 tasks
-        assert len(tasks) == 20, f"Expected 20 pilot tasks, got {len(tasks)}"
+        # 2 D x 1 N x 1 func x 1 strat x 1 seed x 5 surrogates = 10 tasks
+        assert len(tasks) == 10, f"Expected 10 pilot tasks, got {len(tasks)}"
         assert out_file.exists()
 
         dimensions = set()
@@ -121,9 +121,9 @@ class TestGenerateUnweightedProximitySweepTasks:
             surrogates.add(parts[parts.index("--surrogate") + 1])
 
         assert dimensions == {2, 16}
-        assert n_trains == {112}
+        assert n_trains == {34}
         assert functions == {"sphere"}
-        assert strategies == {"natural", "stratified"}
+        assert strategies == {"stratified"}
         assert seeds == {0}
         assert surrogates == {"smac_default", "mature", "shallow", "coarse", "breiman"}
 
@@ -146,14 +146,14 @@ class TestGenerateUnweightedProximitySweepTasks:
 
         assert surrogates == {"smac_default", "mature", "shallow", "coarse", "breiman"}
 
-    def test_full_grid_generates_9600_tasks(self, tmp_path):
+    def test_full_grid_generates_21600_tasks(self, tmp_path):
         from scripts.generate_unweighted_proximity_sweep_tasks import generate_tasks
 
         out_file = tmp_path / "full_tasks.txt"
         tasks = generate_tasks(output_file=out_file)
 
-        # 6 dimensions x 4 n_trains x 4 functions x 2 strategies x 10 seeds x 5 surrogates = 9,600 tasks
-        assert len(tasks) == 9600, f"Expected 9600 full tasks, got {len(tasks)}"
+        # 6 dimensions x 6 n_trains x 4 functions x 1 strategy x 30 seeds x 5 surrogates = 21,600 tasks
+        assert len(tasks) == 21600, f"Expected 21600 full tasks, got {len(tasks)}"
         assert out_file.exists()
 
         # Check sample commands
@@ -188,7 +188,7 @@ class TestGenerateUnweightedProximitySweepTasks:
             eval_mode="unweighted_proximity_only",
             output_file=out_file,
         )
-        assert len(tasks) == 20
+        assert len(tasks) == 10
         for task in tasks:
             assert "--eval-mode unweighted_proximity_only" in task
 

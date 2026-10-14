@@ -104,14 +104,14 @@ class TestGenerateLowerQuantileSweepTasks:
         assert args.seeds == [0, 1]
         assert args.surrogates == ["smac_default", "breiman"]
 
-    def test_pilot_grid_generates_20_tasks(self, tmp_path):
+    def test_pilot_grid_generates_10_tasks(self, tmp_path):
         from scripts.generate_lower_quantile_sweep_tasks import generate_tasks
 
         out_file = tmp_path / "pilot_tasks.txt"
         tasks = generate_tasks(pilot=True, output_file=out_file)
 
-        # 2 D x 1 N x 1 func x 2 strats x 1 seed x 5 surrogates = 20 tasks
-        assert len(tasks) == 20, f"Expected 20 pilot tasks, got {len(tasks)}"
+        # 2 D x 1 N x 1 func x 1 strat x 1 seed x 5 surrogates = 10 tasks
+        assert len(tasks) == 10, f"Expected 10 pilot tasks, got {len(tasks)}"
         assert out_file.exists()
 
         dimensions = set()
@@ -134,9 +134,9 @@ class TestGenerateLowerQuantileSweepTasks:
             surrogates.add(parts[parts.index("--surrogate") + 1])
 
         assert dimensions == {2, 16}
-        assert n_trains == {112}
+        assert n_trains == {34}
         assert functions == {"sphere"}
-        assert strategies == {"natural", "stratified"}
+        assert strategies == {"stratified"}
         assert seeds == {0}
         assert surrogates == {"smac_default", "mature", "shallow", "coarse", "breiman"}
 
@@ -158,19 +158,19 @@ class TestGenerateLowerQuantileSweepTasks:
 
         assert surrogates == {"smac_default", "mature", "shallow", "coarse", "breiman"}
 
-    def test_full_grid_generates_9600_tasks(self, tmp_path):
+    def test_full_grid_generates_21600_tasks(self, tmp_path):
         from scripts.generate_lower_quantile_sweep_tasks import generate_tasks
 
         out_file = tmp_path / "full_tasks.txt"
         tasks = generate_tasks(output_file=out_file)
 
-        # 6 D x 4 N x 4 functions x 2 strategies x 10 seeds x 5 surrogates = 9,600 tasks
-        assert len(tasks) == 9600, f"Expected 9600 full tasks, got {len(tasks)}"
+        # 6 D x 6 N x 4 functions x 1 strategy x 30 seeds x 5 surrogates = 21,600 tasks
+        assert len(tasks) == 21600, f"Expected 21600 full tasks, got {len(tasks)}"
         assert out_file.exists()
         assert "scripts/run_extrapolation_experiment.py" in tasks[0]
         assert "--skip-if-exists" in tasks[0]
 
-    def test_split_parts_generates_5000_and_4600_tasks(self, tmp_path):
+    def test_split_parts_generates_10800_and_10800_tasks(self, tmp_path):
         from scripts.generate_lower_quantile_sweep_tasks import generate_tasks
 
         out_file = tmp_path / "tasks.txt"
@@ -178,7 +178,7 @@ class TestGenerateLowerQuantileSweepTasks:
             output_file=out_file,
             split_parts=True,
         )
-        assert len(tasks) == 9600
+        assert len(tasks) == 21600
 
         part1_file = tmp_path / "tasks_part1.txt"
         part2_file = tmp_path / "tasks_part2.txt"
@@ -189,12 +189,12 @@ class TestGenerateLowerQuantileSweepTasks:
         lines_part1 = [l.strip() for l in part1_file.read_text(encoding="utf-8").splitlines() if l.strip()]
         lines_part2 = [l.strip() for l in part2_file.read_text(encoding="utf-8").splitlines() if l.strip()]
 
-        assert len(lines_part1) == 5000, f"Expected 5,000 tasks in part 1, got {len(lines_part1)}"
-        assert len(lines_part2) == 4600, f"Expected 4,600 tasks in part 2, got {len(lines_part2)}"
+        assert len(lines_part1) == 10800, f"Expected 10,800 tasks in part 1, got {len(lines_part1)}"
+        assert len(lines_part2) == 10800, f"Expected 10,800 tasks in part 2, got {len(lines_part2)}"
 
         # Ensure no overlap and exact partition
-        assert lines_part1 == tasks[:5000]
-        assert lines_part2 == tasks[5000:]
+        assert lines_part1 == tasks[:10800]
+        assert lines_part2 == tasks[10800:]
 
     def test_separate_output_paths_part1_part2(self, tmp_path):
         from scripts.generate_lower_quantile_sweep_tasks import generate_tasks
@@ -209,11 +209,11 @@ class TestGenerateLowerQuantileSweepTasks:
             output_part1=p1,
             output_part2=p2,
         )
-        assert len(tasks) == 9600
+        assert len(tasks) == 21600
         assert p1.exists()
         assert p2.exists()
-        assert len(p1.read_text().splitlines()) == 5000
-        assert len(p2.read_text().splitlines()) == 4600
+        assert len(p1.read_text().splitlines()) == 10800
+        assert len(p2.read_text().splitlines()) == 10800
 
     def test_custom_parameters_grid(self, tmp_path):
         from scripts.generate_lower_quantile_sweep_tasks import generate_tasks

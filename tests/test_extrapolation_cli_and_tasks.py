@@ -403,15 +403,11 @@ class TestRunExperimentExecution:
             "u_hutter_within",
             "u_shaker_epistemic",
             "u_shaker_total",
-            "u_rf_fire_half",
             "u_rf_fire_lower",
-            "u_prox_a_half",
             "u_prox_a_lower",
-            "u_prox_b_half",
             "u_prox_b_lower",
-            "u_prox_bc_half",
+            "u_prox_ac_lower",
             "u_prox_bc_lower",
-            "u_plcb_half",
             "u_plcb_lower",
         ]
 
@@ -480,10 +476,10 @@ class TestTaskGenerator:
         assert args.output_file == "results/extrapolation_sweep_tasks.txt"
         assert args.pilot is False
         assert args.dimensions == [2, 3, 5, 8, 16, 32]
-        assert args.n_trains == [112, 224, 448, 896]
+        assert args.n_trains == [34, 68, 136, 272, 544, 1088]
         assert args.functions == ["sphere", "rosenbrock", "rastrigin", "ackley"]
-        assert args.strategies == ["natural", "stratified"]
-        assert args.seeds == list(range(10))
+        assert args.strategies == ["stratified"]
+        assert args.seeds == list(range(30))
         assert args.surrogates == ["smac_default", "mature", "shallow", "coarse", "breiman"]
         assert args.python_bin == "python"
         assert args.skip_if_exists is True
@@ -491,17 +487,16 @@ class TestTaskGenerator:
     def test_pilot_generates_multi_surrogate_tasks(self, tmp_path):
         out_file = tmp_path / "pilot_tasks.txt"
         tasks = generate_tasks(output_file=out_file, pilot=True)
-        assert len(tasks) in (10, 20)
+        assert len(tasks) == 10
         assert out_file.exists()
 
         lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
-        assert len(lines) in (10, 20)
+        assert len(lines) == 10
 
-        # Verify pilot grid: D in [2, 16], N=112, sphere, seed=0, natural & stratified, 5 surrogates
+        # Verify pilot grid: D in [2, 16], N=34, sphere, seed=0, stratified, 5 surrogates
         expected_combinations = {
-            (dim, 112, "sphere", strat, 0, surr)
+            (dim, 34, "sphere", "stratified", 0, surr)
             for dim in [2, 16]
-            for strat in ["natural", "stratified"]
             for surr in ["smac_default", "mature", "shallow", "coarse", "breiman"]
         }
 
@@ -509,8 +504,6 @@ class TestTaskGenerator:
         actual_combinations = set()
         for cmd in tasks:
             tokens = shlex.split(cmd)
-            # Find arguments for run_extrapolation_experiment
-            # Tokens should begin with python scripts/run_extrapolation_experiment.py
             assert "run_extrapolation_experiment.py" in tokens[1]
             cli_args = parser.parse_args(tokens[2:])
             actual_combinations.add((
@@ -525,17 +518,17 @@ class TestTaskGenerator:
 
         assert actual_combinations == expected_combinations
 
-    def test_full_grid_generates_exactly_9600_tasks(self, tmp_path):
+    def test_full_grid_generates_exactly_21600_tasks(self, tmp_path):
         out_file = tmp_path / "tasks.txt"
         tasks = generate_tasks(output_file=out_file, pilot=False)
-        assert len(tasks) == 9600
+        assert len(tasks) == 21600
         assert out_file.exists()
 
         lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
-        assert len(lines) == 9600
+        assert len(lines) == 21600
 
         # Check unique tasks
-        assert len(set(tasks)) == 9600
+        assert len(set(tasks)) == 21600
 
         # Sample a few commands and check parseability
         parser = build_run_experiment_parser()
@@ -543,10 +536,10 @@ class TestTaskGenerator:
             tokens = shlex.split(cmd)
             cli_args = parser.parse_args(tokens[2:])
             assert cli_args.dimension in [2, 3, 5, 8, 16, 32]
-            assert cli_args.n_train in [112, 224, 448, 896]
+            assert cli_args.n_train in [34, 68, 136, 272, 544, 1088]
             assert cli_args.function in ["sphere", "rosenbrock", "rastrigin", "ackley"]
-            assert cli_args.strategy in ["natural", "stratified"]
-            assert cli_args.seed in list(range(10))
+            assert cli_args.strategy == "stratified"
+            assert cli_args.seed in list(range(30))
             assert cli_args.surrogate in ["smac_default", "mature", "shallow", "coarse", "breiman"]
             assert cli_args.skip_if_exists is True
 
@@ -629,5 +622,5 @@ class TestTaskGenerator:
 
         assert dims == {2, 5, 16, 32}
         assert funcs == {"sphere", "rosenbrock", "rastrigin", "ackley"}
-        assert trains == {112, 224}
-        assert strats == {"natural", "stratified"}
+        assert trains == {34, 68}
+        assert strats == {"stratified"}

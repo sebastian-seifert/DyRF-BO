@@ -23,38 +23,38 @@ if str(REPO_ROOT) not in sys.path:
 
 
 DEFAULT_DIMENSIONS = [2, 3, 5, 8, 16, 32]
-DEFAULT_N_TRAINS = [112, 224, 448, 896]
+DEFAULT_N_TRAINS = [34, 68, 136, 272, 544, 1088]
 DEFAULT_FUNCTIONS = ["sphere", "rosenbrock", "rastrigin", "ackley"]
-DEFAULT_STRATEGIES = ["natural", "stratified"]
-DEFAULT_SEEDS = list(range(10))
+DEFAULT_STRATEGIES = ["stratified"]
+DEFAULT_SEEDS = list(range(30))
 DEFAULT_SURROGATES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
 
 PILOT_DIMENSIONS = [2, 16]
-PILOT_N_TRAINS = [112]
+PILOT_N_TRAINS = [34]
 PILOT_FUNCTIONS = ["sphere"]
-PILOT_STRATEGIES = ["natural", "stratified"]
+PILOT_STRATEGIES = ["stratified"]
 PILOT_SEEDS = [0]
 PILOT_SURROGATES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
 
 STRESS_CONFIGURATIONS = [
     # 16-run balanced orthogonal design:
-    # 4 dimensions (2, 5, 16, 32) x 4 functions x 2 sample sizes (112, 224) x 2 strategies
-    (2, 112, "sphere", "natural", 0),
-    (2, 112, "rosenbrock", "stratified", 0),
-    (2, 224, "rastrigin", "natural", 0),
-    (2, 224, "ackley", "stratified", 0),
-    (5, 112, "rosenbrock", "natural", 0),
-    (5, 112, "rastrigin", "stratified", 0),
-    (5, 224, "ackley", "natural", 0),
-    (5, 224, "sphere", "stratified", 0),
-    (16, 112, "rastrigin", "natural", 0),
-    (16, 112, "ackley", "stratified", 0),
-    (16, 224, "sphere", "natural", 0),
-    (16, 224, "rosenbrock", "stratified", 0),
-    (32, 112, "ackley", "natural", 0),
-    (32, 112, "sphere", "stratified", 0),
-    (32, 224, "rosenbrock", "natural", 0),
-    (32, 224, "rastrigin", "stratified", 0),
+    # 4 dimensions (2, 5, 16, 32) x 4 functions x 2 sample sizes (34, 68) x stratified
+    (2, 34, "sphere", "stratified", 0),
+    (2, 34, "rosenbrock", "stratified", 0),
+    (2, 68, "rastrigin", "stratified", 0),
+    (2, 68, "ackley", "stratified", 0),
+    (5, 34, "rosenbrock", "stratified", 0),
+    (5, 34, "rastrigin", "stratified", 0),
+    (5, 68, "ackley", "stratified", 0),
+    (5, 68, "sphere", "stratified", 0),
+    (16, 34, "rastrigin", "stratified", 0),
+    (16, 34, "ackley", "stratified", 0),
+    (16, 68, "sphere", "stratified", 0),
+    (16, 68, "rosenbrock", "stratified", 0),
+    (32, 34, "ackley", "stratified", 0),
+    (32, 34, "sphere", "stratified", 0),
+    (32, 68, "rosenbrock", "stratified", 0),
+    (32, 68, "rastrigin", "stratified", 0),
 ]
 
 
@@ -73,13 +73,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--pilot",
         action="store_true",
         default=False,
-        help="Generate pilot suite: D in [2, 16], N=112, sphere, seed=0, natural & stratified, across surrogates.",
+        help="Generate pilot suite: D in [2, 16], N=34, sphere, seed=0, stratified, across surrogates.",
     )
     parser.add_argument(
         "--stress",
         action="store_true",
         default=False,
-        help="Generate 16-run stress suite covering D in [2, 5, 16, 32], all 4 functions, N in [112, 224], and natural & stratified.",
+        help="Generate 16-run stress suite covering D in [2, 5, 16, 32], all 4 functions, N in [34, 68], and stratified.",
     )
     parser.add_argument(
         "--output-dir",
@@ -126,7 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         nargs="+",
         default=DEFAULT_SEEDS,
-        help="List of random seeds (default: 0..9).",
+        help="List of random seeds (default: 0..29).",
     )
     parser.add_argument(
         "--surrogates",
