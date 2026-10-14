@@ -516,17 +516,19 @@ def plot_figure_2_chebyshev_norm_advantage_bar(dist_df: pd.DataFrame, output_pre
     x = np.arange(len(dims))
     width = 0.35
 
-    nat_sub = sub[sub["sampling_strategy"] == "natural"].set_index("dimension_num").reindex(dims)
+    has_natural = (sub["sampling_strategy"] == "natural").any()
     strat_sub = sub[sub["sampling_strategy"] == "stratified"].set_index("dimension_num").reindex(dims)
+    diff_strat = strat_sub["diff_plcb_mean"].fillna(0.0).to_numpy()
 
     fig, ax = plt.subplots(figsize=(8, 5))
 
-    # Metric difference: diff_plcb = inf - norm
-    diff_nat = nat_sub["diff_plcb_mean"].fillna(0.0).to_numpy()
-    diff_strat = strat_sub["diff_plcb_mean"].fillna(0.0).to_numpy()
-
-    bars1 = ax.bar(x - width / 2, diff_nat, width, label="Natural Sampling", color="#3498db", edgecolor="#2980b9", alpha=0.85)
-    bars2 = ax.bar(x + width / 2, diff_strat, width, label="Stratified Sampling", color="#9b59b6", edgecolor="#8e44ad", alpha=0.85)
+    if has_natural:
+        nat_sub = sub[sub["sampling_strategy"] == "natural"].set_index("dimension_num").reindex(dims)
+        diff_nat = nat_sub["diff_plcb_mean"].fillna(0.0).to_numpy()
+        bars1 = ax.bar(x - width / 2, diff_nat, width, label="Natural Sampling", color="#3498db", edgecolor="#2980b9", alpha=0.85)
+        bars2 = ax.bar(x + width / 2, diff_strat, width, label="Stratified Sampling", color="#9b59b6", edgecolor="#8e44ad", alpha=0.85)
+    else:
+        bars2 = ax.bar(x, diff_strat, width=0.5, label="Stratified Ray-Casting", color="#9b59b6", edgecolor="#8e44ad", alpha=0.85)
 
     ax.axhline(0.0, color="#333333", linewidth=1.0)
     ax.set_xticks(x)
