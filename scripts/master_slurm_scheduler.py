@@ -172,6 +172,13 @@ class MasterSlurmScheduler:
                 except ModuleNotFoundError:
                     from generate_bbob_dim2_sweep_tasks import generate_bbob_dim2_sweep_tasks
                 generate_bbob_dim2_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
+            elif "dim4" in self.config.task_manifest:
+                print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating BBOB Dim 4 tasks...")
+                try:
+                    from scripts.generate_bbob_dim4_sweep_tasks import generate_bbob_dim4_sweep_tasks
+                except ModuleNotFoundError:
+                    from generate_bbob_dim4_sweep_tasks import generate_bbob_dim4_sweep_tasks
+                generate_bbob_dim4_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
             else:
                 print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating full BBOB sweep tasks...")
                 try:
@@ -283,7 +290,7 @@ if __name__ == "__main__":
     default_job_prefix = (
         args.job_prefix
         if args.job_prefix
-        else ("bbob_d2" if "dim2" in args.manifest else "bbob_swp")
+        else ("bbob_d2" if "dim2" in args.manifest else ("bbob_d4" if "dim4" in args.manifest else "bbob_swp"))
     )
 
     cfg = SchedulerConfig(
