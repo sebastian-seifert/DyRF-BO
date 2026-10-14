@@ -4,8 +4,8 @@
 Generates reproducible task command lines across benchmark dimensions, sample sizes,
 objective functions, sampling protocols, seeds, and surrogates in fast unweighted proximity mode.
 
-Full grid: 6 dimensions x 4 sample sizes x 4 functions x 2 strategies x 10 seeds x 5 surrogates = 9,600 runs.
-Pilot grid: 2 dimensions ([2, 16]) x 1 sample size (112) x 1 function ('sphere') x 2 strategies x 1 seed (0) x 5 surrogates = 20 runs.
+Full grid: 6 dimensions x 6 sample sizes (34, 68, 136, 272, 544, 1088) x 4 functions x 1 strategy ('stratified') x 30 seeds x 5 surrogates = 21,600 runs.
+Pilot grid: 2 dimensions ([2, 16]) x 1 sample size (34) x 1 function ('sphere') x 1 strategy ('stratified') x 1 seed (0) x 5 surrogates = 10 runs.
 Stress grid: 16 balanced configurations x 5 surrogates = 80 runs.
 """
 

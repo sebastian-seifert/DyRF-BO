@@ -557,3 +557,39 @@ class TestPipelineAndCLI:
         assert exit_code == 0
         assert (out_artifacts / "tables").is_dir()
         assert (out_artifacts / "figures").is_dir()
+
+    def test_generate_all_artifacts_purely_stratified_input(self, mock_analysis_dir: Path, tmp_path: Path):
+        """Verify artifact generation succeeds with zero rows for natural sampling."""
+        # Create a purely stratified analysis directory
+        strat_analysis_dir = tmp_path / "purely_stratified_analysis"
+        strat_analysis_dir.mkdir()
+
+        for csv_file in mock_analysis_dir.glob("*.csv"):
+            df = pd.read_csv(csv_file)
+            if "sampling_strategy" in df.columns:
+                df_strat = df[df["sampling_strategy"] != "natural"].copy()
+            else:
+                df_strat = df.copy()
+            df_strat.to_csv(strat_analysis_dir / csv_file.name, index=False)
+
+        out_artifacts = tmp_path / "strat_artifacts"
+        exit_code = generate_all_artifacts(
+            analysis_dir=strat_analysis_dir,
+            output_dir=out_artifacts,
+        )
+        assert exit_code == 0
+
+        tables_dir = out_artifacts / "tables"
+        figures_dir = out_artifacts / "figures"
+        assert tables_dir.is_dir() and figures_dir.is_dir()
+
+        for i in range(1, 6):
+            md_files = list(tables_dir.glob(f"table_{i}_*.md"))
+            tex_files = list(tables_dir.glob(f"table_{i}_*.tex"))
+            assert len(md_files) == 1 and md_files[0].stat().st_size > 0
+            assert len(tex_files) == 1 and tex_files[0].stat().st_size > 0
+
+            png_files = list(figures_dir.glob(f"figure_{i}_*.png"))
+            pdf_files = list(figures_dir.glob(f"figure_{i}_*.pdf"))
+            assert len(png_files) == 1 and png_files[0].stat().st_size > 0
+            assert len(pdf_files) == 1 and pdf_files[0].stat().st_size > 0
