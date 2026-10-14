@@ -165,20 +165,17 @@ class MasterSlurmScheduler:
         """
         if not os.path.exists(self.config.task_manifest):
             out_dir = os.path.dirname(self.config.task_manifest) or "."
-            if "dim2" in self.config.task_manifest:
-                print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating BBOB Dim 2 tasks...")
+            dim_match = re.search(r"dim(\d+)", self.config.task_manifest)
+            if dim_match:
+                dim_val = dim_match.group(1)
+                print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating BBOB Dim {dim_val} tasks...")
                 try:
-                    from scripts.generate_bbob_dim2_sweep_tasks import generate_bbob_dim2_sweep_tasks
+                    mod = __import__(f"scripts.generate_bbob_dim{dim_val}_sweep_tasks", fromlist=[f"generate_bbob_dim{dim_val}_sweep_tasks"])
+                    gen_fn = getattr(mod, f"generate_bbob_dim{dim_val}_sweep_tasks")
                 except ModuleNotFoundError:
-                    from generate_bbob_dim2_sweep_tasks import generate_bbob_dim2_sweep_tasks
-                generate_bbob_dim2_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
-            elif "dim4" in self.config.task_manifest:
-                print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating BBOB Dim 4 tasks...")
-                try:
-                    from scripts.generate_bbob_dim4_sweep_tasks import generate_bbob_dim4_sweep_tasks
-                except ModuleNotFoundError:
-                    from generate_bbob_dim4_sweep_tasks import generate_bbob_dim4_sweep_tasks
-                generate_bbob_dim4_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
+                    mod = __import__(f"generate_bbob_dim{dim_val}_sweep_tasks", fromlist=[f"generate_bbob_dim{dim_val}_sweep_tasks"])
+                    gen_fn = getattr(mod, f"generate_bbob_dim{dim_val}_sweep_tasks")
+                gen_fn(seeds=20, trials=100, output_dir=out_dir)
             else:
                 print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating full BBOB sweep tasks...")
                 try:
@@ -287,11 +284,11 @@ if __name__ == "__main__":
         if args.state_file
         else os.path.join(os.path.dirname(args.manifest) or ".", "scheduler_state.json")
     )
-    default_job_prefix = (
-        args.job_prefix
-        if args.job_prefix
-        else ("bbob_d2" if "dim2" in args.manifest else ("bbob_d4" if "dim4" in args.manifest else "bbob_swp"))
-    )
+    if args.job_prefix:
+        default_job_prefix = args.job_prefix
+    else:
+        dim_match = re.search(r"dim(\d+)", args.manifest)
+        default_job_prefix = f"bbob_d{dim_match.group(1)}" if dim_match else "bbob_swp"
 
     cfg = SchedulerConfig(
         task_manifest=args.manifest,
