@@ -55,8 +55,8 @@ class ExtrapolationRunConfig:
     dimension: int
     n_train: int
     function_name: str
-    sampling_strategy: str
-    seed: int
+    sampling_strategy: str = "stratified"
+    seed: int = 0
     n_test: int = 10000
     k: int = 28
     eps: float = 0.080791
@@ -71,8 +71,8 @@ class ExtrapolationRunConfig:
         dimension: int,
         n_train: int,
         function_name: str,
-        sampling_strategy: str,
-        seed: int,
+        sampling_strategy: str = "stratified",
+        seed: int = 0,
         n_test: int = 10000,
         k: int = 28,
         eps: float = 0.080791,
@@ -179,6 +179,13 @@ def run_single_experiment(
 
     # 6. Test set generation
     if config.sampling_strategy == "natural":
+        import warnings
+        warnings.warn(
+            "Natural uniform sampling has been retired for open-loop extrapolation experiments. "
+            "Use 'stratified' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         X_test, proj_res, _ = sample_natural_test(
             n_samples=config.n_test,
             dimension=config.dimension,

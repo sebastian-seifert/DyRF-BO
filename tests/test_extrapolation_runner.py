@@ -75,6 +75,15 @@ class TestExtrapolationRunConfig:
         assert config.surrogate_type == "smac_default"
         assert config.surrogate == "smac_default"
 
+    def test_default_sampling_strategy_is_stratified(self):
+        config = ExtrapolationRunConfig(
+            dimension=2,
+            n_train=34,
+            function_name="sphere",
+        )
+        assert config.sampling_strategy == "stratified"
+        assert config.seed == 0
+
     def test_custom_surrogate_types(self):
         for s_type in ["mature", "shallow", "coarse", "breiman"]:
             cfg1 = ExtrapolationRunConfig(

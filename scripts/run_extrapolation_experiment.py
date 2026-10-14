@@ -63,7 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--n-train",
         type=int,
         required=True,
-        help="Training sample size N in [-0.5, 0.5]^D (e.g. 112, 224, 448, 896).",
+        help="Training sample size N in [-0.5, 0.5]^D (e.g. 34, 68, 136, 272, 544, 1088).",
     )
     parser.add_argument(
         "--function",
@@ -75,9 +75,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--strategy",
         type=str,
-        required=True,
-        choices=["natural", "stratified"],
-        help="Test sampling strategy ('natural' or 'stratified').",
+        default="stratified",
+        choices=["stratified", "natural"],
+        help="Test sampling strategy ('stratified' [default]; 'natural' retired for open-loop extrapolation).",
     )
     parser.add_argument(
         "--seed",
