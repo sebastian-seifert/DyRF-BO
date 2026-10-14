@@ -4,7 +4,7 @@
 Generates reproducible task command lines across benchmark dimensions, sample sizes,
 objective functions, sampling protocols, and seeds.
 
-Full grid: 6 dimensions x 6 sample sizes (34, 68, 136, 272, 544, 1088) x 4 functions x 1 strategy ('stratified') x 30 seeds x 4 surrogates = 17,280 runs.
+Full grid: 8 dimensions x 6 sample sizes (34, 68, 136, 272, 544, 1088) x 4 functions x 1 strategy ('stratified') x 30 seeds x 4 surrogates = 23,040 runs.
 Pilot grid: 2 dimensions ([2, 16]) x 1 sample size (34) x 1 function ('sphere') x 1 strategy ('stratified') x 1 seed (0) x 4 surrogates = 8 runs.
 """
 
@@ -22,7 +22,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 
-DEFAULT_DIMENSIONS = [2, 3, 5, 8, 16, 32]
+DEFAULT_DIMENSIONS = [2, 3, 5, 8, 16, 32, 64, 128]
 DEFAULT_N_TRAINS = [34, 68, 136, 272, 544, 1088]
 DEFAULT_FUNCTIONS = ["sphere", "rosenbrock", "rastrigin", "ackley"]
 DEFAULT_STRATEGIES = ["stratified"]

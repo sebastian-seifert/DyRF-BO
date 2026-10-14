@@ -57,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--dimension",
         type=int,
         required=True,
-        help="Feature space dimensionality D (e.g. 2, 3, 5, 8, 16, 32).",
+        help="Feature space dimensionality D (e.g. 2, 3, 5, 8, 16, 32, 64, 128).",
     )
     parser.add_argument(
         "--n-train",

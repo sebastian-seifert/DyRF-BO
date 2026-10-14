@@ -475,7 +475,7 @@ class TestTaskGenerator:
         args = parser.parse_args([])
         assert args.output_file == "results/extrapolation_sweep_tasks.txt"
         assert args.pilot is False
-        assert args.dimensions == [2, 3, 5, 8, 16, 32]
+        assert args.dimensions == [2, 3, 5, 8, 16, 32, 64, 128]
         assert args.n_trains == [34, 68, 136, 272, 544, 1088]
         assert args.functions == ["sphere", "rosenbrock", "rastrigin", "ackley"]
         assert args.strategies == ["stratified"]
@@ -518,24 +518,24 @@ class TestTaskGenerator:
 
         assert actual_combinations == expected_combinations
 
-    def test_full_grid_generates_exactly_17280_tasks(self, tmp_path):
+    def test_full_grid_generates_exactly_23040_tasks(self, tmp_path):
         out_file = tmp_path / "tasks.txt"
         tasks = generate_tasks(output_file=out_file, pilot=False)
-        assert len(tasks) == 17280
+        assert len(tasks) == 23040
         assert out_file.exists()
 
         lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
-        assert len(lines) == 17280
+        assert len(lines) == 23040
 
         # Check unique tasks
-        assert len(set(tasks)) == 17280
+        assert len(set(tasks)) == 23040
 
         # Sample a few commands and check parseability
         parser = build_run_experiment_parser()
         for cmd in [tasks[0], tasks[100], tasks[500], tasks[1000], tasks[-1]]:
             tokens = shlex.split(cmd)
             cli_args = parser.parse_args(tokens[2:])
-            assert cli_args.dimension in [2, 3, 5, 8, 16, 32]
+            assert cli_args.dimension in [2, 3, 5, 8, 16, 32, 64, 128]
             assert cli_args.n_train in [34, 68, 136, 272, 544, 1088]
             assert cli_args.function in ["sphere", "rosenbrock", "rastrigin", "ackley"]
             assert cli_args.strategy == "stratified"

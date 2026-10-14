@@ -4,11 +4,11 @@
 Generates reproducible task command lines across benchmark dimensions, sample sizes,
 objective functions, sampling protocols, seeds, and surrogates.
 
-Full sweep: 6 dimensions x 6 sample sizes (34, 68, 136, 272, 544, 1088) x 4 functions x 1 strategy ('stratified') x 30 seeds x 4 surrogates = 17,280 runs.
+Full sweep: 8 dimensions x 6 sample sizes (34, 68, 136, 272, 544, 1088) x 4 functions x 1 strategy ('stratified') x 30 seeds x 4 surrogates = 23,040 runs.
 Pilot sweep: 2 dimensions ([2, 16]) x 1 sample size (34) x 1 function ('sphere') x 1 strategy ('stratified') x 1 seed (0) x 4 surrogates = 8 runs.
 Stress sweep: 16 balanced configurations x 4 surrogates = 64 runs.
-Part 1 split: 8,640 runs.
-Part 2 split: 8,640 runs.
+Part 1 split: 11,520 runs.
+Part 2 split: 11,520 runs.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ DEFAULT_OUTPUT_FILE = "results/lower_quantile_sweep/tasks.txt"
 DEFAULT_OUTPUT_DIR = "results/lower_quantile_sweep/raw"
 DEFAULT_SUMMARY_DIR = "results/lower_quantile_sweep/summaries"
 
-DEFAULT_DIMENSIONS = [2, 3, 5, 8, 16, 32]
+DEFAULT_DIMENSIONS = [2, 3, 5, 8, 16, 32, 64, 128]
 DEFAULT_N_TRAINS = [34, 68, 136, 272, 544, 1088]
 DEFAULT_FUNCTIONS = ["sphere", "rosenbrock", "rastrigin", "ackley"]
 DEFAULT_STRATEGIES = ["stratified"]
@@ -100,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--split-parts",
         action="store_true",
         default=False,
-        help="Split generated tasks into part 1 (8,640 tasks) and part 2 (8,640 tasks).",
+        help="Split generated tasks into part 1 (11,520 tasks) and part 2 (11,520 tasks).",
     )
     parser.add_argument(
         "--output-part1",

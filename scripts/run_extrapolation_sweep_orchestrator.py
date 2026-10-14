@@ -30,9 +30,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 DEFAULT_STAGE1_START = 1
-DEFAULT_STAGE1_END = 4800
-DEFAULT_STAGE2_START = 4801
-DEFAULT_STAGE2_END = 9600
+DEFAULT_STAGE1_END = 11520
+DEFAULT_STAGE2_START = 11521
+DEFAULT_STAGE2_END = 23040
 DEFAULT_POLL_INTERVAL = 30
 DEFAULT_TASK_FILE = REPO_ROOT / "results" / "extrapolation_sweep_tasks.txt"
 RAW_DIR = REPO_ROOT / "results" / "extrapolation_uq" / "raw"
@@ -42,7 +42,7 @@ SUMMARY_DIR = REPO_ROOT / "results" / "extrapolation_uq" / "summaries"
 def build_parser() -> argparse.ArgumentParser:
     """Build argument parser for sweep orchestrator."""
     parser = argparse.ArgumentParser(
-        description="Live interactive master orchestrator for 9,600-task extrapolation sweep."
+        description="Live interactive master orchestrator for 23,040-task extrapolation sweep."
     )
     parser.add_argument(
         "--stage1-start",
