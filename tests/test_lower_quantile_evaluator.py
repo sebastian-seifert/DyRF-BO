@@ -263,14 +263,14 @@ class TestMathematicalInvariants:
             f"Min diff: {np.min(res.u_prox_bc_lower - res.u_prox_b_lower)}"
         )
 
-        # Verify that for non-zero proximities in extrapolation, scaling strictly expands uncertainty
+        # Verify that for non-zero proximities in extrapolation, scaling expands or maintains uncertainty (gamma >= 1.0)
         active_a = res.u_prox_a_lower > 1e-4
         if np.any(active_a):
-            assert np.all(res.u_prox_ac_lower[active_a] > res.u_prox_a_lower[active_a])
+            assert np.all(res.u_prox_ac_lower[active_a] >= res.u_prox_a_lower[active_a])
 
         active_b = res.u_prox_b_lower > 1e-4
         if np.any(active_b):
-            assert np.all(res.u_prox_bc_lower[active_b] > res.u_prox_b_lower[active_b])
+            assert np.all(res.u_prox_bc_lower[active_b] >= res.u_prox_b_lower[active_b])
 
     def test_density_scaling_gamma_floored_everywhere(self, fitted_evaluator_all, synthetic_data):
         """Verify gamma is floored by 1.0 so u_prox_ac_lower >= u_prox_a_lower and

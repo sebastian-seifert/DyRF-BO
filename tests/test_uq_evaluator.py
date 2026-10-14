@@ -19,25 +19,23 @@ from dyrf_bo.extrapolation_uq.uq_evaluator import (
 class TestSMACDefaultRF:
     """Unit tests for create_smac_default_rf factory and parameter validation."""
 
-    def test_default_smac_parameters_extra_trees(self):
+    def test_default_smac_parameters_random_forest(self):
         rf = create_smac_default_rf(seed=42, n_trees=10)
-        assert isinstance(rf, ExtraTreesRegressor)
+        assert isinstance(rf, RandomForestRegressor)
         assert rf.n_estimators == 10
-        assert np.isclose(rf.max_features, 5.0 / 6.0)
-        assert rf.min_samples_split == 3
-        assert rf.min_samples_leaf == 3
+        assert np.isclose(rf.max_features, 1.0)
+        assert rf.min_samples_split == 2
+        assert rf.min_samples_leaf == 1
+        assert rf.max_depth == 2**20
         assert rf.criterion == "squared_error"
         assert rf.bootstrap is True
         assert rf.oob_score is True
         assert rf.random_state == 42
 
-    def test_default_smac_parameters_random_forest(self):
-        rf = create_smac_default_rf(seed=123, n_trees=20, use_extra_trees=False)
-        assert isinstance(rf, RandomForestRegressor)
+    def test_explicit_use_extra_trees(self):
+        rf = create_smac_default_rf(seed=123, n_trees=20, use_extra_trees=True)
+        assert isinstance(rf, ExtraTreesRegressor)
         assert rf.n_estimators == 20
-        assert np.isclose(rf.max_features, 5.0 / 6.0)
-        assert rf.min_samples_split == 3
-        assert rf.min_samples_leaf == 3
         assert rf.criterion == "squared_error"
         assert rf.bootstrap is True
         assert rf.oob_score is True

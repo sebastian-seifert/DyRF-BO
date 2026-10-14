@@ -29,24 +29,24 @@ from GPU_Proximity_Regression_UQ import GPUProximityRegressionUQ
 
 SURROGATE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "smac_default": {
-        "estimator_class": ExtraTreesRegressor,
-        "model_cls": ExtraTreesRegressor,
-        "model_class": ExtraTreesRegressor,
+        "estimator_class": RandomForestRegressor,
+        "model_cls": RandomForestRegressor,
+        "model_class": RandomForestRegressor,
         "n_estimators": 10,
-        "max_depth": None,
-        "min_samples_split": 3,
-        "min_samples_leaf": 3,
-        "max_features": 5.0 / 6.0,
+        "max_depth": 2**20,
+        "min_samples_split": 2,
+        "min_samples_leaf": 1,
+        "max_features": 1.0,
         "bootstrap": True,
         "oob_score": True,
         "criterion": "squared_error",
     },
     "mature": {
-        "estimator_class": ExtraTreesRegressor,
-        "model_cls": ExtraTreesRegressor,
-        "model_class": ExtraTreesRegressor,
+        "estimator_class": RandomForestRegressor,
+        "model_cls": RandomForestRegressor,
+        "model_class": RandomForestRegressor,
         "n_estimators": 100,
-        "max_depth": None,
+        "max_depth": 2**20,
         "min_samples_split": 3,
         "min_samples_leaf": 3,
         "max_features": 5.0 / 6.0,
@@ -55,22 +55,22 @@ SURROGATE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "criterion": "squared_error",
     },
     "shallow": {
-        "estimator_class": ExtraTreesRegressor,
-        "model_cls": ExtraTreesRegressor,
-        "model_class": ExtraTreesRegressor,
+        "estimator_class": RandomForestRegressor,
+        "model_cls": RandomForestRegressor,
+        "model_class": RandomForestRegressor,
         "n_estimators": 25,
         "max_depth": 4,
         "min_samples_split": 3,
-        "min_samples_leaf": 5,
+        "min_samples_leaf": 3,
         "max_features": 5.0 / 6.0,
         "bootstrap": True,
         "oob_score": True,
         "criterion": "squared_error",
     },
     "coarse": {
-        "estimator_class": ExtraTreesRegressor,
-        "model_cls": ExtraTreesRegressor,
-        "model_class": ExtraTreesRegressor,
+        "estimator_class": RandomForestRegressor,
+        "model_cls": RandomForestRegressor,
+        "model_class": RandomForestRegressor,
         "n_estimators": 25,
         "max_depth": None,
         "min_samples_split": 20,
@@ -102,14 +102,14 @@ def create_surrogate_rf(
     model: Optional[Any] = None,
     **kwargs: Any,
 ) -> Any:
-    """Create an ensemble regressor based on one of the 5 surrogate configurations or reuse existing.
+    """Create an ensemble regressor based on one of the surrogate configurations or reuse existing.
 
     Supported surrogate types:
-    - 'smac_default': ExtraTreesRegressor, 10 trees, SMAC3 defaults.
-    - 'mature': ExtraTreesRegressor, 100 trees, SMAC3 defaults.
-    - 'shallow': ExtraTreesRegressor, 25 trees, max_depth=4, min_samples_leaf=5.
-    - 'coarse': ExtraTreesRegressor, 25 trees, min_samples_split=20, min_samples_leaf=10.
-    - 'breiman': RandomForestRegressor, 25 trees, standard Breiman random forest.
+    - 'smac_default': RandomForestRegressor, 10 trees, max_depth=2^20, min_samples_split=2, min_samples_leaf=1, max_features=1.0.
+    - 'mature': RandomForestRegressor, 100 trees, max_depth=2^20, min_samples_split=3, min_samples_leaf=3, max_features=5/6.
+    - 'shallow': RandomForestRegressor, 25 trees, max_depth=4, min_samples_split=3, min_samples_leaf=3, max_features=5/6.
+    - 'coarse': RandomForestRegressor, 25 trees, max_depth=None, min_samples_split=20, min_samples_leaf=10, max_features=5/6.
+    - 'breiman': RandomForestRegressor, 25 trees, legacy standard Breiman random forest (backward compatibility).
 
     Parameters
     ----------
@@ -152,7 +152,7 @@ def create_surrogate_rf(
     config = dict(SURROGATE_CONFIGS[surrogate_type])
 
     # Determine estimator class
-    estimator_cls = config.get("estimator_class", ExtraTreesRegressor)
+    estimator_cls = config.get("estimator_class", RandomForestRegressor)
     if "estimator_class" in kwargs:
         estimator_cls = kwargs.pop("estimator_class")
     elif "model_class" in kwargs:
@@ -178,7 +178,7 @@ def create_smac_default_rf(
     seed: Optional[int] = None,
     n_trees: int = 10,
     model: Optional[Any] = None,
-    use_extra_trees: bool = True,
+    use_extra_trees: Optional[bool] = None,
     **kwargs: Any,
 ) -> Any:
     """Create an ensemble regressor with native SMAC3 defaults or reuse existing.
@@ -194,9 +194,9 @@ def create_smac_default_rf(
     model : Optional[Any], default=None
         Existing fitted or unfitted surrogate model. If provided, copies
         hyperparameters or reuses the model.
-    use_extra_trees : bool, default=True
+    use_extra_trees : Optional[bool], default=None
         If True, instantiates ExtraTreesRegressor (splitter='random');
-        otherwise RandomForestRegressor.
+        if False or None, instantiates standard RandomForestRegressor.
     **kwargs : Any
         Additional hyperparameter overrides.
 
@@ -205,7 +205,8 @@ def create_smac_default_rf(
     Ensemble regressor model instance.
     """
     overrides = dict(kwargs)
-    overrides["use_extra_trees"] = use_extra_trees
+    if use_extra_trees is not None:
+        overrides["use_extra_trees"] = use_extra_trees
     if n_trees != 10 or "n_estimators" not in overrides:
         overrides["n_estimators"] = n_trees
     return create_surrogate_rf(
