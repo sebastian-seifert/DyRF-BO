@@ -25,6 +25,7 @@ if PROJECT_ROOT not in sys.path:
 from scripts.compute_bbob_full_sweep_analysis import (
     run_bbob_statistical_analysis,
     export_analysis_results,
+    infer_dimension,
 )
 
 
@@ -32,14 +33,24 @@ def run_bbob_dim16_analysis(
     df: pd.DataFrame,
     cost_col: str = "trial_value__cost_inc",
     controls: Sequence[str] = ("SMAC3_HPOFacade_lcb", "SMAC3_HPOFacade_ei"),
+    holm_scope: str = "joint",
 ) -> Dict[str, Any]:
     """Runs statistical analysis filtered strictly to dimension 16 tasks."""
-    if "dimension" in df.columns:
-        df_nd = df[df["dimension"] == 16].copy()
-    else:
-        df_nd = df.copy()
+    df_filtered = df.copy()
+    if "dimension" not in df_filtered.columns and "task_id" in df_filtered.columns:
+        df_filtered["dimension"] = df_filtered["task_id"].apply(infer_dimension)
 
-    full_results = run_bbob_statistical_analysis(df_nd, cost_col=cost_col, controls=controls)
+    if "dimension" in df_filtered.columns:
+        df_16d = df_filtered[df_filtered["dimension"] == 16].copy()
+    else:
+        df_16d = df_filtered.copy()
+
+    full_results = run_bbob_statistical_analysis(
+        df_16d,
+        cost_col=cost_col,
+        controls=controls,
+        holm_scope=holm_scope,
+    )
     return {
         "scorecard": full_results["global_scorecard"],
         "friedman_stat": full_results["friedman_stat"],
@@ -83,6 +94,13 @@ if __name__ == "__main__":
     parser.add_argument("--input", type=str, default="results/sweep_bbob_dim16/logs.parquet")
     parser.add_argument("--output-dir", type=str, default="results/sweep_bbob_dim16/analysis")
     parser.add_argument("--cost-col", type=str, default="trial_value__cost_inc")
+    parser.add_argument(
+        "--holm-scope",
+        type=str,
+        default="joint",
+        choices=["joint", "per_control"],
+        help="Holm-Bonferroni correction scope: 'joint' (Scope B across all controls) or 'per_control' (Scope A).",
+    )
     args = parser.parse_args()
 
     in_path = Path(args.input)
@@ -106,5 +124,5 @@ if __name__ == "__main__":
     if data is None:
         data = pd.read_csv(in_path)
 
-    res = run_bbob_dim16_analysis(data, cost_col=args.cost_col)
+    res = run_bbob_dim16_analysis(data, cost_col=args.cost_col, holm_scope=args.holm_scope)
     export_dim16_analysis(res, args.output_dir)
