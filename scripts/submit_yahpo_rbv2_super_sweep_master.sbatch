@@ -1,25 +1,34 @@
 #!/bin/bash
+# ==============================================================================
+# Master Slurm Orchestrator for 22,660-Task YAHPO Gym rbv2_super Sweep
+# ------------------------------------------------------------------------------
+# LUIS limits total user jobs to 5,000 at any time.
+# Uses scripts/master_slurm_scheduler.py to dynamically manage array chunk submissions
+# in batches of 250 tasks (%25 concurrency), monitoring queue until completion.
+# ==============================================================================
 #SBATCH -p ai
 #SBATCH --job-name=supr_master
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=4G
-#SBATCH --time=48:00:00
 #SBATCH --output=results/sweep_yahpo_rbv2_super/logs/master_orchestrator_%j.out
 #SBATCH --error=results/sweep_yahpo_rbv2_super/logs/master_orchestrator_%j.err
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=8G
+#SBATCH --time=48:00:00
 
-if [ -n "$SLURM_SUBMIT_DIR" ]; then
-    cd "$SLURM_SUBMIT_DIR"
-fi
+set -e
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
 mkdir -p results/sweep_yahpo_rbv2_super/logs
 
-# Resolve Python environment
 if [ -f "/bigwork/nhwpseis/.conda/envs/dyrf/bin/python" ]; then
     PYTHON_BIN="/bigwork/nhwpseis/.conda/envs/dyrf/bin/python"
 elif [ -f "$HOME/.conda/envs/dyrf/bin/python" ]; then
     PYTHON_BIN="$HOME/.conda/envs/dyrf/bin/python"
 elif [ -f ".venv/bin/python" ]; then
     PYTHON_BIN=".venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
 else
     PYTHON_BIN="$(which python3 || which python)"
 fi
@@ -34,3 +43,4 @@ exec "$PYTHON_BIN" scripts/master_slurm_scheduler.py \
     --state-file results/sweep_yahpo_rbv2_super/scheduler_state.json \
     --job-prefix supr \
     "$@"
+
