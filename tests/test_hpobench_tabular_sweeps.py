@@ -226,3 +226,36 @@ def test_sbatch_and_launcher_scripts_hpobench_nas():
     assert "scripts/submit_hpobench_nas_sweep_array.sbatch" in runner_content
     assert "--job-prefix hpnas" in runner_content
 
+
+def test_generate_hpobench_tabular_sweep_tasks_combined(tmp_path):
+    """Verify combined HPOBench Tabular generator produces 21,560 tasks (19,360 ML + 2,200 NAS) with distinct subfolders."""
+    from scripts.generate_hpobench_tabular_sweep_tasks import (
+        HPOBENCH_TABULAR_OUTPUT_DIR,
+        generate_hpobench_tabular_sweep_tasks,
+    )
+
+    assert HPOBENCH_TABULAR_OUTPUT_DIR == "results/sweep_hpobench_tabular"
+
+    out_dir = str(tmp_path / "results_tabular_full")
+    tasks = generate_hpobench_tabular_sweep_tasks(output_dir=out_dir)
+    assert len(tasks) == 21560
+
+    ml_cmds = [c for c in tasks if "+task=HPOBench/blackbox/tabular/ml/cfg_ml_" in c]
+    nas_cmds = [c for c in tasks if "+task=HPOBench/blackbox/tabular/nas/cfg_" in c]
+    assert len(ml_cmds) == 19360
+    assert len(nas_cmds) == 2200
+
+    for cmd in ml_cmds:
+        assert "baserundir=runs/sweep_hpobench_ml" in cmd
+        assert "++optimizer.telemetry_path=results/sweep_hpobench_ml/telemetry_" in cmd
+
+    for cmd in nas_cmds:
+        assert "baserundir=runs/sweep_hpobench_nas" in cmd
+        assert "++optimizer.telemetry_path=results/sweep_hpobench_nas/telemetry_" in cmd
+
+    manifest_file = Path(out_dir) / "tasks.txt"
+    assert manifest_file.exists()
+    lines = [l.strip() for l in manifest_file.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(lines) == 21560
+
+
