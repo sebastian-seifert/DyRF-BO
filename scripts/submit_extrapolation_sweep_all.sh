@@ -8,13 +8,13 @@ echo "=================================================="
 echo "Preparing Extrapolation Uncertainty Quantification Sweep"
 echo "=================================================="
 
-# 1. Generate Task File if missing
+# 1. Generate Task File if missing or contains retired natural strategy
 TASK_FILE="${TASK_FILE:-results/extrapolation_sweep_tasks.txt}"
-if [ ! -f "$TASK_FILE" ]; then
+if [ ! -f "$TASK_FILE" ] || grep -q -- "--strategy natural" "$TASK_FILE"; then
     if [ -f ".venv/bin/python" ]; then
-        .venv/bin/python scripts/generate_extrapolation_sweep_tasks.py
+        .venv/bin/python scripts/generate_extrapolation_sweep_tasks.py --output-file "$TASK_FILE"
     else
-        python3 scripts/generate_extrapolation_sweep_tasks.py
+        python3 scripts/generate_extrapolation_sweep_tasks.py --output-file "$TASK_FILE"
     fi
 fi
 

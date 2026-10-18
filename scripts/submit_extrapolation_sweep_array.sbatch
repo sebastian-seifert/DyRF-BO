@@ -5,7 +5,7 @@
 #SBATCH --error=results/extrapolation_uq/logs/array_%A_%a.err
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
-#SBATCH --time=00:30:00
+#SBATCH --time=01:00:00
 
 # Environment / Module / Conda Setup
 if [ -n "$SLURM_SUBMIT_DIR" ]; then

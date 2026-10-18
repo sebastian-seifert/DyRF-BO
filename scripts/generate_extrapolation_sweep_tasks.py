@@ -119,6 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--strategies",
         type=str,
         nargs="+",
+        choices=["stratified"],
         default=DEFAULT_STRATEGIES,
         help=f"List of sampling strategies (default: {DEFAULT_STRATEGIES}).",
     )
@@ -184,7 +185,7 @@ def generate_tasks(
     functions : list[str], optional
         Benchmark objective function names.
     strategies : list[str], optional
-        Sampling strategies ('natural' or 'stratified').
+        Sampling strategies ('stratified').
     seeds : list[int], optional
         Random seeds.
     surrogates : list[str], optional
@@ -203,6 +204,11 @@ def generate_tasks(
     list[str]
         List of generated task command lines.
     """
+    if strategies is not None and any(s != "stratified" for s in strategies):
+        raise ValueError(
+            f"Unsupported sampling strategy in {strategies}. Only 'stratified' is supported."
+        )
+
     skip_suffix = " --skip-if-exists" if skip_if_exists else ""
     out_dir_suffix = f" --output-dir {shlex.quote(output_dir)}" if output_dir else ""
     sum_dir_suffix = f" --summary-dir {shlex.quote(summary_dir)}" if summary_dir else ""

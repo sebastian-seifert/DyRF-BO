@@ -39,13 +39,12 @@ class TestRunExperimentParser:
             "--dimension", "2",
             "--n-train", "112",
             "--function", "sphere",
-            "--strategy", "natural",
             "--seed", "42",
         ])
         assert args.dimension == 2
         assert args.n_train == 112
         assert args.function == "sphere"
-        assert args.strategy == "natural"
+        assert args.strategy == "stratified"
         assert args.seed == 42
         assert args.n_test == 10000
         assert args.k == 28
@@ -99,7 +98,7 @@ class TestRunExperimentParser:
             "--dimension", "2",
             "--n-train", "112",
             "--function", "sphere",
-            "--strategy", "natural",
+            "--strategy", "stratified",
             "--seed", "0",
         ]
         for surr in ["smac_default", "mature", "shallow", "coarse", "breiman"]:
@@ -120,14 +119,15 @@ class TestRunExperimentParser:
 
     def test_parser_invalid_strategy(self):
         parser = build_run_experiment_parser()
-        with pytest.raises(SystemExit):
-            parser.parse_args([
-                "--dimension", "2",
-                "--n-train", "112",
-                "--function", "sphere",
-                "--strategy", "unknown_strategy",
-                "--seed", "0",
-            ])
+        for bad_strategy in ["unknown_strategy", "natural"]:
+            with pytest.raises(SystemExit):
+                parser.parse_args([
+                    "--dimension", "2",
+                    "--n-train", "112",
+                    "--function", "sphere",
+                    "--strategy", bad_strategy,
+                    "--seed", "0",
+                ])
 
     def test_parser_function_case_normalization_and_choices(self):
         parser = build_run_experiment_parser()
@@ -135,7 +135,7 @@ class TestRunExperimentParser:
             "--dimension", "2",
             "--n-train", "112",
             "--function", "SPHERE",
-            "--strategy", "natural",
+            "--strategy", "stratified",
             "--seed", "0",
         ])
         assert args.function == "sphere"
@@ -147,7 +147,7 @@ class TestRunExperimentParser:
                 "--dimension", "2",
                 "--n-train", "112",
                 "--function", "invalid_func",
-                "--strategy", "natural",
+                "--strategy", "stratified",
                 "--seed", "0",
             ])
 
@@ -204,7 +204,7 @@ class TestRunExperimentExecution:
             "--dimension", "2",
             "--n-train", "28",
             "--function", "sphere",
-            "--strategy", "natural",
+            "--strategy", "stratified",
             "--seed", "1",
             "--n-test", "50",
             "--k", "28",
@@ -217,11 +217,11 @@ class TestRunExperimentExecution:
         assert ret == 0
 
         # Parquet should NOT exist
-        expected_parquet = raw_dir / "extrapolation_sphere_d2_n28_natural_smac_default_s1.parquet"
+        expected_parquet = raw_dir / "extrapolation_sphere_d2_n28_stratified_smac_default_s1.parquet"
         assert not expected_parquet.exists()
 
         # Summary JSON should exist
-        expected_summary = sum_dir / "summary_sphere_d2_n28_natural_smac_default_s1.json"
+        expected_summary = sum_dir / "summary_sphere_d2_n28_stratified_smac_default_s1.json"
         assert expected_summary.exists()
 
     def test_skip_if_exists_both_files_present(self, tmp_path):
@@ -230,8 +230,8 @@ class TestRunExperimentExecution:
         raw_dir.mkdir(parents=True)
         sum_dir.mkdir(parents=True)
 
-        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_natural_smac_default_s0.parquet"
-        summary_file = sum_dir / "summary_sphere_d2_n112_natural_smac_default_s0.json"
+        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_stratified_smac_default_s0.parquet"
+        summary_file = sum_dir / "summary_sphere_d2_n112_stratified_smac_default_s0.json"
         parquet_file.write_text("dummy parquet content")
         summary_file.write_text(json.dumps({"dummy": True}))
 
@@ -240,7 +240,7 @@ class TestRunExperimentExecution:
                 "--dimension", "2",
                 "--n-train", "112",
                 "--function", "sphere",
-                "--strategy", "natural",
+                "--strategy", "stratified",
                 "--seed", "0",
                 "--output-dir", str(raw_dir),
                 "--summary-dir", str(sum_dir),
@@ -256,7 +256,7 @@ class TestRunExperimentExecution:
         sum_dir.mkdir(parents=True)
 
         # Only summary exists, parquet missing
-        summary_file = sum_dir / "summary_sphere_d2_n112_natural_smac_default_s0.json"
+        summary_file = sum_dir / "summary_sphere_d2_n112_stratified_smac_default_s0.json"
         summary_file.write_text(json.dumps({"dummy": True}))
 
         fake_summary = {"dimension": 2, "n_train": 112, "function_name": "sphere", "seed": 0}
@@ -268,7 +268,7 @@ class TestRunExperimentExecution:
                 "--dimension", "2",
                 "--n-train", "112",
                 "--function", "sphere",
-                "--strategy", "natural",
+                "--strategy", "stratified",
                 "--seed", "0",
                 "--output-dir", str(raw_dir),
                 "--summary-dir", str(sum_dir),
@@ -284,8 +284,8 @@ class TestRunExperimentExecution:
         raw_dir.mkdir(parents=True)
         sum_dir.mkdir(parents=True)
 
-        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_natural_smac_default_s0.parquet"
-        summary_file = sum_dir / "summary_sphere_d2_n112_natural_smac_default_s0.json"
+        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_stratified_smac_default_s0.parquet"
+        summary_file = sum_dir / "summary_sphere_d2_n112_stratified_smac_default_s0.json"
         parquet_file.write_text("dummy")
         summary_file.write_text(json.dumps({"dummy": True}))
 
@@ -298,7 +298,7 @@ class TestRunExperimentExecution:
                 "--dimension", "2",
                 "--n-train", "112",
                 "--function", "sphere",
-                "--strategy", "natural",
+                "--strategy", "stratified",
                 "--seed", "0",
                 "--output-dir", str(raw_dir),
                 "--summary-dir", str(sum_dir),
@@ -314,8 +314,8 @@ class TestRunExperimentExecution:
         sum_dir.mkdir(parents=True)
 
         # 0-byte parquet file and 0-byte summary file
-        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_natural_smac_default_s0.parquet"
-        summary_file = sum_dir / "summary_sphere_d2_n112_natural_smac_default_s0.json"
+        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_stratified_smac_default_s0.parquet"
+        summary_file = sum_dir / "summary_sphere_d2_n112_stratified_smac_default_s0.json"
         parquet_file.touch()
         summary_file.touch()
         assert parquet_file.stat().st_size == 0
@@ -330,7 +330,7 @@ class TestRunExperimentExecution:
                 "--dimension", "2",
                 "--n-train", "112",
                 "--function", "sphere",
-                "--strategy", "natural",
+                "--strategy", "stratified",
                 "--seed", "0",
                 "--output-dir", str(raw_dir),
                 "--summary-dir", str(sum_dir),
@@ -550,7 +550,7 @@ class TestTaskGenerator:
             dimensions=[3, 5],
             n_trains=[224],
             functions=["ackley"],
-            strategies=["natural"],
+            strategies=["stratified"],
             seeds=[1, 2, 3],
             surrogates=["shallow", "breiman"],
             python_bin=".venv/bin/python",
@@ -559,8 +559,20 @@ class TestTaskGenerator:
         assert len(tasks) == 2 * 1 * 1 * 1 * 3 * 2
         for cmd in tasks:
             assert cmd.startswith(".venv/bin/python scripts/run_extrapolation_experiment.py")
+            assert "--strategy stratified" in cmd
             assert "--surrogate" in cmd
             assert "--skip-if-exists" not in cmd
+
+    def test_rejects_non_stratified_strategy(self, tmp_path):
+        parser = build_task_generator_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--strategies", "natural"])
+
+        with pytest.raises(ValueError, match="stratified"):
+            generate_tasks(
+                output_file=tmp_path / "invalid_tasks.txt",
+                strategies=["natural"],
+            )
 
     def test_main_cli_execution(self, tmp_path):
         out_file = tmp_path / "cli_tasks.txt"

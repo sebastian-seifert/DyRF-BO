@@ -142,10 +142,10 @@ def run_single_experiment(
     tuple[dict[str, Any], pd.DataFrame]
         Summary scorecard dictionary and per-point evaluations DataFrame.
     """
-    if config.sampling_strategy not in {"natural", "stratified"}:
+    if config.sampling_strategy != "stratified":
         raise ValueError(
             f"Unsupported sampling strategy '{config.sampling_strategy}'. "
-            "Must be 'natural' or 'stratified'."
+            "Must be 'stratified'."
         )
 
     # 1. Objective function
@@ -177,35 +177,15 @@ def run_single_experiment(
     # 5. Convex Hull projection solver
     solver = ConvexHullProjectionSolver(X_train)
 
-    # 6. Test set generation
-    if config.sampling_strategy == "natural":
-        import warnings
-        warnings.warn(
-            "Natural uniform sampling has been retired for open-loop extrapolation experiments. "
-            "Use 'stratified' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        X_test, proj_res, _ = sample_natural_test(
-            n_samples=config.n_test,
-            dimension=config.dimension,
-            solver=solver,
-            seed=seed_test,
-        )
-        # Assign strata labels based on normalized distance bands
-        strata_labels = np.zeros(len(proj_res.d_norm), dtype=np.int64)
-        strata_labels[(proj_res.d_norm >= 1e-6) & (proj_res.d_norm <= 0.15)] = 1
-        strata_labels[(proj_res.d_norm > 0.15) & (proj_res.d_norm <= 0.40)] = 2
-        strata_labels[proj_res.d_norm > 0.40] = 3
-    else:  # stratified
-        n_per_stratum = config.n_test // 4
-        X_test, proj_res, strata_labels = sample_stratified_test(
-            n_per_stratum=n_per_stratum,
-            dimension=config.dimension,
-            X_train=X_train,
-            solver=solver,
-            seed=seed_test,
-        )
+    # 6. Test set generation (strictly stratified)
+    n_per_stratum = config.n_test // 4
+    X_test, proj_res, strata_labels = sample_stratified_test(
+        n_per_stratum=n_per_stratum,
+        dimension=config.dimension,
+        X_train=X_train,
+        solver=solver,
+        seed=seed_test,
+    )
 
     # 7. Evaluate ground truth test values
     y_true = objective.evaluate(X_test, standardized=True)

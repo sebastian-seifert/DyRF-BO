@@ -113,7 +113,7 @@ class TestSbatchScriptDirectives:
         # Resource limits
         assert "#SBATCH --cpus-per-task=1" in content
         assert "#SBATCH --mem=4G" in content
-        assert "#SBATCH --time=00:30:00" in content
+        assert "#SBATCH --time=01:00:00" in content
 
         # Thread pinning (prevent multi-thread BLAS contention)
         assert "export OPENBLAS_NUM_THREADS=1" in content
@@ -268,6 +268,42 @@ echo 98765
                 dummy_task_file.write_text(backup_content)
             elif dummy_task_file.exists():
                 dummy_task_file.unlink()
+
+    def test_submit_all_regenerates_when_strategy_natural_present(self, tmp_path):
+        """submit_extrapolation_sweep_all.sh regenerates TASK_FILE if --strategy natural is present."""
+        log_file = tmp_path / "sbatch_calls.log"
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        mock_sbatch = bin_dir / "sbatch"
+        mock_sbatch.write_text(f"""#!/bin/bash
+echo "$@" >> "{log_file}"
+echo 11111
+""")
+        mock_sbatch.chmod(mock_sbatch.stat().st_mode | stat.S_IEXEC)
+
+        stale_task_file = tmp_path / "stale_tasks.txt"
+        stale_task_file.write_text(
+            "python scripts/run_extrapolation_experiment.py --dimension 2 --n-train 34 --function sphere --strategy natural --seed 0\n"
+        )
+
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}:{env['PATH']}"
+        env["TASK_FILE"] = str(stale_task_file)
+        env["START_TASK"] = "1"
+        env["END_TASK"] = "10"
+
+        proc = subprocess.run(
+            ["bash", str(SUBMIT_ALL_SCRIPT)],
+            env=env,
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+        )
+        assert proc.returncode == 0, f"Script failed:\n{proc.stderr}\n{proc.stdout}"
+        regenerated_lines = [line.strip() for line in stale_task_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+        assert len(regenerated_lines) == 23040
+        assert all("--strategy stratified" in line for line in regenerated_lines)
+        assert not any("--strategy natural" in line for line in regenerated_lines)
 
 
 class TestLocalSweepRunner:

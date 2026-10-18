@@ -76,8 +76,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--strategy",
         type=str,
         default="stratified",
-        choices=["stratified", "natural"],
-        help="Test sampling strategy ('stratified' [default]; 'natural' retired for open-loop extrapolation).",
+        choices=["stratified"],
+        help="Test sampling strategy ('stratified' [default]).",
     )
     parser.add_argument(
         "--seed",

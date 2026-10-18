@@ -183,12 +183,12 @@ class TestRunSingleExperiment:
             assert f"stratum_{s}_plcb_picp" in summary
             assert f"stratum_{s}_u_hutter_total_picp" in summary
 
-    def test_natural_pilot_experiment(self, tmp_path):
+    def test_stratified_no_parquet_pilot_experiment(self, tmp_path):
         config = ExtrapolationRunConfig(
             dimension=2,
             n_train=28,
             function_name="sphere",
-            sampling_strategy="natural",
+            sampling_strategy="stratified",
             seed=123,
             n_test=100,
             k=28,
@@ -256,7 +256,7 @@ class TestRunSingleExperiment:
             dimension=5,
             n_train=28,
             function_name="sphere",
-            sampling_strategy="natural",
+            sampling_strategy="stratified",
             seed=999,
             n_test=40,
             k=28,
@@ -273,16 +273,17 @@ class TestRunSingleExperiment:
         cols = list(df.columns)
         assert cols[:6] == ["point_id", "x_0", "x_1", "x_2", "x_3", "x_4"]
 
-    def test_invalid_sampling_strategy(self):
+    @pytest.mark.parametrize("bad_strategy", ["invalid_strategy", "natural"])
+    def test_invalid_sampling_strategy(self, bad_strategy):
         config = ExtrapolationRunConfig(
             dimension=2,
             n_train=28,
             function_name="sphere",
-            sampling_strategy="invalid_strategy",
+            sampling_strategy=bad_strategy,
             seed=42,
             n_test=100,
         )
-        with pytest.raises(ValueError, match="strategy"):
+        with pytest.raises(ValueError, match="strategy|stratified"):
             run_single_experiment(config)
 
     def test_invalid_objective_function(self):
