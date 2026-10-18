@@ -13,5 +13,5 @@ echo "Submitting YAHPO rbv2_ranger via Master Slurm Scheduler"
 echo "Job limits: max 4,500 active tasks, chunk size 250 (%25 concurrency)"
 echo "=================================================="
 
-sbatch scripts/submit_yahpo_rbv2_ranger_sweep_master.sbatch "$@"
+exec bash scripts/submit_yahpo_rbv2_ranger_sweep_all.sh "$@"
 
