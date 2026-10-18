@@ -717,6 +717,26 @@ def main() -> int:
         help="Benchmark suite to verify (ml, nas, all). Default: all.",
     )
     parser.add_argument(
+        "--suite-all",
+        action="store_true",
+        help="Convenience alias for --suite all.",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Convenience alias for --suite all.",
+    )
+    parser.add_argument(
+        "--ml",
+        action="store_true",
+        help="Convenience alias for --suite ml.",
+    )
+    parser.add_argument(
+        "--nas",
+        action="store_true",
+        help="Convenience alias for --suite nas.",
+    )
+    parser.add_argument(
         "--data-dir",
         type=str,
         default=None,
@@ -754,11 +774,19 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    suite = args.suite
+    if args.suite_all or args.all:
+        suite = "all"
+    elif args.ml:
+        suite = "ml"
+    elif args.nas:
+        suite = "nas"
+
     # 1. Check configs
-    task_res = check_task_configs_available(suite=args.suite)
+    task_res = check_task_configs_available(suite=suite)
 
     # 2. Check datasets
-    dataset_res = check_dataset_files_available(suite=args.suite, data_dir=args.data_dir)
+    dataset_res = check_dataset_files_available(suite=suite, data_dir=args.data_dir)
 
     # 3. Download missing if requested
     if args.download_missing and not dataset_res["all_available"]:
@@ -766,13 +794,13 @@ def main() -> int:
         dl_res = download_missing_datasets(dataset_res["missing"], data_dir=args.data_dir)
         print("Download results:", dl_res)
         # Re-check datasets
-        dataset_res = check_dataset_files_available(suite=args.suite, data_dir=args.data_dir)
+        dataset_res = check_dataset_files_available(suite=suite, data_dir=args.data_dir)
 
     # 4. Check sweep if requested
     sweep_res = None
     if args.check_sweep or args.manifest is not None:
         sweep_res = check_sweep_completion_status(
-            suite=args.suite,
+            suite=suite,
             base_dir=args.runs_dir,
             manifest_path=args.manifest,
         )
