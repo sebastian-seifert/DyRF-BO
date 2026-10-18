@@ -198,4 +198,72 @@ def test_master_scheduler_cli_arguments(tmp_path):
     assert state_file.exists()
 
 
+def test_scheduler_auto_purges_mock_jobs_in_live_mode(tmp_path):
+    """Verify live mode (dry_run=False) automatically purges mock jobs from dry-run/testing."""
+    manifest_file = tmp_path / "tasks.txt"
+    with open(manifest_file, "w") as f:
+        for i in range(500):
+            f.write(f"task_{i}\n")
+
+    state_file = tmp_path / "scheduler_state.json"
+    poisoned_state = {
+        "completed_or_submitted_chunks": 2,
+        "submitted_chunks_info": [
+            {"chunk_idx": 0, "start": 1, "end": 250, "job_id": "mock_job_0"},
+            {"chunk_idx": 1, "start": 251, "end": 500, "job_id": "mock_job_1"},
+        ],
+        "all_chunks_dispatched": True,
+    }
+    with open(state_file, "w") as f:
+        json.dump(poisoned_state, f)
+
+    config = SchedulerConfig(
+        task_manifest=str(manifest_file),
+        chunk_size=250,
+        state_file=str(state_file),
+    )
+    scheduler = MasterSlurmScheduler(config=config)
+
+    # In live mode (dry_run=False), loading state should detect mock jobs and reset
+    clean_state = scheduler.load_state(dry_run=False)
+    assert clean_state["completed_or_submitted_chunks"] == 0
+    assert clean_state["all_chunks_dispatched"] is False
+    assert len(clean_state["submitted_chunks_info"]) == 0
+
+
+def test_scheduler_reset_state_cli(tmp_path):
+    """Verify --reset-state flag forcibly clears any previous state."""
+    import subprocess
+    manifest = tmp_path / "tasks.txt"
+    with open(manifest, "w") as f:
+        for i in range(250):
+            f.write(f"task_{i}\n")
+
+    state_file = tmp_path / "cli_state.json"
+    with open(state_file, "w") as f:
+        json.dump({"completed_or_submitted_chunks": 1, "all_chunks_dispatched": True, "submitted_chunks_info": []}, f)
+
+    res = subprocess.run(
+        [
+            sys.executable,
+            "scripts/master_slurm_scheduler.py",
+            "--manifest", str(manifest),
+            "--state-file", str(state_file),
+            "--reset-state",
+            "--dry-run",
+            "--once",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert res.returncode == 0
+    with open(state_file) as f:
+        state = json.load(f)
+    # Since it was reset and ran dry-run once with 250 tasks, it submitted chunk 0
+    assert state["completed_or_submitted_chunks"] == 1
+    assert state["submitted_chunks_info"][0]["job_id"] == "mock_job_0"
+
+
+
 

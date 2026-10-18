@@ -52,6 +52,26 @@ if [ "$SUBMIT_SBATCH" = true ]; then
     echo "Monitor progress with: tail -f ${RESULTS_DIR}/logs/master_orchestrator_${JOB_ID}.out"
 else
     echo "Starting Master Slurm Scheduler locally (chunk size: ${CHUNK_SIZE}, array concurrency: %25)..."
+    STATE_FILE_ARG=()
+    HAS_CUSTOM_STATE=false
+    IS_DRY_RUN=false
+    for arg in "${PASSTHROUGH_ARGS[@]}"; do
+        if [ "$arg" == "--state-file" ]; then
+            HAS_CUSTOM_STATE=true
+        fi
+        if [ "$arg" == "--dry-run" ]; then
+            IS_DRY_RUN=true
+        fi
+    done
+
+    if [ "$HAS_CUSTOM_STATE" = false ]; then
+        if [ "$IS_DRY_RUN" = true ]; then
+            STATE_FILE_ARG=(--state-file "${RESULTS_DIR}/scheduler_state.dry_run.json")
+        else
+            STATE_FILE_ARG=(--state-file "${RESULTS_DIR}/scheduler_state.json")
+        fi
+    fi
+
     exec "$PYTHON_BIN" scripts/master_slurm_scheduler.py \
         --manifest "$TASK_FILE" \
         --sbatch scripts/submit_yahpo_rbv2_ranger_sweep_array.sbatch \
@@ -59,7 +79,7 @@ else
         --max-tasks 4500 \
         --trigger-jobs 10 \
         --concurrency 25 \
-        --state-file "${RESULTS_DIR}/scheduler_state.json" \
+        "${STATE_FILE_ARG[@]}" \
         --job-prefix rngr \
         "${PASSTHROUGH_ARGS[@]}"
 fi

@@ -66,6 +66,7 @@ class SchedulerConfig:
     poll_interval_sec: int = 60
     state_file: str = "results/sweep_bbob_full_comparison/scheduler_state.json"
     job_name_prefix: str = "bbob_swp"
+    reset_state: bool = False
 
 
 class MasterSlurmScheduler:
@@ -81,19 +82,48 @@ class MasterSlurmScheduler:
             chunks.append((start, end))
         return chunks
 
-    def load_state(self) -> Dict[str, Any]:
+    def load_state(
+        self,
+        dry_run: Optional[bool] = None,
+        purge_mock: bool = False,
+        reset_state: bool = False,
+    ) -> Dict[str, Any]:
         """Loads state dictionary from state_file, or initializes default state."""
-        if os.path.exists(self.config.state_file):
-            try:
-                with open(self.config.state_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return {
+        default_state: Dict[str, Any] = {
             "completed_or_submitted_chunks": 0,
             "submitted_chunks_info": [],
             "all_chunks_dispatched": False,
         }
+        if reset_state or self.config.reset_state:
+            print(f"[INFO] State reset requested. Initializing clean state for '{self.config.state_file}'.")
+            return default_state
+
+        if os.path.exists(self.config.state_file):
+            try:
+                with open(self.config.state_file, "r", encoding="utf-8") as f:
+                    state = json.load(f)
+            except Exception as e:
+                print(f"[WARNING] Could not parse state file '{self.config.state_file}': {e}. Initializing fresh state.")
+                return default_state
+
+            # If running live (dry_run is explicitly False or purge_mock is True), purge mock jobs
+            should_purge = purge_mock or (dry_run is False)
+            if should_purge:
+                submitted_info = state.get("submitted_chunks_info", [])
+                has_mock = any(
+                    str(chunk.get("job_id", "")).startswith("mock_job_") or str(chunk.get("job_id", "")).startswith("mock_")
+                    for chunk in submitted_info
+                )
+                if has_mock:
+                    print(
+                        f"[WARNING] Stale mock jobs from dry-run detected in '{self.config.state_file}'. "
+                        f"Purging mock state to prevent blocking live Slurm execution."
+                    )
+                    return default_state
+
+            return state
+
+        return default_state
 
     def save_state(self, state: Dict[str, Any]) -> None:
         """Persists state dictionary to state_file."""
@@ -165,24 +195,39 @@ class MasterSlurmScheduler:
         """
         if not os.path.exists(self.config.task_manifest):
             out_dir = os.path.dirname(self.config.task_manifest) or "."
-            dim_match = re.search(r"dim(\d+)", self.config.task_manifest)
-            if dim_match:
-                dim_val = dim_match.group(1)
-                print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating BBOB Dim {dim_val} tasks...")
+            if "rbv2_ranger" in self.config.task_manifest:
+                print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating YAHPO rbv2_ranger tasks...")
                 try:
-                    mod = __import__(f"scripts.generate_bbob_dim{dim_val}_sweep_tasks", fromlist=[f"generate_bbob_dim{dim_val}_sweep_tasks"])
-                    gen_fn = getattr(mod, f"generate_bbob_dim{dim_val}_sweep_tasks")
+                    from scripts.generate_yahpo_rbv2_ranger_sweep_tasks import generate_yahpo_rbv2_ranger_sweep_tasks
                 except ModuleNotFoundError:
-                    mod = __import__(f"generate_bbob_dim{dim_val}_sweep_tasks", fromlist=[f"generate_bbob_dim{dim_val}_sweep_tasks"])
-                    gen_fn = getattr(mod, f"generate_bbob_dim{dim_val}_sweep_tasks")
-                gen_fn(seeds=20, trials=100, output_dir=out_dir)
+                    from generate_yahpo_rbv2_ranger_sweep_tasks import generate_yahpo_rbv2_ranger_sweep_tasks
+                generate_yahpo_rbv2_ranger_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
+            elif "rbv2_super" in self.config.task_manifest:
+                print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating YAHPO rbv2_super tasks...")
+                try:
+                    from scripts.generate_yahpo_rbv2_super_sweep_tasks import generate_yahpo_rbv2_super_sweep_tasks
+                except ModuleNotFoundError:
+                    from generate_yahpo_rbv2_super_sweep_tasks import generate_yahpo_rbv2_super_sweep_tasks
+                generate_yahpo_rbv2_super_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
             else:
-                print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating full BBOB sweep tasks...")
-                try:
-                    from scripts.generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
-                except ModuleNotFoundError:
-                    from generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
-                generate_bbob_full_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
+                dim_match = re.search(r"dim(\d+)", self.config.task_manifest)
+                if dim_match:
+                    dim_val = dim_match.group(1)
+                    print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating BBOB Dim {dim_val} tasks...")
+                    try:
+                        mod = __import__(f"scripts.generate_bbob_dim{dim_val}_sweep_tasks", fromlist=[f"generate_bbob_dim{dim_val}_sweep_tasks"])
+                        gen_fn = getattr(mod, f"generate_bbob_dim{dim_val}_sweep_tasks")
+                    except ModuleNotFoundError:
+                        mod = __import__(f"generate_bbob_dim{dim_val}_sweep_tasks", fromlist=[f"generate_bbob_dim{dim_val}_sweep_tasks"])
+                        gen_fn = getattr(mod, f"generate_bbob_dim{dim_val}_sweep_tasks")
+                    gen_fn(seeds=20, trials=100, output_dir=out_dir)
+                else:
+                    print(f"[INFO] Manifest '{self.config.task_manifest}' not found. Auto-generating full BBOB sweep tasks...")
+                    try:
+                        from scripts.generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
+                    except ModuleNotFoundError:
+                        from generate_bbob_full_sweep_tasks import generate_bbob_full_sweep_tasks
+                    generate_bbob_full_sweep_tasks(seeds=20, trials=100, output_dir=out_dir)
 
         if not os.path.exists(self.config.task_manifest):
             raise FileNotFoundError(f"Manifest not found: {self.config.task_manifest}")
@@ -193,7 +238,7 @@ class MasterSlurmScheduler:
         chunks = self.calculate_chunks(total_tasks)
         total_chunk_count = len(chunks)
 
-        state = self.load_state()
+        state = self.load_state(dry_run=dry_run)
         next_chunk_idx = state.get("completed_or_submitted_chunks", 0)
 
         if next_chunk_idx >= total_chunk_count:
@@ -251,7 +296,7 @@ class MasterSlurmScheduler:
         print(f"Starting Master Slurm Scheduler (Manifest: {self.config.task_manifest})...")
         while True:
             submitted = self.step(dry_run=dry_run)
-            state = self.load_state()
+            state = self.load_state(dry_run=dry_run)
             if submitted:
                 print(f"[DISPATCH] Submitted {len(submitted)} chunks. Total dispatched: "
                       f"{state['completed_or_submitted_chunks']} chunks.")
@@ -264,7 +309,7 @@ class MasterSlurmScheduler:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Master Slurm Scheduler for BBOB Sweep.")
+    parser = argparse.ArgumentParser(description="Master Slurm Scheduler for BBOB / YAHPO Sweeps.")
     parser.add_argument("--manifest", type=str, default="results/sweep_bbob_full_comparison/tasks_all.txt")
     parser.add_argument("--sbatch", type=str, default="scripts/submit_bbob_full_sweep_array.sbatch")
     parser.add_argument("--chunk-size", type=int, default=250)
@@ -274,6 +319,7 @@ if __name__ == "__main__":
     parser.add_argument("--concurrency", type=int, default=25)
     parser.add_argument("--state-file", type=str, default=None)
     parser.add_argument("--job-prefix", "--job-name-prefix", dest="job_prefix", type=str, default=None)
+    parser.add_argument("--reset-state", "--force-restart", dest="reset_state", action="store_true", help="Reset state file and restart sweep from chunk 0.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--once", action="store_true")
 
@@ -300,6 +346,7 @@ if __name__ == "__main__":
         poll_interval_sec=args.interval,
         state_file=default_state_file,
         job_name_prefix=default_job_prefix,
+        reset_state=args.reset_state,
     )
     scheduler = MasterSlurmScheduler(cfg)
     scheduler.run_loop(dry_run=args.dry_run, single_step=args.once)
