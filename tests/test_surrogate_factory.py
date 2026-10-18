@@ -79,13 +79,13 @@ class TestSurrogateConfigs:
         assert cfg["oob_score"] is True
 
     def test_coarse_config(self):
-        """coarse: RandomForestRegressor, n_estimators=25, max_depth=None,
+        """coarse: RandomForestRegressor, n_estimators=25, max_depth=2**20,
         min_samples_split=20, min_samples_leaf=10, max_features=5/6, bootstrap=True, oob_score=True."""
         cfg = SURROGATE_CONFIGS["coarse"]
         estimator_cls = cfg.get("estimator_class", cfg.get("model_cls", cfg.get("model_class")))
         assert estimator_cls is RandomForestRegressor
         assert cfg["n_estimators"] == 25
-        assert cfg["max_depth"] is None
+        assert cfg["max_depth"] == 2**20
         assert cfg["min_samples_split"] == 20
         assert cfg["min_samples_leaf"] == 10
         assert np.isclose(cfg["max_features"], 5.0 / 6.0)
@@ -116,7 +116,7 @@ class TestCreateSurrogateRF:
             ("smac_default", RandomForestRegressor, 10, 2**20, 2, 1, 1.0),
             ("mature", RandomForestRegressor, 100, 2**20, 3, 3, 5.0 / 6.0),
             ("shallow", RandomForestRegressor, 25, 4, 3, 3, 5.0 / 6.0),
-            ("coarse", RandomForestRegressor, 25, None, 20, 10, 5.0 / 6.0),
+            ("coarse", RandomForestRegressor, 25, 2**20, 20, 10, 5.0 / 6.0),
             ("breiman", RandomForestRegressor, 25, None, 3, 3, 5.0 / 6.0),
         ],
     )

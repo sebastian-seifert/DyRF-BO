@@ -327,7 +327,7 @@ class ConvexHullProjectionSolver:
         d_norm = d_raw / np.sqrt(self.D)
         d_rel = d_raw / (2.0 * np.sqrt(self.D))
         d_inf = np.max(np.abs(diff), axis=1)
-        is_interpolating = d_norm < 1e-6
+        is_interpolating = d_norm <= 1e-6
 
         return ProjectionResult(
             weights=weights,

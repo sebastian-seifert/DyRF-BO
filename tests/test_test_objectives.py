@@ -133,19 +133,40 @@ class TestStandardizedObjective:
         assert obj.std_train is not None
         assert obj.std_train > 0.0
 
-        # Evaluating training data standardized should have zero mean and unit variance
+        # Raw evaluation returns exact sphere values
+        y_raw = obj.evaluate(X_train, standardized=False)
+        assert np.allclose(y_raw, np.sum(X_train**2, axis=-1))
+        assert np.isclose(obj.std_train, np.std(y_raw, ddof=1), atol=1e-12)
+
+        # Evaluating training data standardized should have zero mean and unit sample variance (ddof=1)
         y_train_std = obj.evaluate(X_train, standardized=True)
         assert y_train_std.shape == (100,)
         assert np.isclose(np.mean(y_train_std), 0.0, atol=1e-10)
-        assert np.isclose(np.std(y_train_std), 1.0, atol=1e-10)
+        assert np.isclose(np.std(y_train_std, ddof=1), 1.0, atol=1e-12)
 
         # Call syntax works identically
         y_call = obj(X_train, standardized=True)
         assert np.allclose(y_train_std, y_call)
 
-        # Raw evaluation returns exact sphere values
-        y_raw = obj.evaluate(X_train, standardized=False)
-        assert np.allclose(y_raw, np.sum(X_train**2, axis=-1))
+    def test_fit_uses_sample_std_ddof_1(self):
+        """StandardizedObjective.fit must compute sample standard deviation with ddof=1."""
+        X_train = np.array([
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [0.0, 2.0],
+            [2.0, 2.0],
+        ])
+        obj = StandardizedObjective(sphere, name="sphere")
+        obj.fit(X_train)
+
+        y_train = sphere(X_train)
+        expected_std_ddof1 = float(np.std(y_train, ddof=1))
+        expected_std_ddof0 = float(np.std(y_train, ddof=0))
+
+        assert np.isclose(obj.std_train, expected_std_ddof1, atol=1e-12)
+        assert not np.isclose(obj.std_train, expected_std_ddof0, atol=1e-3)
+        y_std = obj.evaluate(X_train, standardized=True)
+        assert np.isclose(np.std(y_std, ddof=1), 1.0, atol=1e-12)
 
     def test_constant_function_std_floor(self):
         # When function output has 0 variance, std_train must be floored to 1e-8

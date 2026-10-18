@@ -72,7 +72,7 @@ SURROGATE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "model_cls": RandomForestRegressor,
         "model_class": RandomForestRegressor,
         "n_estimators": 25,
-        "max_depth": None,
+        "max_depth": 2**20,
         "min_samples_split": 20,
         "min_samples_leaf": 10,
         "max_features": 5.0 / 6.0,
@@ -108,7 +108,7 @@ def create_surrogate_rf(
     - 'smac_default': RandomForestRegressor, 10 trees, max_depth=2^20, min_samples_split=2, min_samples_leaf=1, max_features=1.0.
     - 'mature': RandomForestRegressor, 100 trees, max_depth=2^20, min_samples_split=3, min_samples_leaf=3, max_features=5/6.
     - 'shallow': RandomForestRegressor, 25 trees, max_depth=4, min_samples_split=3, min_samples_leaf=3, max_features=5/6.
-    - 'coarse': RandomForestRegressor, 25 trees, max_depth=None, min_samples_split=20, min_samples_leaf=10, max_features=5/6.
+    - 'coarse': RandomForestRegressor, 25 trees, max_depth=2^20, min_samples_split=20, min_samples_leaf=10, max_features=5/6.
     - 'breiman': RandomForestRegressor, 25 trees, legacy standard Breiman random forest (backward compatibility).
 
     Parameters

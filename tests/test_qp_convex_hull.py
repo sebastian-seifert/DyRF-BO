@@ -70,7 +70,7 @@ class TestConvexHullProjectionSolver:
         assert np.isclose(solver_wide.L, expected_L_wide, rtol=1e-5)
 
     def test_direct_training_points(self):
-        """Points in X_train must have d_norm < 1e-6 and is_interpolating == True."""
+        """Points in X_train must have d_norm <= 1e-6 and is_interpolating == True."""
         np.random.seed(42)
         for D in [2, 5, 10]:
             N = 30
@@ -81,12 +81,12 @@ class TestConvexHullProjectionSolver:
             queries = X_train[:10]
             result = solver.project(queries, max_iter=100)
 
-            assert np.all(result["d_norm"] < 1e-6), f"Failed for D={D}: max d_norm={result['d_norm'].max()}"
+            assert np.all(result["d_norm"] <= 1e-6), f"Failed for D={D}: max d_norm={result['d_norm'].max()}"
             assert np.all(result["is_interpolating"]), f"Expected all training points to be interpolating for D={D}"
-            assert np.all(result["d_raw"] < 1e-6)
+            assert np.all(result["d_raw"] <= 1e-6)
 
     def test_interior_dirichlet_points(self):
-        """Convex combinations of training points must lie inside hull with d_norm < 1e-6."""
+        """Convex combinations of training points must lie inside hull with d_norm <= 1e-6."""
         np.random.seed(123)
         for D in [2, 4, 8]:
             N = 25
@@ -98,8 +98,24 @@ class TestConvexHullProjectionSolver:
             X_interior = weights_true @ X_train
 
             result = solver.project(X_interior, max_iter=100)
-            assert np.all(result["d_norm"] < 1e-6), f"Interior check failed for D={D}: max d_norm={result['d_norm'].max()}"
+            assert np.all(result["d_norm"] <= 1e-6), f"Interior check failed for D={D}: max d_norm={result['d_norm'].max()}"
             assert np.all(result["is_interpolating"]), f"Expected is_interpolating == True for all interior points (D={D})"
+
+    def test_interpolation_boundary_tolerance(self):
+        """Points with d_norm <= 1e-6 are interpolating; points with d_norm > 1e-6 are not."""
+        X_train = np.zeros((1, 1))
+        solver = ConvexHullProjectionSolver(X_train, method="fista")
+
+        X_test = np.array([
+            [0.0],
+            [1e-6],
+            [1e-6 + 1e-12],
+        ])
+        result = solver.project(X_test)
+        assert result["d_norm"][1] == 1e-6
+        assert result["is_interpolating"][0] is np.bool_(True)
+        assert result["is_interpolating"][1] is np.bool_(True)
+        assert result["is_interpolating"][2] is np.bool_(False)
 
     def test_exterior_points_exact_analytic_distances(self):
         """Exterior points shifted along coordinate axes must have exact analytic distances."""

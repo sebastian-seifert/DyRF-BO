@@ -154,14 +154,14 @@ class TestStratifiedTestSampler:
             count = np.sum(strata_labels == s)
             assert count == n_per_stratum, f"Stratum {s} count {count} != {n_per_stratum}"
 
-        # Stratum 0 (Interpolation: Dirichlet combinations): d_norm < 1e-6
+        # Stratum 0 (Interpolation: Dirichlet combinations): d_norm <= 1e-6
         d_norm_0 = proj_res.d_norm[strata_labels == 0]
-        assert np.all(d_norm_0 < 1e-6)
+        assert np.all(d_norm_0 <= 1e-6)
         assert np.all(proj_res.is_interpolating[strata_labels == 0])
 
-        # Stratum 1 (Near Extrapolation): 1e-6 <= d_norm <= 0.15
+        # Stratum 1 (Near Extrapolation): 1e-6 < d_norm <= 0.15
         d_norm_1 = proj_res.d_norm[strata_labels == 1]
-        assert np.all(d_norm_1 >= 1e-6)
+        assert np.all(d_norm_1 > 1e-6)
         assert np.all(d_norm_1 <= 0.15 + 1e-6)
 
         # Stratum 2 (Medium Extrapolation): 0.15 < d_norm <= 0.40
