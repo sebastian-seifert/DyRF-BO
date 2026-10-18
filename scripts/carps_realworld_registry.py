@@ -95,6 +95,20 @@ class CarpsRealworldRegistry:
         "cfg_ml_xgboost_53", "cfg_ml_xgboost_7592", "cfg_ml_xgboost_9952", "cfg_ml_xgboost_9977", "cfg_ml_xgboost_9981",
     ]
 
+    # Canonical list of 10 HPOBench tabular NAS task configs
+    _CANONICAL_HPOBENCH_NAS = [
+        "cfg_Cifar100NasBench201Benchmark",
+        "cfg_Cifar10ValidNasBench201Benchmark",
+        "cfg_ImageNetNasBench201Benchmark",
+        "cfg_NASCifar10ABenchmark",
+        "cfg_NASCifar10BBenchmark",
+        "cfg_NASCifar10CBenchmark",
+        "cfg_NavalPropulsionBenchmark",
+        "cfg_ParkinsonsTelemonitoringBenchmark",
+        "cfg_ProteinStructureBenchmark",
+        "cfg_SliceLocalizationBenchmark",
+    ]
+
     @classmethod
     def _find_package_tasks(cls, subpath: str, prefix: str) -> List[str]:
         """Attempts to find tasks directly from installed carps package, falling back gracefully."""
@@ -134,6 +148,13 @@ class CarpsRealworldRegistry:
         return [f"task=HPOBench/blackbox/tabular/ml/{t}" for t in items]
 
     @classmethod
+    def get_hpobench_nas_tasks(cls) -> List[str]:
+        """Returns all 10 HPOBench tabular NAS task command strings."""
+        found = cls._find_package_tasks("HPOBench/blackbox/tabular/nas", "cfg_")
+        items = found if len(found) == 10 else cls._CANONICAL_HPOBENCH_NAS
+        return [f"task=HPOBench/blackbox/tabular/nas/{t}" for t in items]
+
+    @classmethod
     def get_tasks_for_suite(cls, suite_name: str) -> List[str]:
         """Returns the task list for the given suite name."""
         suite_lower = suite_name.lower().replace("-", "_")
@@ -141,10 +162,12 @@ class CarpsRealworldRegistry:
             return cls.get_ranger_tasks()
         elif "super" in suite_lower:
             return cls.get_super_tasks()
+        elif "nas" in suite_lower:
+            return cls.get_hpobench_nas_tasks()
         elif "hpobench" in suite_lower or "tabular" in suite_lower:
             return cls.get_hpobench_ml_tasks()
         else:
             raise ValueError(
                 f"Unknown suite name '{suite_name}'. Expected one of: "
-                f"'yahpo_rbv2_ranger', 'yahpo_rbv2_super', 'hpobench_ml'."
+                f"'yahpo_rbv2_ranger', 'yahpo_rbv2_super', 'hpobench_ml', 'hpobench_nas'."
             )
