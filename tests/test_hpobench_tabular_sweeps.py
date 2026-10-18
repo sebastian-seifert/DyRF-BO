@@ -141,3 +141,88 @@ def test_generate_hpobench_nas_full_scale_count(tmp_path):
     assert len(tasks) == 2200
     for s in range(1, 21):
         assert any(f"seed={s} " in cmd for cmd in tasks[:20])
+
+
+def test_sbatch_and_launcher_scripts_hpobench_ml():
+    """Verify HPOBench ML sbatch and launcher scripts exist, are executable, pass bash -n, and have expected flags."""
+    import subprocess
+
+    array_path = Path(PROJECT_ROOT) / "scripts/submit_hpobench_ml_sweep_array.sbatch"
+    master_path = Path(PROJECT_ROOT) / "scripts/submit_hpobench_ml_sweep_master.sbatch"
+    runner_path = Path(PROJECT_ROOT) / "scripts/submit_hpobench_ml_sweep_all.sh"
+
+    for p in [array_path, master_path, runner_path]:
+        assert p.exists(), f"Missing {p}"
+        assert os.access(p, os.X_OK), f"Not executable: {p}"
+        res = subprocess.run(["bash", "-n", str(p)], capture_output=True, text=True)
+        assert res.returncode == 0, f"Bash syntax error in {p}: {res.stderr}"
+
+    array_content = array_path.read_text(encoding="utf-8")
+    assert "--job-name=hpml_sweep" in array_content
+    assert "results/sweep_hpobench_ml/logs/hpml_%A_%a.log" in array_content
+    assert "results/sweep_hpobench_ml/logs/hpml_%A_%a.err" in array_content
+    assert 'TASK_FILE="${TASK_FILE:-results/sweep_hpobench_ml/tasks.txt}"' in array_content
+    assert "OPENBLAS_NUM_THREADS=1" in array_content
+    assert 'exec "$PYTHON_BIN" scripts/run_carps_patched.py $CMD_ARGS' in array_content
+
+    master_content = master_path.read_text(encoding="utf-8")
+    assert "--job-name=hpml_master" in master_content
+    assert "results/sweep_hpobench_ml/logs/master_orchestrator_%j.out" in master_content
+    assert "results/sweep_hpobench_ml/logs/master_orchestrator_%j.err" in master_content
+    assert "--manifest results/sweep_hpobench_ml/tasks.txt" in master_content
+    assert "--sbatch scripts/submit_hpobench_ml_sweep_array.sbatch" in master_content
+    assert "--chunk-size 250" in master_content
+    assert "--max-tasks 4500" in master_content
+    assert "--trigger-jobs 10" in master_content
+    assert "--concurrency 25" in master_content
+    assert "--state-file results/sweep_hpobench_ml/scheduler_state.json" in master_content
+    assert "--job-prefix hpml" in master_content
+
+    runner_content = runner_path.read_text(encoding="utf-8")
+    assert "scripts/generate_hpobench_ml_sweep_tasks.py" in runner_content
+    assert "scripts/submit_hpobench_ml_sweep_master.sbatch" in runner_content
+    assert "scripts/submit_hpobench_ml_sweep_array.sbatch" in runner_content
+    assert "--job-prefix hpml" in runner_content
+
+
+def test_sbatch_and_launcher_scripts_hpobench_nas():
+    """Verify HPOBench NAS sbatch and launcher scripts exist, are executable, pass bash -n, and have expected flags."""
+    import subprocess
+
+    array_path = Path(PROJECT_ROOT) / "scripts/submit_hpobench_nas_sweep_array.sbatch"
+    master_path = Path(PROJECT_ROOT) / "scripts/submit_hpobench_nas_sweep_master.sbatch"
+    runner_path = Path(PROJECT_ROOT) / "scripts/submit_hpobench_nas_sweep_all.sh"
+
+    for p in [array_path, master_path, runner_path]:
+        assert p.exists(), f"Missing {p}"
+        assert os.access(p, os.X_OK), f"Not executable: {p}"
+        res = subprocess.run(["bash", "-n", str(p)], capture_output=True, text=True)
+        assert res.returncode == 0, f"Bash syntax error in {p}: {res.stderr}"
+
+    array_content = array_path.read_text(encoding="utf-8")
+    assert "--job-name=hpnas_sweep" in array_content
+    assert "results/sweep_hpobench_nas/logs/hpnas_%A_%a.log" in array_content
+    assert "results/sweep_hpobench_nas/logs/hpnas_%A_%a.err" in array_content
+    assert 'TASK_FILE="${TASK_FILE:-results/sweep_hpobench_nas/tasks.txt}"' in array_content
+    assert "OPENBLAS_NUM_THREADS=1" in array_content
+    assert 'exec "$PYTHON_BIN" scripts/run_carps_patched.py $CMD_ARGS' in array_content
+
+    master_content = master_path.read_text(encoding="utf-8")
+    assert "--job-name=hpnas_master" in master_content
+    assert "results/sweep_hpobench_nas/logs/master_orchestrator_%j.out" in master_content
+    assert "results/sweep_hpobench_nas/logs/master_orchestrator_%j.err" in master_content
+    assert "--manifest results/sweep_hpobench_nas/tasks.txt" in master_content
+    assert "--sbatch scripts/submit_hpobench_nas_sweep_array.sbatch" in master_content
+    assert "--chunk-size 250" in master_content
+    assert "--max-tasks 4500" in master_content
+    assert "--trigger-jobs 10" in master_content
+    assert "--concurrency 25" in master_content
+    assert "--state-file results/sweep_hpobench_nas/scheduler_state.json" in master_content
+    assert "--job-prefix hpnas" in master_content
+
+    runner_content = runner_path.read_text(encoding="utf-8")
+    assert "scripts/generate_hpobench_nas_sweep_tasks.py" in runner_content
+    assert "scripts/submit_hpobench_nas_sweep_master.sbatch" in runner_content
+    assert "scripts/submit_hpobench_nas_sweep_array.sbatch" in runner_content
+    assert "--job-prefix hpnas" in runner_content
+
