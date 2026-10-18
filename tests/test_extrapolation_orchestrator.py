@@ -31,10 +31,11 @@ class TestOrchestratorParser:
         parser = build_parser()
         args = parser.parse_args([])
 
+        assert args.stage_size == 3840
         assert args.stage1_start == 1
-        assert args.stage1_end == 4800
-        assert args.stage2_start == 4801
-        assert args.stage2_end == 9600
+        assert args.stage1_end == 3840
+        assert args.stage2_start == 3841
+        assert args.stage2_end == 23040
         assert args.poll_interval == 30
         assert args.aggregate is True
         assert args.dry_run is False
@@ -43,6 +44,7 @@ class TestOrchestratorParser:
     def test_parser_custom_args(self):
         parser = build_parser()
         args = parser.parse_args([
+            "--stage-size", "200",
             "--stage1-start", "1",
             "--stage1-end", "200",
             "--stage2-start", "201",
@@ -53,6 +55,7 @@ class TestOrchestratorParser:
             "--task-file", "results/test_tasks.txt",
         ])
 
+        assert args.stage_size == 200
         assert args.stage1_start == 1
         assert args.stage1_end == 200
         assert args.stage2_start == 201
@@ -122,7 +125,7 @@ class TestDashboardFormatting:
     def test_format_dashboard_contains_key_elements(self):
         status = {
             "mode": "salloc Interactive (Job ID: 12345678)",
-            "stage": "STAGE 1 IN PROGRESS (Tasks 1 - 4,800)",
+            "stage": "STAGE 1 IN PROGRESS (Tasks 1 - 3,840)",
             "elapsed_str": "00h 15m 30s",
             "eta_str": "01h 45m 00s",
             "running": 25,
@@ -130,8 +133,8 @@ class TestDashboardFormatting:
             "total_active": 1825,
             "parquet_count": 1200,
             "summary_count": 1200,
-            "total_tasks": 9600,
-            "stage_target": 4800,
+            "total_tasks": 23040,
+            "stage_target": 3840,
             "recent_files": ["extrapolation_sphere_d2_s0.parquet", "extrapolation_sphere_d2_s1.parquet"],
         }
         text = format_dashboard(status, is_tty=True)
@@ -139,7 +142,7 @@ class TestDashboardFormatting:
         assert "STAGE 1 IN PROGRESS" in text
         assert "Running Tasks:" in text
         assert "Parquet Files:" in text
-        assert "1200 / 9600" in text
+        assert "1200 / 23040" in text
         assert "extrapolation_sphere_d2_s0.parquet" in text
 
 
@@ -148,16 +151,66 @@ class TestDispatchStage:
 
     @patch("subprocess.run")
     def test_dispatch_stage_dry_run(self, mock_run):
-        res = dispatch_stage(start_task=1, end_task=4800, dry_run=True)
+        res = dispatch_stage(start_task=1, end_task=3840, dry_run=True)
         assert res is True
         mock_run.assert_not_called()
 
     @patch("subprocess.run")
     def test_dispatch_stage_execution(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0)
-        res = dispatch_stage(start_task=1, end_task=4800, dry_run=False)
+        res = dispatch_stage(start_task=1, end_task=3840, dry_run=False)
         assert res is True
         mock_run.assert_called_once()
         env_passed = mock_run.call_args[1]["env"]
         assert env_passed["START_TASK"] == "1"
-        assert env_passed["END_TASK"] == "4800"
+        assert env_passed["END_TASK"] == "3840"
+
+
+class TestRunOrchestratorStages:
+    """Test multi-stage partitioning (6 stages of 3,840 tasks) and 2-stage override."""
+
+    @patch("scripts.run_extrapolation_sweep_orchestrator.dispatch_stage", return_value=True)
+    def test_run_orchestrator_six_stages_default(self, mock_dispatch, tmp_path):
+        task_file = tmp_path / "tasks.txt"
+        task_file.write_text("cmd\n")
+        parser = build_parser()
+        args = parser.parse_args([
+            "--task-file", str(task_file),
+            "--dry-run",
+            "--no-aggregate",
+        ])
+        ret = run_orchestrator(args)
+        assert ret == 0
+        assert mock_dispatch.call_count == 6
+        expected_ranges = [
+            (1, 3840),
+            (3841, 7680),
+            (7681, 11520),
+            (11521, 15360),
+            (15361, 19200),
+            (19201, 23040),
+        ]
+        actual_ranges = [(call.args[0], call.args[1]) for call in mock_dispatch.call_args_list]
+        assert actual_ranges == expected_ranges
+        for start_t, end_t in actual_ranges:
+            assert (end_t - start_t + 1) <= 3840
+
+    @patch("scripts.run_extrapolation_sweep_orchestrator.dispatch_stage", return_value=True)
+    def test_run_orchestrator_two_stage_custom_override(self, mock_dispatch, tmp_path):
+        task_file = tmp_path / "tasks.txt"
+        task_file.write_text("cmd\n")
+        parser = build_parser()
+        args = parser.parse_args([
+            "--stage1-start", "1",
+            "--stage1-end", "200",
+            "--stage2-start", "201",
+            "--stage2-end", "400",
+            "--task-file", str(task_file),
+            "--dry-run",
+            "--no-aggregate",
+        ])
+        ret = run_orchestrator(args)
+        assert ret == 0
+        assert mock_dispatch.call_count == 2
+        actual_ranges = [(call.args[0], call.args[1]) for call in mock_dispatch.call_args_list]
+        assert actual_ranges == [(1, 200), (201, 400)]

@@ -86,10 +86,11 @@ class TestMasterSbatchOrchestrator:
         # Log files
         assert "master_orchestrator" in content
 
-        # Stage 1 and Stage 2 range handling (1..4800 and 4801..9600)
-        assert "4800" in content
-        assert "4801" in content
-        assert "9600" in content
+        # 6-stage range handling (1..3840 through 19201..23040)
+        assert "3840" in content
+        assert "3841" in content
+        assert "19201" in content
+        assert "23040" in content or "23,040" in content
 
         # Queue monitoring (squeue check ignoring master job itself)
         assert "squeue" in content

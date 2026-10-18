@@ -29,9 +29,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+DEFAULT_STAGE_SIZE = 3840
 DEFAULT_STAGE1_START = 1
-DEFAULT_STAGE1_END = 11520
-DEFAULT_STAGE2_START = 11521
+DEFAULT_STAGE1_END = 3840
+DEFAULT_STAGE2_START = 3841
 DEFAULT_STAGE2_END = 23040
 DEFAULT_POLL_INTERVAL = 30
 DEFAULT_TASK_FILE = REPO_ROOT / "results" / "extrapolation_sweep_tasks.txt"
@@ -43,6 +44,12 @@ def build_parser() -> argparse.ArgumentParser:
     """Build argument parser for sweep orchestrator."""
     parser = argparse.ArgumentParser(
         description="Live interactive master orchestrator for 23,040-task extrapolation sweep."
+    )
+    parser.add_argument(
+        "--stage-size",
+        type=int,
+        default=DEFAULT_STAGE_SIZE,
+        help=f"Maximum number of tasks per stage under SLURM job limit (default: {DEFAULT_STAGE_SIZE}).",
     )
     parser.add_argument(
         "--stage1-start",
@@ -66,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--stage2-end",
         type=int,
         default=DEFAULT_STAGE2_END,
-        help=f"Ending task index for Stage 2 (default: {DEFAULT_STAGE2_END}).",
+        help=f"Ending task index for Stage 2 / final task index (default: {DEFAULT_STAGE2_END}).",
     )
     parser.add_argument(
         "--poll-interval",
@@ -284,12 +291,19 @@ def run_orchestrator(args: argparse.Namespace) -> int:
 
     start_time = time.time()
     total_tasks = args.stage2_end
+    stage_size = getattr(args, "stage_size", DEFAULT_STAGE_SIZE)
 
-    # Stage definitions
-    stages = [
-        {"name": "STAGE 1", "start": args.stage1_start, "end": args.stage1_end, "target": args.stage1_end},
-        {"name": "STAGE 2", "start": args.stage2_start, "end": args.stage2_end, "target": args.stage2_end},
-    ]
+    # Stage definitions: honor 2-stage override if stage2_end <= 2 * stage_size; otherwise partition by stage_size
+    if args.stage2_end <= 2 * stage_size:
+        stages = [
+            {"name": "STAGE 1", "start": args.stage1_start, "end": args.stage1_end, "target": args.stage1_end},
+            {"name": "STAGE 2", "start": args.stage2_start, "end": args.stage2_end, "target": args.stage2_end},
+        ]
+    else:
+        stages = []
+        for idx, s_start in enumerate(range(args.stage1_start, total_tasks + 1, stage_size), 1):
+            s_end = min(s_start + stage_size - 1, total_tasks)
+            stages.append({"name": f"STAGE {idx}", "start": s_start, "end": s_end, "target": s_end})
 
     for stage_idx, stage in enumerate(stages, 1):
         stage_name = stage["name"]
@@ -382,7 +396,7 @@ def run_orchestrator(args: argparse.Namespace) -> int:
         print("[SUCCESS] Automated scorecard aggregation complete.")
 
     total_elapsed = time.time() - start_time
-    print(f"\n[DONE] All 9,600 tasks orchestrated and completed in {format_seconds(total_elapsed)}.")
+    print(f"\n[DONE] All {total_tasks:,} tasks orchestrated and completed in {format_seconds(total_elapsed)}.")
     return 0
 
 
