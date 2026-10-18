@@ -22,6 +22,7 @@ def test_timing_sbatch_array_script():
     assert "results/sweep_bbob_timing/logs" in content
     assert "results/sweep_bbob_timing/tasks.txt" in content
     assert "scripts/run_carps_timed.py" in content
+    assert "#SBATCH --nodelist=ai-n005" in content
     assert "export OMP_NUM_THREADS=1" in content
     assert "export MKL_NUM_THREADS=1" in content
     assert "export OPENBLAS_NUM_THREADS=1" in content

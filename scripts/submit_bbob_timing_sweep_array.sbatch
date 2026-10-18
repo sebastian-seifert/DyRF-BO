@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH -p ai
 #SBATCH --job-name=bbob_time
+#SBATCH --nodelist=ai-n005
 #SBATCH --output=results/sweep_bbob_timing/logs/bbob_time_%A_%a.log
 #SBATCH --error=results/sweep_bbob_timing/logs/bbob_time_%A_%a.err
 #SBATCH --cpus-per-task=2
