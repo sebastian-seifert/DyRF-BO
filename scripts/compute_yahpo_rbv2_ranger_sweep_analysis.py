@@ -23,6 +23,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from scripts.compute_bbob_full_sweep_analysis import (
+    format_dataframe_safe,
     run_bbob_statistical_analysis,
 )
 
@@ -31,9 +32,15 @@ def run_yahpo_rbv2_ranger_analysis(
     df: pd.DataFrame,
     cost_col: str = "trial_value__cost_inc",
     controls: Sequence[str] = ("SMAC3_HPOFacade_lcb", "SMAC3_HPOFacade_ei"),
+    holm_scope: str = "joint",
 ) -> Dict[str, Any]:
     """Runs statistical analysis on YAHPO rbv2_ranger benchmark logs."""
-    full_results = run_bbob_statistical_analysis(df, cost_col=cost_col, controls=controls)
+    full_results = run_bbob_statistical_analysis(
+        df,
+        cost_col=cost_col,
+        controls=controls,
+        holm_scope=holm_scope,
+    )
     return {
         "scorecard": full_results["global_scorecard"],
         "friedman_stat": full_results["friedman_stat"],
@@ -42,51 +49,61 @@ def run_yahpo_rbv2_ranger_analysis(
     }
 
 
-def export_yahpo_rbv2_ranger_analysis(results: Dict[str, Any], output_dir: str) -> None:
+def export_yahpo_rbv2_ranger_analysis(results: Dict[str, Any], output_dir: str | Path) -> None:
     """Exports YAHPO rbv2_ranger scorecards to CSV and formatted Markdown report."""
+    export_yahpo_analysis(results, output_dir, suite="ranger")
+
+
+def export_yahpo_analysis(results: Dict[str, Any], output_dir: str | Path, suite: str) -> None:
+    """Exports suite scorecard and global scorecard CSVs along with analysis reports."""
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
     scorecard = results["scorecard"]
-    scorecard.to_csv(out_path / "yahpo_rbv2_ranger_scorecard.csv", index=False)
-
-    try:
-        table_md = scorecard.to_markdown(index=False)
-    except Exception:
-        table_md = scorecard.to_string()
+    scorecard.to_csv(out_path / f"yahpo_rbv2_{suite}_scorecard.csv", index=False)
+    scorecard.to_csv(out_path / "global_scorecard.csv", index=False)
 
     stat_val = f"{results['friedman_stat']:.4f}" if results.get("friedman_stat") is not None else "N/A"
     p_val = f"{results['friedman_p']:.4e}" if results.get("friedman_p") is not None else "N/A"
 
+    table_md = format_dataframe_safe(scorecard)
+
     report_lines = [
-        "# YAHPO Gym rbv2_ranger Benchmark Sweep Scorecard",
+        f"# YAHPO Gym rbv2_{suite} Benchmark Sweep Scorecard & Statistical Analysis",
         "",
         "## Omnibus Statistical Test (Demšar)",
         f"- **Friedman $\\chi^2$ Statistic**: {stat_val}",
         f"- **p-value**: {p_val}",
         "",
         "## Method Comparison Scorecard",
+        "",
         table_md,
         "",
     ]
-    with open(out_path / "yahpo_rbv2_ranger_scorecard.md", "w", encoding="utf-8") as f:
-        f.write("\n".join(report_lines))
+    report_content = "\n".join(report_lines)
+    with open(out_path / f"yahpo_rbv2_{suite}_analysis_report.md", "w", encoding="utf-8") as f:
+        f.write(report_content)
+    with open(out_path / f"yahpo_rbv2_{suite}_scorecard.md", "w", encoding="utf-8") as f:
+        f.write(report_content)
 
 
-def main() -> None:
+def build_parser(default_suite: str = "ranger") -> argparse.ArgumentParser:
+    """Builds unified CLI argument parser for YAHPO sweep analysis."""
     parser = argparse.ArgumentParser(
-        description="Compute statistical analysis for YAHPO rbv2_ranger sweep."
+        description=f"Compute statistical analysis for YAHPO rbv2_{default_suite} sweep."
     )
     parser.add_argument(
+        "--input",
         "--data-path",
+        dest="input",
         type=str,
-        default="results/sweep_yahpo_rbv2_ranger/logs.parquet",
+        default=f"results/sweep_yahpo_rbv2_{default_suite}/logs.parquet",
         help="Path to consolidated logs (.parquet or .csv).",
     )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="results/sweep_yahpo_rbv2_ranger",
+        default=f"results/sweep_yahpo_rbv2_{default_suite}",
         help="Directory to save scorecard CSV and Markdown.",
     )
     parser.add_argument(
@@ -95,9 +112,27 @@ def main() -> None:
         default="trial_value__cost_inc",
         help="Column name representing incumbent loss.",
     )
+    parser.add_argument(
+        "--holm-scope",
+        type=str,
+        default="joint",
+        choices=["joint", "per_control"],
+        help="FWER correction scope across controls (joint or per_control).",
+    )
+    parser.add_argument(
+        "--controls",
+        type=str,
+        nargs="+",
+        default=["SMAC3_HPOFacade_lcb", "SMAC3_HPOFacade_ei"],
+        help="Control optimizer identifiers for paired comparisons.",
+    )
+    return parser
 
+
+def main() -> None:
+    parser = build_parser(default_suite="ranger")
     args = parser.parse_args()
-    data_path = Path(args.data_path)
+    data_path = Path(args.input)
     if not data_path.exists():
         fallback_csv = data_path.with_suffix(".csv")
         if fallback_csv.exists():
@@ -110,7 +145,12 @@ def main() -> None:
     else:
         df = pd.read_csv(data_path)
 
-    results = run_yahpo_rbv2_ranger_analysis(df, cost_col=args.cost_col)
+    results = run_yahpo_rbv2_ranger_analysis(
+        df,
+        cost_col=args.cost_col,
+        controls=args.controls,
+        holm_scope=args.holm_scope,
+    )
     export_yahpo_rbv2_ranger_analysis(results, args.output_dir)
     print(f"Analysis successfully exported to {args.output_dir}")
 
