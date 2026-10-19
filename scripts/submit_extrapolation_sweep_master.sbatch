@@ -1,17 +1,13 @@
 #!/bin/bash
 # ==============================================================================
-# Master Slurm Orchestrator for 9,600-Task Extrapolation UQ Sweep
+# Master Slurm Orchestrator for 21,600-Task Extrapolation UQ Sweep
 # ------------------------------------------------------------------------------
-# LUIS limits total user jobs to 5,000 at any time.
-# To safely execute all 9,600 tasks without exceeding the 5,000 job limit:
-#   Stage 1: Submit tasks 1 to 4800 (24 array jobs of 200 tasks each, %25 concurrency)
-#   Watcher: Monitor squeue --me until only this master job ($SLURM_JOB_ID) remains
-#   Stage 2: Submit tasks 4801 to 9600 (24 array jobs of 200 tasks each, %25 concurrency)
-#   Watcher: Monitor squeue --me until all tasks finish
-#   Post-processing: Automatically execute aggregate_extrapolation_results.py
+# Uses scripts/master_slurm_scheduler.py to dynamically manage array chunk submissions
+# in batches of 200 tasks (%25 concurrency, max 4500 active tasks), monitoring queue
+# until full completion with state persistence in results/extrapolation_uq/scheduler_state.json.
 # ==============================================================================
 #SBATCH -p ai
-#SBATCH --job-name=uq_sweep_master
+#SBATCH --job-name=extrap_master
 #SBATCH --output=results/extrapolation_uq/logs/master_orchestrator_%j.out
 #SBATCH --error=results/extrapolation_uq/logs/master_orchestrator_%j.err
 #SBATCH --cpus-per-task=2
@@ -25,10 +21,26 @@ cd "$REPO_ROOT"
 
 mkdir -p results/extrapolation_uq/logs
 
-if [ -f ".venv/bin/python" ]; then
+if [ -f "/bigwork/nhwpseis/.conda/envs/dyrf/bin/python" ]; then
+    PYTHON_BIN="/bigwork/nhwpseis/.conda/envs/dyrf/bin/python"
+elif [ -f "$HOME/.conda/envs/dyrf/bin/python" ]; then
+    PYTHON_BIN="$HOME/.conda/envs/dyrf/bin/python"
+elif [ -f ".venv/bin/python" ]; then
     PYTHON_BIN=".venv/bin/python"
-else
+elif command -v python3 >/dev/null 2>&1; then
     PYTHON_BIN="python3"
+else
+    PYTHON_BIN="$(which python3 || which python)"
 fi
 
-exec "$PYTHON_BIN" scripts/run_extrapolation_sweep_orchestrator.py "$@"
+exec "$PYTHON_BIN" scripts/master_slurm_scheduler.py \
+    --manifest results/extrapolation_sweep_tasks.txt \
+    --sbatch scripts/submit_extrapolation_sweep_array.sbatch \
+    --chunk-size 200 \
+    --max-tasks 4500 \
+    --trigger-jobs 10 \
+    --concurrency 25 \
+    --state-file results/extrapolation_uq/scheduler_state.json \
+    --job-prefix extrap_uq \
+    "$@"
+

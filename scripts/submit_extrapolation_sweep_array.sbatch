@@ -63,11 +63,12 @@ export MKL_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
-TASK_FILE="results/extrapolation_sweep_tasks.txt"
+TASK_FILE="${TASK_FILE:-results/extrapolation_sweep_tasks.txt}"
 if [ ! -f "$TASK_FILE" ]; then
     echo "Task file ${TASK_FILE} missing. Generating tasks..."
-    "$PYTHON_BIN" scripts/generate_extrapolation_sweep_tasks.py
+    "$PYTHON_BIN" scripts/generate_extrapolation_sweep_tasks.py --no-metrics
 fi
+
 
 mkdir -p results/extrapolation_uq/logs
 
