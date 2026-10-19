@@ -57,6 +57,9 @@ class TestRunExperimentParser:
         assert args.summary_dir == "results/extrapolation_uq/summaries"
         assert args.save_parquet is True
         assert args.skip_if_exists is False
+        assert args.compute_metrics is True
+        assert args.save_summary is True
+
 
     def test_parser_custom_args(self):
         parser = build_run_experiment_parser()
@@ -466,6 +469,69 @@ class TestRunExperimentExecution:
             summary_data = json.load(f)
         assert summary_data["surrogate_type"] == "breiman"
 
+    def test_run_experiment_no_metrics_pure_data(self, tmp_path):
+        import pandas as pd
+        raw_dir = tmp_path / "raw"
+        sum_dir = tmp_path / "summaries"
+
+        argv = [
+            "--dimension", "2",
+            "--n-train", "28",
+            "--function", "sphere",
+            "--strategy", "stratified",
+            "--seed", "42",
+            "--n-test", "40",
+            "--k", "10",
+            "--n-trees", "5",
+            "--output-dir", str(raw_dir),
+            "--summary-dir", str(sum_dir),
+            "--no-metrics",
+        ]
+        ret = main_run_experiment(argv)
+        assert ret == 0
+
+        expected_parquet = raw_dir / "extrapolation_sphere_d2_n28_stratified_smac_default_s42.parquet"
+        expected_summary = sum_dir / "summary_sphere_d2_n28_stratified_smac_default_s42.json"
+
+        # Pure data parquet exists and is valid
+        assert expected_parquet.exists() and expected_parquet.stat().st_size > 0
+        df = pd.read_parquet(expected_parquet)
+        assert len(df) == 40
+        assert "y_true" in df.columns
+        assert "y_hat" in df.columns
+        assert "u_plcb_lower" in df.columns
+
+        # Metrics summary JSON must NOT exist
+        assert not expected_summary.exists()
+
+    def test_skip_if_exists_no_metrics_checks_only_parquet(self, tmp_path):
+        raw_dir = tmp_path / "raw"
+        sum_dir = tmp_path / "summaries"
+        raw_dir.mkdir(parents=True)
+
+        # Create only parquet file, no summary file
+        parquet_file = raw_dir / "extrapolation_sphere_d2_n112_stratified_smac_default_s0.parquet"
+        parquet_file.write_text("dummy")
+
+        with patch(
+            "scripts.run_extrapolation_experiment.run_single_experiment",
+        ) as mock_run:
+            argv = [
+                "--dimension", "2",
+                "--n-train", "112",
+                "--function", "sphere",
+                "--strategy", "stratified",
+                "--seed", "0",
+                "--output-dir", str(raw_dir),
+                "--summary-dir", str(sum_dir),
+                "--no-metrics",
+                "--skip-if-exists",
+            ]
+            ret = main_run_experiment(argv)
+            assert ret == 0
+            mock_run.assert_not_called()
+
+
 
 class TestTaskGenerator:
     """Tests for generate_extrapolation_sweep_tasks script."""
@@ -483,6 +549,8 @@ class TestTaskGenerator:
         assert args.surrogates == ["smac_default", "mature", "shallow", "coarse", "breiman"]
         assert args.python_bin == "python"
         assert args.skip_if_exists is True
+        assert args.no_metrics is False
+
 
     def test_pilot_generates_multi_surrogate_tasks(self, tmp_path):
         out_file = tmp_path / "pilot_tasks.txt"
@@ -624,3 +692,36 @@ class TestTaskGenerator:
         assert funcs == {"sphere", "rosenbrock", "rastrigin", "ackley"}
         assert trains == {34, 68}
         assert strats == {"stratified"}
+
+    def test_task_generator_no_metrics_flag(self, tmp_path):
+        out_file = tmp_path / "tasks_no_metrics.txt"
+        tasks = generate_tasks(
+            output_file=out_file,
+            pilot=True,
+            no_metrics=True,
+        )
+        assert len(tasks) in (10, 20)
+        assert out_file.exists()
+
+        parser = build_run_experiment_parser()
+        for cmd in tasks:
+            assert "--no-metrics" in cmd
+            tokens = shlex.split(cmd)
+            cli_args = parser.parse_args(tokens[2:])
+            assert cli_args.compute_metrics is False
+
+    def test_task_generator_cli_no_metrics(self, tmp_path):
+        out_file = tmp_path / "cli_tasks_no_metrics.txt"
+        argv = [
+            "--output-file", str(out_file),
+            "--pilot",
+            "--no-metrics",
+        ]
+        ret = main_generate_tasks(argv)
+        assert ret == 0
+        assert out_file.exists()
+        lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
+        assert len(lines) in (10, 20)
+        for line in lines:
+            assert "--no-metrics" in line
+

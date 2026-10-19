@@ -173,6 +173,31 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Fast mode: compute only unweighted proximity UQ, skipping Shaker numerical integration.",
     )
+    parser.add_argument(
+        "--compute-metrics",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Compute calibration and ranking metrics (default: True).",
+    )
+    parser.add_argument(
+        "--no-metrics",
+        dest="compute_metrics",
+        action="store_false",
+        help="Disable metric computation and skip saving JSON summary.",
+    )
+    parser.add_argument(
+        "--save-summary",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Save summary scorecard to JSON (default: True).",
+    )
+    parser.add_argument(
+        "--no-summary",
+        dest="save_summary",
+        action="store_false",
+        help="Disable saving summary scorecard JSON.",
+    )
+
 
     return parser
 
@@ -203,17 +228,23 @@ def run_experiment(args: argparse.Namespace) -> int:
     parquet_path = output_dir / parquet_filename
     summary_path = summary_dir / summary_filename
 
+    should_save_summary = args.save_summary and args.compute_metrics
+
     # Check skip condition
     if args.skip_if_exists:
-        if args.save_parquet:
+        if args.save_parquet and should_save_summary:
             both_exist = (
                 parquet_path.is_file()
                 and parquet_path.stat().st_size > 0
                 and summary_path.is_file()
                 and summary_path.stat().st_size > 0
             )
-        else:
+        elif args.save_parquet:
+            both_exist = parquet_path.is_file() and parquet_path.stat().st_size > 0
+        elif should_save_summary:
             both_exist = summary_path.is_file() and summary_path.stat().st_size > 0
+        else:
+            both_exist = False
 
         if both_exist:
             print(
@@ -222,7 +253,8 @@ def run_experiment(args: argparse.Namespace) -> int:
             )
             if args.save_parquet:
                 print(f"       Parquet: {parquet_path}")
-            print(f"       Summary: {summary_path}")
+            if should_save_summary:
+                print(f"       Summary: {summary_path}")
             return 0
 
     # Build run configuration
@@ -247,26 +279,35 @@ def run_experiment(args: argparse.Namespace) -> int:
         config=config,
         output_dir=output_dir,
         save_parquet=args.save_parquet,
+        compute_metrics=args.compute_metrics,
     )
     elapsed_time = time.perf_counter() - start_time
     summary_dict["elapsed_seconds"] = elapsed_time
 
     # Persist summary JSON
-    summary_dir.mkdir(parents=True, exist_ok=True)
-    with open(summary_path, "w", encoding="utf-8") as f:
-        json.dump(_json_serializable(summary_dict), f, indent=2)
+    if should_save_summary:
+        summary_dir.mkdir(parents=True, exist_ok=True)
+        with open(summary_path, "w", encoding="utf-8") as f:
+            json.dump(_json_serializable(summary_dict), f, indent=2)
 
     # Concise timing and completion metrics
     slcb_picp = summary_dict.get("slcb_picp", float("nan"))
     plcb_picp = summary_dict.get("plcb_picp", float("nan"))
+    status_suffix = (
+        f" | SLCB PICP={slcb_picp:.4f}, PLCB PICP={plcb_picp:.4f}"
+        if args.compute_metrics
+        else ""
+    )
     print(
         f"[DONE] Completed {func} (d={args.dimension}, n={args.n_train}, "
-        f"{args.strategy}, {args.surrogate}, s={args.seed}) in {elapsed_time:.2f}s | "
-        f"SLCB PICP={slcb_picp:.4f}, PLCB PICP={plcb_picp:.4f}"
+        f"{args.strategy}, {args.surrogate}, s={args.seed}) in {elapsed_time:.2f}s"
+        f"{status_suffix}"
     )
     if args.save_parquet:
         print(f"       Parquet: {parquet_path}")
-    print(f"       Summary: {summary_path}")
+    if should_save_summary:
+        print(f"       Summary: {summary_path}")
+
 
     return 0
 

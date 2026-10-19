@@ -148,7 +148,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=True,
         help="Append --skip-if-exists flag to generated task commands (default: True).",
     )
+    parser.add_argument(
+        "--no-metrics",
+        action="store_true",
+        default=False,
+        help="Append --no-metrics flag to generated task commands to output pure Parquet data only.",
+    )
     return parser
+
 
 
 def generate_tasks(
@@ -165,6 +172,7 @@ def generate_tasks(
     skip_if_exists: bool = True,
     output_dir: Optional[str] = None,
     summary_dir: Optional[str] = None,
+    no_metrics: bool = False,
 ) -> List[str]:
     """Generate experiment task commands and serialize to target file.
 
@@ -196,6 +204,8 @@ def generate_tasks(
         Target directory for raw parquet files.
     summary_dir : str, optional
         Target directory for summary json files.
+    no_metrics : bool, default=False
+        Whether to append --no-metrics to output pure Parquet evaluations only.
 
     Returns
     -------
@@ -203,6 +213,7 @@ def generate_tasks(
         List of generated task command lines.
     """
     skip_suffix = " --skip-if-exists" if skip_if_exists else ""
+    no_metrics_suffix = " --no-metrics" if no_metrics else ""
     out_dir_suffix = f" --output-dir {shlex.quote(output_dir)}" if output_dir else ""
     sum_dir_suffix = f" --summary-dir {shlex.quote(summary_dir)}" if summary_dir else ""
     py_bin = shlex.quote(python_bin)
@@ -227,6 +238,7 @@ def generate_tasks(
                                     f"{out_dir_suffix}"
                                     f"{sum_dir_suffix}"
                                     f"{skip_suffix}"
+                                    f"{no_metrics_suffix}"
                                 )
                                 tasks.append(cmd)
     elif stress:
@@ -242,8 +254,10 @@ def generate_tasks(
                 f"{out_dir_suffix}"
                 f"{sum_dir_suffix}"
                 f"{skip_suffix}"
+                f"{no_metrics_suffix}"
             )
             tasks.append(cmd)
+
     else:
         dims = dimensions if dimensions is not None else DEFAULT_DIMENSIONS
         trains = n_trains if n_trains is not None else DEFAULT_N_TRAINS
@@ -269,6 +283,7 @@ def generate_tasks(
                                     f"{out_dir_suffix}"
                                     f"{sum_dir_suffix}"
                                     f"{skip_suffix}"
+                                    f"{no_metrics_suffix}"
                                 )
                                 tasks.append(cmd)
 
@@ -300,8 +315,10 @@ def main(argv: list[str] | None = None) -> int:
         skip_if_exists=args.skip_if_exists,
         output_dir=args.output_dir,
         summary_dir=args.summary_dir,
+        no_metrics=args.no_metrics,
     )
     return 0
+
 
 
 if __name__ == "__main__":

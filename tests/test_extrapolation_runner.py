@@ -363,4 +363,38 @@ class TestRunSingleExperiment:
         expected_parquet = tmp_path / f"extrapolation_sphere_d2_n20_stratified_{surrogate_type}_s42.parquet"
         assert expected_parquet.exists()
 
+    def test_runner_compute_metrics_false(self, tmp_path):
+        config = ExtrapolationRunConfig(
+            dimension=2,
+            n_train=20,
+            function_name="sphere",
+            sampling_strategy="stratified",
+            seed=42,
+            n_test=20,
+            k=5,
+            n_trees=5,
+            surrogate_type="smac_default",
+        )
+        summary, df = run_single_experiment(
+            config,
+            output_dir=tmp_path,
+            save_parquet=True,
+            compute_metrics=False,
+        )
+        assert len(df) == 20
+        assert "y_true" in df.columns
+        assert "y_hat" in df.columns
+        assert "u_plcb_lower" in df.columns
+        expected_parquet = tmp_path / "extrapolation_sphere_d2_n20_stratified_smac_default_s42.parquet"
+        assert expected_parquet.exists() and expected_parquet.stat().st_size > 0
+
+        # Assert no aggregate calibration metrics are present in summary
+        assert "global" not in summary
+        assert "strata" not in summary
+        assert "strata_metrics" not in summary
+        assert summary["dimension"] == 2
+        assert summary["n_train"] == 20
+        assert summary["function_name"] == "sphere"
+
+
 

@@ -111,7 +111,9 @@ def run_single_experiment(
     config: ExtrapolationRunConfig,
     output_dir: str | Path | None = None,
     save_parquet: bool = True,
+    compute_metrics: bool = True,
 ) -> Tuple[Dict[str, Any], pd.DataFrame]:
+
     """Execute a single extrapolation uncertainty quantification experiment.
 
     Steps:
@@ -287,48 +289,52 @@ def run_single_experiment(
             parquet_path = out_p / filename
         point_df.to_parquet(parquet_path, index=False, engine="pyarrow")
 
-    # 12. Comprehensive calibration scorecard
-    active_uncertainties = {
-        # Active estimator names (using lower quantiles for quantile-based methods)
-        "slcb": uq_res.u_slcb,
-        "hutter_total": uq_res.u_hutter_total,
-        "hutter_between": uq_res.u_hutter_between,
-        "hutter_within": uq_res.u_hutter_within,
-        "shaker_epistemic": uq_res.u_shaker_epistemic,
-        "shaker_total": uq_res.u_shaker_total,
-        "rf_fire": uq_res.u_rf_fire_lower,
-        "prox_a": uq_res.u_prox_a_lower,
-        "prox_b": uq_res.u_prox_b_lower,
-        "prox_ac": uq_res.u_prox_ac_lower,
-        "prox_bc": uq_res.u_prox_bc_lower,
-        "plcb": uq_res.u_plcb_lower,
-        # Full field names with prefixes for backward compatibility
-        "u_hutter_total": uq_res.u_hutter_total,
-        "u_hutter_between": uq_res.u_hutter_between,
-        "u_hutter_within": uq_res.u_hutter_within,
-        "u_shaker_epistemic": uq_res.u_shaker_epistemic,
-        "u_shaker_total": uq_res.u_shaker_total,
-        "u_rf_fire_lower": uq_res.u_rf_fire_lower,
-        "u_prox_a_lower": uq_res.u_prox_a_lower,
-        "u_prox_b_lower": uq_res.u_prox_b_lower,
-        "u_prox_ac_lower": uq_res.u_prox_ac_lower,
-        "u_prox_bc_lower": uq_res.u_prox_bc_lower,
-        "u_plcb_lower": uq_res.u_plcb_lower,
-        "u_slcb": uq_res.u_slcb,
-        "u_plcb": uq_res.u_plcb,
-    }
+    # 12. Comprehensive calibration scorecard (optional)
+    if compute_metrics:
+        active_uncertainties = {
+            # Active estimator names (using lower quantiles for quantile-based methods)
+            "slcb": uq_res.u_slcb,
+            "hutter_total": uq_res.u_hutter_total,
+            "hutter_between": uq_res.u_hutter_between,
+            "hutter_within": uq_res.u_hutter_within,
+            "shaker_epistemic": uq_res.u_shaker_epistemic,
+            "shaker_total": uq_res.u_shaker_total,
+            "rf_fire": uq_res.u_rf_fire_lower,
+            "prox_a": uq_res.u_prox_a_lower,
+            "prox_b": uq_res.u_prox_b_lower,
+            "prox_ac": uq_res.u_prox_ac_lower,
+            "prox_bc": uq_res.u_prox_bc_lower,
+            "plcb": uq_res.u_plcb_lower,
+            # Full field names with prefixes for backward compatibility
+            "u_hutter_total": uq_res.u_hutter_total,
+            "u_hutter_between": uq_res.u_hutter_between,
+            "u_hutter_within": uq_res.u_hutter_within,
+            "u_shaker_epistemic": uq_res.u_shaker_epistemic,
+            "u_shaker_total": uq_res.u_shaker_total,
+            "u_rf_fire_lower": uq_res.u_rf_fire_lower,
+            "u_prox_a_lower": uq_res.u_prox_a_lower,
+            "u_prox_b_lower": uq_res.u_prox_b_lower,
+            "u_prox_ac_lower": uq_res.u_prox_ac_lower,
+            "u_prox_bc_lower": uq_res.u_prox_bc_lower,
+            "u_plcb_lower": uq_res.u_plcb_lower,
+            "u_slcb": uq_res.u_slcb,
+            "u_plcb": uq_res.u_plcb,
+        }
 
-    summary_dict = compute_comprehensive_metrics(
-        y_true=y_true,
-        y_hat=uq_res.y_hat,
-        d_norm=proj_res.d_norm,
-        strata_labels=strata_labels,
-        uq_result=active_uncertainties,
-    )
-    if "strata" in summary_dict and "strata_metrics" not in summary_dict:
-        summary_dict["strata_metrics"] = summary_dict["strata"]
-    elif "strata_metrics" in summary_dict and "strata" not in summary_dict:
-        summary_dict["strata"] = summary_dict["strata_metrics"]
+        summary_dict = compute_comprehensive_metrics(
+            y_true=y_true,
+            y_hat=uq_res.y_hat,
+            d_norm=proj_res.d_norm,
+            strata_labels=strata_labels,
+            uq_result=active_uncertainties,
+        )
+        if "strata" in summary_dict and "strata_metrics" not in summary_dict:
+            summary_dict["strata_metrics"] = summary_dict["strata"]
+        elif "strata_metrics" in summary_dict and "strata" not in summary_dict:
+            summary_dict["strata"] = summary_dict["strata_metrics"]
+    else:
+        summary_dict = {}
+
 
     summary_dict["dimension"] = config.dimension
     summary_dict["n_train"] = config.n_train
