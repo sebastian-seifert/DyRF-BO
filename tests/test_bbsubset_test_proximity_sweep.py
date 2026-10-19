@@ -438,8 +438,8 @@ class TestComputeBBSUBSETTestProximityAnalysis(unittest.TestCase):
             # 1. Parity on task-level Cliff's Delta (must be on task medians of normalized regret)
             self.assertAlmostEqual(summary["task_level_cliffs_delta"], float(opt_row["ctrl_lcb_cliffs_delta"]), places=6)
 
-            # 2. Parity on task-level Wilcoxon p-value
-            self.assertAlmostEqual(summary["task_wilcoxon_p_twosided"], float(opt_row["ctrl_lcb_wilcoxon_p"]), places=6)
+            # 2. Parity on task-level Wilcoxon p-value (BBOB default is one-sided H1: cand < ctrl)
+            self.assertAlmostEqual(summary["task_wilcoxon_p_onesided"], float(opt_row["ctrl_lcb_wilcoxon_p"]), places=6)
 
             # 3. Parity on omnibus Friedman test
             self.assertIn("friedman_stat", summary)

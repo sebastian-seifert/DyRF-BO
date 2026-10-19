@@ -4,9 +4,9 @@
 Computes:
 1. Global per-task Min-Max scaled regret across all evaluated approaches.
 2. Demšar-compliant omnibus Friedman test.
-3. Paired Wilcoxon signed-rank tests vs Control 1 (LCB) and Control 2 (EI).
-4. Multiplicity correction via step-down Holm-Bonferroni method.
-5. Non-parametric effect sizes: Cliff's Delta and paired Win/Loss/Tie dominance.
+3. Paired one-sided Wilcoxon signed-rank tests vs Control 1 (LCB) and Control 2 (EI).
+4. Multiplicity correction via step-down Holm-Bonferroni method (Scope B joint family).
+5. Non-parametric effect sizes: Cliff's Delta and Matched-Pairs Rank-Biserial Correlation (r_rb).
 6. Dimensionality-stratified scorecards across individual dimensions (2, 4, 8, 16, 32)
    and dimensional tiers (Low-D <= 4D, Mid-D 8D, High-D >= 16D).
 """
@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
-from scipy.stats import friedmanchisquare, wilcoxon
+from scipy.stats import friedmanchisquare, rankdata, wilcoxon
 
 
 def apply_holm_bonferroni(p_vals: Sequence[float]) -> List[float]:
@@ -55,6 +55,8 @@ def calculate_cliffs_delta(x: np.ndarray, y: np.ndarray) -> float:
     """
     x = np.asarray(x).ravel()
     y = np.asarray(y).ravel()
+    x = x[~np.isnan(x)]
+    y = y[~np.isnan(y)]
     n_x, n_y = len(x), len(y)
     if n_x == 0 or n_y == 0:
         return 0.0
@@ -64,6 +66,34 @@ def calculate_cliffs_delta(x: np.ndarray, y: np.ndarray) -> float:
         greater += int(np.sum(val_x > y))
         less += int(np.sum(val_x < y))
     return float((greater - less) / (n_x * n_y))
+
+
+def calculate_rank_biserial_correlation(x: np.ndarray, y: np.ndarray) -> float:
+    """Computes matched-pairs rank-biserial correlation r_rb = (W^+ - W^-) / (W^+ + W^-).
+
+    Negative r_rb indicates x is systematically lower (better for cost minimization) than y.
+    """
+    x = np.asarray(x).ravel()
+    y = np.asarray(y).ravel()
+    if len(x) != len(y) or len(x) == 0:
+        return 0.0
+    valid = ~(np.isnan(x) | np.isnan(y))
+    x, y = x[valid], y[valid]
+    if len(x) == 0:
+        return 0.0
+    diff = x - y
+    nonzero = diff[np.abs(diff) > 1e-8]
+    if len(nonzero) == 0:
+        return 0.0
+
+    abs_diff = np.abs(nonzero)
+    ranks = rankdata(abs_diff)
+    w_plus = np.sum(ranks[nonzero > 0])
+    w_minus = np.sum(ranks[nonzero < 0])
+    total = w_plus + w_minus
+    if total == 0:
+        return 0.0
+    return float((w_plus - w_minus) / total)
 
 
 def compute_min_max_scaled_regret(df: pd.DataFrame, cost_col: str = "trial_value__cost_inc") -> pd.DataFrame:
@@ -76,7 +106,7 @@ def compute_min_max_scaled_regret(df: pd.DataFrame, cost_col: str = "trial_value
 
     def _scale(row):
         spread = row["spread"]
-        if spread > 1e-12:
+        if pd.notna(spread) and spread > 1e-12:
             return (row[cost_col] - row["min"]) / spread
         return 0.0
 
@@ -88,10 +118,21 @@ def infer_dimension(task_id: str) -> int:
     m = re.search(r"cfg_(\d+)_", str(task_id))
     if m:
         return int(m.group(1))
-    m2 = re.search(r"bbob[/-](\d+)", str(task_id), re.IGNORECASE)
+    m2 = re.search(r"bbob[/_-](\d+)", str(task_id), re.IGNORECASE)
     if m2:
         return int(m2.group(1))
     return -1
+
+
+def get_control_prefix(ctrl: str) -> str:
+    """Returns a deterministic, collision-safe prefix for a control optimizer."""
+    ctrl_lower = ctrl.lower()
+    if "lcb" in ctrl_lower and "facade" in ctrl_lower:
+        return "ctrl_lcb"
+    elif "ei" in ctrl_lower and "facade" in ctrl_lower:
+        return "ctrl_ei"
+    slug = re.sub(r"[^a-zA-Z0-9_]", "_", ctrl_lower)
+    return f"ctrl_{slug}"
 
 
 def _generate_scorecard_for_subset(
@@ -99,10 +140,10 @@ def _generate_scorecard_for_subset(
     all_optimizers: List[str],
     controls: Sequence[str],
     cost_col: str,
+    holm_scope: str = "joint",
 ) -> pd.DataFrame:
     """Generates statistical comparison rows for a filtered subset of tasks."""
     rows = []
-    task_ids = sorted(subset_df["task_id"].unique())
 
     for opt_id in all_optimizers:
         opt_data = subset_df[subset_df["optimizer_id"] == opt_id]
@@ -125,12 +166,13 @@ def _generate_scorecard_for_subset(
         # Compare against controls
         for ctrl in controls:
             ctrl_data = subset_df[subset_df["optimizer_id"] == ctrl]
-            ctrl_prefix = "ctrl_lcb" if "lcb" in ctrl.lower() else "ctrl_ei"
+            ctrl_prefix = get_control_prefix(ctrl)
 
             if ctrl_data.empty or opt_id == ctrl:
                 row[f"{ctrl_prefix}_win_rate"] = 0.5 if opt_id == ctrl else np.nan
                 row[f"{ctrl_prefix}_cliffs_delta"] = 0.0 if opt_id == ctrl else np.nan
-                row[f"{ctrl_prefix}_wilcoxon_p"] = 1.0 if opt_id == ctrl else np.nan
+                row[f"{ctrl_prefix}_rank_biserial"] = 0.0 if opt_id == ctrl else np.nan
+                row[f"{ctrl_prefix}_wilcoxon_p"] = np.nan
                 continue
 
             # Task-level paired aggregation
@@ -141,24 +183,38 @@ def _generate_scorecard_for_subset(
             if not common_tasks:
                 row[f"{ctrl_prefix}_win_rate"] = np.nan
                 row[f"{ctrl_prefix}_cliffs_delta"] = np.nan
+                row[f"{ctrl_prefix}_rank_biserial"] = np.nan
                 row[f"{ctrl_prefix}_wilcoxon_p"] = np.nan
                 continue
 
-            vec_opt = np.array([opt_medians[t] for t in common_tasks])
-            vec_ctrl = np.array([ctrl_medians[t] for t in common_tasks])
+            raw_opt = np.array([opt_medians[t] for t in common_tasks])
+            raw_ctrl = np.array([ctrl_medians[t] for t in common_tasks])
+
+            valid_mask = ~(np.isnan(raw_opt) | np.isnan(raw_ctrl))
+            vec_opt = raw_opt[valid_mask]
+            vec_ctrl = raw_ctrl[valid_mask]
+
+            if len(vec_opt) == 0:
+                row[f"{ctrl_prefix}_win_rate"] = np.nan
+                row[f"{ctrl_prefix}_cliffs_delta"] = np.nan
+                row[f"{ctrl_prefix}_rank_biserial"] = np.nan
+                row[f"{ctrl_prefix}_wilcoxon_p"] = np.nan
+                continue
 
             wins = int(np.sum(vec_opt < vec_ctrl - 1e-6))
             losses = int(np.sum(vec_opt > vec_ctrl + 1e-6))
-            ties = len(common_tasks) - wins - losses
-            win_rate = (wins + 0.5 * ties) / len(common_tasks)
+            ties = len(vec_opt) - wins - losses
+            win_rate = (wins + 0.5 * ties) / len(vec_opt)
 
             cd = calculate_cliffs_delta(vec_opt, vec_ctrl)
+            rb = calculate_rank_biserial_correlation(vec_opt, vec_ctrl)
 
             diff = vec_opt - vec_ctrl
-            nonzeros = np.sum(np.abs(diff) > 1e-8)
+            nonzeros = np.sum(np.abs(diff) > 1e-6)
             if nonzeros >= 5:
                 try:
-                    _, p_val = wilcoxon(vec_opt, vec_ctrl, alternative="two-sided")
+                    # One-sided test: testing if proposed approach has lower regret than control
+                    _, p_val = wilcoxon(vec_opt, vec_ctrl, alternative="less")
                 except Exception:
                     p_val = 1.0
             else:
@@ -166,6 +222,7 @@ def _generate_scorecard_for_subset(
 
             row[f"{ctrl_prefix}_win_rate"] = float(win_rate)
             row[f"{ctrl_prefix}_cliffs_delta"] = float(cd)
+            row[f"{ctrl_prefix}_rank_biserial"] = float(rb)
             row[f"{ctrl_prefix}_wilcoxon_p"] = float(p_val)
 
         rows.append(row)
@@ -173,14 +230,39 @@ def _generate_scorecard_for_subset(
     res_df = pd.DataFrame(rows)
     if not res_df.empty:
         # Apply Holm-Bonferroni correction
-        for ctrl in controls:
-            ctrl_prefix = "ctrl_lcb" if "lcb" in ctrl.lower() else "ctrl_ei"
-            p_col = f"{ctrl_prefix}_wilcoxon_p"
-            if p_col in res_df.columns:
-                adj = apply_holm_bonferroni(res_df[p_col].fillna(1.0).tolist())
-                res_df[f"{ctrl_prefix}_wilcoxon_adj_p"] = adj
+        if holm_scope == "joint":
+            # Scope B: Joint family across all controls, strictly excluding control self-tests
+            p_entries: List[Tuple[float, int, str]] = []
+            for ctrl in controls:
+                ctrl_prefix = get_control_prefix(ctrl)
+                p_col = f"{ctrl_prefix}_wilcoxon_p"
+                adj_col = f"{ctrl_prefix}_wilcoxon_adj_p"
+                res_df[adj_col] = np.nan
+                if p_col in res_df.columns:
+                    for idx, row in res_df.iterrows():
+                        if row["optimizer_id"] != ctrl and pd.notna(row[p_col]):
+                            p_entries.append((float(row[p_col]), idx, adj_col))
 
-        res_df = res_df.sort_values("mean_norm_regret")
+            if p_entries:
+                raw_p_list = [e[0] for e in p_entries]
+                adj_p_list = apply_holm_bonferroni(raw_p_list)
+                for (_, row_idx, adj_col), adj_val in zip(p_entries, adj_p_list):
+                    res_df.loc[row_idx, adj_col] = adj_val
+        else:
+            # Scope A: Per-control family, excluding control self-test
+            for ctrl in controls:
+                ctrl_prefix = get_control_prefix(ctrl)
+                p_col = f"{ctrl_prefix}_wilcoxon_p"
+                adj_col = f"{ctrl_prefix}_wilcoxon_adj_p"
+                res_df[adj_col] = np.nan
+                if p_col in res_df.columns:
+                    mask = (res_df["optimizer_id"] != ctrl) & res_df[p_col].notna()
+                    if mask.any():
+                        raw_p = res_df.loc[mask, p_col].tolist()
+                        adj_p = apply_holm_bonferroni(raw_p)
+                        res_df.loc[mask, adj_col] = adj_p
+
+        res_df = res_df.sort_values("mean_norm_regret").reset_index(drop=True)
     return res_df
 
 
@@ -188,6 +270,7 @@ def run_bbob_statistical_analysis(
     df: pd.DataFrame,
     cost_col: str = "trial_value__cost_inc",
     controls: Sequence[str] = ("SMAC3_HPOFacade_lcb", "SMAC3_HPOFacade_ei"),
+    holm_scope: str = "joint",
 ) -> Dict[str, Any]:
     """Runs global, dimension-stratified, and tier-stratified statistical analysis."""
     working_df = df.copy()
@@ -218,25 +301,31 @@ def run_bbob_statistical_analysis(
             pass
 
     # 2. Global Scorecard
-    global_scorecard = _generate_scorecard_for_subset(scaled_df, all_optimizers, controls, cost_col)
+    global_scorecard = _generate_scorecard_for_subset(
+        scaled_df, all_optimizers, controls, cost_col, holm_scope=holm_scope
+    )
 
     # 3. Stratified by exact dimension
     by_dimension: Dict[int, pd.DataFrame] = {}
     unique_dims = sorted([d for d in scaled_df["dimension"].unique() if d > 0])
     for dim in unique_dims:
         dim_sub = scaled_df[scaled_df["dimension"] == dim]
-        by_dimension[dim] = _generate_scorecard_for_subset(dim_sub, all_optimizers, controls, cost_col)
+        by_dimension[dim] = _generate_scorecard_for_subset(
+            dim_sub, all_optimizers, controls, cost_col, holm_scope=holm_scope
+        )
 
-    # 4. Stratified by dimensional tier
+    # 4. Stratified by dimensional tier (preventing negative dimension leakage)
     by_tier: Dict[str, pd.DataFrame] = {}
     tier_defs = {
-        "low_d (<=4D)": scaled_df[scaled_df["dimension"] <= 4],
+        "low_d (<=4D)": scaled_df[(scaled_df["dimension"] > 0) & (scaled_df["dimension"] <= 4)],
         "mid_d (8D)": scaled_df[scaled_df["dimension"] == 8],
         "high_d (>=16D)": scaled_df[scaled_df["dimension"] >= 16],
     }
     for tier_name, tier_sub in tier_defs.items():
         if not tier_sub.empty:
-            by_tier[tier_name] = _generate_scorecard_for_subset(tier_sub, all_optimizers, controls, cost_col)
+            by_tier[tier_name] = _generate_scorecard_for_subset(
+                tier_sub, all_optimizers, controls, cost_col, holm_scope=holm_scope
+            )
 
     return {
         "friedman_stat": float(friedman_stat) if not np.isnan(friedman_stat) else None,
@@ -245,6 +334,14 @@ def run_bbob_statistical_analysis(
         "by_dimension": by_dimension,
         "by_tier": by_tier,
     }
+
+
+def format_dataframe_safe(df: pd.DataFrame) -> str:
+    """Formats DataFrame to Markdown with fallback if tabulate is missing."""
+    try:
+        return df.to_markdown(index=False)
+    except Exception:
+        return df.to_string(index=False)
 
 
 def export_analysis_results(results: Dict[str, Any], output_dir: str) -> None:
@@ -265,14 +362,17 @@ def export_analysis_results(results: Dict[str, Any], output_dir: str) -> None:
         card.to_csv(out_path / f"scorecard_tier_{tier_slug}.csv", index=False)
 
     # Generate Markdown Summary Report
+    stat_val = f"{results['friedman_stat']:.4f}" if results.get("friedman_stat") is not None else "N/A"
+    p_val = f"{results['friedman_p']:.4e}" if results.get("friedman_p") is not None else "N/A"
+
     md_report = [
         "# CARP-S Full BBOB Benchmark Scorecard & Dimensionality Analysis",
         "",
-        f"**Omnibus Friedman Test**: $\\chi^2 = {results['friedman_stat']}$, $p = {results['friedman_p']}$",
+        f"**Omnibus Friedman Test**: $\\chi^2 = {stat_val}$, $p = {p_val}$",
         "",
         "## 1. Global Scorecard (All Dimensions)",
         "",
-        results["global_scorecard"].to_markdown(index=False),
+        format_dataframe_safe(results["global_scorecard"]),
         "",
         "## 2. Dimensional Tier Stratification",
         "",
@@ -281,7 +381,7 @@ def export_analysis_results(results: Dict[str, Any], output_dir: str) -> None:
     for tier, card in results["by_tier"].items():
         md_report.append(f"### Tier: {tier}")
         md_report.append("")
-        md_report.append(card.to_markdown(index=False))
+        md_report.append(format_dataframe_safe(card))
         md_report.append("")
 
     report_path = out_path / "bbob_analysis_report.md"
@@ -290,11 +390,12 @@ def export_analysis_results(results: Dict[str, Any], output_dir: str) -> None:
     print(f"[SUCCESS] Exported report and scorecards to {output_dir}.")
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser(description="Compute BBOB full sweep statistical analysis.")
     parser.add_argument("--input", type=str, default="results/sweep_bbob_full_comparison/logs.parquet")
     parser.add_argument("--output-dir", type=str, default="results/sweep_bbob_full_comparison/analysis")
     parser.add_argument("--cost-col", type=str, default="trial_value__cost_inc")
+    parser.add_argument("--holm-scope", type=str, default="joint", choices=["joint", "per_control"])
     args = parser.parse_args()
 
     in_path = Path(args.input)
@@ -303,5 +404,9 @@ if __name__ == "__main__":
     else:
         data = pd.read_csv(in_path)
 
-    res = run_bbob_statistical_analysis(data, cost_col=args.cost_col)
+    res = run_bbob_statistical_analysis(data, cost_col=args.cost_col, holm_scope=args.holm_scope)
     export_analysis_results(res, args.output_dir)
+
+
+if __name__ == "__main__":
+    main()
