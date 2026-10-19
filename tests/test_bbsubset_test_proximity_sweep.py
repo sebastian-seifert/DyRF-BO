@@ -377,6 +377,87 @@ class TestComputeBBSUBSETTestProximityAnalysis(unittest.TestCase):
             self.assertTrue(md_high_d.exists())
             self.assertTrue(csv_high_d.exists())
 
+    def test_bbob_math_parity(self):
+        """Verify BBSubset test analysis math strictly matches BBOB full sweep math."""
+        from scripts.compute_bbob_full_sweep_analysis import (
+            run_bbob_statistical_analysis,
+            calculate_cliffs_delta as bbob_cliffs_delta,
+        )
+        from scripts.compute_bbsubset_test_proximity_analysis import (
+            compute_bbsubset_test_proximity_analysis,
+        )
+
+        records = []
+        # 6 tasks, 5 seeds per task
+        # Deliberately construct asymmetric costs so mean != median
+        for t_idx in range(6):
+            task_name = f"task_{t_idx}"
+            for seed in range(1, 6):
+                # Proposed: 4 low values, 1 high outlier
+                val_p = 10.0 + seed if seed < 5 else 100.0
+                # Baseline: 4 moderate values, 1 low outlier
+                val_b = 20.0 + seed if seed > 1 else 5.0
+                records.append({
+                    "task_id": task_name,
+                    "optimizer_id": "SMAC20_ProximityLCB_tuned",
+                    "seed": seed,
+                    "n_trials": 100,
+                    "trial_value__cost_inc": val_p,
+                })
+                records.append({
+                    "task_id": task_name,
+                    "optimizer_id": "SMAC3_HPOFacade_lcb",
+                    "seed": seed,
+                    "n_trials": 100,
+                    "trial_value__cost_inc": val_b,
+                })
+
+        df = pd.DataFrame(records)
+
+        # Reference BBOB math
+        bbob_results = run_bbob_statistical_analysis(
+            df,
+            cost_col="trial_value__cost_inc",
+            controls=("SMAC3_HPOFacade_lcb",),
+        )
+        bbob_card = bbob_results["global_scorecard"]
+        opt_row = bbob_card[bbob_card["optimizer_id"] == "SMAC20_ProximityLCB_tuned"].iloc[0]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            parquet_path = os.path.join(tmpdir, "logs.parquet")
+            df.to_parquet(parquet_path)
+
+            summary = compute_bbsubset_test_proximity_analysis(
+                input_file=parquet_path,
+                output_dir=tmpdir,
+                proposed_id="SMAC20_ProximityLCB_tuned",
+                baseline_id="SMAC3_HPOFacade_lcb",
+                alpha=0.05,
+            )
+
+            # 1. Parity on task-level Cliff's Delta (must be on task medians of normalized regret)
+            self.assertAlmostEqual(summary["task_level_cliffs_delta"], float(opt_row["ctrl_lcb_cliffs_delta"]), places=6)
+
+            # 2. Parity on task-level Wilcoxon p-value
+            self.assertAlmostEqual(summary["task_wilcoxon_p_twosided"], float(opt_row["ctrl_lcb_wilcoxon_p"]), places=6)
+
+            # 3. Parity on omnibus Friedman test
+            self.assertIn("friedman_stat", summary)
+            if bbob_results["friedman_stat"] is not None:
+                self.assertAlmostEqual(summary["friedman_stat"], float(bbob_results["friedman_stat"]), places=6)
+
+            # 4. Parity on normalized regret per task (medians)
+            scorecard_df = summary["scorecard_df"].sort_values("task").reset_index(drop=True)
+            # Check norm_regret matches BBOB median normalized regret
+            scaled_df = df.copy()
+            bounds = df.groupby("task_id")["trial_value__cost_inc"].agg(["min", "max"])
+            bounds["spread"] = bounds["max"] - bounds["min"]
+            scaled_df = scaled_df.merge(bounds, on="task_id")
+            scaled_df["normalized_regret"] = (scaled_df["trial_value__cost_inc"] - scaled_df["min"]) / scaled_df["spread"]
+
+            p_medians = scaled_df[scaled_df["optimizer_id"] == "SMAC20_ProximityLCB_tuned"].groupby("task_id")["normalized_regret"].median().sort_index().values
+            np.testing.assert_allclose(scorecard_df["norm_regret_proposed"].values, p_medians, atol=1e-6)
+
 
 if __name__ == "__main__":
     unittest.main()

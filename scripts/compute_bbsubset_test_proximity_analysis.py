@@ -24,7 +24,17 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
-from scipy.stats import wilcoxon
+from scipy.stats import friedmanchisquare, wilcoxon
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from scripts.compute_bbob_full_sweep_analysis import (
+    apply_holm_bonferroni,
+    calculate_cliffs_delta,
+    compute_min_max_scaled_regret,
+)
 
 KNOWN_TASK_DIMS: Dict[str, int] = {
     "svm_12": 2,
@@ -61,59 +71,6 @@ def dataframe_to_markdown(df: pd.DataFrame) -> str:
     return "\n".join(lines)
 
 
-def calculate_cliffs_delta(x: np.ndarray, y: np.ndarray) -> float:
-    """Computes Cliff's delta non-parametric effect size between two paired vectors.
-
-    delta = (sum(x_i > y_j) - sum(x_i < y_j)) / (n_x * n_y)
-    Negative delta means x values are systematically smaller (better for cost minimization).
-    """
-    x = np.asarray(x).ravel()
-    y = np.asarray(y).ravel()
-    n_x, n_y = len(x), len(y)
-    if n_x == 0 or n_y == 0:
-        return 0.0
-    greater = 0
-    less = 0
-    for val_x in x:
-        greater += int(np.sum(val_x > y))
-        less += int(np.sum(val_x < y))
-    return float((greater - less) / (n_x * n_y))
-
-
-def apply_holm_bonferroni(p_vals: Sequence[float]) -> List[float]:
-    """Computes Holm-Bonferroni step-down adjusted p-values ensuring FWER control and monotonicity.
-
-    Args:
-        p_vals: List or array of unadjusted p-values.
-
-    Returns:
-        List of Holm-Bonferroni adjusted p-values in the original input order.
-    """
-    p = np.array(p_vals, dtype=float)
-    n = len(p)
-    if n == 0:
-        return []
-
-    # Replace any nan with 1.0
-    p = np.where(np.isnan(p), 1.0, p)
-
-    # Sort p-values ascending
-    sort_idx = np.argsort(p)
-    sorted_p = p[sort_idx]
-
-    # Step-down adjustment: p_adj_i = (n - i) * p_i
-    adj_sorted = np.zeros(n, dtype=float)
-    for i in range(n):
-        adj_sorted[i] = min(1.0, sorted_p[i] * (n - i))
-
-    # Enforce monotonicity: p_adj_(i+1) >= p_adj_i
-    for i in range(1, n):
-        adj_sorted[i] = max(adj_sorted[i], adj_sorted[i - 1])
-
-    # Invert sorting back to original order
-    adj_original = np.zeros(n, dtype=float)
-    adj_original[sort_idx] = adj_sorted
-    return [float(val) for val in adj_original]
 
 
 def find_input_file(input_file: str) -> str:
@@ -228,15 +185,23 @@ def compute_bbsubset_test_proximity_analysis(
         df["trial_value__cost_inc"] = df.groupby(["optimizer_id", task_col, "seed"])[cost_col].cummin()
         cost_col = "trial_value__cost_inc"
 
-    # Take the latest / incumbent trial per run
+    # Take the latest / incumbent trial per run (as in BBOB)
+    grouper = ["optimizer_id", task_col, "seed"]
     if trial_col is not None:
-        idx = df.groupby(["optimizer_id", task_col, "seed"])[trial_col].idxmax()
+        idx = df.groupby(grouper)[trial_col].idxmax()
         latest_df = df.loc[idx].copy()
     else:
         latest_df = df.copy()
 
-    p_df = latest_df[latest_df["optimizer_id"] == proposed_id]
-    b_df = latest_df[latest_df["optimizer_id"] == baseline_id]
+    # Standardize task column name to task_id for BBOB math compatibility
+    if "task_id" not in latest_df.columns:
+        latest_df["task_id"] = latest_df[task_col]
+
+    # Global per-task Min-Max scaling across all approaches and seeds (exact BBOB math)
+    scaled_df = compute_min_max_scaled_regret(latest_df, cost_col=cost_col)
+
+    p_df = scaled_df[scaled_df["optimizer_id"] == proposed_id]
+    b_df = scaled_df[scaled_df["optimizer_id"] == baseline_id]
 
     if p_df.empty or b_df.empty:
         raise ValueError(
@@ -245,8 +210,8 @@ def compute_bbsubset_test_proximity_analysis(
 
     # Merge paired runs
     merged = pd.merge(
-        p_df[[task_col, "seed", cost_col]],
-        b_df[[task_col, "seed", cost_col]],
+        p_df[[task_col, "seed", "normalized_regret", cost_col]],
+        b_df[[task_col, "seed", "normalized_regret", cost_col]],
         on=[task_col, "seed"],
         suffixes=("_proposed", "_baseline"),
     )
@@ -254,7 +219,7 @@ def compute_bbsubset_test_proximity_analysis(
     if merged.empty:
         raise ValueError(f"No paired runs found between '{proposed_id}' and '{baseline_id}'.")
 
-    # Global paired arrays
+    # Global paired arrays for seed-level overview
     p_all = merged[f"{cost_col}_proposed"].to_numpy(dtype=float)
     b_all = merged[f"{cost_col}_baseline"].to_numpy(dtype=float)
     valid_mask = np.isfinite(p_all) & np.isfinite(b_all)
@@ -272,9 +237,12 @@ def compute_bbsubset_test_proximity_analysis(
     except Exception:
         macro_stat, macro_p = np.nan, 1.0
 
-    # Per-task analysis
+    # Task-level paired aggregation on normalized regret (exact BBOB math: task medians)
+    opt_medians = p_df.groupby(task_col)["normalized_regret"].median()
+    ctrl_medians = b_df.groupby(task_col)["normalized_regret"].median()
+
+    unique_tasks = sorted(set(opt_medians.index).intersection(set(ctrl_medians.index)))
     task_rows: List[Dict[str, Any]] = []
-    unique_tasks = sorted(merged[task_col].unique())
 
     for task in unique_tasks:
         sub = merged[merged[task_col] == task]
@@ -290,7 +258,7 @@ def compute_bbsubset_test_proximity_analysis(
         l = int(np.sum(diff > tie_tolerance))
         t = int(np.sum(np.abs(diff) <= tie_tolerance))
 
-        # Wilcoxon per task
+        # Wilcoxon per task (seed-level)
         nonzero = diff[np.abs(diff) > tie_tolerance]
         if len(nonzero) >= 5:
             try:
@@ -302,21 +270,9 @@ def compute_bbsubset_test_proximity_analysis(
 
         delta = calculate_cliffs_delta(gp_v, gb_v)
 
-        # Normalized Regret per task
-        all_costs = np.concatenate([gp_v, gb_v])
-        if len(all_costs) > 0:
-            y_min = float(np.min(all_costs))
-            y_max = float(np.max(all_costs))
-            spread = y_max - y_min
-        else:
-            y_min, y_max, spread = 0.0, 0.0, 0.0
-
-        if spread > 1e-12:
-            norm_p = float(np.mean((gp_v - y_min) / spread))
-            norm_b = float(np.mean((gb_v - y_min) / spread))
-        else:
-            norm_p = 0.0
-            norm_b = 0.0
+        # Exact BBOB math: task-level normalized regret is the MEDIAN across seeds
+        norm_p = float(opt_medians[task])
+        norm_b = float(ctrl_medians[task])
 
         mean_p = float(np.mean(gp_v)) if n_seeds > 0 else np.nan
         sem_p = float(np.std(gp_v, ddof=1) / np.sqrt(n_seeds)) if n_seeds > 1 else 0.0
@@ -354,12 +310,12 @@ def compute_bbsubset_test_proximity_analysis(
         row["p_holm"] = p_h
         row["significant"] = bool(p_h < alpha)
 
-        # Decision classification
-        diff = row["mean_proposed"] - row["mean_baseline"]
-        if diff < -tie_tolerance:
+        # Decision classification (based on normalized regret medians)
+        diff_regret = row["norm_regret_proposed"] - row["norm_regret_baseline"]
+        if diff_regret < -tie_tolerance:
             row["decision"] = "WIN"
             task_wins += 1
-        elif diff > tie_tolerance:
+        elif diff_regret > tie_tolerance:
             row["decision"] = "LOSS"
             task_losses += 1
         else:
@@ -373,25 +329,45 @@ def compute_bbsubset_test_proximity_analysis(
     csv_path = Path(output_dir) / f"{out_prefix}.csv"
     scorecard_df.to_csv(csv_path, index=False)
 
-    # Task-level Wilcoxon signed-rank test on normalized regret (Demšar, 2006)
-    task_norm_p = scorecard_df["norm_regret_proposed"].to_numpy(dtype=float)
-    task_norm_b = scorecard_df["norm_regret_baseline"].to_numpy(dtype=float)
-    diff_norm = task_norm_p - task_norm_b
-    nonzero_norm = int(np.sum(np.abs(diff_norm) > 1e-12))
-    if nonzero_norm >= 5:
+    # Task-level paired vectors on normalized regret (exact BBOB math)
+    vec_opt = scorecard_df["norm_regret_proposed"].to_numpy(dtype=float)
+    vec_ctrl = scorecard_df["norm_regret_baseline"].to_numpy(dtype=float)
+
+    # Exact BBOB win rate formula with half-credit for ties: (wins + 0.5 * ties) / len(tasks)
+    bbob_task_wins = int(np.sum(vec_opt < vec_ctrl - 1e-6))
+    bbob_task_losses = int(np.sum(vec_opt > vec_ctrl + 1e-6))
+    bbob_task_ties = len(vec_opt) - bbob_task_wins - bbob_task_losses
+    win_rate = float((bbob_task_wins + 0.5 * bbob_task_ties) / len(vec_opt)) if len(vec_opt) > 0 else 0.0
+
+    # Task-level Wilcoxon signed-rank test on task medians (Demšar, 2006, exact BBOB math)
+    diff_vec = vec_opt - vec_ctrl
+    nonzeros = int(np.sum(np.abs(diff_vec) > 1e-8))
+    if nonzeros >= 5:
         try:
-            task_w_stat, task_w_p_two = wilcoxon(task_norm_p, task_norm_b, alternative="two-sided")
-            _, task_w_p_one = wilcoxon(task_norm_p, task_norm_b, alternative="less")
+            task_w_stat, task_w_p_two = wilcoxon(vec_opt, vec_ctrl, alternative="two-sided")
+            _, task_w_p_one = wilcoxon(vec_opt, vec_ctrl, alternative="less")
         except Exception:
             task_w_stat, task_w_p_two, task_w_p_one = np.nan, 1.0, 1.0
     else:
         task_w_stat, task_w_p_two, task_w_p_one = np.nan, 1.0, 1.0
 
-    # Non-parametric effect sizes across tasks
+    # Non-parametric effect sizes across tasks (exact BBOB math on task medians)
     mean_cliffs_delta = float(scorecard_df["cliffs_delta"].mean())
-    task_level_cliffs_delta = calculate_cliffs_delta(task_norm_p, task_norm_b)
+    task_level_cliffs_delta = calculate_cliffs_delta(vec_opt, vec_ctrl)
 
-    # High-Dimensional Stratification
+    # Omnibus Friedman test on task medians across all approaches (exact BBOB math)
+    task_medians_all = scaled_df.groupby(["task_id", "optimizer_id"])["normalized_regret"].median().unstack()
+    clean_medians = task_medians_all.dropna()
+    friedman_stat, friedman_p = None, None
+    if clean_medians.shape[0] >= 3 and clean_medians.shape[1] >= 3:
+        try:
+            samples = [clean_medians[col].values for col in clean_medians.columns]
+            f_stat, f_p = friedmanchisquare(*samples)
+            friedman_stat, friedman_p = float(f_stat), float(f_p)
+        except Exception:
+            pass
+
+    # High-Dimensional Stratification (exact BBOB math)
     strata_definitions = [
         ("bbob_high_d_16", "BBOB High-D (D >= 16)", scorecard_df[scorecard_df["task"].str.contains("bbob") & (scorecard_df["dim"] >= 16)]),
         ("bbob_high_d_8", "BBOB High-D (D >= 8)", scorecard_df[scorecard_df["task"].str.contains("bbob") & (scorecard_df["dim"] >= 8)]),
@@ -405,16 +381,16 @@ def compute_bbsubset_test_proximity_analysis(
         n_sub = len(sub_df)
         if n_sub == 0:
             continue
-        m_p = float(sub_df["norm_regret_proposed"].mean())
-        m_b = float(sub_df["norm_regret_baseline"].mean())
-        rel_red = float((m_b - m_p) / m_b * 100.0) if m_b > 1e-12 else 0.0
-        m_cd = float(sub_df["cliffs_delta"].mean())
         s_p = sub_df["norm_regret_proposed"].to_numpy(dtype=float)
         s_b = sub_df["norm_regret_baseline"].to_numpy(dtype=float)
+        m_p = float(np.mean(s_p))
+        m_b = float(np.mean(s_b))
+        rel_red = float((m_b - m_p) / m_b * 100.0) if m_b > 1e-12 else 0.0
+        m_cd = float(sub_df["cliffs_delta"].mean())
         s_cd = calculate_cliffs_delta(s_p, s_b)
         s_diff = s_p - s_b
-        nz = int(np.sum(np.abs(s_diff) > 1e-12))
-        if nz >= 4:
+        nz = int(np.sum(np.abs(s_diff) > 1e-8))
+        if nz >= 5:
             try:
                 s_stat, s_p_two = wilcoxon(s_p, s_b, alternative="two-sided")
                 _, s_p_one = wilcoxon(s_p, s_b, alternative="less")
@@ -519,6 +495,7 @@ def compute_bbsubset_test_proximity_analysis(
         "task_wins": task_wins,
         "task_ties": task_ties,
         "task_losses": task_losses,
+        "win_rate": win_rate,
         "mean_norm_regret_proposed": mean_norm_p,
         "mean_norm_regret_baseline": mean_norm_b,
         "overall_cliffs_delta": overall_delta,
@@ -528,6 +505,8 @@ def compute_bbsubset_test_proximity_analysis(
         "task_wilcoxon_p_twosided": float(task_w_p_two),
         "task_wilcoxon_p_onesided": float(task_w_p_one),
         "macro_wilcoxon_p": macro_p,
+        "friedman_stat": friedman_stat,
+        "friedman_p": friedman_p,
         "stratified_analysis": stratified_results,
         "scorecard_df": scorecard_df,
     }
