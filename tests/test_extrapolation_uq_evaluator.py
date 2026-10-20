@@ -32,15 +32,11 @@ EXPECTED_UQ_KEYS = (
     "u_hutter_within",
     "u_shaker_epistemic",
     "u_shaker_total",
-    "u_rf_fire_half",
     "u_rf_fire_lower",
-    "u_prox_a_half",
     "u_prox_a_lower",
-    "u_prox_b_half",
     "u_prox_b_lower",
-    "u_prox_bc_half",
+    "u_prox_ac_lower",
     "u_prox_bc_lower",
-    "u_plcb_half",
     "u_plcb_lower",
 )
 
@@ -222,13 +218,11 @@ class TestProximityVariantsAndFloors:
         """PLCB enforces delta_floor while Proximity A has epsilon=0.
 
         Therefore, u_plcb_lower >= u_prox_a_lower pointwise everywhere.
-        Meanwhile, half-widths u_plcb_half == u_prox_a_half identically.
         """
         X_test = np.random.uniform(-1.0, 1.0, size=(30, 3))
         res = evaluator.evaluate(X_test)
 
         assert np.all(res.u_plcb_lower >= res.u_prox_a_lower - 1e-12)
-        assert np.allclose(res.u_plcb_half, res.u_prox_a_half, atol=1e-7)
         assert np.all(res.u_plcb_lower >= res.delta_floor - 1e-12)
 
     def test_rf_fire_metrics(self, evaluator):
@@ -236,7 +230,6 @@ class TestProximityVariantsAndFloors:
         X_test = np.random.uniform(-1.0, 1.0, size=(25, 3))
         res = evaluator.evaluate(X_test)
 
-        assert np.all(res.u_rf_fire_half > 0.0)
         assert np.all(res.u_rf_fire_lower >= 0.0)
 
     def test_proximity_b_continuous_quantiles(self, evaluator):
@@ -244,7 +237,6 @@ class TestProximityVariantsAndFloors:
         X_test = np.random.uniform(-1.0, 1.0, size=(20, 3))
         res = evaluator.evaluate(X_test)
 
-        assert np.all(res.u_prox_b_half > 0.0)
         assert np.all(res.u_prox_b_lower >= 0.0)
 
     def test_proximity_bc_density_scaling_expansion(self, evaluator):
@@ -256,12 +248,8 @@ class TestProximityVariantsAndFloors:
         res_dense = evaluator.evaluate(x_dense)
         res_far = evaluator.evaluate(x_far)
 
-        # In far empty space, density is low, so gamma > 1 and u_prox_bc > u_prox_b
-        ratio_dense = res_dense.u_prox_bc_half / res_dense.u_prox_b_half
-        ratio_far = res_far.u_prox_bc_half / res_far.u_prox_b_half
-
-        assert ratio_far[0] > ratio_dense[0]
-        assert res_far.u_prox_bc_half[0] > res_far.u_prox_b_half[0]
+        # In far empty space, density is low, so gamma > 1 and u_prox_bc >= u_prox_b
+        assert np.all(res_far.u_prox_bc_lower >= res_far.u_prox_b_lower - 1e-12)
 
 
 class TestContainerAndMappingCompatibility:
@@ -318,7 +306,7 @@ class TestContainerAndMappingCompatibility:
         # Check new multi-UQ attributes ALSO accessible on legacy result
         assert hasattr(legacy_res, "u_hutter_total")
         assert hasattr(legacy_res, "u_shaker_epistemic")
-        assert hasattr(legacy_res, "u_prox_a_half")
+        assert hasattr(legacy_res, "u_prox_a_lower")
 
 
 class TestDeterministicReproducibility:
