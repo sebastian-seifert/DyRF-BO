@@ -22,6 +22,7 @@ from dataclasses import dataclass, fields
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from scipy.stats import norm
 from sklearn.base import clone
 from sklearn.ensemble import ExtraTreesRegressor, RandomForestRegressor
 from sklearn.model_selection import KFold
@@ -42,6 +43,25 @@ APPROACH_NAMES: List[str] = [
     "prox_bc_oob",
     "prox_bc_cv",
 ]
+
+NON_PROXIMITY_APPROACHES: List[str] = [
+    "hutter_total",
+    "shaker_epistemic",
+]
+
+PROXIMITY_APPROACHES: List[str] = [
+    "prox_a_oob",
+    "prox_a_cv",
+    "prox_b_oob",
+    "prox_b_cv",
+    "prox_ac_oob",
+    "prox_ac_cv",
+    "prox_bc_oob",
+    "prox_bc_cv",
+]
+
+COVERAGE_LEVELS: Tuple[float, ...] = (0.50, 0.80, 0.90, 0.95)
+COVERAGE_SUFFIXES: Dict[float, str] = {0.50: "50", 0.80: "80", 0.90: "90", 0.95: "95"}
 
 
 SURROGATE_CONFIGS: Dict[str, Dict[str, Any]] = {
@@ -191,36 +211,142 @@ class MultiUQResult:
     """
 
     y_hat: np.ndarray
+
+    # Group 1: Non-Proximity 1: Hutter Total
     u_hutter_total: np.ndarray
+    sigma_hutter_total: np.ndarray
     int_lwr_hutter_total: np.ndarray
     int_upr_hutter_total: np.ndarray
+    int_lwr_hutter_total_50: np.ndarray
+    int_upr_hutter_total_50: np.ndarray
+    int_lwr_hutter_total_80: np.ndarray
+    int_upr_hutter_total_80: np.ndarray
+    int_lwr_hutter_total_90: np.ndarray
+    int_upr_hutter_total_90: np.ndarray
+    int_lwr_hutter_total_95: np.ndarray
+    int_upr_hutter_total_95: np.ndarray
+
+    # Group 2: Non-Proximity 2: Shaker Epistemic
     u_shaker_epistemic: np.ndarray
+    sigma_shaker_epistemic: np.ndarray
     int_lwr_shaker_epistemic: np.ndarray
     int_upr_shaker_epistemic: np.ndarray
+    int_lwr_shaker_epistemic_50: np.ndarray
+    int_upr_shaker_epistemic_50: np.ndarray
+    int_lwr_shaker_epistemic_80: np.ndarray
+    int_upr_shaker_epistemic_80: np.ndarray
+    int_lwr_shaker_epistemic_90: np.ndarray
+    int_upr_shaker_epistemic_90: np.ndarray
+    int_lwr_shaker_epistemic_95: np.ndarray
+    int_upr_shaker_epistemic_95: np.ndarray
+
+    # Group 3: Proximity A (OOB & CV)
     u_prox_a_oob: np.ndarray
+    sigma_prox_a_oob: np.ndarray
     int_lwr_prox_a_oob: np.ndarray
     int_upr_prox_a_oob: np.ndarray
+    int_lwr_prox_a_oob_50: np.ndarray
+    int_upr_prox_a_oob_50: np.ndarray
+    int_lwr_prox_a_oob_80: np.ndarray
+    int_upr_prox_a_oob_80: np.ndarray
+    int_lwr_prox_a_oob_90: np.ndarray
+    int_upr_prox_a_oob_90: np.ndarray
+    int_lwr_prox_a_oob_95: np.ndarray
+    int_upr_prox_a_oob_95: np.ndarray
+
     u_prox_a_cv: np.ndarray
+    sigma_prox_a_cv: np.ndarray
     int_lwr_prox_a_cv: np.ndarray
     int_upr_prox_a_cv: np.ndarray
+    int_lwr_prox_a_cv_50: np.ndarray
+    int_upr_prox_a_cv_50: np.ndarray
+    int_lwr_prox_a_cv_80: np.ndarray
+    int_upr_prox_a_cv_80: np.ndarray
+    int_lwr_prox_a_cv_90: np.ndarray
+    int_upr_prox_a_cv_90: np.ndarray
+    int_lwr_prox_a_cv_95: np.ndarray
+    int_upr_prox_a_cv_95: np.ndarray
+
+    # Group 4: Proximity B (OOB & CV)
     u_prox_b_oob: np.ndarray
+    sigma_prox_b_oob: np.ndarray
     int_lwr_prox_b_oob: np.ndarray
     int_upr_prox_b_oob: np.ndarray
+    int_lwr_prox_b_oob_50: np.ndarray
+    int_upr_prox_b_oob_50: np.ndarray
+    int_lwr_prox_b_oob_80: np.ndarray
+    int_upr_prox_b_oob_80: np.ndarray
+    int_lwr_prox_b_oob_90: np.ndarray
+    int_upr_prox_b_oob_90: np.ndarray
+    int_lwr_prox_b_oob_95: np.ndarray
+    int_upr_prox_b_oob_95: np.ndarray
+
     u_prox_b_cv: np.ndarray
+    sigma_prox_b_cv: np.ndarray
     int_lwr_prox_b_cv: np.ndarray
     int_upr_prox_b_cv: np.ndarray
+    int_lwr_prox_b_cv_50: np.ndarray
+    int_upr_prox_b_cv_50: np.ndarray
+    int_lwr_prox_b_cv_80: np.ndarray
+    int_upr_prox_b_cv_80: np.ndarray
+    int_lwr_prox_b_cv_90: np.ndarray
+    int_upr_prox_b_cv_90: np.ndarray
+    int_lwr_prox_b_cv_95: np.ndarray
+    int_upr_prox_b_cv_95: np.ndarray
+
+    # Group 5: Proximity AC (OOB & CV)
     u_prox_ac_oob: np.ndarray
+    sigma_prox_ac_oob: np.ndarray
     int_lwr_prox_ac_oob: np.ndarray
     int_upr_prox_ac_oob: np.ndarray
+    int_lwr_prox_ac_oob_50: np.ndarray
+    int_upr_prox_ac_oob_50: np.ndarray
+    int_lwr_prox_ac_oob_80: np.ndarray
+    int_upr_prox_ac_oob_80: np.ndarray
+    int_lwr_prox_ac_oob_90: np.ndarray
+    int_upr_prox_ac_oob_90: np.ndarray
+    int_lwr_prox_ac_oob_95: np.ndarray
+    int_upr_prox_ac_oob_95: np.ndarray
+
     u_prox_ac_cv: np.ndarray
+    sigma_prox_ac_cv: np.ndarray
     int_lwr_prox_ac_cv: np.ndarray
     int_upr_prox_ac_cv: np.ndarray
+    int_lwr_prox_ac_cv_50: np.ndarray
+    int_upr_prox_ac_cv_50: np.ndarray
+    int_lwr_prox_ac_cv_80: np.ndarray
+    int_upr_prox_ac_cv_80: np.ndarray
+    int_lwr_prox_ac_cv_90: np.ndarray
+    int_upr_prox_ac_cv_90: np.ndarray
+    int_lwr_prox_ac_cv_95: np.ndarray
+    int_upr_prox_ac_cv_95: np.ndarray
+
+    # Group 6: Proximity BC (OOB & CV)
     u_prox_bc_oob: np.ndarray
+    sigma_prox_bc_oob: np.ndarray
     int_lwr_prox_bc_oob: np.ndarray
     int_upr_prox_bc_oob: np.ndarray
+    int_lwr_prox_bc_oob_50: np.ndarray
+    int_upr_prox_bc_oob_50: np.ndarray
+    int_lwr_prox_bc_oob_80: np.ndarray
+    int_upr_prox_bc_oob_80: np.ndarray
+    int_lwr_prox_bc_oob_90: np.ndarray
+    int_upr_prox_bc_oob_90: np.ndarray
+    int_lwr_prox_bc_oob_95: np.ndarray
+    int_upr_prox_bc_oob_95: np.ndarray
+
     u_prox_bc_cv: np.ndarray
+    sigma_prox_bc_cv: np.ndarray
     int_lwr_prox_bc_cv: np.ndarray
     int_upr_prox_bc_cv: np.ndarray
+    int_lwr_prox_bc_cv_50: np.ndarray
+    int_upr_prox_bc_cv_50: np.ndarray
+    int_lwr_prox_bc_cv_80: np.ndarray
+    int_upr_prox_bc_cv_80: np.ndarray
+    int_lwr_prox_bc_cv_90: np.ndarray
+    int_upr_prox_bc_cv_90: np.ndarray
+    int_lwr_prox_bc_cv_95: np.ndarray
+    int_upr_prox_bc_cv_95: np.ndarray
 
     # Diagnostics and backward compatibility fields
     var_between: Optional[np.ndarray] = None
@@ -239,171 +365,139 @@ class MultiUQResult:
     def __init__(
         self,
         y_hat: np.ndarray,
-        u_hutter_total: Optional[np.ndarray] = None,
-        int_lwr_hutter_total: Optional[np.ndarray] = None,
-        int_upr_hutter_total: Optional[np.ndarray] = None,
-        u_shaker_epistemic: Optional[np.ndarray] = None,
-        int_lwr_shaker_epistemic: Optional[np.ndarray] = None,
-        int_upr_shaker_epistemic: Optional[np.ndarray] = None,
-        u_prox_a_oob: Optional[np.ndarray] = None,
-        int_lwr_prox_a_oob: Optional[np.ndarray] = None,
-        int_upr_prox_a_oob: Optional[np.ndarray] = None,
-        u_prox_a_cv: Optional[np.ndarray] = None,
-        int_lwr_prox_a_cv: Optional[np.ndarray] = None,
-        int_upr_prox_a_cv: Optional[np.ndarray] = None,
-        u_prox_b_oob: Optional[np.ndarray] = None,
-        int_lwr_prox_b_oob: Optional[np.ndarray] = None,
-        int_upr_prox_b_oob: Optional[np.ndarray] = None,
-        u_prox_b_cv: Optional[np.ndarray] = None,
-        int_lwr_prox_b_cv: Optional[np.ndarray] = None,
-        int_upr_prox_b_cv: Optional[np.ndarray] = None,
-        u_prox_ac_oob: Optional[np.ndarray] = None,
-        int_lwr_prox_ac_oob: Optional[np.ndarray] = None,
-        int_upr_prox_ac_oob: Optional[np.ndarray] = None,
-        u_prox_ac_cv: Optional[np.ndarray] = None,
-        int_lwr_prox_ac_cv: Optional[np.ndarray] = None,
-        int_upr_prox_ac_cv: Optional[np.ndarray] = None,
-        u_prox_bc_oob: Optional[np.ndarray] = None,
-        int_lwr_prox_bc_oob: Optional[np.ndarray] = None,
-        int_upr_prox_bc_oob: Optional[np.ndarray] = None,
-        u_prox_bc_cv: Optional[np.ndarray] = None,
-        int_lwr_prox_bc_cv: Optional[np.ndarray] = None,
-        int_upr_prox_bc_cv: Optional[np.ndarray] = None,
-        var_between: Optional[np.ndarray] = None,
-        var_within: Optional[np.ndarray] = None,
-        var_total: Optional[np.ndarray] = None,
-        delta_floor: Optional[np.ndarray] = None,
-        local_mae: Optional[np.ndarray] = None,
-        q_lower: Optional[np.ndarray] = None,
-        u_hutter_between: Optional[np.ndarray] = None,
-        u_hutter_within: Optional[np.ndarray] = None,
-        u_shaker_total: Optional[np.ndarray] = None,
-        shaker_mi: Optional[np.ndarray] = None,
-        shaker_total_entropy: Optional[np.ndarray] = None,
-        u_rf_fire_lower: Optional[np.ndarray] = None,
-        **legacy_kwargs: Any,
+        **kwargs: Any,
     ) -> None:
-        self.y_hat = y_hat
-        self._legacy_overrides = dict(legacy_kwargs)
+        self.y_hat = np.asarray(y_hat)
+        self._legacy_overrides = dict(kwargs)
 
-        if u_hutter_total is None:
-            u_hutter_total = legacy_kwargs.get("u_slcb", np.zeros_like(y_hat))
-        self.u_hutter_total = u_hutter_total
-        if int_lwr_hutter_total is None:
-            int_lwr_hutter_total = y_hat - u_hutter_total
-        self.int_lwr_hutter_total = int_lwr_hutter_total
-        if int_upr_hutter_total is None:
-            int_upr_hutter_total = y_hat + u_hutter_total
-        self.int_upr_hutter_total = int_upr_hutter_total
+        # Parse diagnostics
+        diag_keys = (
+            "var_between",
+            "var_within",
+            "var_total",
+            "delta_floor",
+            "local_mae",
+            "q_lower",
+            "u_hutter_between",
+            "u_hutter_within",
+            "u_shaker_total",
+            "shaker_mi",
+            "shaker_total_entropy",
+        )
+        for dk in diag_keys:
+            setattr(self, dk, kwargs.get(dk, None))
 
-        if u_shaker_epistemic is None:
-            u_shaker_epistemic = np.zeros_like(y_hat)
-        self.u_shaker_epistemic = u_shaker_epistemic
-        if int_lwr_shaker_epistemic is None:
-            int_lwr_shaker_epistemic = y_hat - u_shaker_epistemic
-        self.int_lwr_shaker_epistemic = int_lwr_shaker_epistemic
-        if int_upr_shaker_epistemic is None:
-            int_upr_shaker_epistemic = y_hat + u_shaker_epistemic
-        self.int_upr_shaker_epistemic = int_upr_shaker_epistemic
+        # Parse all 10 approaches
+        for app in APPROACH_NAMES:
+            # 1. Uncertainty u_{app}
+            u_key = f"u_{app}"
+            if u_key in kwargs and kwargs[u_key] is not None:
+                u_val = np.asarray(kwargs[u_key])
+            else:
+                if app == "hutter_total":
+                    u_val = np.asarray(kwargs.get("u_slcb", kwargs.get("slcb", np.zeros_like(self.y_hat))))
+                elif app == "prox_a_oob":
+                    u_val = np.asarray(kwargs.get(
+                        "u_prox_a_lower", kwargs.get("u_plcb_lower", kwargs.get("u_plcb", kwargs.get("prox_a", np.zeros_like(self.y_hat))))
+                    ))
+                elif app == "prox_a_cv":
+                    u_val = np.asarray(kwargs.get("u_prox_a_cv", getattr(self, "u_prox_a_oob", np.zeros_like(self.y_hat))))
+                elif app == "prox_b_oob":
+                    u_val = np.asarray(kwargs.get("u_prox_b_lower", kwargs.get("prox_b", getattr(self, "u_prox_a_oob", np.zeros_like(self.y_hat)))))
+                elif app == "prox_b_cv":
+                    u_val = np.asarray(kwargs.get("u_prox_b_cv", getattr(self, "u_prox_b_oob", np.zeros_like(self.y_hat))))
+                elif app == "prox_ac_oob":
+                    u_val = np.asarray(kwargs.get("u_prox_ac_lower", kwargs.get("prox_ac", getattr(self, "u_prox_a_oob", np.zeros_like(self.y_hat)))))
+                elif app == "prox_ac_cv":
+                    u_val = np.asarray(kwargs.get("u_prox_ac_cv", getattr(self, "u_prox_ac_oob", np.zeros_like(self.y_hat))))
+                elif app == "prox_bc_oob":
+                    u_val = np.asarray(kwargs.get("u_prox_bc_lower", kwargs.get("prox_bc", getattr(self, "u_prox_b_oob", np.zeros_like(self.y_hat)))))
+                elif app == "prox_bc_cv":
+                    u_val = np.asarray(kwargs.get("u_prox_bc_cv", getattr(self, "u_prox_bc_oob", np.zeros_like(self.y_hat))))
+                else:
+                    u_val = np.zeros_like(self.y_hat)
+            setattr(self, u_key, u_val)
 
-        if u_prox_a_oob is None:
-            u_prox_a_oob = legacy_kwargs.get(
-                "u_prox_a_lower", legacy_kwargs.get("u_plcb_lower", legacy_kwargs.get("u_plcb", np.zeros_like(y_hat)))
-            )
-        self.u_prox_a_oob = u_prox_a_oob
-        half_a = legacy_kwargs.get("u_prox_a_half", legacy_kwargs.get("u_plcb_half", u_prox_a_oob))
-        if int_lwr_prox_a_oob is None:
-            int_lwr_prox_a_oob = y_hat - half_a
-        self.int_lwr_prox_a_oob = int_lwr_prox_a_oob
-        if int_upr_prox_a_oob is None:
-            int_upr_prox_a_oob = y_hat + half_a
-        self.int_upr_prox_a_oob = int_upr_prox_a_oob
+            # 2. Pure sigma_{app}
+            sigma_key = f"sigma_{app}"
+            if sigma_key in kwargs and kwargs[sigma_key] is not None:
+                sigma_val = np.asarray(kwargs[sigma_key])
+            else:
+                if app == "hutter_total":
+                    if self.var_total is not None:
+                        sigma_val = np.sqrt(np.maximum(self.var_total, 0.0))
+                    else:
+                        sigma_val = u_val / 1.96
+                elif app == "shaker_epistemic":
+                    sigma_val = u_val / 1.96
+                else:
+                    sigma_val = u_val / 1.96
+            setattr(self, sigma_key, sigma_val)
 
-        if u_prox_a_cv is None:
-            u_prox_a_cv = u_prox_a_oob
-        self.u_prox_a_cv = u_prox_a_cv
-        if int_lwr_prox_a_cv is None:
-            int_lwr_prox_a_cv = int_lwr_prox_a_oob
-        self.int_lwr_prox_a_cv = int_lwr_prox_a_cv
-        if int_upr_prox_a_cv is None:
-            int_upr_prox_a_cv = int_upr_prox_a_oob
-        self.int_upr_prox_a_cv = int_upr_prox_a_cv
+            # 3. Prediction intervals: suffixed (50, 80, 90, 95) and un-suffixed (default 95)
+            lwr_95_key = f"int_lwr_{app}_95"
+            upr_95_key = f"int_upr_{app}_95"
+            un_lwr_key = f"int_lwr_{app}"
+            un_upr_key = f"int_upr_{app}"
 
-        if u_prox_b_oob is None:
-            u_prox_b_oob = legacy_kwargs.get("u_prox_b_lower", u_prox_a_oob)
-        self.u_prox_b_oob = u_prox_b_oob
-        half_b = legacy_kwargs.get("u_prox_b_half", u_prox_b_oob)
-        if int_lwr_prox_b_oob is None:
-            int_lwr_prox_b_oob = y_hat - half_b
-        self.int_lwr_prox_b_oob = int_lwr_prox_b_oob
-        if int_upr_prox_b_oob is None:
-            int_upr_prox_b_oob = y_hat + half_b
-        self.int_upr_prox_b_oob = int_upr_prox_b_oob
+            if lwr_95_key in kwargs and kwargs[lwr_95_key] is not None:
+                lwr_95 = np.asarray(kwargs[lwr_95_key])
+            elif un_lwr_key in kwargs and kwargs[un_lwr_key] is not None:
+                lwr_95 = np.asarray(kwargs[un_lwr_key])
+            else:
+                if app in NON_PROXIMITY_APPROACHES:
+                    z95 = float(norm.ppf(0.975))
+                    lwr_95 = (self.y_hat - z95 * sigma_val).astype(np.float64)
+                else:
+                    half = kwargs.get(f"u_{app}_half", u_val)
+                    lwr_95 = (self.y_hat - half).astype(np.float64)
 
-        if u_prox_b_cv is None:
-            u_prox_b_cv = u_prox_b_oob
-        self.u_prox_b_cv = u_prox_b_cv
-        if int_lwr_prox_b_cv is None:
-            int_lwr_prox_b_cv = int_lwr_prox_b_oob
-        self.int_lwr_prox_b_cv = int_lwr_prox_b_cv
-        if int_upr_prox_b_cv is None:
-            int_upr_prox_b_cv = int_upr_prox_b_oob
-        self.int_upr_prox_b_cv = int_upr_prox_b_cv
+            if upr_95_key in kwargs and kwargs[upr_95_key] is not None:
+                upr_95 = np.asarray(kwargs[upr_95_key])
+            elif un_upr_key in kwargs and kwargs[un_upr_key] is not None:
+                upr_95 = np.asarray(kwargs[un_upr_key])
+            else:
+                if app in NON_PROXIMITY_APPROACHES:
+                    z95 = float(norm.ppf(0.975))
+                    upr_95 = (self.y_hat + z95 * sigma_val).astype(np.float64)
+                else:
+                    half = kwargs.get(f"u_{app}_half", u_val)
+                    upr_95 = (self.y_hat + half).astype(np.float64)
 
-        if u_prox_ac_oob is None:
-            u_prox_ac_oob = legacy_kwargs.get("u_prox_ac_lower", u_prox_a_oob)
-        self.u_prox_ac_oob = u_prox_ac_oob
-        half_ac = legacy_kwargs.get("u_prox_ac_half", u_prox_ac_oob)
-        if int_lwr_prox_ac_oob is None:
-            int_lwr_prox_ac_oob = y_hat - half_ac
-        self.int_lwr_prox_ac_oob = int_lwr_prox_ac_oob
-        if int_upr_prox_ac_oob is None:
-            int_upr_prox_ac_oob = y_hat + half_ac
-        self.int_upr_prox_ac_oob = int_upr_prox_ac_oob
+            setattr(self, lwr_95_key, lwr_95)
+            setattr(self, upr_95_key, upr_95)
+            setattr(self, un_lwr_key, lwr_95)
+            setattr(self, un_upr_key, upr_95)
 
-        if u_prox_ac_cv is None:
-            u_prox_ac_cv = u_prox_ac_oob
-        self.u_prox_ac_cv = u_prox_ac_cv
-        if int_lwr_prox_ac_cv is None:
-            int_lwr_prox_ac_cv = int_lwr_prox_ac_oob
-        self.int_lwr_prox_ac_cv = int_lwr_prox_ac_cv
-        if int_upr_prox_ac_cv is None:
-            int_upr_prox_ac_cv = int_upr_prox_ac_oob
-        self.int_upr_prox_ac_cv = int_upr_prox_ac_cv
+            # Other levels: 50, 80, 90
+            for lvl, sfx in [(0.50, "50"), (0.80, "80"), (0.90, "90")]:
+                lwr_sfx_key = f"int_lwr_{app}_{sfx}"
+                upr_sfx_key = f"int_upr_{app}_{sfx}"
 
-        if u_prox_bc_oob is None:
-            u_prox_bc_oob = legacy_kwargs.get("u_prox_bc_lower", u_prox_b_oob)
-        self.u_prox_bc_oob = u_prox_bc_oob
-        half_bc = legacy_kwargs.get("u_prox_bc_half", u_prox_bc_oob)
-        if int_lwr_prox_bc_oob is None:
-            int_lwr_prox_bc_oob = y_hat - half_bc
-        self.int_lwr_prox_bc_oob = int_lwr_prox_bc_oob
-        if int_upr_prox_bc_oob is None:
-            int_upr_prox_bc_oob = y_hat + half_bc
-        self.int_upr_prox_bc_oob = int_upr_prox_bc_oob
+                if lwr_sfx_key in kwargs and kwargs[lwr_sfx_key] is not None:
+                    lwr_sfx = np.asarray(kwargs[lwr_sfx_key])
+                else:
+                    if app in NON_PROXIMITY_APPROACHES:
+                        z = float(norm.ppf(1.0 - (1.0 - lvl) / 2.0))
+                        lwr_sfx = (self.y_hat - z * sigma_val).astype(np.float64)
+                    else:
+                        z_ratio = float(norm.ppf(1.0 - (1.0 - lvl) / 2.0)) / float(norm.ppf(0.975))
+                        lwr_sfx = (self.y_hat + z_ratio * (lwr_95 - self.y_hat)).astype(np.float64)
 
-        if u_prox_bc_cv is None:
-            u_prox_bc_cv = u_prox_bc_oob
-        self.u_prox_bc_cv = u_prox_bc_cv
-        if int_lwr_prox_bc_cv is None:
-            int_lwr_prox_bc_cv = int_lwr_prox_bc_oob
-        self.int_lwr_prox_bc_cv = int_lwr_prox_bc_cv
-        if int_upr_prox_bc_cv is None:
-            int_upr_prox_bc_cv = int_upr_prox_bc_oob
-        self.int_upr_prox_bc_cv = int_upr_prox_bc_cv
+                if upr_sfx_key in kwargs and kwargs[upr_sfx_key] is not None:
+                    upr_sfx = np.asarray(kwargs[upr_sfx_key])
+                else:
+                    if app in NON_PROXIMITY_APPROACHES:
+                        z = float(norm.ppf(1.0 - (1.0 - lvl) / 2.0))
+                        upr_sfx = (self.y_hat + z * sigma_val).astype(np.float64)
+                    else:
+                        z_ratio = float(norm.ppf(1.0 - (1.0 - lvl) / 2.0)) / float(norm.ppf(0.975))
+                        upr_sfx = (self.y_hat + z_ratio * (upr_95 - self.y_hat)).astype(np.float64)
 
-        self.var_between = var_between
-        self.var_within = var_within
-        self.var_total = var_total
-        self.delta_floor = delta_floor
-        self.local_mae = local_mae
-        self.q_lower = q_lower
-        self.u_hutter_between = u_hutter_between
-        self.u_hutter_within = u_hutter_within
-        self.u_shaker_total = u_shaker_total
-        self.shaker_mi = shaker_mi
-        self.shaker_total_entropy = shaker_total_entropy
-        rf_lower = legacy_kwargs.get("u_rf_fire_lower", u_rf_fire_lower)
+                setattr(self, lwr_sfx_key, lwr_sfx)
+                setattr(self, upr_sfx_key, upr_sfx)
+
+        rf_lower = kwargs.get("u_rf_fire_lower", None)
         self.u_rf_fire_lower = rf_lower if rf_lower is not None else self.u_prox_a_oob
 
     # Backward compatibility aliases
@@ -488,22 +582,65 @@ class MultiUQResult:
                 return val
         raise ValueError(f"Unknown approach '{approach}'. Valid approaches: {APPROACH_NAMES}")
 
-    def get_prediction_interval(self, approach: str) -> Tuple[np.ndarray, np.ndarray]:
+    def get_sigma(self, approach: str) -> np.ndarray:
         clean_app = approach[2:] if approach.startswith("u_") else approach
-        lwr_key = f"int_lwr_{clean_app}"
-        upr_key = f"int_upr_{clean_app}"
+        if clean_app in ("slcb", "hutter"):
+            clean_app = "hutter_total"
+        elif clean_app in ("plcb", "prox_a_lower", "prox_a"):
+            clean_app = "prox_a_oob"
+        elif clean_app in ("prox_b_lower", "prox_b"):
+            clean_app = "prox_b_oob"
+        elif clean_app in ("prox_ac_lower", "prox_ac"):
+            clean_app = "prox_ac_oob"
+        elif clean_app in ("prox_bc_lower", "prox_bc"):
+            clean_app = "prox_bc_oob"
+
+        field_name = f"sigma_{clean_app}"
+        if hasattr(self, field_name):
+            val = getattr(self, field_name)
+            if isinstance(val, np.ndarray):
+                return val
+        raise ValueError(f"Unknown approach '{approach}'. Valid approaches: {APPROACH_NAMES}")
+
+    def get_prediction_interval(self, approach: str, level: float = 0.95) -> Tuple[np.ndarray, np.ndarray]:
+        lvl_key = round(float(level), 4)
+        if lvl_key in (0.5, 0.50, 50.0):
+            suffix = "50"
+        elif lvl_key in (0.8, 0.80, 80.0):
+            suffix = "80"
+        elif lvl_key in (0.9, 0.90, 90.0):
+            suffix = "90"
+        elif lvl_key in (0.95, 95.0):
+            suffix = "95"
+        else:
+            raise ValueError(
+                f"Unsupported coverage level {level}. Supported levels: [0.50, 0.80, 0.90, 0.95]"
+            )
+
+        clean_app = approach[2:] if approach.startswith("u_") else approach
+        if clean_app in ("slcb", "hutter"):
+            clean_app = "hutter_total"
+        elif clean_app in ("plcb", "prox_a_lower", "prox_a"):
+            clean_app = "prox_a_oob"
+        elif clean_app in ("prox_b_lower", "prox_b"):
+            clean_app = "prox_b_oob"
+        elif clean_app in ("prox_ac_lower", "prox_ac"):
+            clean_app = "prox_ac_oob"
+        elif clean_app in ("prox_bc_lower", "prox_bc"):
+            clean_app = "prox_bc_oob"
+
+        lwr_key = f"int_lwr_{clean_app}_{suffix}"
+        upr_key = f"int_upr_{clean_app}_{suffix}"
+
         if hasattr(self, lwr_key) and hasattr(self, upr_key):
             return getattr(self, lwr_key), getattr(self, upr_key)
-        if clean_app == "slcb":
-            return self.int_lwr_hutter_total, self.int_upr_hutter_total
-        if clean_app in ("plcb", "prox_a_lower", "prox_a"):
-            return self.int_lwr_prox_a_oob, self.int_upr_prox_a_oob
-        if clean_app in ("prox_b_lower", "prox_b"):
-            return self.int_lwr_prox_b_oob, self.int_upr_prox_b_oob
-        if clean_app in ("prox_ac_lower", "prox_ac"):
-            return self.int_lwr_prox_ac_oob, self.int_upr_prox_ac_oob
-        if clean_app in ("prox_bc_lower", "prox_bc"):
-            return self.int_lwr_prox_bc_oob, self.int_upr_prox_bc_oob
+
+        if suffix == "95":
+            base_lwr = f"int_lwr_{clean_app}"
+            base_upr = f"int_upr_{clean_app}"
+            if hasattr(self, base_lwr) and hasattr(self, base_upr):
+                return getattr(self, base_lwr), getattr(self, base_upr)
+
         raise ValueError(f"Unknown approach '{approach}'. Valid approaches: {APPROACH_NAMES}")
 
     def __getitem__(self, key: str) -> np.ndarray:
@@ -529,38 +666,17 @@ class MultiUQResult:
         return iter(self.keys())
 
     def keys(self) -> Tuple[str, ...]:
-        k_list = [
-            "y_hat",
-            "u_hutter_total",
-            "int_lwr_hutter_total",
-            "int_upr_hutter_total",
-            "u_shaker_epistemic",
-            "int_lwr_shaker_epistemic",
-            "int_upr_shaker_epistemic",
-            "u_prox_a_oob",
-            "int_lwr_prox_a_oob",
-            "int_upr_prox_a_oob",
-            "u_prox_a_cv",
-            "int_lwr_prox_a_cv",
-            "int_upr_prox_a_cv",
-            "u_prox_b_oob",
-            "int_lwr_prox_b_oob",
-            "int_upr_prox_b_oob",
-            "u_prox_b_cv",
-            "int_lwr_prox_b_cv",
-            "int_upr_prox_b_cv",
-            "u_prox_ac_oob",
-            "int_lwr_prox_ac_oob",
-            "int_upr_prox_ac_oob",
-            "u_prox_ac_cv",
-            "int_lwr_prox_ac_cv",
-            "int_upr_prox_ac_cv",
-            "u_prox_bc_oob",
-            "int_lwr_prox_bc_oob",
-            "int_upr_prox_bc_oob",
-            "u_prox_bc_cv",
-            "int_lwr_prox_bc_cv",
-            "int_upr_prox_bc_cv",
+        k_list = ["y_hat"]
+        for app in APPROACH_NAMES:
+            k_list.append(f"u_{app}")
+            k_list.append(f"sigma_{app}")
+            k_list.append(f"int_lwr_{app}")
+            k_list.append(f"int_upr_{app}")
+            for sfx in ("50", "80", "90", "95"):
+                k_list.append(f"int_lwr_{app}_{sfx}")
+                k_list.append(f"int_upr_{app}_{sfx}")
+
+        legacy_keys = [
             "u_slcb",
             "u_plcb",
             "u_prox_a_lower",
@@ -574,6 +690,8 @@ class MultiUQResult:
             "u_prox_bc_half",
             "u_plcb_half",
         ]
+        k_list.extend(legacy_keys)
+
         diag_keys = (
             "var_between",
             "var_within",
@@ -614,6 +732,7 @@ class MultiUQResult:
         }
         for app in APPROACH_NAMES:
             d[app] = getattr(self, f"u_{app}")
+            d[f"sigma_{app}"] = getattr(self, f"sigma_{app}")
         d["u_slcb"] = self.u_hutter_total
         d["slcb"] = self.u_hutter_total
         d["u_plcb"] = self.u_prox_a_oob
@@ -939,10 +1058,24 @@ class MultiUQEvaluator:
         var_within = np.maximum(0.0, var_within)
         var_total = np.maximum(0.0, var_between + var_within)
 
-        sigma_hutter = np.sqrt(var_total)
-        u_hutter_total = (self.kappa * sigma_hutter).astype(np.float64)
-        int_lwr_hutter_total = (y_hat - u_hutter_total).astype(np.float64)
-        int_upr_hutter_total = (y_hat + u_hutter_total).astype(np.float64)
+        sigma_hutter_total = np.sqrt(var_total).astype(np.float64)
+        u_hutter_total = (self.kappa * sigma_hutter_total).astype(np.float64)
+
+        z_50 = float(norm.ppf(0.75))
+        z_80 = float(norm.ppf(0.90))
+        z_90 = float(norm.ppf(0.95))
+        z_95 = float(norm.ppf(0.975))
+
+        int_lwr_hutter_total_50 = (y_hat - z_50 * sigma_hutter_total).astype(np.float64)
+        int_upr_hutter_total_50 = (y_hat + z_50 * sigma_hutter_total).astype(np.float64)
+        int_lwr_hutter_total_80 = (y_hat - z_80 * sigma_hutter_total).astype(np.float64)
+        int_upr_hutter_total_80 = (y_hat + z_80 * sigma_hutter_total).astype(np.float64)
+        int_lwr_hutter_total_90 = (y_hat - z_90 * sigma_hutter_total).astype(np.float64)
+        int_upr_hutter_total_90 = (y_hat + z_90 * sigma_hutter_total).astype(np.float64)
+        int_lwr_hutter_total_95 = (y_hat - z_95 * sigma_hutter_total).astype(np.float64)
+        int_upr_hutter_total_95 = (y_hat + z_95 * sigma_hutter_total).astype(np.float64)
+        int_lwr_hutter_total = int_lwr_hutter_total_95
+        int_upr_hutter_total = int_upr_hutter_total_95
 
         u_hutter_between = (self.kappa * np.sqrt(var_between)).astype(np.float64)
         u_hutter_within = (self.kappa * np.sqrt(var_within)).astype(np.float64)
@@ -951,9 +1084,18 @@ class MultiUQEvaluator:
         # Group 2: Non-Proximity 2: Shaker Epistemic (Huber Mutual Information)
         # =========================================================================
         if self.eval_mode == "unweighted_proximity_only":
+            sigma_shaker_epistemic = np.zeros(M, dtype=np.float64)
             u_shaker_epistemic = np.zeros(M, dtype=np.float64)
             int_lwr_shaker_epistemic = y_hat.copy()
             int_upr_shaker_epistemic = y_hat.copy()
+            int_lwr_shaker_epistemic_50 = y_hat.copy()
+            int_upr_shaker_epistemic_50 = y_hat.copy()
+            int_lwr_shaker_epistemic_80 = y_hat.copy()
+            int_upr_shaker_epistemic_80 = y_hat.copy()
+            int_lwr_shaker_epistemic_90 = y_hat.copy()
+            int_upr_shaker_epistemic_90 = y_hat.copy()
+            int_lwr_shaker_epistemic_95 = y_hat.copy()
+            int_upr_shaker_epistemic_95 = y_hat.copy()
             shaker_mi = np.zeros(M, dtype=np.float64)
             shaker_total_entropy = np.zeros(M, dtype=np.float64)
             u_shaker_total = np.zeros(M, dtype=np.float64)
@@ -991,9 +1133,19 @@ class MultiUQEvaluator:
 
             safe_mi_exp = np.clip(2.0 * shaker_mi, 0.0, 50.0)
             sigma_epistemic = sigma_aleatoric * np.sqrt(np.maximum(2.0 ** safe_mi_exp - 1.0, 0.0))
-            u_shaker_epistemic = (self.kappa * sigma_epistemic).astype(np.float64)
-            int_lwr_shaker_epistemic = (y_hat - u_shaker_epistemic).astype(np.float64)
-            int_upr_shaker_epistemic = (y_hat + u_shaker_epistemic).astype(np.float64)
+            sigma_shaker_epistemic = sigma_epistemic.astype(np.float64)
+            u_shaker_epistemic = (self.kappa * sigma_shaker_epistemic).astype(np.float64)
+
+            int_lwr_shaker_epistemic_50 = (y_hat - z_50 * sigma_shaker_epistemic).astype(np.float64)
+            int_upr_shaker_epistemic_50 = (y_hat + z_50 * sigma_shaker_epistemic).astype(np.float64)
+            int_lwr_shaker_epistemic_80 = (y_hat - z_80 * sigma_shaker_epistemic).astype(np.float64)
+            int_upr_shaker_epistemic_80 = (y_hat + z_80 * sigma_shaker_epistemic).astype(np.float64)
+            int_lwr_shaker_epistemic_90 = (y_hat - z_90 * sigma_shaker_epistemic).astype(np.float64)
+            int_upr_shaker_epistemic_90 = (y_hat + z_90 * sigma_shaker_epistemic).astype(np.float64)
+            int_lwr_shaker_epistemic_95 = (y_hat - z_95 * sigma_shaker_epistemic).astype(np.float64)
+            int_upr_shaker_epistemic_95 = (y_hat + z_95 * sigma_shaker_epistemic).astype(np.float64)
+            int_lwr_shaker_epistemic = int_lwr_shaker_epistemic_95
+            int_upr_shaker_epistemic = int_upr_shaker_epistemic_95
 
             safe_tot_exp = np.clip(2.0 * shaker_total_entropy, -50.0, 50.0)
             entropy_power_var = (2.0 ** safe_tot_exp) / (2.0 * np.pi * np.e)
@@ -1005,40 +1157,22 @@ class MultiUQEvaluator:
         # Group 3: Proximity Approaches (8 variants: A, B, AC, BC across OOB and CV)
         # =========================================================================
         k_eff = min(self.k, N_train)
-        alpha_lwr = (1.0 - self.level) / 2.0
-        alpha_upr = 1.0 - alpha_lwr
 
-        u_prox_a_oob = np.zeros(M, dtype=np.float64)
-        int_lwr_prox_a_oob = np.zeros(M, dtype=np.float64)
-        int_upr_prox_a_oob = np.zeros(M, dtype=np.float64)
-
-        u_prox_a_cv = np.zeros(M, dtype=np.float64)
-        int_lwr_prox_a_cv = np.zeros(M, dtype=np.float64)
-        int_upr_prox_a_cv = np.zeros(M, dtype=np.float64)
-
-        u_prox_b_oob = np.zeros(M, dtype=np.float64)
-        int_lwr_prox_b_oob = np.zeros(M, dtype=np.float64)
-        int_upr_prox_b_oob = np.zeros(M, dtype=np.float64)
-
-        u_prox_b_cv = np.zeros(M, dtype=np.float64)
-        int_lwr_prox_b_cv = np.zeros(M, dtype=np.float64)
-        int_upr_prox_b_cv = np.zeros(M, dtype=np.float64)
-
-        u_prox_ac_oob = np.zeros(M, dtype=np.float64)
-        int_lwr_prox_ac_oob = np.zeros(M, dtype=np.float64)
-        int_upr_prox_ac_oob = np.zeros(M, dtype=np.float64)
-
-        u_prox_ac_cv = np.zeros(M, dtype=np.float64)
-        int_lwr_prox_ac_cv = np.zeros(M, dtype=np.float64)
-        int_upr_prox_ac_cv = np.zeros(M, dtype=np.float64)
-
-        u_prox_bc_oob = np.zeros(M, dtype=np.float64)
-        int_lwr_prox_bc_oob = np.zeros(M, dtype=np.float64)
-        int_upr_prox_bc_oob = np.zeros(M, dtype=np.float64)
-
-        u_prox_bc_cv = np.zeros(M, dtype=np.float64)
-        int_lwr_prox_bc_cv = np.zeros(M, dtype=np.float64)
-        int_upr_prox_bc_cv = np.zeros(M, dtype=np.float64)
+        prox_names = [
+            "prox_a_oob", "prox_a_cv",
+            "prox_b_oob", "prox_b_cv",
+            "prox_ac_oob", "prox_ac_cv",
+            "prox_bc_oob", "prox_bc_cv",
+        ]
+        u_prox: Dict[str, np.ndarray] = {app: np.zeros(M, dtype=np.float64) for app in prox_names}
+        int_lwr_prox: Dict[str, Dict[str, np.ndarray]] = {
+            app: {sfx: np.zeros(M, dtype=np.float64) for sfx in ("50", "80", "90", "95")}
+            for app in prox_names
+        }
+        int_upr_prox: Dict[str, Dict[str, np.ndarray]] = {
+            app: {sfx: np.zeros(M, dtype=np.float64) for sfx in ("50", "80", "90", "95")}
+            for app in prox_names
+        }
 
         q_lower = np.zeros(M, dtype=np.float64)
         delta_floor = np.zeros(M, dtype=np.float64)
@@ -1107,6 +1241,13 @@ class MultiUQEvaluator:
                 avg_test_leaf_sizes = np.maximum(avg_test_leaf_sizes, 1e-5)
                 gamma = np.maximum(1.0, (n_baseline / avg_test_leaf_sizes) ** self.density_scaling_alpha)
 
+                alpha_pairs = [
+                    ("50", 0.25, 0.75),
+                    ("80", 0.10, 0.90),
+                    ("90", 0.05, 0.95),
+                    ("95", 0.025, 0.975),
+                ]
+
                 for pool in ("oob", "cv"):
                     pool_residuals = oob_res if pool == "oob" else cv_res
 
@@ -1123,64 +1264,54 @@ class MultiUQEvaluator:
                     else:
                         k_residuals = np.broadcast_to(pool_residuals[None, :], (b_len, N_train))
 
-                    q_lwr_a = np.quantile(k_residuals, alpha_lwr, axis=1)
-                    q_upr_a = np.quantile(k_residuals, alpha_upr, axis=1)
+                    app_a = f"prox_a_{pool}"
+                    app_ac = f"prox_ac_{pool}"
+                    app_b = f"prox_b_{pool}"
+                    app_bc = f"prox_bc_{pool}"
 
-                    delta_lwr_a = np.maximum(0.0, -q_lwr_a)
-                    delta_upr_a = np.maximum(0.0, q_upr_a)
+                    for sfx, a_lwr, a_upr in alpha_pairs:
+                        # Method A quantiles
+                        q_lwr_a = np.quantile(k_residuals, a_lwr, axis=1)
+                        q_upr_a = np.quantile(k_residuals, a_upr, axis=1)
 
-                    u_a = delta_lwr_a
-                    int_lwr_a = y_hat_chunk - delta_lwr_a
-                    int_upr_a = y_hat_chunk + delta_upr_a
+                        # UNCAPPED prediction intervals
+                        int_lwr_prox[app_a][sfx][start:end] = y_hat_chunk + q_lwr_a
+                        int_upr_prox[app_a][sfx][start:end] = y_hat_chunk + q_upr_a
 
-                    # Method AC: Density scaled Method A
-                    delta_lwr_ac = gamma * delta_lwr_a
-                    delta_upr_ac = gamma * delta_upr_a
-                    u_ac = delta_lwr_ac
-                    int_lwr_ac = y_hat_chunk - delta_lwr_ac
-                    int_upr_ac = y_hat_chunk + delta_upr_ac
+                        int_lwr_prox[app_ac][sfx][start:end] = y_hat_chunk + gamma * q_lwr_a
+                        int_upr_prox[app_ac][sfx][start:end] = y_hat_chunk + gamma * q_upr_a
 
-                    # Method B: Continuous weighted quantiles
-                    q_lwr_b = self.uq_model._compute_weighted_quantile(pool_residuals, prox_pool, alpha_lwr)
-                    q_upr_b = self.uq_model._compute_weighted_quantile(pool_residuals, prox_pool, alpha_upr)
-                    if hasattr(q_lwr_b, "get"):
-                        q_lwr_b = q_lwr_b.get()
-                    if hasattr(q_upr_b, "get"):
-                        q_upr_b = q_upr_b.get()
+                        if sfx == "95":
+                            # Scalar exploration term preserves zero-cap: max(0, -q)
+                            u_prox[app_a][start:end] = np.maximum(0.0, -q_lwr_a)
+                            u_prox[app_ac][start:end] = gamma * np.maximum(0.0, -q_lwr_a)
 
-                    delta_lwr_b = np.maximum(0.0, -q_lwr_b)
-                    delta_upr_b = np.maximum(0.0, q_upr_b)
+                        # Method B quantiles (continuous weighted)
+                        q_lwr_b = self.uq_model._compute_weighted_quantile(pool_residuals, prox_pool, a_lwr)
+                        q_upr_b = self.uq_model._compute_weighted_quantile(pool_residuals, prox_pool, a_upr)
+                        if hasattr(q_lwr_b, "get"):
+                            q_lwr_b = q_lwr_b.get()
+                        if hasattr(q_upr_b, "get"):
+                            q_upr_b = q_upr_b.get()
+                        q_lwr_b = np.asarray(q_lwr_b, dtype=np.float64)
+                        q_upr_b = np.asarray(q_upr_b, dtype=np.float64)
 
-                    u_b = delta_lwr_b
-                    int_lwr_b = y_hat_chunk - delta_lwr_b
-                    int_upr_b = y_hat_chunk + delta_upr_b
+                        # UNCAPPED prediction intervals
+                        int_lwr_prox[app_b][sfx][start:end] = y_hat_chunk + q_lwr_b
+                        int_upr_prox[app_b][sfx][start:end] = y_hat_chunk + q_upr_b
 
-                    # Method BC: Density scaled Method B
-                    delta_lwr_bc = gamma * delta_lwr_b
-                    delta_upr_bc = gamma * delta_upr_b
-                    u_bc = delta_lwr_bc
-                    int_lwr_bc = y_hat_chunk - delta_lwr_bc
-                    int_upr_bc = y_hat_chunk + delta_upr_bc
+                        int_lwr_prox[app_bc][sfx][start:end] = y_hat_chunk + gamma * q_lwr_b
+                        int_upr_prox[app_bc][sfx][start:end] = y_hat_chunk + gamma * q_upr_b
+
+                        if sfx == "95":
+                            u_prox[app_b][start:end] = np.maximum(0.0, -q_lwr_b)
+                            u_prox[app_bc][start:end] = gamma * np.maximum(0.0, -q_lwr_b)
 
                     if pool == "oob":
-                        u_prox_a_oob[start:end] = u_a
-                        int_lwr_prox_a_oob[start:end] = int_lwr_a
-                        int_upr_prox_a_oob[start:end] = int_upr_a
-
-                        u_prox_b_oob[start:end] = u_b
-                        int_lwr_prox_b_oob[start:end] = int_lwr_b
-                        int_upr_prox_b_oob[start:end] = int_upr_b
-
-                        u_prox_ac_oob[start:end] = u_ac
-                        int_lwr_prox_ac_oob[start:end] = int_lwr_ac
-                        int_upr_prox_ac_oob[start:end] = int_upr_ac
-
-                        u_prox_bc_oob[start:end] = u_bc
-                        int_lwr_prox_bc_oob[start:end] = int_lwr_bc
-                        int_upr_prox_bc_oob[start:end] = int_upr_bc
-
-                        # Diagnostics from OOB Method A
-                        in_int_topo_u = (k_residuals >= q_lwr_a[:, None]) & (k_residuals <= q_upr_a[:, None])
+                        # Diagnostics from OOB Method A at 95%
+                        q_lwr_a_95 = np.quantile(k_residuals, 0.025, axis=1)
+                        q_upr_a_95 = np.quantile(k_residuals, 0.975, axis=1)
+                        in_int_topo_u = (k_residuals >= q_lwr_a_95[:, None]) & (k_residuals <= q_upr_a_95[:, None])
                         cnt_topo_u = np.sum(in_int_topo_u, axis=1)
                         sum_abs_topo_u = np.sum(np.abs(k_residuals) * in_int_topo_u, axis=1)
                         b_local_mae_u = np.where(
@@ -1190,25 +1321,9 @@ class MultiUQEvaluator:
                         )
                         b_delta_floor_u = self.epsilon * self.kappa * b_local_mae_u
 
-                        q_lower[start:end] = q_lwr_a
+                        q_lower[start:end] = q_lwr_a_95
                         delta_floor[start:end] = b_delta_floor_u
                         local_mae[start:end] = b_local_mae_u
-                    else:
-                        u_prox_a_cv[start:end] = u_a
-                        int_lwr_prox_a_cv[start:end] = int_lwr_a
-                        int_upr_prox_a_cv[start:end] = int_upr_a
-
-                        u_prox_b_cv[start:end] = u_b
-                        int_lwr_prox_b_cv[start:end] = int_lwr_b
-                        int_upr_prox_b_cv[start:end] = int_upr_b
-
-                        u_prox_ac_cv[start:end] = u_ac
-                        int_lwr_prox_ac_cv[start:end] = int_lwr_ac
-                        int_upr_prox_ac_cv[start:end] = int_upr_ac
-
-                        u_prox_bc_cv[start:end] = u_bc
-                        int_lwr_prox_bc_cv[start:end] = int_lwr_bc
-                        int_upr_prox_bc_cv[start:end] = int_upr_bc
 
                 # RF-FIRE lower quantile
                 if valid_oob_mask is not None:
@@ -1222,82 +1337,90 @@ class MultiUQEvaluator:
                     k_residuals_fire = oob_res[partition_idx_fire]
                 else:
                     k_residuals_fire = np.broadcast_to(oob_res[None, :], (b_len, N_train))
-                q_lwr_fire = np.quantile(k_residuals_fire, alpha_lwr, axis=1)
+                q_lwr_fire = np.quantile(k_residuals_fire, 0.025, axis=1)
                 u_rf_fire_lower[start:end] = np.maximum(0.0, -q_lwr_fire)
         else:
-            y_pred_lwr, y_pred_mid, y_pred_upr, b_local_mae = self.uq_model.predict_with_intervals(
-                X_test_2d,
-                n_neighbors=k_eff,
-                level=self.level,
-                return_mae=True,
-            )
-            delta_lwr = np.maximum(0.0, y_hat - y_pred_lwr)
-            delta_upr = np.maximum(0.0, y_pred_upr - y_hat)
-            u_fb = delta_lwr
-            int_lwr_fb = y_hat - delta_lwr
-            int_upr_fb = y_hat + delta_upr
+            for lvl, sfx in [(0.50, "50"), (0.80, "80"), (0.90, "90"), (0.95, "95")]:
+                y_pred_lwr, y_pred_mid, y_pred_upr, b_local_mae = self.uq_model.predict_with_intervals(
+                    X_test_2d,
+                    n_neighbors=k_eff,
+                    level=lvl,
+                    return_mae=True,
+                )
+                lwr_fb = np.asarray(y_pred_lwr, dtype=np.float64)
+                upr_fb = np.asarray(y_pred_upr, dtype=np.float64)
 
-            for arr in (u_prox_a_oob, u_prox_a_cv, u_prox_b_oob, u_prox_b_cv,
-                        u_prox_ac_oob, u_prox_ac_cv, u_prox_bc_oob, u_prox_bc_cv):
-                arr[:] = u_fb
-            for arr in (int_lwr_prox_a_oob, int_lwr_prox_a_cv, int_lwr_prox_b_oob, int_lwr_prox_b_cv,
-                        int_lwr_prox_ac_oob, int_lwr_prox_ac_cv, int_lwr_prox_bc_oob, int_lwr_prox_bc_cv):
-                arr[:] = int_lwr_fb
-            for arr in (int_upr_prox_a_oob, int_upr_prox_a_cv, int_upr_prox_b_oob, int_upr_prox_b_cv,
-                        int_upr_prox_ac_oob, int_upr_prox_ac_cv, int_upr_prox_bc_oob, int_upr_prox_bc_cv):
-                arr[:] = int_upr_fb
+                for app in prox_names:
+                    int_lwr_prox[app][sfx][:] = lwr_fb
+                    int_upr_prox[app][sfx][:] = upr_fb
 
-            ref_mid = y_pred_mid if y_pred_mid is not None else y_hat
-            q_lower[:] = np.asarray(y_pred_lwr - ref_mid, dtype=np.float64)
-            local_mae[:] = np.asarray(b_local_mae, dtype=np.float64)
-            delta_floor[:] = self.epsilon * self.kappa * local_mae
-            u_rf_fire_lower[:] = u_fb
+                if sfx == "95":
+                    u_fb = np.maximum(0.0, y_hat - lwr_fb)
+                    for app in prox_names:
+                        u_prox[app][:] = u_fb
 
-        return MultiUQResult(
-            y_hat=y_hat,
-            u_hutter_total=u_hutter_total,
-            int_lwr_hutter_total=int_lwr_hutter_total,
-            int_upr_hutter_total=int_upr_hutter_total,
-            u_shaker_epistemic=u_shaker_epistemic,
-            int_lwr_shaker_epistemic=int_lwr_shaker_epistemic,
-            int_upr_shaker_epistemic=int_upr_shaker_epistemic,
-            u_prox_a_oob=u_prox_a_oob,
-            int_lwr_prox_a_oob=int_lwr_prox_a_oob,
-            int_upr_prox_a_oob=int_upr_prox_a_oob,
-            u_prox_a_cv=u_prox_a_cv,
-            int_lwr_prox_a_cv=int_lwr_prox_a_cv,
-            int_upr_prox_a_cv=int_upr_prox_a_cv,
-            u_prox_b_oob=u_prox_b_oob,
-            int_lwr_prox_b_oob=int_lwr_prox_b_oob,
-            int_upr_prox_b_oob=int_upr_prox_b_oob,
-            u_prox_b_cv=u_prox_b_cv,
-            int_lwr_prox_b_cv=int_lwr_prox_b_cv,
-            int_upr_prox_b_cv=int_upr_prox_b_cv,
-            u_prox_ac_oob=u_prox_ac_oob,
-            int_lwr_prox_ac_oob=int_lwr_prox_ac_oob,
-            int_upr_prox_ac_oob=int_upr_prox_ac_oob,
-            u_prox_ac_cv=u_prox_ac_cv,
-            int_lwr_prox_ac_cv=int_lwr_prox_ac_cv,
-            int_upr_prox_ac_cv=int_upr_prox_ac_cv,
-            u_prox_bc_oob=u_prox_bc_oob,
-            int_lwr_prox_bc_oob=int_lwr_prox_bc_oob,
-            int_upr_prox_bc_oob=int_upr_prox_bc_oob,
-            u_prox_bc_cv=u_prox_bc_cv,
-            int_lwr_prox_bc_cv=int_lwr_prox_bc_cv,
-            int_upr_prox_bc_cv=int_upr_prox_bc_cv,
-            var_between=var_between,
-            var_within=var_within,
-            var_total=var_total,
-            delta_floor=delta_floor,
-            local_mae=local_mae,
-            q_lower=q_lower,
-            u_hutter_between=u_hutter_between,
-            u_hutter_within=u_hutter_within,
-            u_shaker_total=u_shaker_total,
-            shaker_mi=shaker_mi,
-            shaker_total_entropy=shaker_total_entropy,
-            u_rf_fire_lower=u_rf_fire_lower,
-        )
+                    ref_mid = y_pred_mid if y_pred_mid is not None else y_hat
+                    q_lower[:] = np.asarray(lwr_fb - ref_mid, dtype=np.float64)
+                    local_mae[:] = np.asarray(b_local_mae, dtype=np.float64)
+                    delta_floor[:] = self.epsilon * self.kappa * local_mae
+                    u_rf_fire_lower[:] = u_fb
+
+        sigma_prox: Dict[str, np.ndarray] = {
+            app: (u_prox[app] / 1.96).astype(np.float64) for app in prox_names
+        }
+
+        result_kwargs: Dict[str, Any] = {
+            "y_hat": y_hat,
+            "u_hutter_total": u_hutter_total,
+            "sigma_hutter_total": sigma_hutter_total,
+            "int_lwr_hutter_total": int_lwr_hutter_total,
+            "int_upr_hutter_total": int_upr_hutter_total,
+            "int_lwr_hutter_total_50": int_lwr_hutter_total_50,
+            "int_upr_hutter_total_50": int_upr_hutter_total_50,
+            "int_lwr_hutter_total_80": int_lwr_hutter_total_80,
+            "int_upr_hutter_total_80": int_upr_hutter_total_80,
+            "int_lwr_hutter_total_90": int_lwr_hutter_total_90,
+            "int_upr_hutter_total_90": int_upr_hutter_total_90,
+            "int_lwr_hutter_total_95": int_lwr_hutter_total_95,
+            "int_upr_hutter_total_95": int_upr_hutter_total_95,
+
+            "u_shaker_epistemic": u_shaker_epistemic,
+            "sigma_shaker_epistemic": sigma_shaker_epistemic,
+            "int_lwr_shaker_epistemic": int_lwr_shaker_epistemic,
+            "int_upr_shaker_epistemic": int_upr_shaker_epistemic,
+            "int_lwr_shaker_epistemic_50": int_lwr_shaker_epistemic_50,
+            "int_upr_shaker_epistemic_50": int_upr_shaker_epistemic_50,
+            "int_lwr_shaker_epistemic_80": int_lwr_shaker_epistemic_80,
+            "int_upr_shaker_epistemic_80": int_upr_shaker_epistemic_80,
+            "int_lwr_shaker_epistemic_90": int_lwr_shaker_epistemic_90,
+            "int_upr_shaker_epistemic_90": int_upr_shaker_epistemic_90,
+            "int_lwr_shaker_epistemic_95": int_lwr_shaker_epistemic_95,
+            "int_upr_shaker_epistemic_95": int_upr_shaker_epistemic_95,
+
+            "var_between": var_between,
+            "var_within": var_within,
+            "var_total": var_total,
+            "delta_floor": delta_floor,
+            "local_mae": local_mae,
+            "q_lower": q_lower,
+            "u_hutter_between": u_hutter_between,
+            "u_hutter_within": u_hutter_within,
+            "u_shaker_total": u_shaker_total,
+            "shaker_mi": shaker_mi,
+            "shaker_total_entropy": shaker_total_entropy,
+            "u_rf_fire_lower": u_rf_fire_lower,
+        }
+
+        for app in prox_names:
+            result_kwargs[f"u_{app}"] = u_prox[app]
+            result_kwargs[f"sigma_{app}"] = sigma_prox[app]
+            result_kwargs[f"int_lwr_{app}"] = int_lwr_prox[app]["95"]
+            result_kwargs[f"int_upr_{app}"] = int_upr_prox[app]["95"]
+            for sfx in ("50", "80", "90", "95"):
+                result_kwargs[f"int_lwr_{app}_{sfx}"] = int_lwr_prox[app][sfx]
+                result_kwargs[f"int_upr_{app}_{sfx}"] = int_upr_prox[app][sfx]
+
+        return MultiUQResult(**result_kwargs)
 
 
 class DualUQEvaluator(MultiUQEvaluator):

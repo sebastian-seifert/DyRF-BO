@@ -5,8 +5,13 @@ Tests the 10 evaluated approaches:
 - 8 Proximity: prox_a_oob, prox_a_cv, prox_b_oob, prox_b_cv,
                prox_ac_oob, prox_ac_cv, prox_bc_oob, prox_bc_cv
 
-Validates mathematical invariants, prediction intervals, symmetry,
-non-negativity, 5-fold CV residual extraction and fallback, and unit consistency.
+Validates:
+1. Multi-level prediction intervals across 4 coverage levels: {0.50, 0.80, 0.90, 0.95}.
+2. Suffix convention (e.g. int_lwr_hutter_total_50, int_lwr_prox_a_oob_95) and un-suffixed default (95%).
+3. Pure sigma extraction for all 10 approaches via get_sigma() and sigma_* attributes.
+4. Uncapped proximity prediction intervals (no zero-capping at mu_hat; L can be > mu_hat when residuals > 0).
+5. Monotonic non-decreasing interval width across coverage levels.
+6. 5-fold CV residual extraction and fallback, and unit consistency.
 """
 
 from __future__ import annotations
@@ -14,10 +19,11 @@ from __future__ import annotations
 import os
 import sys
 import warnings
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 import pytest
+from scipy.stats import norm
 
 # Ensure repository root is on sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -57,6 +63,9 @@ PROXIMITY_APPROACHES: List[str] = [
     "prox_bc_cv",
 ]
 
+COVERAGE_LEVELS: List[float] = [0.50, 0.80, 0.90, 0.95]
+COVERAGE_SUFFIXES: Dict[float, str] = {0.50: "50", 0.80: "80", 0.90: "90", 0.95: "95"}
+
 
 @pytest.fixture
 def synthetic_data():
@@ -72,7 +81,7 @@ def synthetic_data():
 class TestExtrapolationUQRedesign:
     """Verifies all redesign requirements for MultiUQEvaluator and MultiUQResult."""
 
-    def test_all_10_approaches_present_with_intervals_and_uncertainties(self, synthetic_data):
+    def test_all_10_approaches_present_with_multi_level_intervals_and_sigmas(self, synthetic_data):
         X_train, y_train, X_test = synthetic_data
         M = X_test.shape[0]
 
@@ -90,96 +99,240 @@ class TestExtrapolationUQRedesign:
         assert set(approaches) == set(EXPECTED_APPROACHES)
         assert len(approaches) == 10
 
-        # Check all 10 approaches have u_*, int_lwr_*, int_upr_*
+        # Check all 10 approaches have u_*, sigma_*, un-suffixed int_lwr/int_upr, and 4-level suffixed intervals
         for app in EXPECTED_APPROACHES:
             u_field = f"u_{app}"
+            sigma_field = f"sigma_{app}"
             lwr_field = f"int_lwr_{app}"
             upr_field = f"int_upr_{app}"
 
             assert hasattr(res, u_field), f"Missing {u_field} on MultiUQResult"
+            assert hasattr(res, sigma_field), f"Missing {sigma_field} on MultiUQResult"
             assert hasattr(res, lwr_field), f"Missing {lwr_field} on MultiUQResult"
             assert hasattr(res, upr_field), f"Missing {upr_field} on MultiUQResult"
 
             u_arr = getattr(res, u_field)
+            sigma_arr = getattr(res, sigma_field)
             lwr_arr = getattr(res, lwr_field)
             upr_arr = getattr(res, upr_field)
 
             assert isinstance(u_arr, np.ndarray), f"{u_field} must be np.ndarray"
+            assert isinstance(sigma_arr, np.ndarray), f"{sigma_field} must be np.ndarray"
             assert isinstance(lwr_arr, np.ndarray), f"{lwr_field} must be np.ndarray"
             assert isinstance(upr_arr, np.ndarray), f"{upr_field} must be np.ndarray"
 
             assert u_arr.shape == (M,), f"{u_field} shape mismatch: {u_arr.shape} != ({M},)"
+            assert sigma_arr.shape == (M,), f"{sigma_field} shape mismatch: {sigma_arr.shape} != ({M},)"
             assert lwr_arr.shape == (M,), f"{lwr_field} shape mismatch: {lwr_arr.shape} != ({M},)"
             assert upr_arr.shape == (M,), f"{upr_field} shape mismatch: {upr_arr.shape} != ({M},)"
 
             assert np.all(np.isfinite(u_arr)), f"{u_field} has non-finite values"
+            assert np.all(np.isfinite(sigma_arr)), f"{sigma_field} has non-finite values"
+            assert np.all(sigma_arr >= 0.0), f"{sigma_field} must be non-negative"
             assert np.all(np.isfinite(lwr_arr)), f"{lwr_field} has non-finite values"
             assert np.all(np.isfinite(upr_arr)), f"{upr_field} has non-finite values"
 
+            # Check suffixed multi-level intervals
+            for lvl, sfx in COVERAGE_SUFFIXES.items():
+                lwr_sfx_name = f"int_lwr_{app}_{sfx}"
+                upr_sfx_name = f"int_upr_{app}_{sfx}"
+                assert hasattr(res, lwr_sfx_name), f"Missing {lwr_sfx_name} on MultiUQResult"
+                assert hasattr(res, upr_sfx_name), f"Missing {upr_sfx_name} on MultiUQResult"
+
+                lwr_sfx = getattr(res, lwr_sfx_name)
+                upr_sfx = getattr(res, upr_sfx_name)
+
+                assert isinstance(lwr_sfx, np.ndarray), f"{lwr_sfx_name} must be np.ndarray"
+                assert isinstance(upr_sfx, np.ndarray), f"{upr_sfx_name} must be np.ndarray"
+                assert lwr_sfx.shape == (M,)
+                assert upr_sfx.shape == (M,)
+                assert np.all(np.isfinite(lwr_sfx))
+                assert np.all(np.isfinite(upr_sfx))
+
+                # Check get_prediction_interval(approach, level=lvl)
+                lwr_from_method, upr_from_method = res.get_prediction_interval(app, level=lvl)
+                np.testing.assert_array_equal(lwr_from_method, lwr_sfx)
+                np.testing.assert_array_equal(upr_from_method, upr_sfx)
+
+            # Un-suffixed default must match 95% level
+            np.testing.assert_array_equal(lwr_arr, getattr(res, f"int_lwr_{app}_95"))
+            np.testing.assert_array_equal(upr_arr, getattr(res, f"int_upr_{app}_95"))
+
             # Check convenience methods
             u_method = res.get_uncertainty(app)
-            lwr_method, upr_method = res.get_prediction_interval(app)
+            sigma_method = res.get_sigma(app)
+            lwr_method, upr_method = res.get_prediction_interval(app)  # default 0.95
             np.testing.assert_array_equal(u_method, u_arr)
+            np.testing.assert_array_equal(sigma_method, sigma_arr)
             np.testing.assert_array_equal(lwr_method, lwr_arr)
             np.testing.assert_array_equal(upr_method, upr_arr)
 
-    def test_intervals_ordering_lwr_le_upr(self, synthetic_data):
-        """Assert that L_m(x) <= U_m(x) for all 10 approaches."""
+    def test_intervals_ordering_lwr_le_upr_all_levels(self, synthetic_data):
+        """Assert that L_m(x) <= U_m(x) for all 10 approaches across all 4 coverage levels."""
         X_train, y_train, X_test = synthetic_data
         evaluator = MultiUQEvaluator(seed=42, n_trees=10, k=20, device="cpu").fit(X_train, y_train)
         res = evaluator.evaluate(X_test)
 
         for app in EXPECTED_APPROACHES:
-            lwr, upr = res.get_prediction_interval(app)
-            assert np.all(lwr <= upr + 1e-10), f"Interval violated L <= U for approach {app}"
+            for lvl in COVERAGE_LEVELS:
+                lwr, upr = res.get_prediction_interval(app, level=lvl)
+                assert np.all(lwr <= upr + 1e-10), f"Interval violated L <= U for approach {app} at level {lvl}"
 
-    def test_non_proximity_intervals_symmetric(self, synthetic_data):
-        """Assert that non-proximity intervals are symmetric: L = mu - u and U = mu + u."""
+    def test_interval_width_monotonic_with_coverage(self, synthetic_data):
+        """Assert that interval width is monotonically non-decreasing with coverage:
+        (U_0.95 - L_0.95) >= (U_0.90 - L_0.90) >= (U_0.80 - L_0.80) >= (U_0.50 - L_0.50).
+        """
+        X_train, y_train, X_test = synthetic_data
+        evaluator = MultiUQEvaluator(seed=42, n_trees=10, k=20, device="cpu").fit(X_train, y_train)
+        res = evaluator.evaluate(X_test)
+
+        for app in EXPECTED_APPROACHES:
+            widths = []
+            for lvl in COVERAGE_LEVELS:
+                lwr, upr = res.get_prediction_interval(app, level=lvl)
+                width = upr - lwr
+                assert np.all(width >= -1e-10), f"Negative interval width for {app} at level {lvl}"
+                widths.append(width)
+
+            # Check (U_50 - L_50) <= (U_80 - L_80) <= (U_90 - L_90) <= (U_95 - L_95)
+            for i in range(len(widths) - 1):
+                lvl_curr, lvl_next = COVERAGE_LEVELS[i], COVERAGE_LEVELS[i + 1]
+                diff = widths[i + 1] - widths[i]
+                assert np.all(diff >= -1e-10), (
+                    f"Interval width not non-decreasing for approach {app} "
+                    f"between level {lvl_curr} and {lvl_next}: min diff = {np.min(diff)}"
+                )
+
+    def test_non_proximity_multi_level_gaussian_intervals(self, synthetic_data):
+        """Assert that non-proximity intervals match exact Gaussian multipliers:
+        L = mu - z_level * sigma and U = mu + z_level * sigma.
+        """
         X_train, y_train, X_test = synthetic_data
         evaluator = MultiUQEvaluator(seed=42, n_trees=10, k=20, device="cpu").fit(X_train, y_train)
         res = evaluator.evaluate(X_test)
 
         for app in NON_PROXIMITY_APPROACHES:
-            u_m = res.get_uncertainty(app)
-            lwr, upr = res.get_prediction_interval(app)
+            sigma = res.get_sigma(app)
+            for lvl in COVERAGE_LEVELS:
+                z_level = float(norm.ppf(1.0 - (1.0 - lvl) / 2.0))
+                lwr, upr = res.get_prediction_interval(app, level=lvl)
 
-            np.testing.assert_allclose(
-                lwr,
-                res.y_hat - u_m,
-                rtol=1e-6,
-                atol=1e-7,
-                err_msg=f"Symmetry failed for lower bound in non-proximity approach {app}",
+                np.testing.assert_allclose(
+                    lwr,
+                    res.y_hat - z_level * sigma,
+                    rtol=1e-5,
+                    atol=1e-7,
+                    err_msg=f"Lower interval mismatch for non-proximity approach {app} at level {lvl}",
+                )
+                np.testing.assert_allclose(
+                    upr,
+                    res.y_hat + z_level * sigma,
+                    rtol=1e-5,
+                    atol=1e-7,
+                    err_msg=f"Upper interval mismatch for non-proximity approach {app} at level {lvl}",
+                )
+
+    def test_proximity_intervals_uncapped_above_mean(self):
+        """Assert that proximity intervals are NOT artificially capped at mu_hat.
+        When local residuals are strictly positive, L = mu_hat + gamma * q_lwr > mu_hat.
+        """
+        rng = np.random.default_rng(42)
+        N_train, D, M_test = 20, 2, 5
+        X_train = rng.uniform(-1.0, 1.0, size=(N_train, D))
+        y_train = rng.normal(0, 1, size=N_train)
+        X_test = rng.uniform(-1.0, 1.0, size=(M_test, D))
+
+        evaluator = MultiUQEvaluator(seed=42, n_trees=5, k=10, device="cpu")
+        evaluator.fit(X_train, y_train)
+
+        # Inject strictly positive residuals with spread
+        evaluator.oob_res_ = np.linspace(2.0, 5.0, N_train, dtype=np.float64)
+        evaluator.cv_res_ = np.linspace(2.0, 5.0, N_train, dtype=np.float64)
+
+        res = evaluator.evaluate(X_test)
+
+        for app in PROXIMITY_APPROACHES:
+            lwr, upr = res.get_prediction_interval(app, level=0.95)
+            u = res.get_uncertainty(app)
+
+            # Prediction intervals must reflect positive residuals (L > mu_hat)
+            assert np.all(lwr > res.y_hat), (
+                f"Lower interval artificially capped at mu_hat for approach {app}! "
+                f"lwr - y_hat = {lwr - res.y_hat}"
             )
+            assert np.all(upr > lwr)
+
+            # Scalar exploration term u(x) maintains the zero-cap: max(0, -q) = 0
             np.testing.assert_allclose(
-                upr,
-                res.y_hat + u_m,
-                rtol=1e-6,
-                atol=1e-7,
-                err_msg=f"Symmetry failed for upper bound in non-proximity approach {app}",
+                u,
+                np.zeros_like(u),
+                atol=1e-10,
+                err_msg=f"Exploration bonus u(x) should be 0 when residuals are all positive for {app}",
             )
 
-    def test_proximity_uncertainty_equals_lower_interval_value(self, synthetic_data):
-        """Assert that proximity uncertainty equals the lower interval value: u_m = mu - L_m >= 0."""
+    def test_proximity_uncertainty_floored_lower_interval_relationship(self, synthetic_data):
+        """Assert relationship between proximity uncertainty and lower interval bound:
+        u_m = max(0, mu - L_m) >= 0.
+        """
         X_train, y_train, X_test = synthetic_data
         evaluator = MultiUQEvaluator(seed=42, n_trees=10, k=20, device="cpu").fit(X_train, y_train)
         res = evaluator.evaluate(X_test)
 
         for app in PROXIMITY_APPROACHES:
             u_m = res.get_uncertainty(app)
-            lwr, _ = res.get_prediction_interval(app)
+            lwr, _ = res.get_prediction_interval(app, level=0.95)
 
             # u_m must be non-negative
             assert np.all(u_m >= -1e-12), f"Negative uncertainty found in proximity approach {app}: min={np.min(u_m)}"
 
-            # u_m must equal y_hat - L_m
-            lower_interval_value = res.y_hat - lwr
+            # u_m must equal max(0, y_hat - L_m)
+            expected_u = np.maximum(0.0, res.y_hat - lwr)
             np.testing.assert_allclose(
                 u_m,
-                lower_interval_value,
+                expected_u,
                 rtol=1e-6,
                 atol=1e-7,
-                err_msg=f"Proximity uncertainty u_m != mu - L_m for approach {app}",
+                err_msg=f"Proximity uncertainty u_m != max(0, mu - L_m) for approach {app}",
             )
+
+    def test_pure_sigma_extraction_all_approaches(self, synthetic_data):
+        """Assert pure sigma extraction across all 10 approaches and alias consistency."""
+        X_train, y_train, X_test = synthetic_data
+        evaluator = MultiUQEvaluator(seed=42, n_trees=10, k=20, device="cpu").fit(X_train, y_train)
+        res = evaluator.evaluate(X_test)
+
+        # 1. Non-proximity: hutter_total (sigma = sqrt(var_total))
+        sigma_hutter = res.get_sigma("hutter_total")
+        np.testing.assert_allclose(
+            sigma_hutter,
+            np.sqrt(np.maximum(res.var_total, 0.0)),
+            rtol=1e-6,
+            atol=1e-8,
+        )
+        np.testing.assert_array_equal(res.sigma_hutter_total, sigma_hutter)
+        # Check alias 'slcb'
+        np.testing.assert_array_equal(res.get_sigma("slcb"), sigma_hutter)
+
+        # 2. Non-proximity: shaker_epistemic (sigma = sigma_epistemic)
+        sigma_shaker = res.get_sigma("shaker_epistemic")
+        assert np.all(sigma_shaker >= 0.0)
+        np.testing.assert_array_equal(res.sigma_shaker_epistemic, sigma_shaker)
+        np.testing.assert_allclose(res.u_shaker_epistemic, 1.96 * sigma_shaker, rtol=1e-5)
+
+        # 3. Proximity approaches: sigma_app = u_app / 1.96
+        for app in PROXIMITY_APPROACHES:
+            sigma_app = res.get_sigma(app)
+            assert np.all(sigma_app >= 0.0)
+            sigma_attr = getattr(res, f"sigma_{app}")
+            np.testing.assert_array_equal(sigma_app, sigma_attr)
+            np.testing.assert_allclose(sigma_app, res.get_uncertainty(app) / 1.96, rtol=1e-5)
+
+        # 4. Check aliases
+        np.testing.assert_array_equal(res.get_sigma("prox_a"), res.sigma_prox_a_oob)
+        np.testing.assert_array_equal(res.get_sigma("plcb"), res.sigma_prox_a_oob)
+        np.testing.assert_array_equal(res.get_sigma("prox_b"), res.sigma_prox_b_oob)
+        np.testing.assert_array_equal(res.get_sigma("prox_ac"), res.sigma_prox_ac_oob)
+        np.testing.assert_array_equal(res.get_sigma("prox_bc"), res.sigma_prox_bc_oob)
 
     def test_five_fold_cv_residual_extraction(self, synthetic_data):
         """Assert that 5-fold CV produces valid out-of-fold residuals."""
@@ -331,4 +484,3 @@ class TestExtrapolationUQRedesign:
         lwr_b_cv, upr_b_cv = res.get_prediction_interval("prox_b_cv")
         delta_upr_b_cv = upr_b_cv - res.y_hat
         assert np.all(delta_upr_b_cv > 0.0), f"CV proximities were masked; delta_upr collapsed: {delta_upr_b_cv}"
-
