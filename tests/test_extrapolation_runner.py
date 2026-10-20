@@ -342,9 +342,9 @@ class TestRunSingleExperiment:
 
     @pytest.mark.parametrize(
         "surrogate_type",
-        ["smac_default", "mature", "shallow", "coarse", "breiman"],
+        ["smac_default", "mature", "shallow", "coarse"],
     )
-    def test_all_five_surrogate_types_run_single_experiment(self, tmp_path, surrogate_type):
+    def test_all_four_surrogate_types_run_single_experiment(self, tmp_path, surrogate_type):
         config = ExtrapolationRunConfig(
             dimension=2,
             n_train=20,

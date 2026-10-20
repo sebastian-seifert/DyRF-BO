@@ -105,7 +105,7 @@ class TestRunExperimentParser:
             "--strategy", "natural",
             "--seed", "0",
         ]
-        for surr in ["smac_default", "mature", "shallow", "coarse", "breiman"]:
+        for surr in ["smac_default", "mature", "shallow", "coarse"]:
             # Test --surrogate
             args1 = parser.parse_args(base_cmd + ["--surrogate", surr])
             assert args1.surrogate == surr
@@ -453,21 +453,21 @@ class TestRunExperimentExecution:
             "--n-test", "60",
             "--k", "28",
             "--n-trees", "5",
-            "--surrogate", "breiman",
+            "--surrogate", "shallow",
             "--output-dir", str(raw_dir),
             "--summary-dir", str(sum_dir),
         ]
         ret = main_run_experiment(argv)
         assert ret == 0
 
-        expected_parquet = raw_dir / "extrapolation_sphere_d2_n28_stratified_breiman_s42.parquet"
-        expected_summary = sum_dir / "summary_sphere_d2_n28_stratified_breiman_s42.json"
+        expected_parquet = raw_dir / "extrapolation_sphere_d2_n28_stratified_shallow_s42.parquet"
+        expected_summary = sum_dir / "summary_sphere_d2_n28_stratified_shallow_s42.json"
         assert expected_parquet.exists()
         assert expected_summary.exists()
 
         with open(expected_summary, "r", encoding="utf-8") as f:
             summary_data = json.load(f)
-        assert summary_data["surrogate_type"] == "breiman"
+        assert summary_data["surrogate_type"] == "shallow"
 
     def test_run_experiment_no_metrics_pure_data(self, tmp_path):
         import pandas as pd
@@ -541,12 +541,12 @@ class TestTaskGenerator:
         args = parser.parse_args([])
         assert args.output_file == "results/extrapolation_sweep_tasks.txt"
         assert args.pilot is False
-        assert args.dimensions == [2, 3, 5, 8, 16, 32]
+        assert args.dimensions == [2, 3, 5, 8, 16, 32, 64, 128]
         assert args.n_trains == [34, 68, 136, 272, 544, 1088]
         assert args.functions == ["sphere", "rosenbrock", "rastrigin", "ackley"]
         assert args.strategies == ["stratified"]
         assert args.seeds == list(range(30))
-        assert args.surrogates == ["smac_default", "mature", "shallow", "coarse", "breiman"]
+        assert args.surrogates == ["smac_default", "mature", "shallow", "coarse"]
         assert args.python_bin == "python"
         assert args.skip_if_exists is True
         assert args.no_metrics is False
@@ -555,17 +555,17 @@ class TestTaskGenerator:
     def test_pilot_generates_multi_surrogate_tasks(self, tmp_path):
         out_file = tmp_path / "pilot_tasks.txt"
         tasks = generate_tasks(output_file=out_file, pilot=True)
-        assert len(tasks) == 10
+        assert len(tasks) == 8
         assert out_file.exists()
 
         lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
-        assert len(lines) == 10
+        assert len(lines) == 8
 
-        # Verify pilot grid: D in [2, 16], N=34, sphere, seed=0, stratified, 5 surrogates
+        # Verify pilot grid: D in [2, 16], N=34, sphere, seed=0, stratified, 4 surrogates
         expected_combinations = {
             (dim, 34, "sphere", "stratified", 0, surr)
             for dim in [2, 16]
-            for surr in ["smac_default", "mature", "shallow", "coarse", "breiman"]
+            for surr in ["smac_default", "mature", "shallow", "coarse"]
         }
 
         parser = build_run_experiment_parser()
@@ -586,29 +586,29 @@ class TestTaskGenerator:
 
         assert actual_combinations == expected_combinations
 
-    def test_full_grid_generates_exactly_21600_tasks(self, tmp_path):
+    def test_full_grid_generates_exactly_23040_tasks(self, tmp_path):
         out_file = tmp_path / "tasks.txt"
         tasks = generate_tasks(output_file=out_file, pilot=False)
-        assert len(tasks) == 21600
+        assert len(tasks) == 23040
         assert out_file.exists()
 
         lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
-        assert len(lines) == 21600
+        assert len(lines) == 23040
 
         # Check unique tasks
-        assert len(set(tasks)) == 21600
+        assert len(set(tasks)) == 23040
 
         # Sample a few commands and check parseability
         parser = build_run_experiment_parser()
         for cmd in [tasks[0], tasks[100], tasks[500], tasks[1000], tasks[-1]]:
             tokens = shlex.split(cmd)
             cli_args = parser.parse_args(tokens[2:])
-            assert cli_args.dimension in [2, 3, 5, 8, 16, 32]
+            assert cli_args.dimension in [2, 3, 5, 8, 16, 32, 64, 128]
             assert cli_args.n_train in [34, 68, 136, 272, 544, 1088]
             assert cli_args.function in ["sphere", "rosenbrock", "rastrigin", "ackley"]
             assert cli_args.strategy == "stratified"
             assert cli_args.seed in list(range(30))
-            assert cli_args.surrogate in ["smac_default", "mature", "shallow", "coarse", "breiman"]
+            assert cli_args.surrogate in ["smac_default", "mature", "shallow", "coarse"]
             assert cli_args.skip_if_exists is True
 
     def test_custom_subsets_and_skip_flag(self, tmp_path):
@@ -620,7 +620,7 @@ class TestTaskGenerator:
             functions=["ackley"],
             strategies=["natural"],
             seeds=[1, 2, 3],
-            surrogates=["shallow", "breiman"],
+            surrogates=["shallow", "coarse"],
             python_bin=".venv/bin/python",
             skip_if_exists=False,
         )
@@ -641,7 +641,7 @@ class TestTaskGenerator:
         assert ret == 0
         assert out_file.exists()
         lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
-        assert len(lines) in (10, 20)
+        assert len(lines) == 8
         assert lines[0].startswith("python3 scripts/run_extrapolation_experiment.py")
 
     def test_generator_quotes_python_bin_with_spaces(self, tmp_path):
@@ -651,7 +651,7 @@ class TestTaskGenerator:
             pilot=True,
             python_bin="/path with spaces/bin/python",
         )
-        assert len(tasks) in (10, 20)
+        assert len(tasks) == 8
         # First token when split by shlex must match the unquoted path
         tokens = shlex.split(tasks[0])
         assert tokens[0] == "/path with spaces/bin/python"
@@ -700,7 +700,7 @@ class TestTaskGenerator:
             pilot=True,
             no_metrics=True,
         )
-        assert len(tasks) in (10, 20)
+        assert len(tasks) == 8
         assert out_file.exists()
 
         parser = build_run_experiment_parser()
@@ -721,7 +721,7 @@ class TestTaskGenerator:
         assert ret == 0
         assert out_file.exists()
         lines = [line.strip() for line in out_file.read_text().splitlines() if line.strip()]
-        assert len(lines) in (10, 20)
+        assert len(lines) == 8
         for line in lines:
             assert "--no-metrics" in line
 

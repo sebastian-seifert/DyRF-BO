@@ -179,7 +179,7 @@ class StandardizedObjective:
         """
         y_train = np.asarray(self.base_func(X_train), dtype=np.float64)
         self.mean_train = float(np.mean(y_train))
-        raw_std = float(np.std(y_train))
+        raw_std = float(np.std(y_train, ddof=1))
         self.std_train = max(raw_std, 1e-8)
         self.is_fitted = True
         return self

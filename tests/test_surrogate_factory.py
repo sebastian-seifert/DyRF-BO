@@ -32,32 +32,32 @@ class TestSurrogateConfigs:
     """Tests for SURROGATE_CONFIGS mapping and exact hyperparameter definitions."""
 
     def test_surrogate_configs_keys(self):
-        """SURROGATE_CONFIGS must contain exactly the 5 target surrogates."""
-        expected_keys = {"smac_default", "mature", "shallow", "coarse", "breiman"}
+        """SURROGATE_CONFIGS must contain exactly the 4 target surrogates from the thesis."""
+        expected_keys = {"smac_default", "mature", "shallow", "coarse"}
         assert set(SURROGATE_CONFIGS.keys()) == expected_keys
 
     def test_smac_default_config(self):
-        """smac_default: ExtraTreesRegressor, n_estimators=10, max_depth=None,
-        min_samples_split=3, min_samples_leaf=3, max_features=5/6, bootstrap=True, oob_score=True."""
+        """smac_default: RandomForestRegressor, n_estimators=10, max_depth=2**20,
+        min_samples_split=2, min_samples_leaf=1, max_features=1.0, bootstrap=True, oob_score=True."""
         cfg = SURROGATE_CONFIGS["smac_default"]
         estimator_cls = cfg.get("estimator_class", cfg.get("model_cls", cfg.get("model_class")))
-        assert estimator_cls is ExtraTreesRegressor
+        assert estimator_cls is RandomForestRegressor
         assert cfg["n_estimators"] == 10
-        assert cfg["max_depth"] is None
-        assert cfg["min_samples_split"] == 3
-        assert cfg["min_samples_leaf"] == 3
-        assert np.isclose(cfg["max_features"], 5.0 / 6.0)
+        assert cfg["max_depth"] == 2**20
+        assert cfg["min_samples_split"] == 2
+        assert cfg["min_samples_leaf"] == 1
+        assert np.isclose(cfg["max_features"], 1.0)
         assert cfg["bootstrap"] is True
         assert cfg["oob_score"] is True
 
     def test_mature_config(self):
-        """mature: ExtraTreesRegressor, n_estimators=100, max_depth=None,
+        """mature: RandomForestRegressor, n_estimators=100, max_depth=2**20,
         min_samples_split=3, min_samples_leaf=3, max_features=5/6, bootstrap=True, oob_score=True."""
         cfg = SURROGATE_CONFIGS["mature"]
         estimator_cls = cfg.get("estimator_class", cfg.get("model_cls", cfg.get("model_class")))
-        assert estimator_cls is ExtraTreesRegressor
+        assert estimator_cls is RandomForestRegressor
         assert cfg["n_estimators"] == 100
-        assert cfg["max_depth"] is None
+        assert cfg["max_depth"] == 2**20
         assert cfg["min_samples_split"] == 3
         assert cfg["min_samples_leaf"] == 3
         assert np.isclose(cfg["max_features"], 5.0 / 6.0)
@@ -65,43 +65,29 @@ class TestSurrogateConfigs:
         assert cfg["oob_score"] is True
 
     def test_shallow_config(self):
-        """shallow: ExtraTreesRegressor, n_estimators=25, max_depth=4,
-        min_samples_split=3, min_samples_leaf=5, max_features=5/6, bootstrap=True, oob_score=True."""
+        """shallow: RandomForestRegressor, n_estimators=25, max_depth=4,
+        min_samples_split=3, min_samples_leaf=3, max_features=5/6, bootstrap=True, oob_score=True."""
         cfg = SURROGATE_CONFIGS["shallow"]
         estimator_cls = cfg.get("estimator_class", cfg.get("model_cls", cfg.get("model_class")))
-        assert estimator_cls is ExtraTreesRegressor
+        assert estimator_cls is RandomForestRegressor
         assert cfg["n_estimators"] == 25
         assert cfg["max_depth"] == 4
         assert cfg["min_samples_split"] == 3
-        assert cfg["min_samples_leaf"] == 5
+        assert cfg["min_samples_leaf"] == 3
         assert np.isclose(cfg["max_features"], 5.0 / 6.0)
         assert cfg["bootstrap"] is True
         assert cfg["oob_score"] is True
 
     def test_coarse_config(self):
-        """coarse: ExtraTreesRegressor, n_estimators=25, max_depth=None,
+        """coarse: RandomForestRegressor, n_estimators=25, max_depth=2**20,
         min_samples_split=20, min_samples_leaf=10, max_features=5/6, bootstrap=True, oob_score=True."""
         cfg = SURROGATE_CONFIGS["coarse"]
         estimator_cls = cfg.get("estimator_class", cfg.get("model_cls", cfg.get("model_class")))
-        assert estimator_cls is ExtraTreesRegressor
-        assert cfg["n_estimators"] == 25
-        assert cfg["max_depth"] is None
-        assert cfg["min_samples_split"] == 20
-        assert cfg["min_samples_leaf"] == 10
-        assert np.isclose(cfg["max_features"], 5.0 / 6.0)
-        assert cfg["bootstrap"] is True
-        assert cfg["oob_score"] is True
-
-    def test_breiman_config(self):
-        """breiman: RandomForestRegressor, n_estimators=25, max_depth=None,
-        min_samples_split=3, min_samples_leaf=3, max_features=5/6, bootstrap=True, oob_score=True."""
-        cfg = SURROGATE_CONFIGS["breiman"]
-        estimator_cls = cfg.get("estimator_class", cfg.get("model_cls", cfg.get("model_class")))
         assert estimator_cls is RandomForestRegressor
         assert cfg["n_estimators"] == 25
-        assert cfg["max_depth"] is None
-        assert cfg["min_samples_split"] == 3
-        assert cfg["min_samples_leaf"] == 3
+        assert cfg["max_depth"] == 2**20
+        assert cfg["min_samples_split"] == 20
+        assert cfg["min_samples_leaf"] == 10
         assert np.isclose(cfg["max_features"], 5.0 / 6.0)
         assert cfg["bootstrap"] is True
         assert cfg["oob_score"] is True
@@ -111,13 +97,12 @@ class TestCreateSurrogateRF:
     """Unit tests for create_surrogate_rf factory function."""
 
     @pytest.mark.parametrize(
-        "surrogate_type,expected_cls,expected_n_est,expected_depth,expected_split,expected_leaf",
+        "surrogate_type,expected_cls,expected_n_est,expected_depth,expected_split,expected_leaf,expected_feat",
         [
-            ("smac_default", ExtraTreesRegressor, 10, None, 3, 3),
-            ("mature", ExtraTreesRegressor, 100, None, 3, 3),
-            ("shallow", ExtraTreesRegressor, 25, 4, 3, 5),
-            ("coarse", ExtraTreesRegressor, 25, None, 20, 10),
-            ("breiman", RandomForestRegressor, 25, None, 3, 3),
+            ("smac_default", RandomForestRegressor, 10, 2**20, 2, 1, 1.0),
+            ("mature", RandomForestRegressor, 100, 2**20, 3, 3, 5.0 / 6.0),
+            ("shallow", RandomForestRegressor, 25, 4, 3, 3, 5.0 / 6.0),
+            ("coarse", RandomForestRegressor, 25, 2**20, 20, 10, 5.0 / 6.0),
         ],
     )
     def test_create_surrogate_rf_instances(
@@ -128,16 +113,16 @@ class TestCreateSurrogateRF:
         expected_depth: Any,
         expected_split: int,
         expected_leaf: int,
+        expected_feat: float,
     ):
         model = create_surrogate_rf(surrogate_type=surrogate_type, seed=42)
         assert isinstance(model, expected_cls)
-        if expected_cls is RandomForestRegressor:
-            assert type(model) is RandomForestRegressor
+        assert type(model) is RandomForestRegressor
         assert model.n_estimators == expected_n_est
         assert model.max_depth == expected_depth
         assert model.min_samples_split == expected_split
         assert model.min_samples_leaf == expected_leaf
-        assert np.isclose(model.max_features, 5.0 / 6.0)
+        assert np.isclose(model.max_features, expected_feat)
         assert model.bootstrap is True
         assert model.oob_score is True
         assert model.random_state == 42
@@ -157,7 +142,7 @@ class TestCreateSurrogateRF:
             n_estimators=50,
             min_samples_leaf=2,
         )
-        assert isinstance(model, ExtraTreesRegressor)
+        assert isinstance(model, RandomForestRegressor)
         assert model.max_depth == 7
         assert model.n_estimators == 50
         assert model.min_samples_leaf == 2
@@ -174,7 +159,7 @@ class TestCreateSurrogateRF:
     def test_reuse_existing_fitted_model(self):
         X = np.random.randn(30, 2)
         y = np.random.randn(30)
-        fitted = ExtraTreesRegressor(n_estimators=10, random_state=42).fit(X, y)
+        fitted = RandomForestRegressor(n_estimators=10, random_state=42).fit(X, y)
         reused = create_surrogate_rf(surrogate_type="mature", model=fitted)
         assert reused is fitted
         assert hasattr(reused, "estimators_")
@@ -184,29 +169,28 @@ class TestCreateSurrogateRF:
         rf2 = create_surrogate_rf("smac_default", seed=42)
         assert type(rf1) is type(rf2)
         assert rf1.n_estimators == rf2.n_estimators == 10
-        assert rf1.min_samples_split == rf2.min_samples_split == 3
-        assert rf1.min_samples_leaf == rf2.min_samples_leaf == 3
+        assert rf1.min_samples_split == rf2.min_samples_split == 2
+        assert rf1.min_samples_leaf == rf2.min_samples_leaf == 1
         assert rf1.random_state == rf2.random_state == 42
 
 
 class TestMultiUQEvaluatorSurrogates:
-    """Integration tests for MultiUQEvaluator with 5 surrogate configurations."""
+    """Integration tests for MultiUQEvaluator with 4 surrogate configurations."""
 
     def test_default_surrogate_is_smac_default(self):
         evaluator = MultiUQEvaluator(seed=42)
         assert evaluator.surrogate_type == "smac_default"
-        assert isinstance(evaluator.model, ExtraTreesRegressor)
+        assert isinstance(evaluator.model, RandomForestRegressor)
         assert evaluator.n_trees == 10
         assert evaluator.n_estimators == 10
 
     @pytest.mark.parametrize(
         "surrogate_type,expected_cls,expected_n_trees",
         [
-            ("smac_default", ExtraTreesRegressor, 10),
-            ("mature", ExtraTreesRegressor, 100),
-            ("shallow", ExtraTreesRegressor, 25),
-            ("coarse", ExtraTreesRegressor, 25),
-            ("breiman", RandomForestRegressor, 25),
+            ("smac_default", RandomForestRegressor, 10),
+            ("mature", RandomForestRegressor, 100),
+            ("shallow", RandomForestRegressor, 25),
+            ("coarse", RandomForestRegressor, 25),
         ],
     )
     def test_evaluator_initialization_surrogate_types(
@@ -218,8 +202,7 @@ class TestMultiUQEvaluatorSurrogates:
         evaluator = MultiUQEvaluator(surrogate_type=surrogate_type, seed=42)
         assert evaluator.surrogate_type == surrogate_type
         assert isinstance(evaluator.model, expected_cls)
-        if expected_cls is RandomForestRegressor:
-            assert type(evaluator.model) is RandomForestRegressor
+        assert type(evaluator.model) is RandomForestRegressor
         assert evaluator.n_trees == expected_n_trees
         assert evaluator.n_estimators == expected_n_trees
         assert evaluator.model.n_estimators == expected_n_trees
@@ -246,14 +229,14 @@ class TestMultiUQEvaluatorSurrogates:
 
     def test_evaluator_with_custom_model(self):
         custom = RandomForestRegressor(n_estimators=15, max_depth=3, random_state=42)
-        evaluator = MultiUQEvaluator(model=custom, surrogate_type="breiman")
+        evaluator = MultiUQEvaluator(model=custom, surrogate_type="shallow")
         assert evaluator.model.n_estimators == 15
         assert evaluator.model.max_depth == 3
         assert evaluator.n_trees == 15
 
     @pytest.mark.parametrize(
         "surrogate_type",
-        ["smac_default", "mature", "shallow", "coarse", "breiman"],
+        ["smac_default", "mature", "shallow", "coarse"],
     )
     def test_end_to_end_fit_and_evaluate_all_surrogates(self, surrogate_type: str):
         """Fit and evaluate all 5 surrogates on a synthetic dataset to guarantee full pipeline execution."""

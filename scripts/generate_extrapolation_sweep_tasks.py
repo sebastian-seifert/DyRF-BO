@@ -22,19 +22,19 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 
-DEFAULT_DIMENSIONS = [2, 3, 5, 8, 16, 32]
+DEFAULT_DIMENSIONS = [2, 3, 5, 8, 16, 32, 64, 128]
 DEFAULT_N_TRAINS = [34, 68, 136, 272, 544, 1088]
 DEFAULT_FUNCTIONS = ["sphere", "rosenbrock", "rastrigin", "ackley"]
 DEFAULT_STRATEGIES = ["stratified"]
 DEFAULT_SEEDS = list(range(30))
-DEFAULT_SURROGATES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
+DEFAULT_SURROGATES = ["smac_default", "mature", "shallow", "coarse"]
 
 PILOT_DIMENSIONS = [2, 16]
 PILOT_N_TRAINS = [34]
 PILOT_FUNCTIONS = ["sphere"]
 PILOT_STRATEGIES = ["stratified"]
 PILOT_SEEDS = [0]
-PILOT_SURROGATES = ["smac_default", "mature", "shallow", "coarse", "breiman"]
+PILOT_SURROGATES = ["smac_default", "mature", "shallow", "coarse"]
 
 STRESS_CONFIGURATIONS = [
     # 16-run balanced orthogonal design:

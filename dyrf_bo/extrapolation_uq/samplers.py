@@ -216,10 +216,7 @@ def sample_stratified_test(
             for target_s, (low, high) in strata_ranges.items():
                 if len(collected[target_s]) >= n_per_stratum:
                     continue
-                if target_s == 1:
-                    mask = (d_norm >= low) & (d_norm <= high)
-                else:
-                    mask = (d_norm > low) & (d_norm <= high)
+                mask = (d_norm > low) & (d_norm <= high)
 
                 matches = cand[mask]
                 if len(matches) > 0:

@@ -47,7 +47,7 @@ def test_cli_execution_and_artifacts(tmp_path: Path):
 
     # Create 2 mock runs
     create_mock_parquet_file(input_dir / "run1.parquet", surrogate="mature", dim=2, seed=1)
-    create_mock_parquet_file(input_dir / "run2.parquet", surrogate="breiman", dim=5, seed=2)
+    create_mock_parquet_file(input_dir / "run2.parquet", surrogate="shallow", dim=5, seed=2)
 
     script_path = Path(__file__).resolve().parent.parent / "scripts" / "analyze_extrapolation_uq_cube.py"
 

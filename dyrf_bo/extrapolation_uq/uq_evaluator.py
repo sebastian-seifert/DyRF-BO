@@ -66,24 +66,24 @@ COVERAGE_SUFFIXES: Dict[float, str] = {0.50: "50", 0.80: "80", 0.90: "90", 0.95:
 
 SURROGATE_CONFIGS: Dict[str, Dict[str, Any]] = {
     "smac_default": {
-        "estimator_class": ExtraTreesRegressor,
-        "model_cls": ExtraTreesRegressor,
-        "model_class": ExtraTreesRegressor,
+        "estimator_class": RandomForestRegressor,
+        "model_cls": RandomForestRegressor,
+        "model_class": RandomForestRegressor,
         "n_estimators": 10,
-        "max_depth": None,
-        "min_samples_split": 3,
-        "min_samples_leaf": 3,
-        "max_features": 5.0 / 6.0,
+        "max_depth": 2**20,
+        "min_samples_split": 2,
+        "min_samples_leaf": 1,
+        "max_features": 1.0,
         "bootstrap": True,
         "oob_score": True,
         "criterion": "squared_error",
     },
     "mature": {
-        "estimator_class": ExtraTreesRegressor,
-        "model_cls": ExtraTreesRegressor,
-        "model_class": ExtraTreesRegressor,
+        "estimator_class": RandomForestRegressor,
+        "model_cls": RandomForestRegressor,
+        "model_class": RandomForestRegressor,
         "n_estimators": 100,
-        "max_depth": None,
+        "max_depth": 2**20,
         "min_samples_split": 3,
         "min_samples_leaf": 3,
         "max_features": 5.0 / 6.0,
@@ -92,39 +92,26 @@ SURROGATE_CONFIGS: Dict[str, Dict[str, Any]] = {
         "criterion": "squared_error",
     },
     "shallow": {
-        "estimator_class": ExtraTreesRegressor,
-        "model_cls": ExtraTreesRegressor,
-        "model_class": ExtraTreesRegressor,
+        "estimator_class": RandomForestRegressor,
+        "model_cls": RandomForestRegressor,
+        "model_class": RandomForestRegressor,
         "n_estimators": 25,
         "max_depth": 4,
         "min_samples_split": 3,
-        "min_samples_leaf": 5,
+        "min_samples_leaf": 3,
         "max_features": 5.0 / 6.0,
         "bootstrap": True,
         "oob_score": True,
         "criterion": "squared_error",
     },
     "coarse": {
-        "estimator_class": ExtraTreesRegressor,
-        "model_cls": ExtraTreesRegressor,
-        "model_class": ExtraTreesRegressor,
-        "n_estimators": 25,
-        "max_depth": None,
-        "min_samples_split": 20,
-        "min_samples_leaf": 10,
-        "max_features": 5.0 / 6.0,
-        "bootstrap": True,
-        "oob_score": True,
-        "criterion": "squared_error",
-    },
-    "breiman": {
         "estimator_class": RandomForestRegressor,
         "model_cls": RandomForestRegressor,
         "model_class": RandomForestRegressor,
         "n_estimators": 25,
-        "max_depth": None,
-        "min_samples_split": 3,
-        "min_samples_leaf": 3,
+        "max_depth": 2**20,
+        "min_samples_split": 20,
+        "min_samples_leaf": 10,
         "max_features": 5.0 / 6.0,
         "bootstrap": True,
         "oob_score": True,
@@ -139,7 +126,7 @@ def create_surrogate_rf(
     model: Optional[Any] = None,
     **kwargs: Any,
 ) -> Any:
-    """Create an ensemble regressor based on one of the 5 surrogate configurations or reuse existing."""
+    """Create an ensemble regressor based on one of the 4 surrogate configurations or reuse existing."""
     if surrogate_type not in SURROGATE_CONFIGS:
         raise ValueError(
             f"Unknown surrogate_type '{surrogate_type}'. "
@@ -160,7 +147,7 @@ def create_surrogate_rf(
     config = dict(SURROGATE_CONFIGS[surrogate_type])
 
     # Determine estimator class
-    estimator_cls = config.get("estimator_class", ExtraTreesRegressor)
+    estimator_cls = config.get("estimator_class", RandomForestRegressor)
     if "estimator_class" in kwargs:
         estimator_cls = kwargs.pop("estimator_class")
     elif "model_class" in kwargs:
@@ -186,12 +173,13 @@ def create_smac_default_rf(
     seed: Optional[int] = None,
     n_trees: int = 10,
     model: Optional[Any] = None,
-    use_extra_trees: bool = True,
+    use_extra_trees: Optional[bool] = None,
     **kwargs: Any,
 ) -> Any:
-    """Create an ensemble regressor with native SMAC3 defaults or reuse existing."""
+    """Create an ensemble regressor with native SMAC defaults or reuse existing."""
     overrides = dict(kwargs)
-    overrides["use_extra_trees"] = use_extra_trees
+    if use_extra_trees is not None:
+        overrides["use_extra_trees"] = use_extra_trees
     if n_trees != 10 or "n_estimators" not in overrides:
         overrides["n_estimators"] = n_trees
     return create_surrogate_rf(

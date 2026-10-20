@@ -123,7 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="surrogate",
         type=str.lower,
         default="smac_default",
-        choices=["smac_default", "mature", "shallow", "coarse", "breiman"],
+        choices=["smac_default", "mature", "shallow", "coarse"],
         help="Surrogate model type (default: 'smac_default').",
     )
 
