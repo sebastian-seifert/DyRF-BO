@@ -380,3 +380,67 @@ class TestComputeComprehensiveMetrics:
         assert "plcb_picp" in metrics
         assert "u_hutter_total_picp" in metrics
 
+
+class TestNewUQMetrics:
+    """Tests for multi-level ECE, multi-level Winkler, and tie-safe E-AURC."""
+
+    def test_compute_regression_ece_exact_values(self):
+        from dyrf_bo.extrapolation_uq.metrics_suite import compute_regression_ece
+
+        y_true = np.array([0.0, 1.0, 2.0, 3.0])
+        # Construct intervals with known coverage
+        # For 50%: 2 covered, 2 not -> hat_alpha = 2/4 = 0.50 -> |0.50 - 0.50| = 0.0
+        # For 80%: 3 covered, 1 not -> hat_alpha = 1/4 = 0.25 -> |0.25 - 0.20| = 0.05
+        # For 90%: 4 covered, 0 not -> hat_alpha = 0/4 = 0.00 -> |0.00 - 0.10| = 0.10
+        # For 95%: 4 covered, 0 not -> hat_alpha = 0/4 = 0.00 -> |0.00 - 0.05| = 0.05
+        # Expected ECE = (0.0 + 0.05 + 0.10 + 0.05) / 4 = 0.20 / 4 = 0.05
+        interval_dict = {
+            "50": (np.array([-0.5, 0.5, 5.0, 5.0]), np.array([0.5, 1.5, 6.0, 6.0])),
+            "80": (np.array([-0.5, 0.5, 1.5, 5.0]), np.array([0.5, 1.5, 2.5, 6.0])),
+            "90": (np.array([-1.0, 0.0, 1.0, 2.0]), np.array([1.0, 2.0, 3.0, 4.0])),
+            "95": (np.array([-2.0, -1.0, 0.0, 1.0]), np.array([2.0, 3.0, 4.0, 5.0])),
+        }
+        res = compute_regression_ece(y_true, interval_dict)
+        assert np.isclose(res["ece"], 0.05)
+        assert np.isclose(res["miscoverage_50"], 0.50)
+        assert np.isclose(res["miscoverage_80"], 0.25)
+        assert np.isclose(res["miscoverage_90"], 0.00)
+        assert np.isclose(res["miscoverage_95"], 0.00)
+
+    def test_compute_multi_level_winkler_exact_values(self):
+        from dyrf_bo.extrapolation_uq.metrics_suite import compute_multi_level_winkler
+
+        y_true = np.array([0.0, 3.0])  # point 0 inside, point 1 outside by 1.0
+        # Width = 2.0 ([-1, 1] for pt 0, [0, 2] for pt 1 -> pt 1 violates by 3 - 2 = 1.0)
+        interval_dict = {
+            "50": (np.array([-1.0, 0.0]), np.array([1.0, 2.0])),   # alpha=0.50 -> penalty = 2/0.50 * 1.0 = 4.0. Mean W = 2 + 0.5*4 = 4.0
+            "80": (np.array([-1.0, 0.0]), np.array([1.0, 2.0])),   # alpha=0.20 -> penalty = 2/0.20 * 1.0 = 10.0. Mean W = 2 + 0.5*10 = 7.0
+            "90": (np.array([-1.0, 0.0]), np.array([1.0, 2.0])),   # alpha=0.10 -> penalty = 2/0.10 * 1.0 = 20.0. Mean W = 2 + 0.5*20 = 12.0
+            "95": (np.array([-1.0, 0.0]), np.array([1.0, 2.0])),   # alpha=0.05 -> penalty = 2/0.05 * 1.0 = 40.0. Mean W = 2 + 0.5*40 = 22.0
+        }
+        res = compute_multi_level_winkler(y_true, interval_dict)
+        assert np.isclose(res["winkler_50"], 4.0)
+        assert np.isclose(res["winkler_80"], 7.0)
+        assert np.isclose(res["winkler_90"], 12.0)
+        assert np.isclose(res["winkler_95"], 22.0)
+        assert np.isclose(res["winkler_mean"], (4.0 + 7.0 + 12.0 + 22.0) / 4.0)
+
+    def test_compute_regression_eaurc_oracle_and_constant_ties(self):
+        from dyrf_bo.extrapolation_uq.metrics_suite import compute_regression_eaurc
+
+        y_true = np.array([1.0, 2.0, 5.0, 10.0])
+        y_hat = np.array([1.0, 1.0, 1.0, 1.0])
+        # Absolute errors = [0.0, 1.0, 4.0, 9.0]
+        # Perfect uncertainty matches error
+        u_perfect = np.array([0.0, 1.0, 4.0, 9.0])
+        res_perfect = compute_regression_eaurc(y_true, y_hat, u_perfect)
+        assert np.isclose(res_perfect["e_aurc"], 0.0, atol=1e-12)
+        assert np.isclose(res_perfect["naurc"], 0.0, atol=1e-12)
+
+        # Constant uncertainty: must equal random AURC = MAE
+        mae = float(np.mean(np.abs(y_true - y_hat)))
+        u_const = np.array([5.0, 5.0, 5.0, 5.0])
+        res_const = compute_regression_eaurc(y_true, y_hat, u_const)
+        assert np.isclose(res_const["aurc"], mae, atol=1e-12)
+        assert np.isclose(res_const["naurc"], 1.0, atol=1e-12)
+
