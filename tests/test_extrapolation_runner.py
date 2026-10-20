@@ -322,11 +322,11 @@ class TestRunSingleExperiment:
         assert reloaded["stratum"].dtype == np.int64
         assert reloaded["is_interpolating"].dtype == bool
         for col in reloaded.columns:
-            if col in ["point_id", "stratum"]:
+            if col in ["point_id", "stratum", "dimension", "n_train", "seed"]:
                 assert reloaded[col].dtype == np.int64
             elif col == "is_interpolating":
                 assert reloaded[col].dtype == bool
-            elif col == "surrogate":
+            elif col in ["surrogate", "function_name"]:
                 assert reloaded[col].dtype == object or "string" in str(reloaded[col].dtype)
             else:
                 assert reloaded[col].dtype == np.float64
@@ -335,7 +335,7 @@ class TestRunSingleExperiment:
         for col in reloaded.columns:
             if col == "is_interpolating":
                 assert (reloaded[col] == df[col]).all()
-            elif col in ["point_id", "stratum", "surrogate"]:
+            elif col in ["point_id", "stratum", "dimension", "n_train", "seed", "surrogate", "function_name"]:
                 assert (reloaded[col] == df[col]).all()
             else:
                 assert np.array_equal(reloaded[col].to_numpy(), df[col].to_numpy())
@@ -395,6 +395,34 @@ class TestRunSingleExperiment:
         assert summary["dimension"] == 2
         assert summary["n_train"] == 20
         assert summary["function_name"] == "sphere"
+
+    def test_runner_persists_all_10_approaches_multi_level_intervals(self, tmp_path):
+        config = ExtrapolationRunConfig(
+            dimension=2,
+            n_train=20,
+            function_name="sphere",
+            sampling_strategy="stratified",
+            seed=42,
+            n_test=20,
+            k=5,
+            n_trees=5,
+            surrogate_type="smac_default",
+        )
+        summary, df = run_single_experiment(config, output_dir=tmp_path, save_parquet=True)
+        from dyrf_bo.extrapolation_uq.uq_evaluator import APPROACH_NAMES
+
+        # Verify metadata columns
+        for meta_col in ["dimension", "n_train", "function_name", "seed"]:
+            assert meta_col in df.columns, f"Missing metadata column {meta_col}"
+
+        # Verify all 10 approaches have u, sigma, and 4-level intervals
+        for app in APPROACH_NAMES:
+            for prefix in [f"u_{app}", f"sigma_{app}", f"int_lwr_{app}", f"int_upr_{app}"]:
+                assert prefix in df.columns, f"Missing {prefix} in runner DataFrame"
+            for sfx in ["50", "80", "90", "95"]:
+                assert f"int_lwr_{app}_{sfx}" in df.columns, f"Missing int_lwr_{app}_{sfx}"
+                assert f"int_upr_{app}_{sfx}" in df.columns, f"Missing int_upr_{app}_{sfx}"
+
 
 
 

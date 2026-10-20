@@ -20,7 +20,7 @@ from .samplers import (
     sample_subdomain_training,
 )
 from .test_objectives import StandardizedObjective, get_objective
-from .uq_evaluator import MultiUQEvaluator
+from .uq_evaluator import APPROACH_NAMES, MultiUQEvaluator
 
 
 
@@ -230,12 +230,18 @@ def run_single_experiment(
 
     # 10. Build per-point DataFrame
     abs_error = np.abs(y_true - uq_res.y_hat)
+    n_pts = len(X_test)
     data_dict: Dict[str, Any] = {
-        "point_id": np.arange(len(X_test), dtype=np.int64),
+        "point_id": np.arange(n_pts, dtype=np.int64),
     }
     for d in range(config.dimension):
         data_dict[f"x_{d}"] = np.asarray(X_test[:, d], dtype=np.float64)
     data_dict.update({
+        # Run-level metadata
+        "dimension": np.full(n_pts, config.dimension, dtype=np.int64),
+        "n_train": np.full(n_pts, config.n_train, dtype=np.int64),
+        "function_name": np.full(n_pts, str(getattr(objective, "name", str(config.function_name))), dtype=object),
+        "seed": np.full(n_pts, config.seed, dtype=np.int64),
         "surrogate": config.surrogate_type,
         "stratum": strata_labels.astype(np.int64),
         "d_norm": np.asarray(proj_res.d_norm, dtype=np.float64),
@@ -245,27 +251,36 @@ def run_single_experiment(
         "y_true": np.asarray(y_true, dtype=np.float64),
         "y_hat": np.asarray(uq_res.y_hat, dtype=np.float64),
         "abs_error": np.asarray(abs_error, dtype=np.float64),
-        # Non-proximity baselines
-        "u_hutter_total": np.asarray(uq_res.u_hutter_total, dtype=np.float64),
-        "u_hutter_between": np.asarray(uq_res.u_hutter_between, dtype=np.float64),
-        "u_hutter_within": np.asarray(uq_res.u_hutter_within, dtype=np.float64),
-        "u_shaker_epistemic": np.asarray(uq_res.u_shaker_epistemic, dtype=np.float64),
-        "u_shaker_total": np.asarray(uq_res.u_shaker_total, dtype=np.float64),
-        "shaker_mi": np.asarray(uq_res.shaker_mi, dtype=np.float64),
-        "shaker_total_entropy": np.asarray(uq_res.shaker_total_entropy, dtype=np.float64),
-        "u_rf_fire_lower": np.asarray(uq_res.u_rf_fire_lower, dtype=np.float64),
+    })
+
+    # All 10 evaluated approaches: u, sigma, and 4-level intervals
+    for app in APPROACH_NAMES:
+        data_dict[f"u_{app}"] = np.asarray(getattr(uq_res, f"u_{app}"), dtype=np.float64)
+        data_dict[f"sigma_{app}"] = np.asarray(getattr(uq_res, f"sigma_{app}"), dtype=np.float64)
+        data_dict[f"int_lwr_{app}"] = np.asarray(getattr(uq_res, f"int_lwr_{app}"), dtype=np.float64)
+        data_dict[f"int_upr_{app}"] = np.asarray(getattr(uq_res, f"int_upr_{app}"), dtype=np.float64)
+        for sfx in ("50", "80", "90", "95"):
+            data_dict[f"int_lwr_{app}_{sfx}"] = np.asarray(getattr(uq_res, f"int_lwr_{app}_{sfx}"), dtype=np.float64)
+            data_dict[f"int_upr_{app}_{sfx}"] = np.asarray(getattr(uq_res, f"int_upr_{app}_{sfx}"), dtype=np.float64)
+
+    # Legacy aliases and diagnostic fields
+    data_dict.update({
+        "u_hutter_between": np.asarray(uq_res.u_hutter_between, dtype=np.float64) if uq_res.u_hutter_between is not None else np.zeros(n_pts, dtype=np.float64),
+        "u_hutter_within": np.asarray(uq_res.u_hutter_within, dtype=np.float64) if uq_res.u_hutter_within is not None else np.zeros(n_pts, dtype=np.float64),
+        "u_shaker_total": np.asarray(uq_res.u_shaker_total, dtype=np.float64) if uq_res.u_shaker_total is not None else np.zeros(n_pts, dtype=np.float64),
+        "shaker_mi": np.asarray(uq_res.shaker_mi, dtype=np.float64) if uq_res.shaker_mi is not None else np.zeros(n_pts, dtype=np.float64),
+        "shaker_total_entropy": np.asarray(uq_res.shaker_total_entropy, dtype=np.float64) if uq_res.shaker_total_entropy is not None else np.zeros(n_pts, dtype=np.float64),
+        "u_rf_fire_lower": np.asarray(uq_res.u_rf_fire_lower, dtype=np.float64) if uq_res.u_rf_fire_lower is not None else np.zeros(n_pts, dtype=np.float64),
         "u_slcb": np.asarray(uq_res.u_slcb, dtype=np.float64),
-        # Proximity (lower quantiles)
-        "u_prox_a_lower": np.asarray(uq_res.u_prox_a_lower, dtype=np.float64),
-        "u_prox_b_lower": np.asarray(uq_res.u_prox_b_lower, dtype=np.float64),
-        "u_prox_ac_lower": np.asarray(uq_res.u_prox_ac_lower, dtype=np.float64),
-        "u_prox_bc_lower": np.asarray(uq_res.u_prox_bc_lower, dtype=np.float64),
-        "u_plcb_lower": np.asarray(uq_res.u_plcb_lower, dtype=np.float64),
-        "u_plcb": np.asarray(uq_res.u_plcb, dtype=np.float64),
-        # Diagnostics
-        "delta_floor": np.asarray(uq_res.delta_floor, dtype=np.float64),
-        "local_mae": np.asarray(uq_res.local_mae, dtype=np.float64),
-        "q_lower": np.asarray(uq_res.q_lower, dtype=np.float64),
+        "u_prox_a_lower": np.asarray(uq_res.u_prox_a_oob, dtype=np.float64),
+        "u_prox_b_lower": np.asarray(uq_res.u_prox_b_oob, dtype=np.float64),
+        "u_prox_ac_lower": np.asarray(uq_res.u_prox_ac_oob, dtype=np.float64),
+        "u_prox_bc_lower": np.asarray(uq_res.u_prox_bc_oob, dtype=np.float64),
+        "u_plcb_lower": np.asarray(uq_res.u_prox_a_oob, dtype=np.float64),
+        "u_plcb": np.asarray(uq_res.u_prox_a_oob, dtype=np.float64),
+        "delta_floor": np.asarray(uq_res.delta_floor, dtype=np.float64) if uq_res.delta_floor is not None else np.zeros(n_pts, dtype=np.float64),
+        "local_mae": np.asarray(uq_res.local_mae, dtype=np.float64) if uq_res.local_mae is not None else np.zeros(n_pts, dtype=np.float64),
+        "q_lower": np.asarray(uq_res.q_lower, dtype=np.float64) if uq_res.q_lower is not None else np.zeros(n_pts, dtype=np.float64),
     })
     point_df = pd.DataFrame(data_dict)
 
