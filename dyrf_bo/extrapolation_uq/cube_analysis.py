@@ -69,7 +69,8 @@ def evaluate_single_run_df(df: pd.DataFrame) -> pd.DataFrame:
             continue
 
         y_true = df["y_true"].to_numpy()[mask]
-        y_hat = df["y_hat"].to_numpy()[mask]
+        y_hat_col = "y_hat" if "y_hat" in df else "y_pred"
+        y_hat = df[y_hat_col].to_numpy()[mask]
 
         for app in APPROACH_NAMES:
             # Build interval dict for the 4 nominal miscoverage levels
