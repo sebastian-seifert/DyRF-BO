@@ -27,10 +27,12 @@ import pandas as pd
 
 # Target approaches to compare
 TARGET_APPROACHES: List[str] = ["prox_bc_oob", "hutter_total"]
+APPROACHES_WITH_ENTROPY: List[str] = ["prox_bc_oob", "hutter_total", "shaker_epistemic"]
 
 APPROACH_DISPLAY_NAMES: Dict[str, str] = {
     "prox_bc_oob": "Proximity BC (OOB)",
     "hutter_total": "Variance Decomposition",
+    "shaker_epistemic": "Shaker Entropy",
 }
 
 APPROACH_STYLES: Dict[str, Dict[str, any]] = {
@@ -38,15 +40,19 @@ APPROACH_STYLES: Dict[str, Dict[str, any]] = {
         "color": "#C2410C",            # Warm Terracotta / Rust
         "marker": "o",
         "label": "Proximity BC (OOB)",
-        "y_offset": -0.12,
     },
     "hutter_total": {
         "color": "#44403C",            # Warm Dark Stone
         "marker": "s",
         "label": "Variance Decomposition",
-        "y_offset": 0.12,
+    },
+    "shaker_epistemic": {
+        "color": "#D97706",            # Warm Golden Amber
+        "marker": "^",
+        "label": "Shaker Entropy",
     },
 }
+
 
 # Canonical order and clean names for Random Forest surrogates (no parentheses)
 SURROGATE_ORDER: List[str] = ["smac_default", "mature", "shallow", "coarse"]
@@ -95,22 +101,27 @@ def plot_single_surrogate_comparison(
     sem_col: str,
     xlabel: str,
     output_stem: Path,
+    approaches: List[str] | None = None,
     formats: List[str] = ["pdf", "png"],
     legend_loc: str = "best",
     legend_fontsize: float = 8.5,
     legend_kwargs: dict | None = None,
+    ylim: tuple[float, float] | None = None,
 ) -> List[Path]:
     """
     Plot horizontal paired dot-and-whisker chart comparing
-    Proximity BC (OOB) vs Variance Decomposition across the 4 Random Forest surrogates
+    focal approaches across the 4 Random Forest surrogates
     with vertical dodging to eliminate overlap.
     """
     set_publication_rcparams()
 
+    if approaches is None:
+        approaches = TARGET_APPROACHES
+
     fig, ax = plt.subplots(figsize=(5.8, 3.4), dpi=300)
 
-    # Filter for the two target approaches
-    df_filtered = df[df["approach"].isin(TARGET_APPROACHES)].copy()
+    # Filter for the target approaches
+    df_filtered = df[df["approach"].isin(approaches)].copy()
     
     # Filter available surrogates in canonical order
     surrogates = [s for s in SURROGATE_ORDER if s in df_filtered["surrogate"].unique()]
@@ -123,10 +134,21 @@ def plot_single_surrogate_comparison(
     for y_div in np.arange(0.5, len(surrogates) - 0.5, 1.0):
         ax.axhline(y_div, color="#F3F4F6", linewidth=0.8, zorder=0)
 
+    # Compute vertical dodging offsets based on number of approaches
+    if len(approaches) == 1:
+        offsets = [0.0]
+    elif len(approaches) == 2:
+        offsets = [-0.12, 0.12]
+    elif len(approaches) == 3:
+        offsets = [-0.18, 0.0, 0.18]
+    else:
+        offsets = np.linspace(-0.20, 0.20, len(approaches)).tolist()
+    offset_map = {app: offsets[idx] for idx, app in enumerate(approaches)}
+
     # Plot points and error bars for each approach with distinct vertical height (y_offset)
-    for approach in TARGET_APPROACHES:
+    for approach in approaches:
         style = APPROACH_STYLES[approach]
-        y_offset = style.get("y_offset", 0.0)
+        y_offset = offset_map.get(approach, 0.0)
         x_vals = []
         ci_vals = []
         valid_y = []
@@ -160,10 +182,15 @@ def plot_single_surrogate_comparison(
                 zorder=3,
             )
 
+
     # Y-axis ticks and labels (inverted so smac_default is at the top)
     ax.set_yticks(y_positions)
     ax.set_yticklabels([SURROGATE_DISPLAY_NAMES.get(s, s) for s in surrogates])
-    ax.set_ylim(len(surrogates) - 0.5, -0.5)
+    if ylim is not None:
+        ax.set_ylim(ylim[0], ylim[1])
+    else:
+        ax.set_ylim(len(surrogates) - 0.5, -0.5)
+
 
     # De-spine (remove top and right spines, lighten bottom and left)
     ax.spines["top"].set_visible(False)
@@ -213,11 +240,12 @@ def plot_single_surrogate_comparison(
 def generate_surrogate_scaling_plots(
     input_csv: str,
     output_dir: str,
+    approaches: List[str] | None = None,
     formats: List[str] = ["pdf", "png"],
 ) -> List[str]:
     """
     Load main_global_by_surrogate.csv and generate 3 paired dot-and-whisker plots
-    for ECE, Winkler Score, and E-AURC comparing Proximity BC (OOB) vs Variance Decomposition.
+    for ECE, Winkler Score, and E-AURC comparing focal approaches across Random Forest surrogates.
     """
     df = pd.read_csv(input_csv)
     out_path = Path(output_dir)
@@ -225,19 +253,20 @@ def generate_surrogate_scaling_plots(
 
     results = []
 
-    # 1. ECE Plot
+    # 1. ECE Plot (Lower right is completely empty across surrogates)
     ece_files = plot_single_surrogate_comparison(
         df=df,
         metric_col="ece_mean",
         sem_col="ece_sem",
         xlabel="Expected Calibration Error (ECE)",
         output_stem=out_path / "surrogate_ece",
+        approaches=approaches,
         formats=formats,
-        legend_loc="lower left",
+        legend_loc="lower right",
     )
     results.extend([str(p) for p in ece_files])
 
-    # 2. Winkler Score Plot
+    # 2. Winkler Score Plot (Lower right is completely empty across surrogates)
     winkler_col = "winkler_mean_mean" if "winkler_mean_mean" in df.columns else "winkler_mean"
     winkler_sem = "winkler_mean_sem" if "winkler_mean_sem" in df.columns else "winkler_sem"
     winkler_files = plot_single_surrogate_comparison(
@@ -246,19 +275,21 @@ def generate_surrogate_scaling_plots(
         sem_col=winkler_sem,
         xlabel="Mean Winkler Score",
         output_stem=out_path / "surrogate_winkler_mean",
+        approaches=approaches,
         formats=formats,
-        legend_loc="lower left",
+        legend_loc="lower right",
     )
     results.extend([str(p) for p in winkler_files])
 
     # 3. E-AURC Plot (Excess Area Under Risk-Coverage)
-    # Compact cramped legend in top left corner
+    # Compact legend in top left corner with headroom so it never touches data points
     e_aurc_files = plot_single_surrogate_comparison(
         df=df,
         metric_col="e_aurc_mean",
         sem_col="e_aurc_sem",
         xlabel="Excess AURC (Selective Risk)",
         output_stem=out_path / "surrogate_e_aurc",
+        approaches=approaches,
         formats=formats,
         legend_loc="upper left",
         legend_fontsize=7.5,
@@ -268,15 +299,17 @@ def generate_surrogate_scaling_plots(
             "labelspacing": 0.2,
             "borderaxespad": 0.2,
         },
+        ylim=(3.5, -0.75),
     )
     results.extend([str(p) for p in e_aurc_files])
+
 
     return results
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Plot Random Forest surrogate comparisons for Proximity BC (OOB) vs Variance Decomposition."
+        description="Plot Random Forest surrogate comparisons for focal UQ approaches."
     )
     parser.add_argument(
         "--input-csv",
@@ -291,6 +324,11 @@ def main():
         help="Directory where plot files will be saved.",
     )
     parser.add_argument(
+        "--include-entropy",
+        action="store_true",
+        help="Include Shaker Entropy in the comparison.",
+    )
+    parser.add_argument(
         "--formats",
         nargs="+",
         default=["pdf", "png"],
@@ -298,9 +336,12 @@ def main():
     )
     args = parser.parse_args()
 
+    approaches = APPROACHES_WITH_ENTROPY if args.include_entropy else TARGET_APPROACHES
+
     files = generate_surrogate_scaling_plots(
         input_csv=args.input_csv,
         output_dir=args.output_dir,
+        approaches=approaches,
         formats=args.formats,
     )
     print(f"Generated {len(files)} plot files in {args.output_dir}:")
@@ -310,3 +351,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

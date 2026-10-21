@@ -11,6 +11,7 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.plot_stratum_scaling import (
     generate_stratum_scaling_plots,
     TARGET_APPROACHES,
+    APPROACHES_WITH_ENTROPY,
     APPROACH_DISPLAY_NAMES,
     STRATUM_LABELS,
 )
@@ -20,19 +21,23 @@ def test_target_approaches_and_stratum_labels():
     assert "prox_bc_oob" in TARGET_APPROACHES
     assert "hutter_total" in TARGET_APPROACHES
     assert len(TARGET_APPROACHES) == 2
+    assert "shaker_epistemic" in APPROACHES_WITH_ENTROPY
+    assert len(APPROACHES_WITH_ENTROPY) == 3
     assert APPROACH_DISPLAY_NAMES["prox_bc_oob"] == "Proximity BC (OOB)"
     assert APPROACH_DISPLAY_NAMES["hutter_total"] == "Variance Decomposition"
+    assert APPROACH_DISPLAY_NAMES["shaker_epistemic"] == "Shaker Entropy"
     assert 0 in STRATUM_LABELS
     assert 1 in STRATUM_LABELS
     assert 2 in STRATUM_LABELS
     assert 3 in STRATUM_LABELS
 
 
+
 def test_generate_stratum_scaling_plots(tmp_path):
     strata = [0, 1, 2, 3]
     rows = []
     for s in strata:
-        for app in ["hutter_total", "prox_bc_oob", "prox_a_cv"]:
+        for app in ["hutter_total", "prox_bc_oob", "shaker_epistemic"]:
             rows.append({
                 "stratum_scope": s,
                 "approach": app,
@@ -52,6 +57,7 @@ def test_generate_stratum_scaling_plots(tmp_path):
     generated_files = generate_stratum_scaling_plots(
         input_csv=str(csv_path),
         output_dir=str(out_dir),
+        approaches=APPROACHES_WITH_ENTROPY,
         formats=["png", "pdf"],
     )
 
@@ -62,3 +68,4 @@ def test_generate_stratum_scaling_plots(tmp_path):
     assert os.path.exists(out_dir / "stratum_scaling_winkler_mean.png")
     assert os.path.exists(out_dir / "stratum_scaling_e_aurc.pdf")
     assert os.path.exists(out_dir / "stratum_scaling_e_aurc.png")
+

@@ -11,6 +11,7 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.plot_dimension_scaling import (
     generate_dimension_scaling_plots,
     TARGET_APPROACHES,
+    APPROACHES_WITH_ENTROPY,
     APPROACH_DISPLAY_NAMES,
 )
 
@@ -19,15 +20,18 @@ def test_target_approaches_and_names():
     assert "prox_bc_oob" in TARGET_APPROACHES
     assert "hutter_total" in TARGET_APPROACHES
     assert len(TARGET_APPROACHES) == 2
+    assert "shaker_epistemic" in APPROACHES_WITH_ENTROPY
+    assert len(APPROACHES_WITH_ENTROPY) == 3
     assert APPROACH_DISPLAY_NAMES["prox_bc_oob"] == "Proximity BC (OOB)"
     assert APPROACH_DISPLAY_NAMES["hutter_total"] == "Variance Decomposition"
+    assert APPROACH_DISPLAY_NAMES["shaker_epistemic"] == "Shaker Entropy"
 
 
 def test_generate_dimension_scaling_plots(tmp_path):
     dims = [2, 3, 5, 8, 16, 32, 64, 128]
     rows = []
     for d in dims:
-        for app in ["hutter_total", "prox_bc_oob", "prox_a_cv"]:
+        for app in ["hutter_total", "prox_bc_oob", "shaker_epistemic"]:
             rows.append({
                 "dimension": d,
                 "approach": app,
@@ -47,13 +51,15 @@ def test_generate_dimension_scaling_plots(tmp_path):
     generated_files = generate_dimension_scaling_plots(
         input_csv=str(csv_path),
         output_dir=str(out_dir),
+        approaches=APPROACHES_WITH_ENTROPY,
         formats=["png", "pdf"],
     )
 
-    assert len(generated_files) >= 3
+    assert len(generated_files) >= 6
     assert os.path.exists(out_dir / "dim_scaling_ece.pdf")
     assert os.path.exists(out_dir / "dim_scaling_ece.png")
     assert os.path.exists(out_dir / "dim_scaling_winkler_mean.pdf")
     assert os.path.exists(out_dir / "dim_scaling_winkler_mean.png")
     assert os.path.exists(out_dir / "dim_scaling_e_aurc.pdf")
     assert os.path.exists(out_dir / "dim_scaling_e_aurc.png")
+

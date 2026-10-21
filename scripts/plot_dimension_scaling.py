@@ -24,15 +24,18 @@ import seaborn as sns
 
 # Target approaches to compare
 TARGET_APPROACHES: List[str] = ["prox_bc_oob", "hutter_total"]
+APPROACHES_WITH_ENTROPY: List[str] = ["prox_bc_oob", "hutter_total", "shaker_epistemic"]
 
 APPROACH_DISPLAY_NAMES: Dict[str, str] = {
     "prox_bc_oob": "Proximity BC (OOB)",
     "hutter_total": "Variance Decomposition",
+    "shaker_epistemic": "Shaker Entropy",
 }
 
 # Refined warm palette:
 # Proximity BC (OOB) -> Warm Terracotta / Rust (#C2410C)
 # Variance Decomposition -> Warm Dark Stone (#44403C)
+# Shaker Entropy -> Warm Golden Amber (#D97706)
 APPROACH_STYLES: Dict[str, Dict[str, str]] = {
     "prox_bc_oob": {
         "color": "#C2410C",            # Warm Terracotta / Rust
@@ -45,6 +48,12 @@ APPROACH_STYLES: Dict[str, Dict[str, str]] = {
         "linestyle": "--",
         "marker": "s",
         "label": "Variance Decomposition",
+    },
+    "shaker_epistemic": {
+        "color": "#D97706",            # Warm Golden Amber
+        "linestyle": ":",
+        "marker": "^",
+        "label": "Shaker Entropy",
     },
 }
 
@@ -85,21 +94,25 @@ def plot_single_dimension_scaling(
     sem_col: str,
     ylabel: str,
     output_stem: Path,
+    approaches: List[str] | None = None,
     formats: List[str] = ["pdf", "png"],
 ) -> List[Path]:
     """
     Plot dimension scaling curves with 95% Confidence Interval shaded bands
-    comparing Proximity BC (OOB) vs Variance Decomposition.
+    comparing focal approaches across dimensions.
     """
     set_publication_rcparams()
 
+    if approaches is None:
+        approaches = TARGET_APPROACHES
+
     fig, ax = plt.subplots(figsize=(5.5, 3.8), dpi=300)
 
-    # Filter for the two target approaches
-    df_filtered = df[df["approach"].isin(TARGET_APPROACHES)].copy()
+    # Filter for the target approaches
+    df_filtered = df[df["approach"].isin(approaches)].copy()
     dims = sorted(df_filtered["dimension"].unique())
 
-    for approach in TARGET_APPROACHES:
+    for approach in approaches:
         sub_df = df_filtered[df_filtered["approach"] == approach].sort_values("dimension")
         if sub_df.empty:
             continue
@@ -189,11 +202,12 @@ def plot_single_dimension_scaling(
 def generate_dimension_scaling_plots(
     input_csv: str,
     output_dir: str,
+    approaches: List[str] | None = None,
     formats: List[str] = ["pdf", "png"],
 ) -> List[str]:
     """
     Load main_global_by_dimension.csv and generate 3 dimension scaling line plots
-    for ECE, Winkler Score, and E-AURC comparing Proximity BC (OOB) vs Variance Decomposition.
+    for ECE, Winkler Score, and E-AURC comparing focal approaches.
     """
     df = pd.read_csv(input_csv)
     out_path = Path(output_dir)
@@ -208,6 +222,7 @@ def generate_dimension_scaling_plots(
         sem_col="ece_sem",
         ylabel="Expected Calibration Error (ECE)",
         output_stem=out_path / "dim_scaling_ece",
+        approaches=approaches,
         formats=formats,
     )
     results.extend([str(p) for p in ece_files])
@@ -221,6 +236,7 @@ def generate_dimension_scaling_plots(
         sem_col=winkler_sem,
         ylabel="Mean Winkler Score",
         output_stem=out_path / "dim_scaling_winkler_mean",
+        approaches=approaches,
         formats=formats,
     )
     results.extend([str(p) for p in winkler_files])
@@ -232,6 +248,7 @@ def generate_dimension_scaling_plots(
         sem_col="e_aurc_sem",
         ylabel="Excess AURC (Selective Risk)",
         output_stem=out_path / "dim_scaling_e_aurc",
+        approaches=approaches,
         formats=formats,
     )
     results.extend([str(p) for p in e_aurc_files])
@@ -241,7 +258,7 @@ def generate_dimension_scaling_plots(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Plot dimension scaling curves for Proximity BC (OOB) vs Variance Decomposition."
+        description="Plot dimension scaling curves for focal UQ approaches."
     )
     parser.add_argument(
         "--input-csv",
@@ -256,6 +273,11 @@ def main():
         help="Directory where plot files will be saved.",
     )
     parser.add_argument(
+        "--include-entropy",
+        action="store_true",
+        help="Include Shaker Entropy in the comparison.",
+    )
+    parser.add_argument(
         "--formats",
         nargs="+",
         default=["pdf", "png"],
@@ -263,9 +285,12 @@ def main():
     )
     args = parser.parse_args()
 
+    approaches = APPROACHES_WITH_ENTROPY if args.include_entropy else TARGET_APPROACHES
+
     files = generate_dimension_scaling_plots(
         input_csv=args.input_csv,
         output_dir=args.output_dir,
+        approaches=approaches,
         formats=args.formats,
     )
     print(f"Generated {len(files)} plot files in {args.output_dir}:")
@@ -275,3 +300,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
