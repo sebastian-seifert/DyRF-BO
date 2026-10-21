@@ -25,7 +25,7 @@ def test_clean_approach_name():
     assert clean_approach_name("prox_b_oob") == "B (OOB)"
     assert clean_approach_name("prox_bc_cv") == "BC (CV)"
     assert clean_approach_name("prox_bc_oob") == "BC (OOB)"
-    assert clean_approach_name("hutter_total") == "Hutter Total"
+    assert clean_approach_name("hutter_total") == "Variance Decomposition"
     assert clean_approach_name("shaker_epistemic") == "Shaker Epistemic"
 
 

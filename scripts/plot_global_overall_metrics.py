@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Publication-grade visualizer for the Global Overall UQ Benchmark results.
-Produces three standalone horizontal bar plots (one for each metric: ECE, Winkler Score, NAURC)
-comparing all 10 approaches, with decluttered labels ("A (CV)", "BC (OOB)", etc.).
+Visualizer for the Global Overall UQ Benchmark results.
+Produces three horizontal bar plots (one for each metric: ECE, Winkler Score, NAURC)
+comparing all 10 approaches using standard Matplotlib visuals,
+with 'Variance Decomposition' baseline naming, and legend placed top-right.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,67 +26,28 @@ APPROACH_DISPLAY_NAMES: Dict[str, str] = {
     "prox_b_oob": "B (OOB)",
     "prox_bc_cv": "BC (CV)",
     "prox_bc_oob": "BC (OOB)",
-    "hutter_total": "Hutter Total",
+    "hutter_total": "Variance Decomposition",
     "shaker_epistemic": "Shaker Epistemic",
 }
 
-# Family and color assignment (Okabe-Ito colorblind-safe)
-FAMILY_COLORS: Dict[str, str] = {
-    "hutter_total": "#5A6268",       # Slate Gray
-    "shaker_epistemic": "#212529",   # Charcoal
-    "A": "#0072B2",                  # Blue
-    "AC": "#009E73",                 # Teal / Green
-    "B": "#D55E00",                  # Vermilion
-    "BC": "#785EF0",                 # Purple
+# Standard clean color mapping (Tab10 palette)
+APPROACH_COLORS: Dict[str, str] = {
+    "hutter_total": "#7f7f7f",       # Standard Gray
+    "shaker_epistemic": "#333333",   # Dark Gray
+    "prox_a_cv": "#1f77b4",          # Tab Blue
+    "prox_a_oob": "#aec7e8",         # Light Blue
+    "prox_ac_cv": "#2ca02c",         # Tab Green
+    "prox_ac_oob": "#98df8a",        # Light Green
+    "prox_b_cv": "#ff7f0e",          # Tab Orange
+    "prox_b_oob": "#ffbb78",         # Light Orange
+    "prox_bc_cv": "#9467bd",         # Tab Purple
+    "prox_bc_oob": "#c5b0d5",        # Light Purple
 }
 
 
 def clean_approach_name(approach: str) -> str:
     """Return clean, decluttered display name for an approach."""
     return APPROACH_DISPLAY_NAMES.get(approach, approach)
-
-
-def get_approach_color_and_hatch(approach: str) -> Tuple[str, Optional[str]]:
-    """Determine bar facecolor and hatch based on family and CV/OOB estimator."""
-    if approach == "hutter_total":
-        return FAMILY_COLORS["hutter_total"], None
-    if approach == "shaker_epistemic":
-        return FAMILY_COLORS["shaker_epistemic"], None
-    
-    # Proximity approaches
-    if "prox_bc" in approach:
-        color = FAMILY_COLORS["BC"]
-    elif "prox_ac" in approach:
-        color = FAMILY_COLORS["AC"]
-    elif "prox_b" in approach:
-        color = FAMILY_COLORS["B"]
-    elif "prox_a" in approach:
-        color = FAMILY_COLORS["A"]
-    else:
-        color = "#4A90E2"
-
-    hatch = "//" if "oob" in approach else None
-    return color, hatch
-
-
-def set_publication_style():
-    """Configure matplotlib for clean publication-quality rendering."""
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.serif": ["Times New Roman", "DejaVu Serif", "Computer Modern Roman"],
-        "mathtext.fontset": "cm",
-        "font.size": 9,
-        "axes.labelsize": 9.5,
-        "axes.titlesize": 10.5,
-        "xtick.labelsize": 8.5,
-        "ytick.labelsize": 9.0,
-        "figure.titlesize": 11,
-        "axes.linewidth": 0.8,
-        "grid.linewidth": 0.5,
-        "lines.linewidth": 1.2,
-        "pdf.fonttype": 42,
-        "ps.fonttype": 42,
-    })
 
 
 def plot_single_metric_bar(
@@ -99,20 +60,25 @@ def plot_single_metric_bar(
     formats: List[str] = ["pdf", "png"],
 ) -> List[Path]:
     """
-    Generate and save a horizontal ranked bar plot for a single metric.
-    Bars are sorted so that best performance (lowest metric value) is at the top.
+    Generate and save a horizontal bar plot for a single metric across all 10 approaches.
+    Sorted so that best performance (lowest metric value) is at the top.
     """
-    set_publication_style()
+    # Use standard matplotlib default style
+    plt.rcdefaults()
+
+    # Sort ascending=False so that smallest values appear at the top in barh
     df_sorted = df.sort_values(by=metric_col, ascending=False).reset_index(drop=True)
 
-    fig, ax = plt.subplots(figsize=(5.5, 3.8), dpi=300)
+    fig, ax = plt.subplots(figsize=(6.2, 4.0), dpi=300)
 
     y_pos = np.arange(len(df_sorted))
     means = df_sorted[metric_col].values
     sems = df_sorted[sem_col].values
     approaches = df_sorted["approach"].values
+    labels = [clean_approach_name(a) for a in approaches]
+    colors = [APPROACH_COLORS.get(a, "#1f77b4") for a in approaches]
 
-    # Locate baseline value
+    # Baseline reference value (Variance Decomposition)
     hutter_mask = df_sorted["approach"] == "hutter_total"
     hutter_val = float(df_sorted.loc[hutter_mask, metric_col].values[0]) if hutter_mask.any() else None
 
@@ -120,65 +86,52 @@ def plot_single_metric_bar(
     if hutter_val is not None:
         ax.axvline(
             hutter_val,
-            color="#e63946",
+            color="red",
             linestyle="--",
             linewidth=1.2,
-            zorder=2,
-            label=f"Baseline: Hutter Total ({hutter_val:.4g})",
-        )
-
-    # Plot bars
-    bar_height = 0.65
-    for i, (approach, mean_val, sem_val) in enumerate(zip(approaches, means, sems)):
-        color, hatch = get_approach_color_and_hatch(approach)
-        edgecolor = "#212529" if approach in ["hutter_total", "shaker_epistemic"] else color
-        
-        # OOB uses slightly lighter alpha or hatch to distinguish from CV
-        alpha = 0.82 if "oob" in approach else 0.95
-        
-        ax.barh(
-            i,
-            mean_val,
-            xerr=sem_val,
-            height=bar_height,
-            color=color,
-            alpha=alpha,
-            edgecolor=edgecolor,
-            hatch=hatch,
-            linewidth=0.9,
-            capsize=3.0,
-            error_kw={"elinewidth": 1.0, "capthick": 1.0, "ecolor": "#212529"},
             zorder=3,
+            label=f"Baseline: Variance Decomposition ({hutter_val:.4g})",
         )
 
-        # Value label at the tip of the bar
-        label_text = f" {mean_val:.4g}"
+    # Plot horizontal bars
+    ax.barh(
+        y_pos,
+        means,
+        xerr=sems,
+        height=0.65,
+        color=colors,
+        edgecolor="#333333",
+        linewidth=0.8,
+        capsize=3.0,
+        zorder=2,
+    )
+
+    # Annotate numeric values at the tip of each bar
+    for i, (mean_val, sem_val) in enumerate(zip(means, sems)):
         ax.text(
             mean_val + sem_val,
             i,
-            label_text,
+            f" {mean_val:.4g}",
             va="center",
             ha="left",
-            fontsize=7.5,
-            color="#212529",
-            zorder=4,
+            fontsize=8,
         )
 
     # Formatting axes
     ax.set_yticks(y_pos)
-    ax.set_yticklabels([clean_approach_name(a) for a in approaches])
-    ax.set_xlabel(f"{xlabel}  ($\\leftarrow$ Lower is Better)")
-    ax.set_title(title, pad=10, weight="bold")
-    ax.grid(axis="x", linestyle=":", alpha=0.6, zorder=0)
+    ax.set_yticklabels(labels, fontsize=9)
+    ax.set_xlabel(xlabel, fontsize=9.5)
+    ax.set_title(title, fontsize=11, fontweight="bold", pad=10)
+    ax.grid(axis="x", linestyle=":", alpha=0.6, zorder=1)
     ax.set_axisbelow(True)
 
-    # Extend x-lim slightly for annotations
-    x_max = (means + sems).max() * 1.15
+    # Extend x-lim slightly so text labels and top-right legend fit cleanly
+    x_max = float((means + sems).max()) * 1.25
     ax.set_xlim(0, x_max)
 
-    # Legend for Hutter baseline
+    # Legend placed top-right
     if hutter_val is not None:
-        ax.legend(loc="lower right", frameon=True, framealpha=0.9, fontsize=8)
+        ax.legend(loc="upper right", frameon=True, fontsize=8.5)
 
     plt.tight_layout()
 
@@ -199,8 +152,7 @@ def generate_metric_bar_plots(
     formats: List[str] = ["pdf", "png"],
 ) -> List[str]:
     """
-    Load main_global.csv and generate 3 standalone bar plots for ECE, Winkler Score, and NAURC.
-    Also produces a combined 1x3 panel overview plot.
+    Load main_global.csv and generate 3 standalone horizontal bar plots for ECE, Winkler Score, and NAURC.
     """
     df = pd.read_csv(input_csv)
     out_path = Path(output_dir)
@@ -213,22 +165,22 @@ def generate_metric_bar_plots(
         df=df,
         metric_col="ece_mean",
         sem_col="ece_sem",
-        title="Expected Calibration Error (ECE) Across Approaches",
+        title="Expected Calibration Error (ECE)",
         xlabel="Expected Calibration Error (ECE)",
         output_stem=out_path / "global_ece",
         formats=formats,
     )
     results.extend([str(p) for p in ece_files])
 
-    # 2. Winkler Score Plot (winkler_mean_mean or winkler_95_mean)
+    # 2. Winkler Score Plot
     winkler_col = "winkler_mean_mean" if "winkler_mean_mean" in df.columns else "winkler_mean"
     winkler_sem = "winkler_mean_sem" if "winkler_mean_sem" in df.columns else "winkler_sem"
     winkler_files = plot_single_metric_bar(
         df=df,
         metric_col=winkler_col,
         sem_col=winkler_sem,
-        title="Prediction Interval Quality: Winkler Score",
-        xlabel="Winkler Score (Mean)",
+        title="Winkler Score",
+        xlabel="Mean Winkler Score",
         output_stem=out_path / "global_winkler_mean",
         formats=formats,
     )
@@ -239,8 +191,8 @@ def generate_metric_bar_plots(
         df=df,
         metric_col="naurc_mean",
         sem_col="naurc_sem",
-        title="Selective Classification Risk: Normalized AURC",
-        xlabel="Normalized Area Under Risk-Coverage (NAURC)",
+        title="Normalized AURC (Selective Risk)",
+        xlabel="Normalized AURC (NAURC)",
         output_stem=out_path / "global_naurc",
         formats=formats,
     )
