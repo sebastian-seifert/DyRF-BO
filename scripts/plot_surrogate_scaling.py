@@ -259,6 +259,13 @@ def generate_surrogate_scaling_plots(
 
     results = []
 
+    compact_legend_kwargs = {
+        "borderpad": 0.25,
+        "handletextpad": 0.35,
+        "labelspacing": 0.2,
+        "borderaxespad": 0.2,
+    }
+
     # 1. ECE Plot (Lower right is completely empty across surrogates)
     ece_files = plot_single_surrogate_comparison(
         df=df,
@@ -269,6 +276,8 @@ def generate_surrogate_scaling_plots(
         approaches=approaches,
         formats=formats,
         legend_loc="lower right",
+        legend_fontsize=7.5,
+        legend_kwargs=compact_legend_kwargs,
     )
     results.extend([str(p) for p in ece_files])
 
@@ -284,6 +293,8 @@ def generate_surrogate_scaling_plots(
         approaches=approaches,
         formats=formats,
         legend_loc="lower right",
+        legend_fontsize=7.5,
+        legend_kwargs=compact_legend_kwargs,
     )
     results.extend([str(p) for p in winkler_files])
 
@@ -299,15 +310,11 @@ def generate_surrogate_scaling_plots(
         formats=formats,
         legend_loc="upper left",
         legend_fontsize=7.5,
-        legend_kwargs={
-            "borderpad": 0.25,
-            "handletextpad": 0.35,
-            "labelspacing": 0.2,
-            "borderaxespad": 0.2,
-        },
+        legend_kwargs=compact_legend_kwargs,
         ylim=(3.5, -0.75),
     )
     results.extend([str(p) for p in e_aurc_files])
+
 
 
     return results
