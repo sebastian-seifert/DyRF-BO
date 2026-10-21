@@ -30,19 +30,18 @@ APPROACH_DISPLAY_NAMES: Dict[str, str] = {
     "hutter_total": "Variance Decomposition",
 }
 
-# Established warm palette equivalent to global plots:
-# BC (OOB) -> Deepest rich wine from Seaborn 'flare'
-# Variance Decomposition -> Neutral Slate Gray
-WARM_FLARE_PALETTE = sns.color_palette("flare", n_colors=8).as_hex()
+# Refined warm palette:
+# Proximity BC (OOB) -> Warm Terracotta / Rust (#C2410C)
+# Variance Decomposition -> Warm Dark Stone (#44403C)
 APPROACH_STYLES: Dict[str, Dict[str, str]] = {
     "prox_bc_oob": {
-        "color": WARM_FLARE_PALETTE[7], # Deepest rich wine (#701449)
+        "color": "#C2410C",            # Warm Terracotta / Rust
         "linestyle": "-",
         "marker": "o",
         "label": "Proximity BC (OOB)",
     },
     "hutter_total": {
-        "color": "#6B7280",            # Neutral Slate Gray
+        "color": "#44403C",            # Warm Dark Stone
         "linestyle": "--",
         "marker": "s",
         "label": "Variance Decomposition",
