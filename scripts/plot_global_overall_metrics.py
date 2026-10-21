@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 Publication-grade Visualizer for Global Overall UQ Benchmark results (N = 23,040).
-Generates three publication-grade horizontal bar plots (ECE, Winkler Score, NAURC)
+Generates three horizontal bar plots (ECE, Winkler Score, E-AURC)
 adhering to Nature / NeurIPS graphic standards:
-- De-spined layout with subtle gridlines.
-- Disciplined, semantic academic color palette (no rainbow/Tab10).
-- Clean typographical hierarchy with Type 42 vector font embedding.
-- Variance Decomposition baseline reference line with top-right legend.
-- Horizontal bars sorted with best on top.
+- Established ColorBrewer / Seaborn 'flare' warm, colorblind-safe palette.
+- Explicit Standard Error (SE) reported in bar annotations (mean ± SE).
+- E-AURC (Excess AURC) instead of NAURC.
+- Baseline reference line labeled compactly as 'Baseline (<value>)'.
+- De-spined layout, horizontal bars sorted with best on top.
 - Outputs both vector PDF and 300 DPI PNG.
 """
 
@@ -20,8 +20,9 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 
-# Approach display names mapping
+# Approach display names mapping (decluttered per user specification)
 APPROACH_DISPLAY_NAMES: Dict[str, str] = {
     "prox_a_cv": "A (CV)",
     "prox_a_oob": "A (OOB)",
@@ -35,35 +36,46 @@ APPROACH_DISPLAY_NAMES: Dict[str, str] = {
     "shaker_epistemic": "Shaker Epistemic",
 }
 
-# Refined academic palette: semantic hierarchy across method families
-APPROACH_COLORS: Dict[str, str] = {
-    # Baselines (Dignified Neutrals)
-    "hutter_total": "#64748B",       # Slate Gray
-    "shaker_epistemic": "#475569",   # Dark Slate Gray
-    # BC Family (Deep Royal / Indigo - Best Overall Performers)
-    "prox_bc_oob": "#1E3A8A",        # Deep Navy
-    "prox_bc_cv": "#2563EB",         # Cobalt Blue
-    # B Family (Deep / Muted Teal)
-    "prox_b_oob": "#0D9488",         # Deep Teal
-    "prox_b_cv": "#14B8A6",          # Muted Teal
-    # AC Family (Indigo Slate)
-    "prox_ac_oob": "#4338CA",        # Rich Indigo
-    "prox_ac_cv": "#6366F1",         # Soft Indigo
-    # A Family (Steel Ocean / Sky)
-    "prox_a_oob": "#0284C7",         # Steel Blue
-    "prox_a_cv": "#38BDF8",          # Sky Slate
-}
-
-# Edge colors for crisp, refined contrast
-APPROACH_EDGE_COLORS: Dict[str, str] = {
-    k: ("#1E293B" if "shaker" in k or "hutter" in k else v)
-    for k, v in APPROACH_COLORS.items()
-}
-
 
 def clean_approach_name(approach: str) -> str:
     """Return clean, decluttered display name for an approach."""
     return APPROACH_DISPLAY_NAMES.get(approach, approach)
+
+
+def get_warm_colorblind_palette(approaches: List[str]) -> List[str]:
+    """
+    Generate an established, colorblind-safe warm palette using Seaborn's
+    perceptually uniform 'flare' template.
+    Baselines are assigned neutral slate tones to distinguish them clearly.
+    """
+    # Generate 8 distinct warm tones from Seaborn's preset colorblind-safe 'flare' palette
+    warm_colors = sns.color_palette("flare", n_colors=8).as_hex()
+    
+    # Map proximity families to warm shades:
+    # BC (top performers) -> deep wine / rose
+    # B -> warm terracotta / rust
+    # AC -> amber coral
+    # A -> golden apricot
+    proximity_color_map = {
+        "prox_bc_oob": warm_colors[7], # Deepest rich wine
+        "prox_bc_cv": warm_colors[6],
+        "prox_b_oob": warm_colors[5],  # Terracotta / rust
+        "prox_b_cv": warm_colors[4],
+        "prox_ac_oob": warm_colors[3], # Coral / bronze
+        "prox_ac_cv": warm_colors[2],
+        "prox_a_oob": warm_colors[1],  # Warm apricot
+        "prox_a_cv": warm_colors[0],
+    }
+    
+    palette = []
+    for a in approaches:
+        if a == "hutter_total":
+            palette.append("#6B7280")       # Dignified Slate Gray
+        elif a == "shaker_epistemic":
+            palette.append("#374151")   # Dark Charcoal Gray
+        else:
+            palette.append(proximity_color_map.get(a, warm_colors[4]))
+    return palette
 
 
 def set_publication_rcparams() -> None:
@@ -101,6 +113,16 @@ def set_publication_rcparams() -> None:
     })
 
 
+def format_mean_se(mean_val: float, sem_val: float) -> str:
+    """Format mean ± SE string dynamically based on magnitude."""
+    if mean_val >= 10.0:
+        return f"{mean_val:.1f} ± {sem_val:.1f}"
+    elif mean_val >= 1.0:
+        return f"{mean_val:.2f} ± {sem_val:.2f}"
+    else:
+        return f"{mean_val:.3f} ± {sem_val:.3f}"
+
+
 def plot_single_metric_bar(
     df: pd.DataFrame,
     metric_col: str,
@@ -119,15 +141,14 @@ def plot_single_metric_bar(
     # Sort ascending=False so that smallest values appear at the top in barh (y = max_y)
     df_sorted = df.sort_values(by=metric_col, ascending=False).reset_index(drop=True)
 
-    fig, ax = plt.subplots(figsize=(6.2, 4.0), dpi=300)
+    fig, ax = plt.subplots(figsize=(6.4, 4.0), dpi=300)
 
     y_pos = np.arange(len(df_sorted))
     means = df_sorted[metric_col].values
     sems = df_sorted[sem_col].values
     approaches = df_sorted["approach"].values
     labels = [clean_approach_name(a) for a in approaches]
-    colors = [APPROACH_COLORS.get(a, "#2563EB") for a in approaches]
-    edgecolors = [APPROACH_EDGE_COLORS.get(a, "#1E293B") for a in approaches]
+    colors = get_warm_colorblind_palette(list(approaches))
 
     # Baseline reference value (Variance Decomposition)
     hutter_mask = df_sorted["approach"] == "hutter_total"
@@ -142,7 +163,7 @@ def plot_single_metric_bar(
             linewidth=1.1,
             alpha=0.9,
             zorder=3,
-            label=f"Baseline: Variance Decomposition ({hutter_val:.4g})",
+            label=f"Baseline ({hutter_val:.4g})",
         )
 
     # Plot horizontal bars
@@ -153,57 +174,58 @@ def plot_single_metric_bar(
         xerr=sems,
         height=bar_height,
         color=colors,
-        edgecolor=edgecolors,
-        linewidth=0.5,
+        edgecolor="#374151",
+        linewidth=0.4,
         capsize=2.5,
         error_kw={
             "elinewidth": 0.8,
             "capthick": 0.8,
-            "ecolor": "#475569",
+            "ecolor": "#374151",
         },
         zorder=2,
     )
 
-    # Annotate numeric values cleanly at the tip of each bar
+    # Annotate numeric values (Mean ± SE) cleanly at the tip of each bar
     x_max_val = float((means + sems).max())
     x_offset = x_max_val * 0.015
     for i, (mean_val, sem_val) in enumerate(zip(means, sems)):
+        formatted_val = format_mean_se(mean_val, sem_val)
         ax.text(
             mean_val + sem_val + x_offset,
             i,
-            f"{mean_val:.4g}",
+            formatted_val,
             va="center",
             ha="left",
-            fontsize=8.0,
-            color="#334155",
+            fontsize=7.8,
+            color="#1F2937",
             fontweight="normal",
             zorder=4,
         )
 
     # Formatting axes and labels
     ax.set_yticks(y_pos)
-    ax.set_yticklabels(labels, fontsize=9.0, color="#1E293B")
-    ax.set_xlabel(xlabel, fontsize=9.5, color="#1E293B", labelpad=6)
+    ax.set_yticklabels(labels, fontsize=9.0, color="#111827")
+    ax.set_xlabel(xlabel, fontsize=9.5, color="#111827", labelpad=6)
     ax.set_title(title, fontsize=10.5, fontweight="semibold", color="#0F172A", pad=10)
 
     # De-spine (remove top and right spines, lighten bottom and left)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_color("#CBD5E1")
+    ax.spines["left"].set_color("#D1D5DB")
     ax.spines["left"].set_linewidth(0.7)
-    ax.spines["bottom"].set_color("#CBD5E1")
+    ax.spines["bottom"].set_color("#D1D5DB")
     ax.spines["bottom"].set_linewidth(0.7)
 
     # Tick styling: no Y ticks, subtle X ticks
     ax.tick_params(axis="y", which="both", length=0)
-    ax.tick_params(axis="x", which="both", length=3.5, width=0.7, colors="#64748B", labelsize=8.5)
+    ax.tick_params(axis="x", which="both", length=3.5, width=0.7, colors="#6B7280", labelsize=8.5)
 
     # Subtle vertical gridlines only
-    ax.grid(axis="x", linestyle="--", linewidth=0.55, color="#E2E8F0", alpha=0.85, zorder=0)
+    ax.grid(axis="x", linestyle="--", linewidth=0.55, color="#E5E7EB", alpha=0.85, zorder=0)
     ax.set_axisbelow(True)
 
     # Extend x-lim slightly for annotations and top-right legend headroom
-    ax.set_xlim(0, x_max_val * 1.25)
+    ax.set_xlim(0, x_max_val * 1.30)
 
     # Minimalist, clean legend placed top-right
     if hutter_val is not None:
@@ -211,10 +233,10 @@ def plot_single_metric_bar(
             loc="upper right",
             frameon=True,
             facecolor="#FFFFFF",
-            edgecolor="#E2E8F0",
+            edgecolor="#E5E7EB",
             framealpha=0.95,
             fontsize=8.2,
-            handlelength=1.6,
+            handlelength=1.5,
             borderpad=0.5,
         )
 
@@ -237,7 +259,7 @@ def generate_metric_bar_plots(
     formats: List[str] = ["pdf", "png"],
 ) -> List[str]:
     """
-    Load main_global.csv and generate 3 standalone horizontal bar plots for ECE, Winkler Score, and NAURC.
+    Load main_global.csv and generate 3 standalone horizontal bar plots for ECE, Winkler Score, and E-AURC.
     """
     df = pd.read_csv(input_csv)
     out_path = Path(output_dir)
@@ -271,17 +293,17 @@ def generate_metric_bar_plots(
     )
     results.extend([str(p) for p in winkler_files])
 
-    # 3. NAURC Plot
-    naurc_files = plot_single_metric_bar(
+    # 3. E-AURC Plot (Excess Area Under Risk-Coverage)
+    e_aurc_files = plot_single_metric_bar(
         df=df,
-        metric_col="naurc_mean",
-        sem_col="naurc_sem",
-        title="Normalized AURC (Selective Risk)",
-        xlabel="Normalized AURC (NAURC)",
-        output_stem=out_path / "global_naurc",
+        metric_col="e_aurc_mean",
+        sem_col="e_aurc_sem",
+        title="Excess Area Under Risk-Coverage (E-AURC)",
+        xlabel="Excess AURC (Selective Risk)",
+        output_stem=out_path / "global_e_aurc",
         formats=formats,
     )
-    results.extend([str(p) for p in naurc_files])
+    results.extend([str(p) for p in e_aurc_files])
 
     return results
 

@@ -43,6 +43,8 @@ def test_generate_metric_bar_plots(tmp_path):
         "ece_sem": [0.001] * 10,
         "winkler_mean_mean": [86.0, 91.0, 85.0, 84.0, 83.0, 82.0, 82.5, 81.5, 81.0, 80.0],
         "winkler_mean_sem": [0.5] * 10,
+        "e_aurc_mean": [2.8, 3.2, 4.6, 4.4, 4.4, 4.2, 4.2, 4.0, 3.7, 3.6],
+        "e_aurc_sem": [0.02] * 10,
         "naurc_mean": [0.89, 0.94, 1.08, 1.03, 1.04, 0.99, 0.98, 0.94, 0.92, 0.89],
         "naurc_sem": [0.003] * 10,
         "n_runs": [23040] * 10
@@ -64,5 +66,5 @@ def test_generate_metric_bar_plots(tmp_path):
     assert os.path.exists(out_dir / "global_ece.png")
     assert os.path.exists(out_dir / "global_winkler_mean.pdf")
     assert os.path.exists(out_dir / "global_winkler_mean.png")
-    assert os.path.exists(out_dir / "global_naurc.pdf")
-    assert os.path.exists(out_dir / "global_naurc.png")
+    assert os.path.exists(out_dir / "global_e_aurc.pdf")
+    assert os.path.exists(out_dir / "global_e_aurc.png")
