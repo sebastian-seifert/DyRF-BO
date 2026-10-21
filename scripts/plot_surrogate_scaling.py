@@ -33,27 +33,29 @@ APPROACH_DISPLAY_NAMES: Dict[str, str] = {
     "hutter_total": "Variance Decomposition",
 }
 
-APPROACH_STYLES: Dict[str, Dict[str, str]] = {
+APPROACH_STYLES: Dict[str, Dict[str, any]] = {
     "prox_bc_oob": {
         "color": "#C2410C",            # Warm Terracotta / Rust
         "marker": "o",
         "label": "Proximity BC (OOB)",
+        "y_offset": -0.12,
     },
     "hutter_total": {
         "color": "#44403C",            # Warm Dark Stone
         "marker": "s",
         "label": "Variance Decomposition",
+        "y_offset": 0.12,
     },
 }
 
-# Canonical order and human-readable names for Random Forest surrogates
+# Canonical order and clean names for Random Forest surrogates (no parentheses)
 SURROGATE_ORDER: List[str] = ["smac_default", "mature", "shallow", "coarse"]
 
 SURROGATE_DISPLAY_NAMES: Dict[str, str] = {
-    "smac_default": "SMAC Default ($B=10$)",
-    "mature": "Mature ($B=100$)",
-    "shallow": "Shallow (Depth $= 4$)",
-    "coarse": "Coarse (Leaf $= 10$)",
+    "smac_default": "SMAC Default",
+    "mature": "Mature",
+    "shallow": "Shallow",
+    "coarse": "Coarse",
 }
 
 
@@ -96,8 +98,9 @@ def plot_single_surrogate_comparison(
     formats: List[str] = ["pdf", "png"],
 ) -> List[Path]:
     """
-    Plot horizontal paired dot-and-whisker (dumbbell) chart comparing
-    Proximity BC (OOB) vs Variance Decomposition across the 4 Random Forest surrogates.
+    Plot horizontal paired dot-and-whisker chart comparing
+    Proximity BC (OOB) vs Variance Decomposition across the 4 Random Forest surrogates
+    with vertical dodging to eliminate overlap.
     """
     set_publication_rcparams()
 
@@ -113,28 +116,14 @@ def plot_single_surrogate_comparison(
 
     y_positions = np.arange(len(surrogates))
 
-    # Plot dumbbell connector lines first (underneath markers)
-    for i, s in enumerate(surrogates):
-        s_df = df_filtered[df_filtered["surrogate"] == s]
-        sub_prox = s_df[s_df["approach"] == "prox_bc_oob"]
-        sub_hutter = s_df[s_df["approach"] == "hutter_total"]
+    # Subtle horizontal divider lines between surrogates
+    for y_div in np.arange(0.5, len(surrogates) - 0.5, 1.0):
+        ax.axhline(y_div, color="#F3F4F6", linewidth=0.8, zorder=0)
 
-        if not sub_prox.empty and not sub_hutter.empty:
-            x_prox = sub_prox[metric_col].values[0]
-            x_hutter = sub_hutter[metric_col].values[0]
-            # Subtle connector bar showing the gap
-            ax.plot(
-                [x_prox, x_hutter],
-                [i, i],
-                color="#E5E7EB",
-                linewidth=3.2,
-                solid_capstyle="round",
-                zorder=1,
-            )
-
-    # Plot points and error bars for each approach
+    # Plot points and error bars for each approach with distinct vertical height (y_offset)
     for approach in TARGET_APPROACHES:
         style = APPROACH_STYLES[approach]
+        y_offset = style.get("y_offset", 0.0)
         x_vals = []
         ci_vals = []
         valid_y = []
@@ -147,7 +136,7 @@ def plot_single_surrogate_comparison(
                 ci_val = sem_val * 1.96
                 x_vals.append(x_val)
                 ci_vals.append(ci_val)
-                valid_y.append(i)
+                valid_y.append(i + y_offset)
 
         if x_vals:
             ax.errorbar(
@@ -158,7 +147,7 @@ def plot_single_surrogate_comparison(
                 color=style["color"],
                 ecolor=style["color"],
                 label=style["label"],
-                markersize=6.0,
+                markersize=5.5,
                 markeredgecolor="#1F2937",
                 markeredgewidth=0.7,
                 capsize=3.5,
