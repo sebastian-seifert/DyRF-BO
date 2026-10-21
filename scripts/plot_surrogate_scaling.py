@@ -118,7 +118,7 @@ def plot_single_surrogate_comparison(
     if approaches is None:
         approaches = TARGET_APPROACHES
 
-    fig, ax = plt.subplots(figsize=(5.8, 3.4), dpi=300)
+    fig, ax = plt.subplots(figsize=(5.8, 3.8), dpi=300)
 
     # Filter for the target approaches
     df_filtered = df[df["approach"].isin(approaches)].copy()
@@ -130,20 +130,26 @@ def plot_single_surrogate_comparison(
 
     y_positions = np.arange(len(surrogates))
 
+    # Very subtle alternating row shading for clean distinction without visual clutter
+    for i in range(len(surrogates)):
+        if i % 2 == 0:
+            ax.axhspan(i - 0.5, i + 0.5, facecolor="#F9FAFB", edgecolor="none", zorder=0)
+
     # Subtle horizontal divider lines between surrogates
     for y_div in np.arange(0.5, len(surrogates) - 0.5, 1.0):
-        ax.axhline(y_div, color="#F3F4F6", linewidth=0.8, zorder=0)
+        ax.axhline(y_div, color="#E5E7EB", linewidth=0.6, alpha=0.6, zorder=0)
 
-    # Compute vertical dodging offsets based on number of approaches
+    # Compute vertical dodging offsets based on number of approaches (tightened for grouped cohesion)
     if len(approaches) == 1:
         offsets = [0.0]
     elif len(approaches) == 2:
-        offsets = [-0.12, 0.12]
+        offsets = [-0.11, 0.11]
     elif len(approaches) == 3:
-        offsets = [-0.18, 0.0, 0.18]
+        offsets = [-0.14, 0.0, 0.14]
     else:
-        offsets = np.linspace(-0.20, 0.20, len(approaches)).tolist()
+        offsets = np.linspace(-0.16, 0.16, len(approaches)).tolist()
     offset_map = {app: offsets[idx] for idx, app in enumerate(approaches)}
+
 
     # Plot points and error bars for each approach with distinct vertical height (y_offset)
     for approach in approaches:
