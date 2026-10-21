@@ -163,7 +163,7 @@ def plot_single_metric_bar(
             linewidth=1.1,
             alpha=0.9,
             zorder=3,
-            label=f"Baseline ({hutter_val:.4g})",
+            label="Baseline",
         )
 
     # Plot horizontal bars
@@ -185,28 +185,10 @@ def plot_single_metric_bar(
         zorder=2,
     )
 
-    # Annotate numeric values (Mean ± SE) cleanly at the tip of each bar
-    x_max_val = float((means + sems).max())
-    x_offset = x_max_val * 0.015
-    for i, (mean_val, sem_val) in enumerate(zip(means, sems)):
-        formatted_val = format_mean_se(mean_val, sem_val)
-        ax.text(
-            mean_val + sem_val + x_offset,
-            i,
-            formatted_val,
-            va="center",
-            ha="left",
-            fontsize=7.8,
-            color="#1F2937",
-            fontweight="normal",
-            zorder=4,
-        )
-
     # Formatting axes and labels
     ax.set_yticks(y_pos)
     ax.set_yticklabels(labels, fontsize=9.0, color="#111827")
     ax.set_xlabel(xlabel, fontsize=9.5, color="#111827", labelpad=6)
-    ax.set_title(title, fontsize=10.5, fontweight="semibold", color="#0F172A", pad=10)
 
     # De-spine (remove top and right spines, lighten bottom and left)
     ax.spines["top"].set_visible(False)
@@ -224,8 +206,9 @@ def plot_single_metric_bar(
     ax.grid(axis="x", linestyle="--", linewidth=0.55, color="#E5E7EB", alpha=0.85, zorder=0)
     ax.set_axisbelow(True)
 
-    # Extend x-lim slightly for annotations and top-right legend headroom
-    ax.set_xlim(0, x_max_val * 1.30)
+    # Extend x-lim slightly for top-right legend headroom
+    x_max_val = float((means + sems).max())
+    ax.set_xlim(0, x_max_val * 1.08)
 
     # Minimalist, clean legend placed top-right
     if hutter_val is not None:
@@ -235,7 +218,7 @@ def plot_single_metric_bar(
             facecolor="#FFFFFF",
             edgecolor="#E5E7EB",
             framealpha=0.95,
-            fontsize=8.2,
+            fontsize=8.5,
             handlelength=1.5,
             borderpad=0.5,
         )
