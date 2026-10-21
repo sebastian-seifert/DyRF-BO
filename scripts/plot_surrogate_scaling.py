@@ -96,6 +96,9 @@ def plot_single_surrogate_comparison(
     xlabel: str,
     output_stem: Path,
     formats: List[str] = ["pdf", "png"],
+    legend_loc: str = "best",
+    legend_fontsize: float = 8.5,
+    legend_kwargs: dict | None = None,
 ) -> List[Path]:
     """
     Plot horizontal paired dot-and-whisker chart comparing
@@ -181,15 +184,18 @@ def plot_single_surrogate_comparison(
     ax.set_xlabel(xlabel, fontsize=9.5, color="#111827", labelpad=6)
 
     # Clean legend
-    ax.legend(
-        loc="best",
-        frameon=True,
-        facecolor="#FFFFFF",
-        edgecolor="#E5E7EB",
-        framealpha=0.95,
-        fontsize=8.5,
-        borderpad=0.5,
-    )
+    default_legend_kwargs = {
+        "loc": legend_loc,
+        "frameon": True,
+        "facecolor": "#FFFFFF",
+        "edgecolor": "#E5E7EB",
+        "framealpha": 0.95,
+        "fontsize": legend_fontsize,
+        "borderpad": 0.35,
+    }
+    if legend_kwargs:
+        default_legend_kwargs.update(legend_kwargs)
+    ax.legend(**default_legend_kwargs)
 
     plt.tight_layout()
 
@@ -227,6 +233,7 @@ def generate_surrogate_scaling_plots(
         xlabel="Expected Calibration Error (ECE)",
         output_stem=out_path / "surrogate_ece",
         formats=formats,
+        legend_loc="lower left",
     )
     results.extend([str(p) for p in ece_files])
 
@@ -240,10 +247,12 @@ def generate_surrogate_scaling_plots(
         xlabel="Mean Winkler Score",
         output_stem=out_path / "surrogate_winkler_mean",
         formats=formats,
+        legend_loc="lower left",
     )
     results.extend([str(p) for p in winkler_files])
 
     # 3. E-AURC Plot (Excess Area Under Risk-Coverage)
+    # Compact cramped legend in top left corner
     e_aurc_files = plot_single_surrogate_comparison(
         df=df,
         metric_col="e_aurc_mean",
@@ -251,6 +260,14 @@ def generate_surrogate_scaling_plots(
         xlabel="Excess AURC (Selective Risk)",
         output_stem=out_path / "surrogate_e_aurc",
         formats=formats,
+        legend_loc="upper left",
+        legend_fontsize=7.5,
+        legend_kwargs={
+            "borderpad": 0.25,
+            "handletextpad": 0.35,
+            "labelspacing": 0.2,
+            "borderaxespad": 0.2,
+        },
     )
     results.extend([str(p) for p in e_aurc_files])
 
