@@ -63,3 +63,40 @@ def test_generate_dimension_scaling_plots(tmp_path):
     assert os.path.exists(out_dir / "dim_scaling_e_aurc.pdf")
     assert os.path.exists(out_dir / "dim_scaling_e_aurc.png")
 
+
+def test_generate_dimension_scaling_plots_with_surrogate(tmp_path):
+    dims = [2, 8]
+    surrogates = ["smac_default", "coarse"]
+    rows = []
+    for s in surrogates:
+        for d in dims:
+            for app in ["hutter_total", "prox_bc_oob", "shaker_epistemic"]:
+                rows.append({
+                    "surrogate": s,
+                    "dimension": d,
+                    "approach": app,
+                    "ece_mean": 0.35 if s == "smac_default" else 0.50,
+                    "ece_sem": 0.002,
+                    "winkler_mean_mean": 70.0 if s == "smac_default" else 90.0,
+                    "winkler_mean_sem": 0.5,
+                    "e_aurc_mean": 2.0 if s == "smac_default" else 3.0,
+                    "e_aurc_sem": 0.03,
+                    "n_runs": 720,
+                })
+    df = pd.DataFrame(rows)
+    csv_path = tmp_path / "main_global_rf_by_dimension.csv"
+    df.to_csv(csv_path, index=False)
+
+    out_dir = tmp_path / "dim_scaling_smac3"
+    generated_files = generate_dimension_scaling_plots(
+        input_csv=str(csv_path),
+        output_dir=str(out_dir),
+        surrogate="smac_default",
+        approaches=APPROACHES_WITH_ENTROPY,
+        formats=["png", "pdf"],
+    )
+
+    assert len(generated_files) == 6
+    assert os.path.exists(out_dir / "dim_scaling_ece.pdf")
+    assert os.path.exists(out_dir / "dim_scaling_ece.png")
+
