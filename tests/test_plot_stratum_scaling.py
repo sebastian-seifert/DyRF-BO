@@ -19,12 +19,12 @@ from scripts.plot_stratum_scaling import (
 
 def test_target_approaches_and_stratum_labels():
     assert "prox_bc_oob" in TARGET_APPROACHES
-    assert "hutter_total" in TARGET_APPROACHES
+    assert "hutter_between" in TARGET_APPROACHES
     assert len(TARGET_APPROACHES) == 2
     assert "shaker_epistemic" in APPROACHES_WITH_ENTROPY
     assert len(APPROACHES_WITH_ENTROPY) == 3
     assert APPROACH_DISPLAY_NAMES["prox_bc_oob"] == "Proximity BC (OOB)"
-    assert APPROACH_DISPLAY_NAMES["hutter_total"] == "Variance Decomposition"
+    assert APPROACH_DISPLAY_NAMES["hutter_between"] == "Between-Tree Disagreement"
     assert APPROACH_DISPLAY_NAMES["shaker_epistemic"] == "Shaker Entropy"
     assert 0 in STRATUM_LABELS
     assert 1 in STRATUM_LABELS

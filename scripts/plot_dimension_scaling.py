@@ -23,18 +23,19 @@ import pandas as pd
 import seaborn as sns
 
 # Target approaches to compare
-TARGET_APPROACHES: List[str] = ["prox_bc_oob", "hutter_total"]
-APPROACHES_WITH_ENTROPY: List[str] = ["prox_bc_oob", "hutter_total", "shaker_epistemic"]
+TARGET_APPROACHES: List[str] = ["prox_bc_oob", "hutter_between"]
+APPROACHES_WITH_ENTROPY: List[str] = ["prox_bc_oob", "hutter_between", "shaker_epistemic"]
 
 APPROACH_DISPLAY_NAMES: Dict[str, str] = {
     "prox_bc_oob": "Proximity BC (OOB)",
+    "hutter_between": "Between-Tree Disagreement",
     "hutter_total": "Variance Decomposition",
     "shaker_epistemic": "Shaker Entropy",
 }
 
 # Refined warm palette:
 # Proximity BC (OOB) -> Warm Terracotta / Rust (#C2410C)
-# Variance Decomposition -> Warm Dark Stone (#44403C)
+# Between-Tree Disagreement -> Warm Dark Stone (#44403C)
 # Shaker Entropy -> Warm Golden Amber (#D97706)
 APPROACH_STYLES: Dict[str, Dict[str, str]] = {
     "prox_bc_oob": {
@@ -42,6 +43,12 @@ APPROACH_STYLES: Dict[str, Dict[str, str]] = {
         "linestyle": "-",
         "marker": "o",
         "label": "Proximity BC (OOB)",
+    },
+    "hutter_between": {
+        "color": "#44403C",            # Warm Dark Stone
+        "linestyle": "--",
+        "marker": "s",
+        "label": "Between-Tree Disagreement",
     },
     "hutter_total": {
         "color": "#44403C",            # Warm Dark Stone
@@ -212,6 +219,13 @@ def generate_dimension_scaling_plots(
     and E-AURC comparing focal approaches. Optionally filters by surrogate.
     """
     df = pd.read_csv(input_csv)
+    if approaches is None:
+        approaches = TARGET_APPROACHES
+
+    if "hutter_between" in approaches and "hutter_between" not in df["approach"].values and "hutter_total" in df["approach"].values:
+        df = df.copy()
+        df.loc[df["approach"] == "hutter_total", "approach"] = "hutter_between"
+
     if surrogate is not None:
         if "surrogate" not in df.columns:
             raise ValueError(f"Cannot filter by surrogate '{surrogate}': column 'surrogate' not found in {input_csv}")

@@ -26,11 +26,12 @@ import numpy as np
 import pandas as pd
 
 # Target approaches to compare
-TARGET_APPROACHES: List[str] = ["prox_bc_oob", "hutter_total"]
-APPROACHES_WITH_ENTROPY: List[str] = ["prox_bc_oob", "hutter_total", "shaker_epistemic"]
+TARGET_APPROACHES: List[str] = ["prox_bc_oob", "hutter_between"]
+APPROACHES_WITH_ENTROPY: List[str] = ["prox_bc_oob", "hutter_between", "shaker_epistemic"]
 
 APPROACH_DISPLAY_NAMES: Dict[str, str] = {
     "prox_bc_oob": "Proximity BC (OOB)",
+    "hutter_between": "Between-Tree Disagreement",
     "hutter_total": "Variance Decomposition",
     "shaker_epistemic": "Shaker Entropy",
 }
@@ -40,6 +41,11 @@ APPROACH_STYLES: Dict[str, Dict[str, any]] = {
         "color": "#C2410C",            # Warm Terracotta / Rust
         "marker": "o",
         "label": "Proximity BC (OOB)",
+    },
+    "hutter_between": {
+        "color": "#44403C",            # Warm Dark Stone
+        "marker": "s",
+        "label": "Between-Tree Disagreement",
     },
     "hutter_total": {
         "color": "#44403C",            # Warm Dark Stone
@@ -254,6 +260,13 @@ def generate_surrogate_scaling_plots(
     for ECE, Winkler Score, and E-AURC comparing focal approaches across Random Forest surrogates.
     """
     df = pd.read_csv(input_csv)
+    if approaches is None:
+        approaches = TARGET_APPROACHES
+
+    if "hutter_between" in approaches and "hutter_between" not in df["approach"].values and "hutter_total" in df["approach"].values:
+        df = df.copy()
+        df.loc[df["approach"] == "hutter_total", "approach"] = "hutter_between"
+
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 

@@ -35,6 +35,7 @@ APPROACH_DISPLAY_NAMES: Dict[str, str] = {
     "prox_bc_cv": "Proximity BC (CV)",
     "prox_bc_oob": "Proximity BC (OOB)",
     "hutter_total": "Variance Decomposition",
+    "hutter_between": "Between-Tree Disagreement",
     "shaker_epistemic": "Shaker Epistemic",
 }
 
@@ -65,7 +66,7 @@ def get_warm_colorblind_palette(approaches: List[str]) -> List[str]:
     
     palette = []
     for a in approaches:
-        if a == "hutter_total":
+        if a in ("hutter_total", "hutter_between"):
             palette.append("#6B7280")       # Dignified Slate Gray
         elif a == "shaker_epistemic":
             palette.append("#374151")   # Dark Charcoal Gray
@@ -132,8 +133,10 @@ def plot_single_metric_point_ci(
     labels = [clean_approach_name(a) for a in approaches]
     colors = get_warm_colorblind_palette(list(approaches))
 
-    # Baseline reference value (Variance Decomposition)
-    hutter_mask = df_sorted["approach"] == "hutter_total"
+    # Baseline reference value (Between-Tree Disagreement or Variance Decomposition)
+    hutter_mask = df_sorted["approach"] == "hutter_between"
+    if not hutter_mask.any():
+        hutter_mask = df_sorted["approach"] == "hutter_total"
     hutter_val = float(df_sorted.loc[hutter_mask, metric_col].values[0]) if hutter_mask.any() else None
 
     # Reference baseline line: subtle crimson dashed line
@@ -234,6 +237,10 @@ def generate_point_plots_ci(
     for ECE, Winkler Score, and E-AURC.
     """
     df = pd.read_csv(input_csv)
+    if "hutter_between" not in df["approach"].values and "hutter_total" in df["approach"].values:
+        df = df.copy()
+        df.loc[df["approach"] == "hutter_total", "approach"] = "hutter_between"
+
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
