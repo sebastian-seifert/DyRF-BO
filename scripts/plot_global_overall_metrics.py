@@ -126,7 +126,7 @@ def format_mean_se(mean_val: float, sem_val: float) -> str:
 def plot_single_metric_bar(
     df: pd.DataFrame,
     metric_col: str,
-    sem_col: str,
+    err_col: str,
     title: str,
     xlabel: str,
     output_stem: Path,
@@ -135,6 +135,7 @@ def plot_single_metric_bar(
     """
     Generate and save a horizontal bar plot for a single metric across all 10 approaches.
     Sorted with best performance (lowest metric value) on top.
+    Error bars display standard deviation (_std).
     """
     set_publication_rcparams()
 
@@ -145,10 +146,15 @@ def plot_single_metric_bar(
 
     y_pos = np.arange(len(df_sorted))
     means = df_sorted[metric_col].values
-    sems = df_sorted[sem_col].values
+    errs = df_sorted[err_col].values
     approaches = df_sorted["approach"].values
     labels = [clean_approach_name(a) for a in approaches]
     colors = get_warm_colorblind_palette(list(approaches))
+
+    # Lower whisker clipped at 0 since metrics are non-negative
+    lower_err = np.minimum(means, errs)
+    upper_err = errs
+    xerr = [lower_err, upper_err]
 
     # Baseline reference value (Variance Decomposition)
     hutter_mask = df_sorted["approach"] == "hutter_total"
@@ -166,12 +172,12 @@ def plot_single_metric_bar(
             label="Baseline",
         )
 
-    # Plot horizontal bars
+    # Plot horizontal bars with standard deviation error bars
     bar_height = 0.60
     ax.barh(
         y_pos,
         means,
-        xerr=sems,
+        xerr=xerr,
         height=bar_height,
         color=colors,
         edgecolor="#374151",
@@ -207,7 +213,7 @@ def plot_single_metric_bar(
     ax.set_axisbelow(True)
 
     # Extend x-lim slightly for top-right legend headroom
-    x_max_val = float((means + sems).max())
+    x_max_val = float((means + upper_err).max())
     ax.set_xlim(0, x_max_val * 1.08)
 
     # Minimalist, clean legend placed top-right
@@ -242,7 +248,8 @@ def generate_metric_bar_plots(
     formats: List[str] = ["pdf", "png"],
 ) -> List[str]:
     """
-    Load main_global.csv and generate 3 standalone horizontal bar plots for ECE, Winkler Score, and E-AURC.
+    Load main_global.csv and generate 3 standalone horizontal bar plots for ECE, Winkler Score, and E-AURC
+    with standard deviation error bars.
     """
     df = pd.read_csv(input_csv)
     out_path = Path(output_dir)
@@ -250,11 +257,12 @@ def generate_metric_bar_plots(
 
     results = []
 
-    # 1. ECE Plot
+    # 1. ECE Plot (using ece_std)
+    ece_std_col = "ece_std" if "ece_std" in df.columns else "ece_sem"
     ece_files = plot_single_metric_bar(
         df=df,
         metric_col="ece_mean",
-        sem_col="ece_sem",
+        err_col=ece_std_col,
         title="Expected Calibration Error (ECE)",
         xlabel="Expected Calibration Error (ECE)",
         output_stem=out_path / "global_ece",
@@ -262,13 +270,15 @@ def generate_metric_bar_plots(
     )
     results.extend([str(p) for p in ece_files])
 
-    # 2. Winkler Score Plot
+    # 2. Winkler Score Plot (using winkler_mean_std)
     winkler_col = "winkler_mean_mean" if "winkler_mean_mean" in df.columns else "winkler_mean"
-    winkler_sem = "winkler_mean_sem" if "winkler_mean_sem" in df.columns else "winkler_sem"
+    winkler_std_col = "winkler_mean_std" if "winkler_mean_std" in df.columns else (
+        "winkler_std" if "winkler_std" in df.columns else "winkler_mean_sem"
+    )
     winkler_files = plot_single_metric_bar(
         df=df,
         metric_col=winkler_col,
-        sem_col=winkler_sem,
+        err_col=winkler_std_col,
         title="Winkler Score (Prediction Interval Quality)",
         xlabel="Mean Winkler Score",
         output_stem=out_path / "global_winkler_mean",
@@ -276,11 +286,12 @@ def generate_metric_bar_plots(
     )
     results.extend([str(p) for p in winkler_files])
 
-    # 3. E-AURC Plot (Excess Area Under Risk-Coverage)
+    # 3. E-AURC Plot (using e_aurc_std)
+    e_aurc_std_col = "e_aurc_std" if "e_aurc_std" in df.columns else "e_aurc_sem"
     e_aurc_files = plot_single_metric_bar(
         df=df,
         metric_col="e_aurc_mean",
-        sem_col="e_aurc_sem",
+        err_col=e_aurc_std_col,
         title="Excess Area Under Risk-Coverage (E-AURC)",
         xlabel="Excess AURC (Selective Risk)",
         output_stem=out_path / "global_e_aurc",
