@@ -121,6 +121,18 @@ def plot_single_stratum_scaling(
 
         style = APPROACH_STYLES[approach]
 
+        # 95% Confidence Interval shaded band (connecting CI intervals across strata)
+        ax.fill_between(
+            x,
+            y - ci,
+            y + ci,
+            facecolor=style["color"],
+            edgecolor=style["color"],
+            alpha=0.30,
+            linewidth=0.6,
+            zorder=2,
+        )
+
         # Line plot with markers
         ax.plot(
             x,
@@ -129,21 +141,11 @@ def plot_single_stratum_scaling(
             marker=style["marker"],
             color=style["color"],
             label=style["label"],
-            linewidth=1.4,
-            markersize=5.5,
+            linewidth=1.2,
+            markersize=5.0,
             markeredgecolor="#1F2937",
-            markeredgewidth=0.6,
+            markeredgewidth=0.5,
             zorder=3,
-        )
-
-        # 95% Confidence Interval shaded band
-        ax.fill_between(
-            x,
-            y - ci,
-            y + ci,
-            color=style["color"],
-            alpha=0.18,
-            zorder=2,
         )
 
     # Discrete x-ticks for strata 0, 1, 2, 3
