@@ -91,3 +91,20 @@ def test_dry_run_exclude_nas_regeneration():
     assert "Tasks in Part 1 (Baselines + Entropy + Prox A & AC): 3600" in result_full.stdout
     assert "Tasks in Part 2 (Prox B & BC):                       3000" in result_full.stdout
 
+
+def test_sbatch_matches_bbob_dim2_conda_setup():
+    sbatch_script = os.path.join(PROJECT_ROOT, "scripts", "submit_bbsubset_dev_big_comparison_array.sbatch")
+    with open(sbatch_script, "r") as f:
+        content = f.read()
+
+    # Check for robust profile.d/conda.sh checks
+    assert "miniforge3/etc/profile.d/conda.sh" in content
+    assert "miniconda3/etc/profile.d/conda.sh" in content
+    assert "/bigwork/nhwpseis/miniforge3/etc/profile.d/conda.sh" in content
+
+    # Check for explicit PYTHON_BIN resolution matching bbob_dim2
+    assert 'PYTHON_BIN="/bigwork/nhwpseis/.conda/envs/dyrf/bin/python"' in content
+    assert 'export PATH="$(dirname "$PYTHON_BIN"):$PATH"' in content
+    assert '"$PYTHON_BIN" scripts/run_carps_patched.py $TASK_ARGS' in content
+
+
