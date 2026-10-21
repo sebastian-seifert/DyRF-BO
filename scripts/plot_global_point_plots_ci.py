@@ -191,9 +191,12 @@ def plot_single_metric_point_ci(
     ax.grid(axis="x", linestyle="--", linewidth=0.55, color="#E5E7EB", alpha=0.85, zorder=0)
     ax.set_axisbelow(True)
 
-    # Extend x-lim slightly for top-right legend headroom
-    x_max_val = float((means + ci_err).max())
-    ax.set_xlim(0, x_max_val * 1.08)
+    # Rescale X-axis dynamically to zoom in on the range from the top to worst performing approaches
+    val_min = float((means - ci_err).min())
+    val_max = float((means + ci_err).max())
+    span = val_max - val_min if val_max > val_min else 1.0
+    eps_buffer = span * 0.08
+    ax.set_xlim(val_min - eps_buffer, val_max + eps_buffer * 1.4)
 
     # Minimalist, clean legend placed top-right
     if hutter_val is not None:
