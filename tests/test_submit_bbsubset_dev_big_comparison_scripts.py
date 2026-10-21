@@ -49,3 +49,45 @@ def test_dry_run_execution():
     assert "Dry run completed successfully" in result.stdout
     assert "[DRY-RUN] sbatch" in result.stdout
     assert "bb_dev_part" in result.stdout
+
+
+def test_dry_run_part_flag_separate_arg():
+    sh_script = os.path.join(PROJECT_ROOT, "scripts", "submit_bbsubset_dev_big_comparison_all.sh")
+
+    result = subprocess.run(
+        ["bash", sh_script, "--dry-run", "--part", "1"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"Dry run failed: {result.stderr}"
+    assert "Target Execution: 1" in result.stdout
+    assert "--- Submitting Part 1" in result.stdout
+    assert "--- Submitting Part 2" not in result.stdout
+
+
+def test_dry_run_exclude_nas_regeneration():
+    sh_script = os.path.join(PROJECT_ROOT, "scripts", "submit_bbsubset_dev_big_comparison_all.sh")
+
+    # Run with --exclude-nas
+    result = subprocess.run(
+        ["bash", sh_script, "--dry-run", "--exclude-nas"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, f"Dry run failed: {result.stderr}"
+    assert "Tasks in Part 1 (Baselines + Entropy + Prox A & AC): 3240" in result.stdout
+    assert "Tasks in Part 2 (Prox B & BC):                       2700" in result.stdout
+
+    # Then run without --exclude-nas to verify it regenerates the full 20 tasks
+    result_full = subprocess.run(
+        ["bash", sh_script, "--dry-run"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result_full.returncode == 0, f"Dry run failed: {result_full.stderr}"
+    assert "Tasks in Part 1 (Baselines + Entropy + Prox A & AC): 3600" in result_full.stdout
+    assert "Tasks in Part 2 (Prox B & BC):                       3000" in result_full.stdout
+

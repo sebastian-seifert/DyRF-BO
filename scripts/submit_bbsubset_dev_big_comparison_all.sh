@@ -13,17 +13,29 @@ TARGET_PART="all"
 EXCLUDE_NAS=false
 DRY_RUN=false
 
-for arg in "$@"; do
-    if [ "$arg" == "--dry-run" ]; then
-        DRY_RUN=true
-    elif [ "$arg" == "--exclude-nas" ]; then
-        EXCLUDE_NAS=true
-    elif [ "$arg" == "--part" ]; then
-        shift
-        TARGET_PART="$1"
-    elif [[ "$arg" =~ ^--part=(.*)$ ]]; then
-        TARGET_PART="${BASH_REMATCH[1]}"
-    fi
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --exclude-nas)
+            EXCLUDE_NAS=true
+            shift
+            ;;
+        --part)
+            shift
+            TARGET_PART="$1"
+            shift
+            ;;
+        --part=*)
+            TARGET_PART="${1#--part=}"
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
 done
 
 GEN_FLAGS=""
@@ -31,7 +43,16 @@ if [ "$EXCLUDE_NAS" = true ]; then
     GEN_FLAGS="--exclude-nas"
 fi
 
+REGENERATE=false
 if [ ! -f "$TASK_FILE_P1" ] || [ ! -f "$TASK_FILE_P2" ]; then
+    REGENERATE=true
+elif [ "$EXCLUDE_NAS" = true ] && grep -q "tabular_nas" "$TASK_FILE_P1"; then
+    REGENERATE=true
+elif [ "$EXCLUDE_NAS" = false ] && ! grep -q "tabular_nas" "$TASK_FILE_P1"; then
+    REGENERATE=true
+fi
+
+if [ "$REGENERATE" = true ]; then
     echo "Generating dev task files..."
     if [ -f ".venv/bin/python" ]; then
         .venv/bin/python scripts/generate_bbsubset_dev_big_comparison_tasks.py $GEN_FLAGS
