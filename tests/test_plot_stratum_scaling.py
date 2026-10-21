@@ -69,3 +69,40 @@ def test_generate_stratum_scaling_plots(tmp_path):
     assert os.path.exists(out_dir / "stratum_scaling_e_aurc.pdf")
     assert os.path.exists(out_dir / "stratum_scaling_e_aurc.png")
 
+
+def test_generate_stratum_scaling_plots_with_surrogate(tmp_path):
+    strata = [0, 1, 2, 3]
+    surrogates = ["smac_default", "coarse"]
+    rows = []
+    for s in surrogates:
+        for st in strata:
+            for app in ["hutter_total", "prox_bc_oob", "shaker_epistemic"]:
+                rows.append({
+                    "surrogate": s,
+                    "stratum_scope": st,
+                    "approach": app,
+                    "ece_mean": 0.30 if s == "smac_default" else 0.45,
+                    "ece_sem": 0.002,
+                    "winkler_mean_mean": 60.0 if s == "smac_default" else 80.0,
+                    "winkler_mean_sem": 0.5,
+                    "e_aurc_mean": 1.5 if s == "smac_default" else 2.5,
+                    "e_aurc_sem": 0.03,
+                    "n_runs": 5760,
+                })
+    df = pd.DataFrame(rows)
+    csv_path = tmp_path / "stratum_by_surrogate.csv"
+    df.to_csv(csv_path, index=False)
+
+    out_dir = tmp_path / "stratum_scaling_smac3"
+    generated_files = generate_stratum_scaling_plots(
+        input_csv=str(csv_path),
+        output_dir=str(out_dir),
+        surrogate="smac_default",
+        approaches=APPROACHES_WITH_ENTROPY,
+        formats=["png", "pdf"],
+    )
+
+    assert len(generated_files) == 6
+    assert os.path.exists(out_dir / "stratum_scaling_ece.pdf")
+    assert os.path.exists(out_dir / "stratum_scaling_ece.png")
+

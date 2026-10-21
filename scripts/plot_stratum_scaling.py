@@ -214,14 +214,23 @@ def plot_single_stratum_scaling(
 def generate_stratum_scaling_plots(
     input_csv: str,
     output_dir: str,
+    surrogate: str | None = None,
     approaches: List[str] | None = None,
     formats: List[str] = ["pdf", "png"],
 ) -> List[str]:
     """
-    Load stratum_global.csv and generate 3 stratum scaling line plots
-    for ECE, Winkler Score, and E-AURC comparing focal approaches.
+    Load stratum_global.csv (or stratum_by_surrogate.csv) and generate
+    3 stratum scaling line plots for ECE, Winkler Score, and E-AURC
+    comparing focal approaches. Optionally filters by surrogate.
     """
     df = pd.read_csv(input_csv)
+    if surrogate is not None:
+        if "surrogate" not in df.columns:
+            raise ValueError(f"Cannot filter by surrogate '{surrogate}': column 'surrogate' not found in {input_csv}")
+        df = df[df["surrogate"] == surrogate].copy()
+        if df.empty:
+            raise ValueError(f"No records found for surrogate '{surrogate}' in {input_csv}")
+
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
@@ -285,6 +294,12 @@ def main():
         help="Directory where plot files will be saved.",
     )
     parser.add_argument(
+        "--surrogate",
+        type=str,
+        default=None,
+        help="Optional surrogate to filter by (e.g. smac_default).",
+    )
+    parser.add_argument(
         "--include-entropy",
         action="store_true",
         help="Include Shaker Entropy in the comparison.",
@@ -302,6 +317,7 @@ def main():
     files = generate_stratum_scaling_plots(
         input_csv=args.input_csv,
         output_dir=args.output_dir,
+        surrogate=args.surrogate,
         approaches=approaches,
         formats=args.formats,
     )
