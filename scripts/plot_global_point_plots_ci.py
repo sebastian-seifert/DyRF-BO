@@ -24,16 +24,16 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-# Approach display names mapping (decluttered)
+# Approach display names mapping
 APPROACH_DISPLAY_NAMES: Dict[str, str] = {
-    "prox_a_cv": "A (CV)",
-    "prox_a_oob": "A (OOB)",
-    "prox_ac_cv": "AC (CV)",
-    "prox_ac_oob": "AC (OOB)",
-    "prox_b_cv": "B (CV)",
-    "prox_b_oob": "B (OOB)",
-    "prox_bc_cv": "BC (CV)",
-    "prox_bc_oob": "BC (OOB)",
+    "prox_a_cv": "Proximity A (CV)",
+    "prox_a_oob": "Proximity A (OOB)",
+    "prox_ac_cv": "Proximity AC (CV)",
+    "prox_ac_oob": "Proximity AC (OOB)",
+    "prox_b_cv": "Proximity B (CV)",
+    "prox_b_oob": "Proximity B (OOB)",
+    "prox_bc_cv": "Proximity BC (CV)",
+    "prox_bc_oob": "Proximity BC (OOB)",
     "hutter_total": "Variance Decomposition",
     "shaker_epistemic": "Shaker Epistemic",
 }
@@ -122,7 +122,7 @@ def plot_single_metric_point_ci(
     # Sort ascending=False so that smallest values appear at the top in horizontal layout
     df_sorted = df.sort_values(by=metric_col, ascending=False).reset_index(drop=True)
 
-    fig, ax = plt.subplots(figsize=(6.4, 4.0), dpi=300)
+    fig, ax = plt.subplots(figsize=(6.8, 4.0), dpi=300)
 
     y_pos = np.arange(len(df_sorted))
     means = df_sorted[metric_col].values
