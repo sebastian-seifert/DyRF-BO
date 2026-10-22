@@ -122,3 +122,29 @@ def test_ensure_report_compatibility_preserves_existing_task_type():
     compat_df = ensure_report_compatibility(df)
     assert list(compat_df["task_type"]) == ["multi-objective"]
 
+
+def test_ensure_report_compatibility_adds_budget_column():
+    df = pd.DataFrame({
+        "task_id": ["task_1", "task_1", "task_2", "task_2"],
+        "optimizer_id": ["opt_a", "opt_a", "opt_b", "opt_b"],
+        "n_trials": [10, 50, 20, 100],
+    })
+    compat_df = ensure_report_compatibility(df)
+    assert "task.optimization_resources.n_trials" in compat_df.columns
+    # Check max per task: task_1 should have 50, task_2 should have 100
+    t1_budget = compat_df.loc[compat_df["task_id"] == "task_1", "task.optimization_resources.n_trials"].unique()
+    t2_budget = compat_df.loc[compat_df["task_id"] == "task_2", "task.optimization_resources.n_trials"].unique()
+    assert list(t1_budget) == [50]
+    assert list(t2_budget) == [100]
+
+
+def test_ensure_report_compatibility_preserves_existing_budget_column():
+    df = pd.DataFrame({
+        "task_id": ["task_1"],
+        "optimizer_id": ["opt_a"],
+        "task.optimization_resources.n_trials": [200],
+    })
+    compat_df = ensure_report_compatibility(df)
+    assert list(compat_df["task.optimization_resources.n_trials"]) == [200]
+
+

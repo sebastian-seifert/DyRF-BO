@@ -84,12 +84,20 @@ def inspect_optimizers(parquet_path: Path) -> List[str]:
 def ensure_report_compatibility(df: pd.DataFrame) -> pd.DataFrame:
     """Ensure required metadata columns exist for CARP-S report generation.
 
-    CARP-S normalize_logs expects 'task_type' to identify single- vs multi-objective tasks.
-    Raw sweep logs.parquet files often omit this column. Default to 'blackbox'.
+    1. CARP-S normalize_logs expects 'task_type' to identify single- vs multi-objective tasks.
+       Raw sweep logs.parquet files often omit this column. Default to 'blackbox'.
+    2. CARP-S plot_budget_used/percent_budget_used expects 'task.optimization_resources.n_trials'
+       to calculate the percentage of budget used. If missing, estimate it as the maximum
+       observed n_trials for each task (or 100 as fallback).
     """
     df = df.copy()
     if "task_type" not in df.columns:
         df["task_type"] = "blackbox"
+    if "task.optimization_resources.n_trials" not in df.columns:
+        if "n_trials" in df.columns and "task_id" in df.columns:
+            df["task.optimization_resources.n_trials"] = df.groupby("task_id")["n_trials"].transform("max")
+        else:
+            df["task.optimization_resources.n_trials"] = 100
     return df
 
 
