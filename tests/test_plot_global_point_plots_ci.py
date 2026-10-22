@@ -90,3 +90,29 @@ def test_generate_point_plots_ci_with_approaches_filter(tmp_path):
     assert os.path.exists(out_dir / "point_ci_ece.pdf")
     assert os.path.exists(out_dir / "point_ci_winkler_mean.pdf")
     assert os.path.exists(out_dir / "point_ci_e_aurc.pdf")
+
+
+def test_generate_point_plots_ci_stem_prefix(tmp_path):
+    data = {
+        "approach": ["hutter_total", "prox_bc_oob"],
+        "ece_mean": [0.44, 0.40],
+        "ece_sem": [0.001, 0.001],
+        "winkler_mean_mean": [86.0, 80.0],
+        "winkler_mean_sem": [0.5, 0.5],
+        "e_aurc_mean": [2.8, 3.6],
+        "e_aurc_sem": [0.02, 0.02],
+    }
+    df = pd.DataFrame(data)
+    csv_path = tmp_path / "main_global.csv"
+    df.to_csv(csv_path, index=False)
+    
+    out_dir = tmp_path / "global_plots"
+    generated_files = generate_point_plots_ci(
+        input_csv=str(csv_path),
+        output_dir=str(out_dir),
+        stem_prefix="global_",
+        formats=["png", "pdf"],
+    )
+    assert os.path.exists(out_dir / "global_ece.pdf")
+    assert os.path.exists(out_dir / "global_winkler_mean.pdf")
+    assert os.path.exists(out_dir / "global_e_aurc.pdf")

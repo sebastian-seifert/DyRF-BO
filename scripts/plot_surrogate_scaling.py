@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 
 # Target approaches to compare
-TARGET_APPROACHES: List[str] = ["prox_bc_oob", "hutter_between"]
+TARGET_APPROACHES: List[str] = ["prox_bc_oob", "hutter_between", "shaker_epistemic"]
 APPROACHES_WITH_ENTROPY: List[str] = ["prox_bc_oob", "hutter_between", "shaker_epistemic"]
 
 APPROACH_DISPLAY_NAMES: Dict[str, str] = {
@@ -170,7 +170,7 @@ def plot_single_surrogate_comparison(
             if not sub.empty:
                 x_val = sub[metric_col].values[0]
                 sem_val = sub[sem_col].values[0]
-                ci_val = sem_val * 1.96
+                ci_val = sem_val  # Exact SEM error bar
                 x_vals.append(x_val)
                 ci_vals.append(ci_val)
                 valid_y.append(i + y_offset)

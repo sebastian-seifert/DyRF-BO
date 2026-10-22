@@ -129,7 +129,7 @@ def plot_single_metric_point_ci(
     y_pos = np.arange(len(df_sorted))
     means = df_sorted[metric_col].values
     sems = df_sorted[sem_col].values
-    ci_err = sems * 1.96  # Exact 95% Confidence Interval half-width
+    ci_err = sems  # Exact Standard Error of the Mean (SEM) error bar
     approaches = df_sorted["approach"].values
     labels = [clean_approach_name(a) for a in approaches]
     colors = get_warm_colorblind_palette(list(approaches))
@@ -232,10 +232,11 @@ def generate_point_plots_ci(
     input_csv: str,
     output_dir: str,
     approaches: List[str] | None = None,
+    stem_prefix: str | None = None,
     formats: List[str] = ["pdf", "png"],
 ) -> List[str]:
     """
-    Load main_global.csv and generate 3 standalone horizontal point plots with 95% CIs
+    Load main_global.csv and generate 3 standalone horizontal point plots with SEM
     for ECE, Winkler Score, and E-AURC.
     """
     df = pd.read_csv(input_csv)
@@ -249,6 +250,10 @@ def generate_point_plots_ci(
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
+    prefix = stem_prefix
+    if prefix is None:
+        prefix = "global_" if out_path.name == "plots" else "point_ci_"
+
     results = []
 
     # 1. ECE Plot
@@ -257,7 +262,7 @@ def generate_point_plots_ci(
         metric_col="ece_mean",
         sem_col="ece_sem",
         xlabel="Expected Calibration Error (ECE)",
-        output_stem=out_path / "point_ci_ece",
+        output_stem=out_path / f"{prefix}ece",
         formats=formats,
     )
     results.extend([str(p) for p in ece_files])
@@ -270,7 +275,7 @@ def generate_point_plots_ci(
         metric_col=winkler_col,
         sem_col=winkler_sem,
         xlabel="Mean Winkler Score",
-        output_stem=out_path / "point_ci_winkler_mean",
+        output_stem=out_path / f"{prefix}winkler_mean",
         formats=formats,
     )
     results.extend([str(p) for p in winkler_files])
@@ -281,7 +286,7 @@ def generate_point_plots_ci(
         metric_col="e_aurc_mean",
         sem_col="e_aurc_sem",
         xlabel="Excess AURC (Selective Risk)",
-        output_stem=out_path / "point_ci_e_aurc",
+        output_stem=out_path / f"{prefix}e_aurc",
         formats=formats,
     )
     results.extend([str(p) for p in e_aurc_files])
@@ -317,6 +322,12 @@ def main():
         help="Plot only the focal comparison trio (prox_bc_oob, hutter_between, shaker_epistemic).",
     )
     parser.add_argument(
+        "--stem-prefix",
+        type=str,
+        default=None,
+        help="Prefix for output plot file stems (e.g. 'global_' or 'point_ci_').",
+    )
+    parser.add_argument(
         "--formats",
         nargs="+",
         default=["pdf", "png"],
@@ -332,6 +343,7 @@ def main():
         input_csv=args.input_csv,
         output_dir=args.output_dir,
         approaches=approaches,
+        stem_prefix=args.stem_prefix,
         formats=args.formats,
     )
     print(f"Generated {len(files)} plot files in {args.output_dir}:")
