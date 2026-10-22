@@ -28,6 +28,8 @@ DEFAULT_SUBFOLDERS: List[str] = [
     "sweep_bbob_dim32",
     "sweep_yahpo_rbv2_ranger",
     "sweep_yahpo_rbv2_super",
+    "sweep_bbsubset_test_big_comparison",
+    "sweep_hpobench_ml",
 ]
 
 DEFAULT_OPTIMIZERS: List[str] = [

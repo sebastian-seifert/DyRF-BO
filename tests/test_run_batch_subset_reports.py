@@ -23,7 +23,7 @@ from scripts.run_batch_subset_reports import (
 
 
 def test_defaults():
-    assert len(DEFAULT_SUBFOLDERS) == 7
+    assert len(DEFAULT_SUBFOLDERS) == 9
     assert "sweep_bbob_dim2" in DEFAULT_SUBFOLDERS
     assert "sweep_bbob_dim4" in DEFAULT_SUBFOLDERS
     assert "sweep_bbob_dim8" in DEFAULT_SUBFOLDERS
@@ -31,6 +31,8 @@ def test_defaults():
     assert "sweep_bbob_dim32" in DEFAULT_SUBFOLDERS
     assert "sweep_yahpo_rbv2_ranger" in DEFAULT_SUBFOLDERS
     assert "sweep_yahpo_rbv2_super" in DEFAULT_SUBFOLDERS
+    assert "sweep_bbsubset_test_big_comparison" in DEFAULT_SUBFOLDERS
+    assert "sweep_hpobench_ml" in DEFAULT_SUBFOLDERS
 
     assert DEFAULT_OPTIMIZERS == [
         "SMAC3_HPOFacade_lcb",
