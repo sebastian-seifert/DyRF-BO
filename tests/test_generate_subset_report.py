@@ -8,7 +8,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.generate_subset_report import filter_logs_dataframe, resolve_optimizer_column
+from scripts.generate_subset_report import (
+    ensure_report_compatibility,
+    filter_logs_dataframe,
+    resolve_optimizer_column,
+)
 
 
 def test_resolve_optimizer_column():
@@ -94,3 +98,27 @@ def test_filter_logs_dataframe_regex_anchor():
     filtered = filter_logs_dataframe(df, patterns=["proximity_b$"])
     assert len(filtered) == 1
     assert filtered["optimizer_id"].iloc[0] == "SMAC20_CustomUncertainty_lcb_proximity_b"
+
+
+def test_ensure_report_compatibility_adds_default_task_type():
+    df = pd.DataFrame({
+        "task_id": ["task_1", "task_2"],
+        "optimizer_id": ["opt_a", "opt_b"],
+        "cost": [1.0, 2.0],
+    })
+    compat_df = ensure_report_compatibility(df)
+    assert "task_type" in compat_df.columns
+    assert (compat_df["task_type"] == "blackbox").all()
+    # Ensure original dataframe wasn't mutated
+    assert "task_type" not in df.columns
+
+
+def test_ensure_report_compatibility_preserves_existing_task_type():
+    df = pd.DataFrame({
+        "task_id": ["task_1"],
+        "optimizer_id": ["opt_a"],
+        "task_type": ["multi-objective"],
+    })
+    compat_df = ensure_report_compatibility(df)
+    assert list(compat_df["task_type"]) == ["multi-objective"]
+

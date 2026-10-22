@@ -81,6 +81,18 @@ def inspect_optimizers(parquet_path: Path) -> List[str]:
     return opts
 
 
+def ensure_report_compatibility(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure required metadata columns exist for CARP-S report generation.
+
+    CARP-S normalize_logs expects 'task_type' to identify single- vs multi-objective tasks.
+    Raw sweep logs.parquet files often omit this column. Default to 'blackbox'.
+    """
+    df = df.copy()
+    if "task_type" not in df.columns:
+        df["task_type"] = "blackbox"
+    return df
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Filter CARPS logs.parquet and generate a focused subset report."
@@ -166,6 +178,8 @@ def main():
 
     report_dir = Path(args.report_dir) if args.report_dir else parquet_path.parent / "reports_subset"
     report_dir.mkdir(parents=True, exist_ok=True)
+
+    filtered_df = ensure_report_compatibility(filtered_df)
 
     filtered_parquet_path = report_dir / f"{args.report_name}_filtered_logs.parquet"
     print(f"Writing filtered dataset to {filtered_parquet_path}...")
