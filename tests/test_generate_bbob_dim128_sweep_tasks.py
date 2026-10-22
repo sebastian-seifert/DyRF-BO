@@ -68,3 +68,11 @@ def test_generate_bbob_dim128_default_total_count(monkeypatch, tmp_path):
         baserundir=str(tmp_path / "baseruns"),
     )
     assert len(cmds) == 7200
+
+    tasks_p1 = tmp_path / "tasks_part1.txt"
+    tasks_p2 = tmp_path / "tasks_part2.txt"
+    assert tasks_p1.is_file()
+    assert tasks_p2.is_file()
+    assert len(tasks_p1.read_text().strip().split("\n")) == 3600
+    assert len(tasks_p2.read_text().strip().split("\n")) == 3600
+

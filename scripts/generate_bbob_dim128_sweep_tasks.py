@@ -105,9 +105,27 @@ def generate_bbob_dim128_sweep_tasks(
             for cmd in commands:
                 f_txt.write(f"{cmd}\n")
 
+        # Partition tasks into 2 halves (max 5,000 jobs per array chunk)
+        midpoint = len(commands) // 2
+        p1_cmds = commands[:midpoint]
+        p2_cmds = commands[midpoint:]
+
+        tasks_p1_path = os.path.join(output_dir, "tasks_part1.txt")
+        tasks_p2_path = os.path.join(output_dir, "tasks_part2.txt")
+
+        with open(tasks_p1_path, "w", encoding="utf-8") as f_p1:
+            for cmd in p1_cmds:
+                f_p1.write(f"{cmd}\n")
+
+        with open(tasks_p2_path, "w", encoding="utf-8") as f_p2:
+            for cmd in p2_cmds:
+                f_p2.write(f"{cmd}\n")
+
         print(f"Generated {len(commands)} tasks in {output_dir}")
-        print(f"  - {tasks_all_path}")
-        print(f"  - {tasks_txt_path}")
+        print(f"  - {tasks_all_path} ({len(commands)} tasks)")
+        print(f"  - {tasks_txt_path} ({len(commands)} tasks)")
+        print(f"  - {tasks_p1_path} ({len(p1_cmds)} tasks)")
+        print(f"  - {tasks_p2_path} ({len(p2_cmds)} tasks)")
 
     return commands
 

@@ -29,3 +29,19 @@ def test_sbatch_script_exists_and_configured():
     assert "conda activate dyrf" in content
     assert "scripts/run_carps_patched.py" in content
     assert "mkdir -p results/sweep_bbob_dim128/logs" in content
+
+
+def test_partitioned_submission_scripts_exist():
+    p1 = REPO_ROOT / "scripts" / "submit_bbob_dim128_sweep_part1.sh"
+    p2 = REPO_ROOT / "scripts" / "submit_bbob_dim128_sweep_part2.sh"
+    assert p1.is_file(), f"Missing {p1}"
+    assert p2.is_file(), f"Missing {p2}"
+
+    c1 = p1.read_text(encoding="utf-8")
+    c2 = p2.read_text(encoding="utf-8")
+
+    assert "tasks_part1.txt" in c1
+    assert "tasks_part2.txt" in c2
+    assert "1-3600" in c1
+    assert "1-3600" in c2
+
