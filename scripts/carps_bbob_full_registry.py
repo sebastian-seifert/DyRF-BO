@@ -64,6 +64,7 @@ class BBOBTaskInfo:
 
 class CarpsBBOBFullRegistry:
     SUPPORTED_DIMENSIONS: Tuple[int, ...] = (2, 4, 8, 16, 32)
+    EXTENDED_DIMENSIONS: Tuple[int, ...] = (2, 4, 8, 16, 32, 128)
     NUM_FUNCTIONS: int = 24
     NUM_INSTANCES: int = 3
 
@@ -78,9 +79,9 @@ class CarpsBBOBFullRegistry:
     @classmethod
     def get_tasks_by_dimension(cls, dim: int) -> List[str]:
         """Returns all 72 tasks for a specific dimension."""
-        if dim not in cls.SUPPORTED_DIMENSIONS:
+        if dim not in cls.EXTENDED_DIMENSIONS:
             raise ValueError(
-                f"Unsupported dimension {dim}. Supported dimensions: {cls.SUPPORTED_DIMENSIONS}"
+                f"Unsupported dimension {dim}. Supported dimensions: {cls.EXTENDED_DIMENSIONS}"
             )
         return [
             f"+task=BBOB/cfg_{dim}_{fid}_{iid}"
@@ -90,7 +91,7 @@ class CarpsBBOBFullRegistry:
 
     @classmethod
     def get_tasks_by_tier(cls, tier: str) -> List[str]:
-        """Returns tasks grouped by dimensional tier: 'low_d', 'mid_d', or 'high_d'."""
+        """Returns tasks grouped by dimensional tier: 'low_d', 'mid_d', 'high_d', or 'ultra_high_d'."""
         tier_lower = tier.lower()
         if tier_lower in ("low", "low_d", "low-d"):
             dims = (2, 4)
@@ -98,8 +99,10 @@ class CarpsBBOBFullRegistry:
             dims = (8,)
         elif tier_lower in ("high", "high_d", "high-d"):
             dims = (16, 32)
+        elif tier_lower in ("ultra", "ultra_high_d", "ultra-high-d", "ultra_high"):
+            dims = (128,)
         else:
-            raise ValueError(f"Unknown tier: {tier}. Expected 'low_d', 'mid_d', or 'high_d'.")
+            raise ValueError(f"Unknown tier: {tier}. Expected 'low_d', 'mid_d', 'high_d', or 'ultra_high_d'.")
 
         tasks: List[str] = []
         for d in dims:
@@ -117,7 +120,7 @@ class CarpsBBOBFullRegistry:
         fid = int(match.group(2))
         iid = int(match.group(3))
 
-        if dim not in cls.SUPPORTED_DIMENSIONS:
+        if dim not in cls.EXTENDED_DIMENSIONS:
             raise ValueError(f"Dimension {dim} not supported.")
         if fid not in BBOB_FUNCTION_METADATA:
             raise ValueError(f"Function ID {fid} invalid. Must be 1..24.")
