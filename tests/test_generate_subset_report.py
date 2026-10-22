@@ -57,3 +57,40 @@ def test_filter_logs_dataframe_no_match():
     })
     with pytest.raises(ValueError):
         filter_logs_dataframe(df, optimizers=["opt_x"])
+
+
+def test_filter_logs_dataframe_exclude_patterns():
+    df = pd.DataFrame({
+        "optimizer_id": [
+            "SMAC20_CustomUncertainty_lcb_proximity_b",
+            "SMAC20_CustomUncertainty_lcb_proximity_bc",
+            "SMAC20_CustomUncertainty_pi_proximity_b",
+            "SMAC3_HPOFacade_lcb",
+        ],
+        "cost": [1.0, 2.0, 3.0, 4.0],
+    })
+    # Want proximity_b without proximity_bc, and without pi
+    filtered = filter_logs_dataframe(
+        df,
+        patterns=["proximity_b", "HPOFacade_lcb"],
+        exclude_patterns=["proximity_bc", "_pi_"],
+    )
+    assert len(filtered) == 2
+    assert set(filtered["optimizer_id"]) == {
+        "SMAC20_CustomUncertainty_lcb_proximity_b",
+        "SMAC3_HPOFacade_lcb",
+    }
+
+
+def test_filter_logs_dataframe_regex_anchor():
+    df = pd.DataFrame({
+        "optimizer_id": [
+            "SMAC20_CustomUncertainty_lcb_proximity_b",
+            "SMAC20_CustomUncertainty_lcb_proximity_bc",
+        ],
+        "cost": [1.0, 2.0],
+    })
+    # Using regex end anchor '$'
+    filtered = filter_logs_dataframe(df, patterns=["proximity_b$"])
+    assert len(filtered) == 1
+    assert filtered["optimizer_id"].iloc[0] == "SMAC20_CustomUncertainty_lcb_proximity_b"
