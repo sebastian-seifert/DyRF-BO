@@ -51,6 +51,17 @@ task:
         name: null
         hyperparameters:
 {hyperparameters_str}
+        conditions: []
+        forbiddens: []
+        python_module_version: 1.2.0
+        format_version: 0.4
+    fidelity_space:
+      _target_: carps.utils.task.FidelitySpace
+      is_multifidelity: false
+      fidelity_type: null
+      min_fidelity: null
+      max_fidelity: null
+    instance_space: null
   output_space:
     _target_: carps.utils.task.OutputSpace
     n_objectives: 1
