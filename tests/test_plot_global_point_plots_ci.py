@@ -59,3 +59,34 @@ def test_generate_point_plots_ci(tmp_path):
     assert os.path.exists(out_dir / "point_ci_winkler_mean.png")
     assert os.path.exists(out_dir / "point_ci_e_aurc.pdf")
     assert os.path.exists(out_dir / "point_ci_e_aurc.png")
+
+
+def test_generate_point_plots_ci_with_approaches_filter(tmp_path):
+    data = {
+        "approach": [
+            "hutter_total", "shaker_epistemic",
+            "prox_a_cv", "prox_bc_oob"
+        ],
+        "ece_mean": [0.44, 0.56, 0.46, 0.40],
+        "ece_sem": [0.001] * 4,
+        "winkler_mean_mean": [86.0, 91.0, 85.0, 80.0],
+        "winkler_mean_sem": [0.5] * 4,
+        "e_aurc_mean": [2.8, 3.2, 4.6, 3.6],
+        "e_aurc_sem": [0.02] * 4,
+    }
+    df = pd.DataFrame(data)
+    csv_path = tmp_path / "main_global.csv"
+    df.to_csv(csv_path, index=False)
+    
+    out_dir = tmp_path / "point_plots_filtered"
+    trio = ["prox_bc_oob", "hutter_between", "shaker_epistemic"]
+    generated_files = generate_point_plots_ci(
+        input_csv=str(csv_path),
+        output_dir=str(out_dir),
+        approaches=trio,
+        formats=["png", "pdf"],
+    )
+    assert len(generated_files) == 6
+    assert os.path.exists(out_dir / "point_ci_ece.pdf")
+    assert os.path.exists(out_dir / "point_ci_winkler_mean.pdf")
+    assert os.path.exists(out_dir / "point_ci_e_aurc.pdf")

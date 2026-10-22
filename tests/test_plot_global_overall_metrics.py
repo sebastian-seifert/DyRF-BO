@@ -72,3 +72,34 @@ def test_generate_metric_bar_plots(tmp_path):
     assert os.path.exists(out_dir / "global_winkler_mean.png")
     assert os.path.exists(out_dir / "global_e_aurc.pdf")
     assert os.path.exists(out_dir / "global_e_aurc.png")
+
+
+def test_generate_metric_bar_plots_with_approaches_filter(tmp_path):
+    data = {
+        "approach": [
+            "hutter_total", "shaker_epistemic",
+            "prox_a_cv", "prox_bc_oob"
+        ],
+        "ece_mean": [0.44, 0.56, 0.46, 0.40],
+        "ece_std": [0.14, 0.17, 0.13, 0.14],
+        "winkler_mean_mean": [86.0, 91.0, 85.0, 80.0],
+        "winkler_mean_std": [78.0, 78.0, 77.0, 77.0],
+        "e_aurc_mean": [2.8, 3.2, 4.6, 3.6],
+        "e_aurc_std": [2.4, 2.5, 4.6, 4.1],
+    }
+    df = pd.DataFrame(data)
+    csv_path = tmp_path / "main_global.csv"
+    df.to_csv(csv_path, index=False)
+    
+    out_dir = tmp_path / "plots_filtered"
+    trio = ["prox_bc_oob", "hutter_between", "shaker_epistemic"]
+    generated_files = generate_metric_bar_plots(
+        input_csv=str(csv_path),
+        output_dir=str(out_dir),
+        approaches=trio,
+        formats=["png", "pdf"],
+    )
+    assert len(generated_files) == 6
+    assert os.path.exists(out_dir / "global_ece.pdf")
+    assert os.path.exists(out_dir / "global_winkler_mean.pdf")
+    assert os.path.exists(out_dir / "global_e_aurc.pdf")

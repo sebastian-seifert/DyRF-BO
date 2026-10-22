@@ -143,7 +143,8 @@ def plot_single_metric_bar(
     # Sort ascending=False so that smallest values appear at the top in barh (y = max_y)
     df_sorted = df.sort_values(by=metric_col, ascending=False).reset_index(drop=True)
 
-    fig, ax = plt.subplots(figsize=(6.4, 4.0), dpi=300)
+    fig_height = max(2.2, 0.38 * len(df_sorted))
+    fig, ax = plt.subplots(figsize=(6.4, fig_height), dpi=300)
 
     y_pos = np.arange(len(df_sorted))
     means = df_sorted[metric_col].values
@@ -248,6 +249,7 @@ def plot_single_metric_bar(
 def generate_metric_bar_plots(
     input_csv: str,
     output_dir: str,
+    approaches: List[str] | None = None,
     formats: List[str] = ["pdf", "png"],
 ) -> List[str]:
     """
@@ -258,6 +260,9 @@ def generate_metric_bar_plots(
     if "hutter_between" not in df["approach"].values and "hutter_total" in df["approach"].values:
         df = df.copy()
         df.loc[df["approach"] == "hutter_total", "approach"] = "hutter_between"
+
+    if approaches is not None:
+        df = df[df["approach"].isin(approaches)].copy()
 
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
@@ -324,6 +329,17 @@ def main():
         help="Directory where plot files will be saved.",
     )
     parser.add_argument(
+        "--approaches",
+        nargs="+",
+        default=None,
+        help="Subset of approaches to plot (e.g., prox_bc_oob hutter_between shaker_epistemic).",
+    )
+    parser.add_argument(
+        "--focal-trio",
+        action="store_true",
+        help="Plot only the focal comparison trio (prox_bc_oob, hutter_between, shaker_epistemic).",
+    )
+    parser.add_argument(
         "--formats",
         nargs="+",
         default=["pdf", "png"],
@@ -331,9 +347,14 @@ def main():
     )
     args = parser.parse_args()
 
+    approaches = args.approaches
+    if args.focal_trio:
+        approaches = ["prox_bc_oob", "hutter_between", "shaker_epistemic"]
+
     files = generate_metric_bar_plots(
         input_csv=args.input_csv,
         output_dir=args.output_dir,
+        approaches=approaches,
         formats=args.formats,
     )
     print(f"Generated {len(files)} plot files in {args.output_dir}:")
