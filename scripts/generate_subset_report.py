@@ -30,6 +30,7 @@ def filter_logs_dataframe(
     df: pd.DataFrame,
     optimizers: Optional[List[str]] = None,
     patterns: Optional[List[str]] = None,
+    exclude_patterns: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """Filter logs DataFrame to only include selected optimizers or matching patterns."""
     opt_col = resolve_optimizer_column(df)
@@ -48,11 +49,20 @@ def filter_logs_dataframe(
                 if re.search(pat, str(opt), re.IGNORECASE):
                     selected_set.add(opt)
 
+    if exclude_patterns:
+        to_remove = set()
+        for opt in selected_set:
+            for expat in exclude_patterns:
+                if re.search(expat, str(opt), re.IGNORECASE):
+                    to_remove.add(opt)
+        selected_set -= to_remove
+
     if not selected_set:
         raise ValueError(
             f"No matching optimizers found!\n"
             f"Requested exact: {optimizers}\n"
             f"Requested patterns: {patterns}\n"
+            f"Excluded patterns: {exclude_patterns}\n"
             f"Available in logs: {unique_opts}"
         )
 
@@ -91,6 +101,14 @@ def main():
         nargs="+",
         default=None,
         help="Substring or regex patterns to match optimizer names (e.g. 'shaker_entropy' 'proximity_bc' 'HPOFacade').",
+    )
+    parser.add_argument(
+        "--exclude",
+        "--exclude-patterns",
+        dest="exclude_patterns",
+        nargs="+",
+        default=None,
+        help="Substring or regex patterns to exclude (e.g. 'proximity_bc' or '_pi_').",
     )
     parser.add_argument(
         "--report-dir",
@@ -135,7 +153,12 @@ def main():
     print(f"Loading {parquet_path}...")
     df = pd.read_parquet(parquet_path)
     opt_col = resolve_optimizer_column(df)
-    filtered_df = filter_logs_dataframe(df, optimizers=args.optimizers, patterns=args.patterns)
+    filtered_df = filter_logs_dataframe(
+        df,
+        optimizers=args.optimizers,
+        patterns=args.patterns,
+        exclude_patterns=args.exclude_patterns,
+    )
     matched_opts = filtered_df[opt_col].unique().tolist()
     print(f"Matched {len(matched_opts)} optimizers ({len(filtered_df)} / {len(df)} rows):")
     for opt in matched_opts:
