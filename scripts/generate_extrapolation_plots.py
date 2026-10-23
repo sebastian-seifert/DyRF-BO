@@ -236,17 +236,17 @@ def plot_global_point_plots(
                 fmt="o",
                 color=colors[i],
                 ecolor=colors[i],
-                elinewidth=1.2,
-                capsize=2.5,
-                capthick=1.0,
-                markersize=4.8,
+                elinewidth=1.4,
+                capsize=3.5,
+                capthick=1.1,
+                markersize=5.5,
                 zorder=3,
             )
 
         ax.set_yticks(y_pos)
         ax.set_yticklabels(labels)
         ax.set_xlabel(spec["label"])
-        ax.set_title(f"Global Extrapolation {spec['title']}", pad=10)
+        ax.set_title(f"Global {spec['title']}", pad=10)
 
         sns.despine(ax=ax, left=False, bottom=False)
         ax.xaxis.grid(True, linestyle=":", alpha=0.4, color="#9CA3AF")
