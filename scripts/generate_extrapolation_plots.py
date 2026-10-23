@@ -184,6 +184,7 @@ def plot_global_point_plots(
     output_dir: Path,
     exclude_approaches: Optional[List[str]] = None,
     formats: List[str] = ["pdf", "png"],
+    legend_loc: str = "upper right",
 ) -> List[Path]:
     """Generate horizontal point plots with 95% Confidence Intervals (± 1.96 * SEM)."""
     set_publication_rcparams()
@@ -228,7 +229,7 @@ def plot_global_point_plots(
                 zorder=1,
             )
             ax.legend(
-                loc="lower right",
+                loc=legend_loc,
                 frameon=True,
                 framealpha=0.92,
                 facecolor="white",

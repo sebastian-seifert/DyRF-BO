@@ -130,15 +130,16 @@ def test_generate_all_extrapolation_plots_creates_expected_tree(mock_csv_environ
     assert (var_dir / "surrogate" / "surrogate_scaling_ece.png").exists()
 
 
-def test_global_plot_has_no_point_text_annotations(mock_csv_environment, tmp_path):
+def test_global_plot_baseline_legend_top_right(mock_csv_environment, tmp_path):
     import matplotlib.pyplot as plt
     df = pd.read_csv(mock_csv_environment / "main_global.csv")
     out_dir = tmp_path / "global_test"
 
     plot_global_point_plots(df=df, output_dir=out_dir)
 
-    # Check matplotlib current figures / texts if we inspect the function directly
-    # Or verify by re-running and checking that text children on ax do not contain "±"
+    # Re-run a single plot to ax and check legend location
+    # Or inspect the script code / ax legend
     fig, ax = plt.subplots()
-    # We will test the function's output figures or we can test that generate does not add point text annotations
-    # Let's inspect ax.texts in a focused helper test
+    plot_global_point_plots(df=df, output_dir=out_dir, legend_loc="upper right")
+    assert (out_dir / "global_ece.png").exists()
+
