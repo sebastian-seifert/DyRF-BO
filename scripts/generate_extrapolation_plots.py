@@ -222,9 +222,18 @@ def plot_global_point_plots(
                 x=hutter_val,
                 color="#78716C",
                 linestyle="--",
-                linewidth=0.8,
+                linewidth=1.0,
                 alpha=0.85,
+                label="Baseline",
                 zorder=1,
+            )
+            ax.legend(
+                loc="lower right",
+                frameon=True,
+                framealpha=0.92,
+                facecolor="white",
+                edgecolor="#E5E7EB",
+                fontsize=8.0,
             )
 
         # Plot error whiskers and points
