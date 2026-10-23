@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 from .metrics_suite import (
     compute_multi_level_winkler,
@@ -202,3 +203,112 @@ def aggregate_3d_cube(runs_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     }
 
     return views
+
+
+def evaluate_single_run_between_tree(df: pd.DataFrame, kappa: float = 1.96) -> pd.DataFrame:
+    """Evaluate between-tree disagreement ('hutter_between') across all 5 stratum scopes.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame representing a single experimental run, containing y_true, y_hat,
+        stratum, and u_hutter_between.
+    kappa : float, default=1.96
+        Multiplier relating standard deviation to 95% confidence interval width.
+
+    Returns
+    -------
+    pd.DataFrame
+        Tidy DataFrame with 5 rows (one per stratum scope: 'all', '0', '1', '2', '3').
+    """
+    dimension = int(df["dimension"].iloc[0]) if "dimension" in df else 2
+    n_train = int(df["n_train"].iloc[0]) if "n_train" in df else 34
+    function_name = str(df["function_name"].iloc[0]) if "function_name" in df else "sphere"
+    surrogate = str(df["surrogate"].iloc[0]) if "surrogate" in df else "smac_default"
+    seed = int(df["seed"].iloc[0]) if "seed" in df else 0
+
+    scopes: List[Union[str, int]] = ["all", 0, 1, 2, 3]
+    records: List[Dict[str, Any]] = []
+
+    # Nominal miscoverage z-scores for Gaussian prediction intervals
+    z_scores = {
+        "50": float(norm.ppf(0.75)),
+        "80": float(norm.ppf(0.90)),
+        "90": float(norm.ppf(0.95)),
+        "95": float(norm.ppf(0.975)),
+    }
+
+    for scope in scopes:
+        if scope == "all":
+            mask = np.ones(len(df), dtype=bool)
+            scope_str = "all"
+        else:
+            mask = df["stratum"].to_numpy() == int(scope)
+            scope_str = str(scope)
+
+        if not np.any(mask):
+            continue
+
+        y_true = df["y_true"].to_numpy()[mask]
+        y_hat_col = "y_hat" if "y_hat" in df else "y_pred"
+        y_hat = df[y_hat_col].to_numpy()[mask]
+
+        if "u_hutter_between" in df:
+            u_arr = df["u_hutter_between"].to_numpy()[mask]
+        elif "sigma_hutter_between" in df:
+            u_arr = df["sigma_hutter_between"].to_numpy()[mask] * kappa
+        else:
+            u_arr = np.zeros_like(y_hat)
+
+        sigma_between = u_arr / max(kappa, 1e-8)
+
+        interval_dict = {}
+        for sfx, z in z_scores.items():
+            interval_dict[sfx] = (
+                y_hat - z * sigma_between,
+                y_hat + z * sigma_between,
+            )
+
+        ece_res = compute_regression_ece(y_true, interval_dict)
+        winkler_res = compute_multi_level_winkler(y_true, interval_dict)
+        eaurc_res = compute_regression_eaurc(y_true, y_hat, u_arr)
+
+        rec = {
+            "dimension": dimension,
+            "n_train": n_train,
+            "function_name": function_name,
+            "surrogate": surrogate,
+            "seed": seed,
+            "stratum_scope": scope_str,
+            "approach": "hutter_between",
+            "ece": ece_res.get("ece", np.nan),
+            "winkler_mean": winkler_res.get("winkler_mean", np.nan),
+            "winkler_95": winkler_res.get("winkler_95", np.nan),
+            "winkler_90": winkler_res.get("winkler_90", np.nan),
+            "winkler_80": winkler_res.get("winkler_80", np.nan),
+            "winkler_50": winkler_res.get("winkler_50", np.nan),
+            "e_aurc": eaurc_res.get("e_aurc", np.nan),
+            "aurc": eaurc_res.get("aurc", np.nan),
+            "oracle_aurc": eaurc_res.get("oracle_aurc", np.nan),
+            "random_aurc": eaurc_res.get("random_aurc", np.nan),
+            "naurc": eaurc_res.get("naurc", np.nan),
+        }
+        records.append(rec)
+
+    return pd.DataFrame(records)
+
+
+def aggregate_between_tree_slices(runs_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+    """Aggregate per-run evaluations into the 8 canonical slices of the 3D OLAP cube for between-tree disagreement.
+
+    Parameters
+    ----------
+    runs_df : pd.DataFrame
+        Concatenated tidy DataFrame of evaluate_single_run_between_tree outputs across runs.
+
+    Returns
+    -------
+    dict[str, pd.DataFrame]
+        Dictionary mapping view names to their aggregated DataFrames for 'hutter_between'.
+    """
+    return aggregate_3d_cube(runs_df)
