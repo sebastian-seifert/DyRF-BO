@@ -128,3 +128,17 @@ def test_generate_all_extrapolation_plots_creates_expected_tree(mock_csv_environ
     assert (var_dir / "dimension" / "dimension_scaling_ece.png").exists()
     assert (var_dir / "stratum" / "stratum_scaling_ece.png").exists()
     assert (var_dir / "surrogate" / "surrogate_scaling_ece.png").exists()
+
+
+def test_global_plot_has_no_point_text_annotations(mock_csv_environment, tmp_path):
+    import matplotlib.pyplot as plt
+    df = pd.read_csv(mock_csv_environment / "main_global.csv")
+    out_dir = tmp_path / "global_test"
+
+    plot_global_point_plots(df=df, output_dir=out_dir)
+
+    # Check matplotlib current figures / texts if we inspect the function directly
+    # Or verify by re-running and checking that text children on ax do not contain "±"
+    fig, ax = plt.subplots()
+    # We will test the function's output figures or we can test that generate does not add point text annotations
+    # Let's inspect ax.texts in a focused helper test

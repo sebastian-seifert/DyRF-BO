@@ -204,7 +204,7 @@ def plot_global_point_plots(
         df_sorted = df_plot.sort_values(by=mean_col, ascending=False).reset_index(drop=True)
 
         fig_height = max(2.4, 0.38 * len(df_sorted))
-        fig, ax = plt.subplots(figsize=(6.8, fig_height), dpi=300)
+        fig, ax = plt.subplots(figsize=(6.0, fig_height), dpi=300)
 
         y_pos = np.arange(len(df_sorted))
         means = df_sorted[mean_col].values
@@ -226,15 +226,6 @@ def plot_global_point_plots(
                 alpha=0.85,
                 zorder=1,
             )
-            ax.text(
-                hutter_val,
-                len(df_sorted) - 0.4,
-                f" Baseline: {hutter_val:{spec['fmt']}}",
-                color="#57534E",
-                fontsize=7.5,
-                va="bottom",
-                ha="left",
-            )
 
         # Plot error whiskers and points
         for i in range(len(df_sorted)):
@@ -252,18 +243,6 @@ def plot_global_point_plots(
                 zorder=3,
             )
 
-            # Annotation next to point
-            val_text = f" {means[i]:{spec['fmt']}} ± {ci_err[i]:{spec['fmt']}}"
-            ax.text(
-                means[i] + ci_err[i],
-                y_pos[i],
-                val_text,
-                va="center",
-                ha="left",
-                fontsize=7.5,
-                color="#374151",
-            )
-
         ax.set_yticks(y_pos)
         ax.set_yticklabels(labels)
         ax.set_xlabel(spec["label"])
@@ -273,10 +252,10 @@ def plot_global_point_plots(
         ax.xaxis.grid(True, linestyle=":", alpha=0.4, color="#9CA3AF")
         ax.set_axisbelow(True)
 
-        # Expand x-limits slightly for text
+        # Standard padding on x-limits
         x_min, x_max = ax.get_xlim()
         x_range = x_max - x_min
-        ax.set_xlim(x_min - 0.02 * x_range, x_max + 0.18 * x_range)
+        ax.set_xlim(x_min - 0.03 * x_range, x_max + 0.03 * x_range)
 
         stem_path = output_dir / f"global_{spec['stem']}"
         for fmt in formats:
