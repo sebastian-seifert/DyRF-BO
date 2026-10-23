@@ -246,7 +246,7 @@ def plot_global_point_plots(
         ax.set_yticks(y_pos)
         ax.set_yticklabels(labels)
         ax.set_xlabel(spec["label"])
-        ax.set_title(f"Global Extrapolation {spec['title']} (95% CI)", pad=10)
+        ax.set_title(f"Global Extrapolation {spec['title']}", pad=10)
 
         sns.despine(ax=ax, left=False, bottom=False)
         ax.xaxis.grid(True, linestyle=":", alpha=0.4, color="#9CA3AF")
@@ -460,7 +460,8 @@ def plot_surrogate_scaling(
     output_dir: Path,
     formats: List[str] = ["pdf", "png"],
 ) -> List[Path]:
-    """Plot surrogate scaling point plots with 95% CI error whiskers across RF surrogates."""
+    """Plot horizontal paired dot-and-whisker chart comparing focal approaches
+    across the 4 Random Forest surrogates (surrogates on vertical Y-axis)."""
     set_publication_rcparams()
     output_dir.mkdir(parents=True, exist_ok=True)
     df_filtered = df[df["approach"].isin(approaches)].copy()
@@ -470,12 +471,20 @@ def plot_surrogate_scaling(
     if not surrogates:
         surrogates = sorted(df_filtered["surrogate"].unique())
 
+    y_positions = np.arange(len(surrogates))
+
+    # Compute vertical dodging offsets based on number of approaches
+    if len(approaches) == 1:
+        offsets = [0.0]
+    elif len(approaches) == 2:
+        offsets = [-0.11, 0.11]
+    elif len(approaches) == 3:
+        offsets = [-0.14, 0.0, 0.14]
+    else:
+        offsets = np.linspace(-0.16, 0.16, len(approaches)).tolist()
+    offset_map = {app: offsets[idx] for idx, app in enumerate(approaches)}
+
     saved_files: List[Path] = []
-    x_base = np.arange(len(surrogates))
-    n_app = len(approaches)
-    # Slight horizontal jitter for clarity
-    jitter_width = 0.28
-    offsets = np.linspace(-jitter_width / 2, jitter_width / 2, n_app) if n_app > 1 else [0.0]
 
     for spec in METRIC_SPECS:
         mean_col = spec["mean_col"]
@@ -483,55 +492,75 @@ def plot_surrogate_scaling(
         if mean_col not in df_filtered.columns or sem_col not in df_filtered.columns:
             continue
 
-        fig, ax = plt.subplots(figsize=(6.0, 3.8), dpi=300)
+        fig, ax = plt.subplots(figsize=(5.8, 3.8), dpi=300)
 
-        for i, approach in enumerate(approaches):
+        # Subtle alternating row shading
+        for i in range(len(surrogates)):
+            if i % 2 == 0:
+                ax.axhspan(i - 0.5, i + 0.5, facecolor="#F9FAFB", edgecolor="none", zorder=0)
+
+        # Subtle horizontal divider lines between surrogates
+        for y_div in np.arange(0.5, len(surrogates) - 0.5, 1.0):
+            ax.axhline(y_div, color="#E5E7EB", linewidth=0.6, alpha=0.6, zorder=0)
+
+        # Plot horizontal error whiskers (xerr = 1.96 * sem) and points
+        for approach in approaches:
             style = APPROACH_STYLES.get(approach, {
-                "color": "#333333", "linestyle": "-", "marker": "o", "label": approach
+                "color": "#333333", "marker": "o", "label": approach
             })
+            y_offset = offset_map.get(approach, 0.0)
+            x_vals = []
+            ci_vals = []
+            valid_y = []
 
-            x_coords = []
-            y_coords = []
-            ci_coords = []
+            for i, s in enumerate(surrogates):
+                sub = df_filtered[(df_filtered["surrogate"] == s) & (df_filtered["approach"] == approach)]
+                if not sub.empty:
+                    x_val = sub[mean_col].values[0]
+                    sem_val = sub[sem_col].values[0]
+                    ci_val = sem_val * 1.96  # Exact 95% Confidence Interval
+                    x_vals.append(x_val)
+                    ci_vals.append(ci_val)
+                    valid_y.append(i + y_offset)
 
-            for idx, surr in enumerate(surrogates):
-                sub = df_filtered[(df_filtered["surrogate"] == surr) & (df_filtered["approach"] == approach)]
-                if sub.empty:
-                    continue
-                x_coords.append(x_base[idx] + offsets[i])
-                y_coords.append(sub[mean_col].iloc[0])
-                ci_coords.append(sub[sem_col].iloc[0] * 1.96)
+            if x_vals:
+                ax.errorbar(
+                    x=x_vals,
+                    y=valid_y,
+                    xerr=ci_vals,
+                    fmt=style["marker"],
+                    color=style["color"],
+                    ecolor=style["color"],
+                    label=style["label"],
+                    markersize=5.5,
+                    markeredgecolor="#1F2937",
+                    markeredgewidth=0.7,
+                    capsize=3.5,
+                    capthick=0.9,
+                    elinewidth=1.1,
+                    linestyle="none",
+                    zorder=3,
+                )
 
-            if not x_coords:
-                continue
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels([SURROGATE_DISPLAY_NAMES.get(s, s) for s in surrogates])
+        # Invert y-axis so smac_default is at the top
+        ax.set_ylim(len(surrogates) - 0.5, -0.5)
 
-            ax.errorbar(
-                x=x_coords,
-                y=y_coords,
-                yerr=ci_coords,
-                fmt=style["marker"],
-                color=style["color"],
-                ecolor=style["color"],
-                label=style["label"],
-                elinewidth=1.2,
-                capsize=3.0,
-                capthick=1.0,
-                markersize=5.5,
-                markeredgecolor="#1F2937",
-                markeredgewidth=0.5,
-                zorder=3,
-            )
-
-        ax.set_xticks(x_base)
-        ax.set_xticklabels([SURROGATE_DISPLAY_NAMES.get(s, s) for s in surrogates])
-        ax.set_xlabel("Random Forest Surrogate")
-        ax.set_ylabel(spec["label"])
+        ax.set_xlabel(spec["label"])
         ax.set_title(f"Surrogate Scaling — {spec['title']}", pad=10)
 
-        ax.legend(frameon=True, framealpha=0.92, facecolor="white", edgecolor="#E5E7EB")
-        sns.despine(ax=ax)
-        ax.grid(True, linestyle=":", alpha=0.4, color="#9CA3AF")
+        # De-spine (remove top and right spines, lighten bottom and left)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_color("#D1D5DB")
+        ax.spines["bottom"].set_color("#D1D5DB")
+
+        # Subtle vertical grid lines
+        ax.xaxis.grid(True, linestyle=":", alpha=0.4, color="#9CA3AF")
         ax.set_axisbelow(True)
+
+        ax.legend(frameon=True, framealpha=0.92, facecolor="white", edgecolor="#E5E7EB", loc="best")
 
         stem_path = output_dir / f"surrogate_scaling_{spec['stem']}"
         for fmt in formats:
@@ -625,6 +654,24 @@ def generate_all_extrapolation_plots(
         formats=formats,
     )
     generated["with_variance_decomposition"] = var_global + var_dim + var_stratum + var_surr
+
+    # Also mirror focal_trio plots into csv_dir / "plots" for immediate root access
+    root_plots = csv_dir / "plots"
+    if root_plots.exists():
+        import shutil
+        for p in trio_global:
+            shutil.copy2(p, root_plots / p.name)
+            (root_plots / "point_plots").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, root_plots / "point_plots" / f"point_ci_{p.name.replace('global_', '')}")
+        for p in trio_surr:
+            (root_plots / "surrogate_scaling").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, root_plots / "surrogate_scaling" / p.name.replace("scaling_", ""))
+        for p in trio_dim:
+            (root_plots / "dimension_scaling").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, root_plots / "dimension_scaling" / p.name.replace("dimension_scaling_", "dim_scaling_"))
+        for p in trio_stratum:
+            (root_plots / "stratum_scaling").mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, root_plots / "stratum_scaling" / p.name)
 
     print(f"[INFO] Generated {len(generated['focal_trio'])} files in {trio_dir}")
     print(f"[INFO] Generated {len(generated['with_variance_decomposition'])} files in {var_dir}")
