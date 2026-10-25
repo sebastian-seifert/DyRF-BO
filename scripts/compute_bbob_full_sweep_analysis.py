@@ -68,10 +68,15 @@ def calculate_cliffs_delta(x: np.ndarray, y: np.ndarray) -> float:
     return float((greater - less) / (n_x * n_y))
 
 
-def calculate_rank_biserial_correlation(x: np.ndarray, y: np.ndarray) -> float:
+def calculate_rank_biserial_correlation(
+    x: np.ndarray,
+    y: np.ndarray,
+    tie_tolerance: float = 1e-6,
+) -> float:
     """Computes matched-pairs rank-biserial correlation r_rb = (W^+ - W^-) / (W^+ + W^-).
 
     Negative r_rb indicates x is systematically lower (better for cost minimization) than y.
+    Pairs with |x - y| <= tie_tolerance are strictly filtered out prior to ranking.
     """
     x = np.asarray(x).ravel()
     y = np.asarray(y).ravel()
@@ -82,7 +87,7 @@ def calculate_rank_biserial_correlation(x: np.ndarray, y: np.ndarray) -> float:
     if len(x) == 0:
         return 0.0
     diff = x - y
-    nonzero = diff[np.abs(diff) > 1e-8]
+    nonzero = diff[np.abs(diff) > tie_tolerance]
     if len(nonzero) == 0:
         return 0.0
 
