@@ -29,6 +29,10 @@ import numpy as np
 import pandas as pd
 from scipy.stats import rankdata, wilcoxon
 
+DEFAULT_CONTROLS: List[str] = ["SMAC3_HPOFacade_lcb", "SMAC3_HPOFacade_ei"]
+DEFAULT_TIE_TOLERANCE: float = 1e-6
+DEFAULT_COST_COL: str = "trial_value__cost_inc"
+
 
 def apply_holm_bonferroni(p_vals: Sequence[float]) -> List[float]:
     """Computes Holm-Bonferroni step-down adjusted p-values ensuring FWER control."""
